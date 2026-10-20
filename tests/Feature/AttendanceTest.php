@@ -112,7 +112,7 @@ class AttendanceTest extends TestCase
 
         $response = $this->actingAs($participant)->get(route('dashboard'))->assertOk();
         $html = $response->getContent();
-        $this->assertLessThan(strpos($html, 'PARTICIPANT DASHBOARD'), strpos($html, 'TRAINING SESSION'));
+        $this->assertLessThan(strpos($html, 'role="tablist"'), strpos($html, 'TRAINING SESSION'));
         $this->assertLessThan(strpos($html, 'TRAINING OVERVIEW'), strpos($html, 'TRAINING SESSION'));
         $response->assertSee('NOT CHECKED IN')->assertSee('CHECK IN')->assertSee('View attendance history')->assertSee('target="_blank"', false)->assertSee('rel="noopener noreferrer"', false);
 

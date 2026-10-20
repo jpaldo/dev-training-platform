@@ -36,25 +36,33 @@ class HomeNavigationTest extends TestCase
         }
     }
 
-    public function test_participant_navigation_places_profile_daily_log_and_logout_in_header(): void
+    public function test_participant_sidebar_contains_daily_log_profile_and_logout(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant']);
 
         $html = $this->actingAs($participant)->get(route('dashboard'))->assertOk()->getContent();
+        $sidebar = substr($html, strpos($html, 'id="app-sidebar"'), strpos($html, '</aside>') - strpos($html, 'id="app-sidebar"'));
 
-        $profile = strpos($html, 'href="'.route('profile.show').'"');
-        $dailyLog = strpos($html, 'href="'.route('daily-logs.index').'"');
-        $logout = strpos($html, 'action="'.route('logout').'"');
+        $this->assertStringContainsString('href="'.route('daily-logs.index').'"', $sidebar);
+        $this->assertStringContainsString('href="'.route('profile.show').'"', $sidebar);
+        $this->assertStringContainsString('action="'.route('logout').'"', $sidebar);
+        $this->assertStringNotContainsString('href="'.route('admin.dashboard').'"', $sidebar);
+        $this->assertStringNotContainsString('href="'.route('coach.dashboard').'"', $sidebar);
+    }
 
-        $this->assertNotFalse($profile);
-        $this->assertNotFalse($dailyLog);
-        $this->assertNotFalse($logout);
-        $this->assertLessThan($dailyLog, $profile);
-        $this->assertLessThan($logout, $dailyLog);
-        // The participant setup action may also link to Profile when Drive is not ready.
-        $this->assertGreaterThanOrEqual(1, substr_count($html, 'href="'.route('profile.show').'"'));
-        $this->assertGreaterThanOrEqual(1, substr_count($html, 'href="'.route('daily-logs.index').'"'));
+    public function test_sidebar_shows_role_specific_groups_and_marks_current_page(): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+
+        $coachHtml = $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.participants'))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/href="'.preg_quote(route('coach.participants'), '/').'"\s+aria-current="page"/', $coachHtml);
+        $this->assertDoesNotMatchRegularExpression('/href="'.preg_quote(route('coach.reviews'), '/').'"\s+aria-current="page"/', $coachHtml);
+        $this->assertStringNotContainsString('href="'.route('admin.settings.index').'"', $coachHtml);
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('admin.dashboard'))->assertOk()
+            ->assertSee('href="'.route('admin.settings.index').'"', false)
+            ->assertSee('href="'.route('coach.reviews').'"', false);
     }
 
     public function test_authenticated_pages_use_full_width_shell_while_auth_pages_remain_constrained(): void
@@ -132,18 +140,21 @@ class HomeNavigationTest extends TestCase
             ->assertSee('A Coach must review and pass the Gate before the next week becomes available.');
     }
 
-    public function test_dashboard_disclosures_have_accessible_defaults_without_changing_content(): void
+    public function test_dashboard_disclosure_and_tabs_have_accessible_defaults_without_changing_content(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);
         $participant = User::factory()->create();
         ParticipantNotification::factory()->create(['user_id' => $participant->id, 'title' => 'Current work', 'body' => 'Complete your next activity.', 'resolved_at' => null]);
 
         $response = $this->actingAs($participant)->get(route('dashboard'))->assertOk();
+        $html = $response->getContent();
+        $this->assertMatchesRegularExpression('/id="dashboard-tab-week-2"[^>]*aria-selected="true"/', $html);
+        $this->assertMatchesRegularExpression('/id="dashboard-tab-overview"[^>]*aria-selected="false"/', $html);
+        $this->assertMatchesRegularExpression('/id="dashboard-panel-week-2"(?:(?!hidden)[^>])*>/', $html);
+        $this->assertMatchesRegularExpression('/id="dashboard-panel-overview"[^>]*\shidden\b/', $html);
         $response->assertSee('data-dashboard-disclosure', false)
             ->assertSee('aria-controls="dashboard-missing-content"', false)
             ->assertSee('aria-expanded="true"', false)
-            ->assertSee('dashboard-training-overview-content', false)
-            ->assertSee('aria-expanded="false"', false)
             ->assertSee('Complete your next activity.')
             ->assertSee('AI-Output Validation')
             ->assertSee('Gates &amp; progression', false)

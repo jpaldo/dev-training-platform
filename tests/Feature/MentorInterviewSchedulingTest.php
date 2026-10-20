@@ -119,7 +119,7 @@ class MentorInterviewSchedulingTest extends TestCase
             ->assertSee('Timezone: Asia/Manila · Duration: 60 minutes')
             ->assertDontSee('name="date"', false)
             ->assertDontSee('name="time"', false);
-        $this->assertStringContainsString("@vite('resources/js/app.js')", file_get_contents(resource_path('views/layouts/app.blade.php')));
+        $this->assertStringContainsString("@vite(['resources/css/app.css', 'resources/js/app.js'])", file_get_contents(resource_path('views/layouts/app.blade.php')));
         $frontend = file_get_contents(resource_path('js/app.js'));
         $this->assertStringContainsString("import flatpickr from 'flatpickr';", $frontend);
         $this->assertStringContainsString('input[name="scheduled_at"]', $frontend);

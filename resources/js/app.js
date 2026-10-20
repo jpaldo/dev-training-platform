@@ -44,8 +44,99 @@ const initializeMentorDateTimePickers = () => {
     });
 };
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeMentorDateTimePickers, { once: true });
-} else {
+const initializeSidebarDrawer = () => {
+    const toggle = document.querySelector('[data-sidebar-toggle]');
+    const sidebar = document.getElementById('app-sidebar');
+
+    if (!toggle || !sidebar) {
+        return;
+    }
+
+    const backdrop = document.querySelector('[data-sidebar-backdrop]');
+    const isOpen = () => sidebar.hasAttribute('data-open');
+
+    const setOpen = (open) => {
+        sidebar.toggleAttribute('data-open', open);
+        toggle.setAttribute('aria-expanded', String(open));
+
+        if (backdrop) {
+            backdrop.hidden = !open;
+        }
+
+        if (open) {
+            sidebar.querySelector('a, button')?.focus();
+        }
+    };
+
+    toggle.addEventListener('click', () => setOpen(!isOpen()));
+    document.querySelectorAll('[data-sidebar-close]').forEach((element) => {
+        element.addEventListener('click', () => {
+            setOpen(false);
+            toggle.focus();
+        });
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && isOpen()) {
+            setOpen(false);
+            toggle.focus();
+        }
+    });
+};
+
+const initializePageTabs = () => {
+    document.querySelectorAll('[data-page-tabs]').forEach((container) => {
+        const tabs = [...container.querySelectorAll('[role="tab"]')];
+
+        const select = (tab, { focus = false, updateHash = true } = {}) => {
+            tabs.forEach((candidate) => {
+                const selected = candidate === tab;
+                candidate.setAttribute('aria-selected', String(selected));
+                candidate.tabIndex = selected ? 0 : -1;
+                document.getElementById(candidate.getAttribute('aria-controls')).hidden = !selected;
+            });
+
+            if (focus) {
+                tab.focus();
+            }
+
+            if (updateHash) {
+                history.replaceState(null, '', `#${tab.dataset.tabKey}`);
+            }
+        };
+
+        tabs.forEach((tab, index) => {
+            tab.addEventListener('click', () => select(tab));
+            tab.addEventListener('keydown', (event) => {
+                const targetIndex = {
+                    ArrowRight: (index + 1) % tabs.length,
+                    ArrowLeft: (index - 1 + tabs.length) % tabs.length,
+                    Home: 0,
+                    End: tabs.length - 1,
+                }[event.key];
+
+                if (targetIndex !== undefined) {
+                    event.preventDefault();
+                    select(tabs[targetIndex], { focus: true });
+                }
+            });
+        });
+
+        const tabFromHash = tabs.find((tab) => `#${tab.dataset.tabKey}` === window.location.hash);
+
+        if (tabFromHash) {
+            select(tabFromHash, { updateHash: false });
+        }
+    });
+};
+
+const initializePage = () => {
     initializeMentorDateTimePickers();
+    initializeSidebarDrawer();
+    initializePageTabs();
+};
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializePage, { once: true });
+} else {
+    initializePage();
 }

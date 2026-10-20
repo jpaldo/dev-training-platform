@@ -244,6 +244,35 @@ class WeekFourWorkflowTest extends TestCase
         $this->assertCount(1, WeekFourInterviewPair::forParticipantMany($c->id));
     }
 
+    public function test_coach_can_unpair_their_participants_and_the_pair_is_deactivated(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $a = User::factory()->create(['role' => 'participant']);
+        $b = User::factory()->create(['role' => 'participant']);
+        $coach->assignedParticipants()->attach([$a->id, $b->id]);
+        $pair = WeekFourInterviewPair::create(['participant_one_id' => min($a->id, $b->id), 'participant_two_id' => max($a->id, $b->id), 'assigned_by_id' => $coach->id, 'status' => 'active']);
+
+        $this->actingAs($coach)
+            ->from(route('coach.participants'))
+            ->post(route('coach.week-four.pairs.unpair', $pair))
+            ->assertRedirect(route('coach.participants'))
+            ->assertSessionHas('status', 'The Week 4 interview pairing was safely deactivated.');
+
+        $this->assertSame('inactive', $pair->fresh()->status);
+    }
+
+    public function test_coach_cannot_unpair_participants_they_do_not_manage(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $a = User::factory()->create(['role' => 'participant']);
+        $b = User::factory()->create(['role' => 'participant']);
+        $pair = WeekFourInterviewPair::create(['participant_one_id' => min($a->id, $b->id), 'participant_two_id' => max($a->id, $b->id), 'assigned_by_id' => User::factory()->create(['role' => 'admin'])->id, 'status' => 'active']);
+
+        $this->actingAs($coach)->post(route('coach.week-four.pairs.unpair', $pair))->assertForbidden();
+
+        $this->assertSame('active', $pair->fresh()->status);
+    }
+
     public function test_peer_waiver_is_audited_and_can_be_revoked_before_reliance(): void
     {
         [, $week4] = $this->fixture();

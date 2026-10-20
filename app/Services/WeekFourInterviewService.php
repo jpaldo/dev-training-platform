@@ -47,6 +47,43 @@ class WeekFourInterviewService
         return WeekFourInterviewPair::forParticipantMany($participant->id);
     }
 
+    /**
+     * The Week 4 peer mock interview activity (Activity 2), or null when it is not configured.
+     */
+    public function peerInterviewActivity(): ?Activity
+    {
+        return $this->peerInterviewActivityQuery()->first();
+    }
+
+    /**
+     * The Week 4 peer mock interview activity (Activity 2); a missing activity is a 404.
+     */
+    public function peerInterviewActivityOrFail(): Activity
+    {
+        return $this->peerInterviewActivityQuery()->firstOrFail();
+    }
+
+    /** @return Collection<int, WeekFourInterviewPair> */
+    public function activePairs(): Collection
+    {
+        return WeekFourInterviewPair::query()->where('status', 'active')->with(['participantOne.assignedCoaches', 'participantTwo.assignedCoaches'])->get();
+    }
+
+    /**
+     * Active participants that can be paired, with their first assigned mentor appended to the name for the picker.
+     *
+     * @return Collection<int, User>
+     */
+    public function pairingCandidates(): Collection
+    {
+        $participants = User::query()->where('role', 'participant')->where('is_active', true)->with('assignedCoaches')->orderBy('name')->get(['id', 'name', 'email']);
+        $participants->each(function (User $participant): void {
+            $participant->name = $participant->name.' — Mentor: '.($participant->assignedCoaches->first()?->name ?? 'Not assigned');
+        });
+
+        return $participants;
+    }
+
     public function waiverFor(User $participant, Activity $activity): ?WeekFourPeerInterviewWaiver
     {
         return WeekFourPeerInterviewWaiver::query()
@@ -202,5 +239,11 @@ class WeekFourInterviewService
         $schedule = $activity ? WeekFourMentorInterviewSchedule::query()->where('participant_id', $participant->id)->where('activity_id', $activity->id)->with('mentor')->first() : null;
 
         return ['partner' => $partner ? ['display_name' => $partner->name, 'email' => $partner->email, 'training_path' => $partner->training_path] : null, 'questions_for_partner' => $state['own_questions'], 'partner_questions' => $state['partner_questions'], 'answers_to_partner' => $state['answers_to_partner'], 'partner_answers' => $state['partner_answers'], 'feedback_given' => $pair?->feedback()->where('author_id', $participant->id)->get()->mapWithKeys(fn (WeekFourPartnerFeedback $item): array => [(string) $item->question_number => ['content' => $item->content, 'author_name' => $participant->name, 'recipient_name' => $partner?->name]])->all() ?? [], 'feedback_received' => $pair?->feedback()->where('recipient_id', $participant->id)->get()->mapWithKeys(fn (WeekFourPartnerFeedback $item): array => [(string) $item->question_number => ['content' => $item->content, 'author_name' => $partner?->name, 'recipient_name' => $participant->name]])->all() ?? [], 'mentor_schedule' => $schedule ? ['mentor_name' => $schedule->mentor?->name, 'mentor_email' => $schedule->mentor?->email, 'starts_at' => $schedule->starts_at?->toIso8601String(), 'ends_at' => $schedule->ends_at?->toIso8601String(), 'timezone' => $schedule->timezone, 'duration_minutes' => $schedule->duration_minutes, 'status' => $schedule->status, 'google_event_id' => $schedule->google_event_id] : null];
+    }
+
+    /** @return Builder<Activity> */
+    private function peerInterviewActivityQuery(): Builder
+    {
+        return Activity::query()->where('position', 2)->whereHas('week', fn (Builder $query): Builder => $query->where('week_number', 4));
     }
 }

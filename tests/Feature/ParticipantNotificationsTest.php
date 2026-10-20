@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\GenerateParticipantNotificationsJob;
 use App\Models\DailyLog;
 use App\Models\ParticipantNotification;
 use App\Models\User;
@@ -14,15 +15,27 @@ class ParticipantNotificationsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_dashboard_reconciles_general_and_week_reminders_without_duplicates(): void
+    public function test_new_participant_gets_general_and_week_reminders_without_duplicates(): void
     {
-        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
         $this->seed(QaTrainingProgramSeeder::class);
+        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
 
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('General Training Daily Logs')->assertSee('0 of 5 required Daily Logs for Week 2');
         $firstCount = ParticipantNotification::query()->where('user_id', $participant->id)->count();
-        $this->actingAs($participant)->get(route('dashboard'))->assertOk();
+        GenerateParticipantNotificationsJob::dispatchSync($participant->id);
         $this->assertSame($firstCount, ParticipantNotification::query()->where('user_id', $participant->id)->count());
+    }
+
+    public function test_page_views_only_read_notifications(): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
+        $participant->participantNotifications()->delete();
+
+        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertDontSee('General Training Daily Logs incomplete');
+        $this->actingAs($participant)->get(route('participant.notifications'))->assertOk();
+
+        $this->assertDatabaseCount('participant_notifications', 0);
     }
 
     public function test_general_training_logs_are_independent_and_resolve_at_five(): void

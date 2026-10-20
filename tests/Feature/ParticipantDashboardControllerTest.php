@@ -39,8 +39,9 @@ class ParticipantDashboardControllerTest extends TestCase
      * Build an active program with the given number of weeks, activities per week and gates, fill it with
      * participant progress, and count the queries of a dashboard request after a warm-up request.
      *
-     * Weeks are numbered from 5 so that ParticipantNotificationService::sync(), which only covers Weeks 2–4
-     * and is tracked as a separate hotspot, does not add per-row queries to this measurement.
+     * Weeks are numbered up to Week 4, so every week falls inside the Weeks 2–4 that ParticipantNotificationService::sync()
+     * covers (the sync runs when progress is written, never on a dashboard request). Activities are numbered from 2 so
+     * both measurements include the one-off Week 4 Activity 2 interview partner lookup.
      */
     private function dashboardQueryCount(int $rows): int
     {
@@ -48,13 +49,13 @@ class ParticipantDashboardControllerTest extends TestCase
         $program = Program::factory()->create();
 
         foreach (range(1, $rows) as $position) {
-            $week = TrainingWeek::factory()->for($program)->create(['week_number' => $position + 4, 'position' => $position]);
+            $week = TrainingWeek::factory()->for($program)->create(['week_number' => $position + 4 - $rows, 'position' => $position]);
             $gate = TrainingGate::factory()->for($week, 'week')->create();
             GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_video']);
             GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => $position < $rows ? 'passed' : 'not_ready']);
             WeeklyVideoRecording::create(['user_id' => $participant->id, 'training_week_id' => $week->id, 'disk' => 'local', 'path' => "weekly-video/week-{$position}.mp4", 'original_filename' => "week-{$position}.mp4", 'mime_type' => 'video/mp4', 'size_bytes' => 100, 'uploaded_at' => now()]);
 
-            foreach (range(1, $rows) as $activityPosition) {
+            foreach (range(2, $rows + 1) as $activityPosition) {
                 $activity = Activity::factory()->for($week, 'week')->create(['position' => $activityPosition]);
                 $evidenceRequirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create())->create();
                 $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted']);

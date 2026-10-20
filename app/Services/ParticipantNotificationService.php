@@ -10,6 +10,7 @@ use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
 class ParticipantNotificationService
@@ -81,9 +82,14 @@ class ParticipantNotificationService
         }
     }
 
+    /**
+     * Read the participant's active notifications for the dashboard. The notifications are kept current by
+     * GenerateParticipantNotificationsJob, which runs when their inputs change and hourly, never on a page view.
+     *
+     * @return array{groups: Collection<string, Collection<int, ParticipantNotification>>, next: ?ParticipantNotification, items: Collection<int, ParticipantNotification>}
+     */
     public function dashboard(User $participant): array
     {
-        $this->sync($participant);
         $items = $participant->participantNotifications()->active()->latest()->get();
         $groups = $items->groupBy(fn (ParticipantNotification $n): string => str_contains($n->title, 'General') ? 'General Training' : (preg_match('/Week (\d+)/', $n->title, $m) ? "Week {$m[1]}" : 'Current work'));
         $next = $items->first(fn (ParticipantNotification $n): bool => $n->type !== 'awaiting_review');

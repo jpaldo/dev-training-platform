@@ -239,7 +239,7 @@ class CoachOperationsController extends Controller
         Gate::authorize('update', $submissionVersion);
         $review = SubmissionReview::create(['submission_version_id' => $submissionVersion->id, 'reviewer_id' => $request->user()->id, 'decision' => $request->validated('decision'), 'comments' => $request->validated('comments'), 'reviewed_at' => now()]);
         $status = ['approved' => 'approved', 'needs_revision' => 'needs_revision', 'rejected' => 'failed'][$review->decision];
-        $submissionVersion->submission()->update(['status' => $status, 'completed_at' => $status === 'approved' ? now() : null]);
+        $submissionVersion->submission->update(['status' => $status, 'completed_at' => $status === 'approved' ? now() : null]);
         ExportActivityJob::dispatch($submissionVersion->id);
         $syncs->request($submissionVersion->submission->participant, 'review_updated');
 

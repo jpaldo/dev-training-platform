@@ -167,3 +167,40 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - Run `vendor/bin/phpunit` to call the test runner directly. It accepts the same file path and `--filter=testName` arguments.
 
 </laravel-boost-guidelines>
+
+# Code Quality Rules (always apply)
+
+The codebase is partway through the cleanup and Tailwind migration tracked in `docs/CODE_QUALITY_PLAN.md`. These rules apply to every new or touched line, in every task, whether or not it is plan work. Do not re-read the plan just to learn them; open the plan only to check item status or to tick an item off.
+
+## Target conventions
+
+Some existing code does not meet these yet; that code is listed in the plan. Never copy a legacy pattern just because a sibling file uses it, and bring old code up to standard only through the plan, never through drive-by rewrites.
+
+- **Validation:** every validated request uses a Form Request in `app/Http/Requests` (`Store…Request`, `Update…Request`, or an action name such as `DecideRecoveryRequestRequest`). No `$request->validate()` or `Validator::make()` in controllers. When moving existing rules, keep the rules and messages identical.
+- **Authorization:** policies in `app/Policies`, the `role:` middleware, and `authorize()` in the Form Request when the check depends on the route model.
+- **Controllers:** thin — resolve input, authorize, call a service, return a response. Target under ~150 lines; business logic belongs in `app/Services`. No Action classes and no repository layer.
+- **Queries:** eager-load relationships, no queries inside loops, no database access from Blade views. Views receive prepared data from the controller or a service.
+- **Types:** every method and closure has parameter and return types; PHPDoc array shapes for structured arrays.
+- **Status and role values:** use the existing model constants (e.g. `InterviewScheduler::PENDING`, `GoogleDriveExport::FAILED`) and the `User` role helpers (`hasAnyRole`, `isCoachOrAdmin`). No new string literals where a constant exists. Do not introduce PHP enums until Phase 7, and do not start Phase 7 until the user explicitly asks.
+- **File style:** no `declare(strict_types=1)` and rarely `final`; do not add them, so new files match their siblings.
+- **Frontend JS:** shared behavior lives in `resources/js/app.js` as named initializers (see `initializePageTabs`), not in per-page scripts.
+
+## Blade and Tailwind v4 (mid-migration)
+
+- Converted views use the `x-ui.*` components in `resources/views/components/ui` (`card`, `button`, `badge`, `eyebrow`, `alert`, `tab-list`, `tab-panel`, `sidebar-link`) and the theme tokens in `resources/css/app.css` (`bg-canvas`, `bg-surface`, `bg-surface-sunken`, `bg-field`, `bg-raised`, `border-line`, `text-muted`, `text-subtle`, `brand`, `accent`, `danger`). Reuse them; do not hardcode the palette.
+- No inline `style=""` except truly dynamic values (e.g. a progress width); no `@php` blocks beyond trivial presentation variables; readable multi-line markup.
+- Preflight is disabled and the pre-Tailwind layout CSS lives in `@layer legacy` (until Phase 6). In converted markup, reset margins explicitly (`m-0` on headings, paragraphs and lists) and style buttons fully.
+- Bare `grid` sizes its implicit column to content and can overflow on mobile; give single-column grids `grid-cols-1`.
+- Never put a display utility (`grid`, `flex`, `block`) on an element that relies on the `hidden` attribute, such as a tab panel — wrap the content instead.
+- Legacy views still use `class="grid"`, `.card`, `.btn` and similar. Do not mix legacy classes with Tailwind utilities on the same element.
+- When converting a page, clean it up in the same pass: move database access and non-trivial `@php` logic out of the view, break single-line templates into readable markup, replace inline styles with utilities, and extract markup repeated on three or more pages into an `x-ui.*` component.
+- Exact-markup test assertions exist (attribute order, `>Start<`). `x-ui.button` prints `class` last so passed attributes keep their order; keep slot text tight against the tags.
+- An inline `@php(...)` placed before a `@php … @endphp` block in the same file is swallowed by the block and breaks compilation. Prefer block `@php … @endphp`.
+- Mobile-first: verify layouts at phone width, keep focus states visible, and keep ARIA roles and labels correct.
+
+## Working the plan
+
+- "Continue the plan" means the first unchecked (`[ ]` or `[~]`) item in the lowest unfinished phase. Do only that batch, then stop.
+- Keep each batch small and independently shippable: one concern, its tests, green suite. Behavior must not change unless the item says so.
+- Work outside the plan follows these rules for the code it touches but does not refactor unrelated code. Record new problems under "Open decisions" in the plan instead of fixing them on the spot.
+- Definition of done for a batch: `vendor/bin/pint --dirty --format agent`, the full suite passing (`php artisan test --compact`), `npm run build` if CSS, JS or Tailwind classes changed, and the plan item ticked (`[x]`, or `[~]` with a short note) with any drifted line numbers or counts corrected.

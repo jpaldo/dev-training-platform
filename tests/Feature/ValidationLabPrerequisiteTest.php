@@ -104,6 +104,38 @@ class ValidationLabPrerequisiteTest extends TestCase
         $this->assertNotNull($record->fresh()->submitted_at);
     }
 
+    public function test_explicit_submit_action_keeps_an_incomplete_draft_lab_record_as_draft(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        $missingCheckNotes = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::DRAFT, 'run_notes' => null]));
+        $missingEvidence = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::DRAFT, 'evidence_notes' => null]));
+
+        $this->actingAs($participant)->from(route('result', $missingCheckNotes))->post(route('lab.records.submit', $missingCheckNotes))
+            ->assertRedirect(route('result', $missingCheckNotes))
+            ->assertSessionHasErrors(['submission' => 'Complete every six-check result and its notes before submitting the Lab record.']);
+        $this->actingAs($participant)->from(route('result', $missingEvidence))->post(route('lab.records.submit', $missingEvidence))
+            ->assertRedirect(route('result', $missingEvidence))
+            ->assertSessionHasErrors(['submission' => 'Complete the Lab finding, decision, and evidence record before submitting.']);
+
+        $this->assertSame(ValidationSubmission::DRAFT, $missingCheckNotes->fresh()->status);
+        $this->assertSame(ValidationSubmission::DRAFT, $missingEvidence->fresh()->status);
+    }
+
+    public function test_lab_result_offers_activity_one_only_to_the_owner_of_a_submitted_record(): void
+    {
+        [$participant] = $this->context();
+        $draft = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::DRAFT]));
+        $submitted = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now()]));
+        $otherParticipant = User::factory()->create(['role' => 'participant']);
+
+        $this->actingAs($participant)->get(route('result', $draft))
+            ->assertOk()
+            ->assertDontSee('Proceed to Activity 1 Submission');
+        $this->actingAs($otherParticipant)->get(route('result', $submitted))
+            ->assertOk()
+            ->assertDontSee('Proceed to Activity 1 Submission');
+    }
+
     public function test_all_training_paths_can_unlock_activity_one(): void
     {
         foreach (['manual', 'automation', 'automation_manual'] as $path) {

@@ -219,6 +219,28 @@ class DevelopmentAccountProvisioningTest extends TestCase
         ]);
     }
 
+    public function test_custom_artifact_code_follows_the_highest_existing_artifact_code(): void
+    {
+        ValidationSubmission::create($this->labPayload(['trainee_name' => 'Earlier participant', 'artifact_code' => 'AI-TC-041']));
+        $participant = User::factory()->create(['role' => 'participant']);
+        $artifact = [
+            'trainee_name' => $participant->name,
+            'feature_area' => 'Registration',
+            'artifact_type' => 'Test Plan',
+            'ai_tool' => 'ChatGPT',
+            'artifact_name' => 'Registration plan',
+            'artifact_content' => 'Plan content.',
+        ];
+
+        $this->actingAs($participant)->post(route('start'), $artifact)
+            ->assertOk()
+            ->assertSee('AI-TC-042')
+            ->assertSessionHas('validation_artifact.artifact_code', 'AI-TC-042');
+        $this->actingAs($participant)->post(route('start'), ['trainee_name' => $participant->name])
+            ->assertOk()
+            ->assertSessionHas('validation_artifact.artifact_code', 'AI-TC-014');
+    }
+
     public function test_validation_lab_persists_exact_prompt_and_private_uploaded_evidence(): void
     {
         Storage::fake('local');

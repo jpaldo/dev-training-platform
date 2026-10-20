@@ -48,7 +48,7 @@ class CoachOperationsController extends Controller
     {
         $participants = $reports->participants()->get();
         $program = Program::query()->where('is_active', true)->firstOrFail();
-        $stats = ['participants' => $participants->count(), 'completed' => $participants->filter(fn (User $p): bool => $progression->isProgramCompleted($p, $program))->count(), 'needs_review' => $reports->reviewQueue()->whereIn('status', ['submitted', 'resubmitted', 'under_review'])->count(), 'needs_revision' => $reports->reviewQueue()->where('status', 'needs_revision')->count(), 'at_risk' => $reports->atRisk()->count()];
+        $stats = ['participants' => $participants->count(), 'completed' => $progression->completedParticipantIds($participants, $program)->count(), 'needs_review' => $reports->reviewQueue()->whereIn('status', ['submitted', 'resubmitted', 'under_review'])->count(), 'needs_revision' => $reports->reviewQueue()->where('status', 'needs_revision')->count(), 'at_risk' => $reports->atRisk()->count()];
 
         return view('coach.dashboard', compact('stats'));
     }
@@ -136,8 +136,10 @@ class CoachOperationsController extends Controller
         $participant->load(['activitySubmissions.activity.week', 'activitySubmissions.versions.evidence', 'activitySubmissions.versions.reviews', 'weeklyVideoRecordings.week', 'dailyLogs.activity', 'gateEvaluations.gate.criteria', 'attendanceSessions', 'assignedCoaches']);
         $gates = TrainingGate::query()->whereHas('week', fn (Builder $q): Builder => $q->whereIn('week_number', [2, 3, 4]))->with(['week', 'criteria', 'evaluations' => fn (Relation $q): Relation => $q->where('user_id', $participant->id)])->get();
         $gateService = app(WeekTwoGateService::class);
-        $gateRows = $gates->map(fn (TrainingGate $gate): array => ['gate' => $gate, 'evaluation' => $gate->evaluations->first(), 'readiness' => $gateService->readiness($participant, $gate)]);
-        $weeklyLogCounts = $gates->mapWithKeys(fn (TrainingGate $gate): array => [$gate->week->id => $participant->dailyLogs()->whereHas('activity', fn (Builder $query): Builder => $query->where('training_week_id', $gate->week->id))->count()]);
+        $readinessByGate = $gateService->readinessForGates($participant, $gates);
+        $gateRows = $gates->map(fn (TrainingGate $gate): array => ['gate' => $gate, 'evaluation' => $gate->evaluations->first(), 'readiness' => $readinessByGate->get($gate->id)]);
+        $dailyLogCounts = $gateService->dailyLogCountsByWeek($participant, $gates->pluck('training_week_id')->unique()->values()->all());
+        $weeklyLogCounts = $gates->mapWithKeys(fn (TrainingGate $gate): array => [$gate->week->id => $dailyLogCounts->get($gate->week->id, 0)]);
 
         $canManage = request()->user()->canManageParticipant($participant);
         $weekFourActivity = Activity::query()->where('position', 2)->whereHas('week', fn (Builder $q): Builder => $q->where('week_number', 4))->first();
@@ -269,12 +271,14 @@ class CoachOperationsController extends Controller
         $filters = $request->validated();
         $gates = TrainingGate::query()->where('is_active', true)->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('week', fn (Builder $w): Builder => $w->where('week_number', $v)))->with(['week', 'criteria', 'evaluations' => fn (Relation $q): Relation => $q->with(['participant', 'criterionEvaluations'])])->get();
         $participants = User::query()->where('role', 'participant')->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $s): Builder => $s->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))->with(['activitySubmissions', 'dailyLogs.activity'])->get();
+        $readinessByParticipant = $readiness->readinessForParticipants($participants, $gates);
+        $weeklyVideosByParticipant = $readiness->weeklyVideosForParticipants($participants, $gates);
         $gateRows = collect();
         foreach ($gates as $gate) {
             foreach ($participants as $participant) {
                 $evaluation = $gate->evaluations->firstWhere('user_id', $participant->id);
-                $readinessReasons = $readiness->readiness($participant, $gate);
-                $loom = $readiness->weeklyVideo($participant, $gate);
+                $readinessReasons = $readinessByParticipant->get($participant->id)->get($gate->id);
+                $loom = $weeklyVideosByParticipant->get($participant->id)->get($gate->id);
                 $status = $evaluation?->status ?? ($readinessReasons === [] ? 'ready_for_review' : 'not_ready');
                 if (($filters['status'] ?? null) && $status !== $filters['status']) {
                     continue;

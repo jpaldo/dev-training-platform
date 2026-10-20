@@ -9,6 +9,7 @@ use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
 
 class WeekProgressionService
@@ -57,6 +58,38 @@ class WeekProgressionService
         $weeks = $program->weeks()->where('is_active', true)->orderBy('position')->get();
 
         return $weeks->isNotEmpty() && $this->allWeeksPassed($weeks, $this->passedWeekIds($user, $weeks));
+    }
+
+    /**
+     * Ids of the given participants who completed the program, resolved with a fixed number of queries.
+     *
+     * @param  Collection<int, User>  $participants
+     * @return Collection<int, int>
+     */
+    public function completedParticipantIds(Collection $participants, Program $program): Collection
+    {
+        $weeks = $program->weeks()->where('is_active', true)->orderBy('position')->get();
+        if ($weeks->isEmpty() || $participants->isEmpty()) {
+            return collect();
+        }
+
+        $gatesByWeek = TrainingGate::query()
+            ->select(['id', 'training_week_id'])
+            ->whereIn('training_week_id', $weeks->pluck('id'))
+            ->with(['evaluations' => fn (Relation $query): Relation => $query->select(['id', 'training_gate_id', 'user_id'])->whereIn('user_id', $participants->pluck('id'))->where('status', 'passed')])
+            ->get()
+            ->groupBy('training_week_id');
+
+        return $participants
+            ->filter(function (User $participant) use ($weeks, $gatesByWeek): bool {
+                $passedWeekIds = $gatesByWeek
+                    ->filter(fn (Collection $gates): bool => $gates->every(fn (TrainingGate $gate): bool => $gate->evaluations->contains('user_id', $participant->id)))
+                    ->keys();
+
+                return $this->allWeeksPassed($weeks, $passedWeekIds);
+            })
+            ->pluck('id')
+            ->values();
     }
 
     /**

@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Implement a plan document from `docs/` by delegating its batches to the php-developer agent. Takes the plan's title or file name, optionally followed by a scope (a phase, an item, or "all"). Only run when the user invokes /implement.
+description: Implement a plan document from `docs/` or `docs/plans/` by delegating its batches to the php-developer agent. Takes the plan's title or file name, optionally followed by a scope (a phase, an item, or "all"). Only run when the user invokes /implement.
 argument-hint: "<plan title> [next | phase <n> | all | <item text>]"
 disable-model-invocation: true
 ---
@@ -13,9 +13,11 @@ You are the coordinator. The `php-developer` agent does the coding; you resolve 
 
 ## 1. Resolve the plan document
 
-- The first part of the arguments is the plan's title. Match it against the Markdown files in `docs/` by file name (case-insensitive, ignoring `_`, `-`, spaces and the `.md` extension, e.g. `code quality` → `docs/CODE_QUALITY_PLAN.md`) and by the document's `# H1` title.
+- Plans live in `docs/` (e.g. `docs/CODE_QUALITY_PLAN.md`) and in `docs/plans/`, where the `product-owner` agent writes plans generated from the specs in `docs/specs/`. Specs are not plans; never match them.
+- The first part of the arguments is the plan's title. Match it against the Markdown files in `docs/` and `docs/plans/` by file name (case-insensitive, ignoring `_`, `-`, spaces and the `.md` extension, e.g. `code quality` → `docs/CODE_QUALITY_PLAN.md`, `training plan` → `docs/plans/training-plan.md`) and by the document's `# H1` title.
 - If exactly one file matches, use it. If several match, or none, list the candidates (file name and H1) and ask the user which one. Do not guess.
-- If no arguments were given, list the plans in `docs/` that contain checkboxes and ask which to implement.
+- If no arguments were given, list the plans in `docs/` and `docs/plans/` that contain checkboxes and ask which to implement.
+- If the plan lists blocking "Open questions" that gate items in scope, stop before those items and ask the user.
 
 ## 2. Pick the scope
 

@@ -1,0 +1,2 @@
+@extends('layouts.app')
+@section('content')<div class="eyebrow">SCORING COMPLETION</div><h1>Scoring completion</h1><div class="grid"><div class="card"><div class="num">COMPLETED ACTIVITIES</div><h2>{{ $completed }}</h2></div><div class="card"><div class="num">SCORED ACTIVITIES</div><h2>{{ $scored }}</h2></div><div class="card"><div class="num">SCORING COMPLETION</div><h2>{{ $completed ? round($scored/$completed*100) : 0 }}%</h2></div></div>@endsection

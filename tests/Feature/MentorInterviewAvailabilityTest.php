@@ -1,0 +1,82 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\GoogleDriveConnection;
+use App\Models\MentorInterviewAvailability;
+use App\Models\Program;
+use App\Models\User;
+use App\Services\GoogleDriveConfigurationService;
+use Database\Seeders\QaTrainingProgramSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class MentorInterviewAvailabilityTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_mentor_can_open_availability_and_participant_sees_only_assigned_mentor_slots(): void
+    {
+        [$participant, $mentor] = $this->fixture();
+        $other = User::factory()->create(['role' => 'coach', 'is_active' => true]);
+        $date = now('Asia/Manila')->addDays(3)->toDateString();
+        $availability = MentorInterviewAvailability::create(['mentor_id' => $mentor->id, 'available_date' => $date, 'start_time' => '09:00', 'end_time' => '11:00', 'slot_duration_minutes' => 60, 'capacity' => 2, 'status' => 'open']);
+        MentorInterviewAvailability::create(['mentor_id' => $other->id, 'available_date' => $date, 'start_time' => '13:00', 'end_time' => '14:00', 'slot_duration_minutes' => 60, 'capacity' => 1, 'status' => 'open']);
+
+        $this->actingAs($participant)->get(route('participant.mentor-interview.index'))->assertRedirect(route('dashboard'));
+        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertDontSee('dashboard-mentor-slot');
+    }
+
+    public function test_legacy_local_slot_booking_is_replaced_by_external_calendar_link(): void
+    {
+        [$participant, $mentor] = $this->fixture();
+        $date = now('Asia/Manila')->addDays(3)->toDateString();
+        $availability = MentorInterviewAvailability::create(['mentor_id' => $mentor->id, 'available_date' => $date, 'start_time' => '09:00', 'end_time' => '10:00', 'slot_duration_minutes' => 60, 'capacity' => 1, 'status' => 'open']);
+        $this->actingAs($participant)->post(route('participant.mentor-interview.book'), ['slot' => $availability->id.'|'.$date.'T09:00'])->assertRedirect(route('dashboard'))->assertSessionHasErrors('mentor_interview');
+        $this->assertDatabaseMissing('week_four_mentor_interview_schedules', ['participant_id' => $participant->id]);
+    }
+
+    public function test_capacity_is_enforced_server_side(): void
+    {
+        [$participant, $mentor] = $this->fixture();
+        $second = User::factory()->create(['role' => 'participant']);
+        $second->assignedCoaches()->attach($mentor->id);
+        GoogleDriveConnection::create(['user_id' => $second->id, 'google_account_id' => 'account-2', 'google_email' => $second->email, 'access_token' => 'access', 'refresh_token' => 'refresh', 'token_expires_at' => now()->addHour(), 'scopes' => ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/calendar.events'], 'connected_at' => now()]);
+        $date = now('Asia/Manila')->addDays(3)->toDateString();
+        $availability = MentorInterviewAvailability::create(['mentor_id' => $mentor->id, 'available_date' => $date, 'start_time' => '09:00', 'end_time' => '10:00', 'slot_duration_minutes' => 60, 'capacity' => 1, 'status' => 'open']);
+        $payload = ['availability_id' => $availability->id, 'slot_start' => $date.'T09:00'];
+        $this->actingAs($participant)->post(route('participant.mentor-interview.book'), $payload)->assertRedirect()->assertSessionHasErrors('mentor_interview');
+        $this->actingAs($second)->post(route('participant.mentor-interview.book'), $payload)->assertRedirect()->assertSessionHasErrors('mentor_interview');
+    }
+
+    public function test_mentor_can_manage_own_availability_but_participant_cannot(): void
+    {
+        [$participant, $mentor] = $this->fixture();
+        $payload = ['available_date' => now('Asia/Manila')->addDays(4)->toDateString(), 'start_time' => '09:00', 'end_time' => '10:00', 'slot_duration_minutes' => 60, 'capacity' => 1];
+        $this->actingAs($mentor)->post(route('coach.mentor-availability.store'), $payload)->assertRedirect();
+        $this->actingAs($participant)->post(route('coach.mentor-availability.store'), $payload)->assertForbidden();
+    }
+
+    public function test_calendar_disabled_does_not_hide_coach_availability_management_and_admin_can_inspect(): void
+    {
+        [$participant, $mentor] = $this->fixture();
+        app(GoogleDriveConfigurationService::class)->saveParticipantCalendarAvailability(false);
+        $this->actingAs($mentor)->get(route('coach.mentor-booking-calendar.index'))->assertOk()->assertSee('MENTOR BOOKING CALENDAR');
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.mentor-booking-calendar.index'))->assertOk()->assertSee('MENTOR BOOKING CALENDAR');
+    }
+
+    /** @return array{0:User,1:User} */
+    private function fixture(): array
+    {
+        app(GoogleDriveConfigurationService::class)->saveParticipantCalendarAvailability(true);
+        $this->seed(QaTrainingProgramSeeder::class);
+        Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
+        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
+        $mentor = User::factory()->create(['role' => 'coach', 'is_active' => true]);
+        $participant->assignedCoaches()->attach($mentor->id);
+        GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'account', 'google_email' => $participant->email, 'access_token' => 'access', 'refresh_token' => 'refresh', 'token_expires_at' => now()->addHour(), 'scopes' => ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/calendar.events'], 'connected_at' => now()]);
+        GoogleDriveConnection::create(['user_id' => $mentor->id, 'google_account_id' => 'mentor-account', 'google_email' => $mentor->email, 'access_token' => 'mentor-access', 'refresh_token' => 'mentor-refresh', 'token_expires_at' => now()->addHour(), 'scopes' => ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/calendar.events'], 'connected_at' => now()]);
+
+        return [$participant, $mentor];
+    }
+}

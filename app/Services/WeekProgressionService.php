@@ -1,0 +1,109 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Activity;
+use App\Models\Program;
+use App\Models\TrainingWeek;
+use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
+
+class WeekProgressionService
+{
+    public function isWeekPassed(User $user, TrainingWeek $week): bool
+    {
+        $gates = $week->gates()->get();
+
+        return $gates->isNotEmpty() && $gates->every(fn ($gate): bool => $gate->evaluations()->where('user_id', $user->id)->where('status', 'passed')->exists());
+    }
+
+    public function canAccessWeek(User $user, TrainingWeek $week): bool
+    {
+        if ($user->isCoachOrAdmin()) {
+            return true;
+        }
+        if ($user->role !== 'participant') {
+            return false;
+        }
+
+        return $week->program->weeks()->where('position', '<', $week->position)->orderBy('position')->get()->every(fn (TrainingWeek $prior): bool => $this->isWeekPassed($user, $prior));
+    }
+
+    public function isProgramCompleted(User $user, Program $program): bool
+    {
+        $weeks = $program->weeks()->where('is_active', true)->orderBy('position')->get();
+
+        return $weeks->isNotEmpty() && $weeks->every(fn (TrainingWeek $week): bool => $this->isWeekPassed($user, $week));
+    }
+
+    public function ensureCanAccessWeek(User $user, TrainingWeek $week): void
+    {
+        if ($this->canAccessWeek($user, $week)) {
+            return;
+        }
+        $prior = $week->program->weeks()->where('position', '<', $week->position)->orderByDesc('position')->first();
+        throw new AuthorizationException($prior ? "Complete Week {$prior->week_number} before proceeding to Week {$week->week_number}." : 'This training week is not available to your account.');
+    }
+
+    public function ensureCanAccessActivity(User $user, TrainingWeek $week, Activity $activity): void
+    {
+        abort_unless($activity->training_week_id === $week->id, 404);
+        $this->ensureCanAccessWeek($user, $week);
+        $this->ensurePriorWeekThreeActivities($user, $week, $activity);
+    }
+
+    private function ensurePriorWeekThreeActivities(User $user, TrainingWeek $week, Activity $activity): void
+    {
+        if ($user->role !== 'participant' || $week->week_number !== 3 || $activity->position <= 1) {
+            return;
+        }
+
+        $priorActivities = $week->activities()->where('position', '<', $activity->position)->orderBy('position')->get();
+        foreach ($priorActivities as $prior) {
+            $completed = $prior->submissions()->where('user_id', $user->id)->whereIn('status', ['submitted', 'resubmitted', 'approved', 'completed', 'under_review'])->exists();
+            if (! $completed) {
+                throw new AuthorizationException("Complete and submit Activity {$prior->position} before starting Activity {$activity->position}.");
+            }
+        }
+    }
+
+    public function isCurrentWeek(User $user, TrainingWeek $week): bool
+    {
+        if ($user->role !== 'participant') {
+            return false;
+        }
+
+        $currentWeek = $week->program->weeks()
+            ->where('is_active', true)
+            ->orderBy('position')
+            ->get()
+            ->first(fn (TrainingWeek $candidate): bool => ! $this->isWeekPassed($user, $candidate) && $this->canAccessWeek($user, $candidate));
+
+        return $currentWeek?->is($week) ?? false;
+    }
+
+    public function requiresAttendanceForActivity(User $user, TrainingWeek $week, Activity $activity): bool
+    {
+        if ($user->role !== 'participant' || ! $this->isCurrentWeek($user, $week) || $user->attendanceSessions()->whereNull('check_out_at')->exists()) {
+            return false;
+        }
+
+        $submission = $activity->submissions()->where('user_id', $user->id)->latest('attempt_number')->first();
+
+        return ! $submission || in_array($submission->status, ['draft', 'needs_revision'], true);
+    }
+
+    public function requiresAttendanceForNewActivity(User $user, TrainingWeek $week, Activity $activity): bool
+    {
+        return $this->isCurrentWeek($user, $week)
+            && ! $user->attendanceSessions()->whereNull('check_out_at')->exists()
+            && ! $activity->submissions()->where('user_id', $user->id)->exists();
+    }
+
+    public function ensureCanEditActivity(User $user, TrainingWeek $week, Activity $activity): void
+    {
+        if ($this->requiresAttendanceForActivity($user, $week, $activity)) {
+            abort(403, 'Please check in to continue editing this activity.');
+        }
+    }
+}

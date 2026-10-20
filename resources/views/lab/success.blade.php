@@ -1,0 +1,1 @@
+@extends('layouts.app') @section('content')<div class="card" style="max-width:620px;margin:70px auto;text-align:center"><div style="font-size:64px">✓</div><h1>Authenticated</h1><p class="muted">The OTP was accepted. Continue your Activity 1 validation using the evidence you observed.</p><a class="btn" href="{{ route('checklist') }}">Return to Checklist →</a></div>@endsection

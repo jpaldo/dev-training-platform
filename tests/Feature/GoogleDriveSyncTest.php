@@ -1,0 +1,527 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Jobs\ExportSummaryReportsJob;
+use App\Jobs\SyncTrainingDataJob;
+use App\Models\Activity;
+use App\Models\ActivitySubmission;
+use App\Models\AttendanceSession;
+use App\Models\DailyLog;
+use App\Models\GoogleDriveConnection;
+use App\Models\GoogleDriveEvidenceExport;
+use App\Models\GoogleDriveExport;
+use App\Models\GoogleDriveSync;
+use App\Models\Program;
+use App\Models\SubmissionEvidence;
+use App\Models\SubmissionVersion;
+use App\Models\TrainingWeek;
+use App\Models\User;
+use App\Models\ValidationSubmission;
+use App\Services\ExportLifecycleService;
+use App\Services\GoogleDriveConnectionService;
+use App\Services\GoogleDriveService;
+use App\Services\TrainingExportService;
+use App\Services\TrainingSyncCoordinator;
+use App\Services\TrainingWorkbookService;
+use Database\Seeders\QaTrainingProgramSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
+use Mockery;
+use Tests\TestCase;
+use ZipArchive;
+
+class GoogleDriveSyncTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function configureDrive(): void
+    {
+        config([
+            'services.google_drive.enabled' => true,
+            'services.google_drive.client_id' => 'client',
+            'services.google_drive.client_secret' => 'secret',
+            'services.google_drive.redirect_uri' => 'https://example.test/callback',
+            'services.google_drive.picker_api_key' => 'picker-key',
+            'services.google_drive.project_number' => '123456789',
+        ]);
+    }
+
+    public function test_week_workbook_contains_three_activity_sheets_and_daily_logs(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        DailyLog::create(['user_id' => $participant->id, 'activity_id' => null, 'logged_on' => '2026-09-01', 'content' => 'General-only log']);
+        $program = Program::factory()->create(['is_active' => true]);
+        $week = TrainingWeek::factory()->create(['program_id' => $program->id, 'week_number' => 2]);
+        foreach (['AI Output Error Detection', 'Validation Checklist', 'Pre-acceptance Check'] as $position => $title) {
+            Activity::factory()->create(['training_week_id' => $week->id, 'title' => $title, 'position' => $position + 1]);
+        }
+
+        $content = app(TrainingWorkbookService::class)->forWeek($participant, 2);
+        $path = tempnam(sys_get_temp_dir(), 'qa-sync-test-');
+        file_put_contents($path, $content);
+        $zip = new ZipArchive;
+        $this->assertTrue($zip->open($path) === true);
+        $workbook = $zip->getFromName('xl/workbook.xml');
+        $zip->close();
+        @unlink($path);
+        $this->assertStringContainsString('AI Output Error Detection', $workbook);
+        $this->assertStringContainsString('Validation Checklist', $workbook);
+        $this->assertStringContainsString('Pre-acceptance Check', $workbook);
+        $this->assertStringContainsString('Daily Logs', $workbook);
+        $this->assertStringNotContainsString('General-only log', $workbook);
+    }
+
+    public function test_general_training_workbook_contains_only_general_training_logs(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
+        $program = Program::factory()->create(['is_active' => true]);
+        $week = TrainingWeek::factory()->create(['program_id' => $program->id, 'week_number' => 2]);
+        $activity = Activity::factory()->create(['training_week_id' => $week->id, 'position' => 1]);
+        DailyLog::create(['user_id' => $participant->id, 'activity_id' => null, 'logged_on' => '2026-09-01', 'content' => 'General-only log']);
+        DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => '2026-09-02', 'content' => 'Week-two log']);
+
+        $content = app(TrainingWorkbookService::class)->forGeneralTraining($participant);
+        $path = tempnam(sys_get_temp_dir(), 'qa-week1-');
+        file_put_contents($path, $content);
+        $zip = new ZipArchive;
+        $this->assertTrue($zip->open($path) === true);
+        $xml = '';
+        for ($i = 1; $i <= $zip->numFiles; $i++) {
+            if (str_starts_with($zip->getNameIndex($i), 'xl/worksheets/')) {
+                $xml .= $zip->getFromIndex($i);
+            }
+        }
+        $zip->close();
+        @unlink($path);
+
+        $this->assertStringContainsString('General-only log', $xml);
+        $this->assertStringNotContainsString('Week-two log', $xml);
+        $this->assertStringContainsString('General Training', $xml);
+    }
+
+    public function test_general_training_workbook_regeneration_does_not_append_duplicate_rows(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        foreach (range(1, 5) as $day) {
+            DailyLog::create(['user_id' => $participant->id, 'activity_id' => null, 'logged_on' => "2026-09-0{$day}", 'content' => "General row {$day}"]);
+        }
+
+        $first = app(TrainingWorkbookService::class)->forGeneralTraining($participant);
+        $second = app(TrainingWorkbookService::class)->forGeneralTraining($participant);
+        foreach ([$first, $second] as $content) {
+            $path = tempnam(sys_get_temp_dir(), 'qa-week1-idempotent-');
+            file_put_contents($path, $content);
+            $zip = new ZipArchive;
+            $this->assertTrue($zip->open($path) === true);
+            $xml = $zip->getFromName('xl/worksheets/sheet1.xml');
+            $zip->close();
+            @unlink($path);
+            $this->assertSame(1, substr_count($xml, 'General row 1'));
+            $this->assertSame(1, substr_count($xml, 'General row 5'));
+        }
+    }
+
+    public function test_participant_week_workbook_contains_no_internal_scoring_columns(): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        $activity = Activity::query()->whereHas('week', fn ($q) => $q->where('week_number', 2))->firstOrFail();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
+        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'field_values' => []]);
+        $content = app(TrainingWorkbookService::class)->forWeek($participant, 2);
+        $path = tempnam(sys_get_temp_dir(), 'qa-score-');
+        file_put_contents($path, $content);
+        $zip = new ZipArchive;
+        $this->assertTrue($zip->open($path) === true);
+        $xml = '';
+        for ($i = 1; $i <= $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+            if (str_starts_with($name, 'xl/worksheets/')) {
+                $xml .= $zip->getFromIndex($i);
+            }
+        }
+        $zip->close();
+        @unlink($path);
+        $this->assertStringNotContainsString('Activity Score', $xml);
+        $this->assertStringNotContainsString('Total Score', $xml);
+        $this->assertStringNotContainsString('>D1<', $xml);
+        $this->assertStringNotContainsString('Score Band', $xml);
+    }
+
+    public function test_lab_record_export_is_scoped_to_participant_and_supports_empty_records(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        $other = User::factory()->create(['role' => 'participant']);
+        ValidationSubmission::create(['user_id' => $other->id, 'trainee_name' => 'Other', 'artifact_code' => 'OTHER']);
+
+        $csv = app(TrainingExportService::class)->labRecords($participant);
+        $lines = array_values(array_filter(array_map('trim', explode("\n", $csv))));
+
+        $this->assertCount(1, $lines);
+        $this->assertStringContainsString('Record ID', $lines[0]);
+        $this->assertStringNotContainsString('OTHER', $csv);
+    }
+
+    public function test_sqlite_evidence_tracking_references_submission_evidence_table(): void
+    {
+        $foreignKey = collect(DB::select('PRAGMA foreign_key_list(google_drive_evidence_exports)'))
+            ->firstWhere('from', 'submission_evidence_id');
+
+        $this->assertNotNull($foreignKey);
+        $this->assertSame('submission_evidence', $foreignKey->table);
+    }
+
+    public function test_participant_sync_requires_picker_destination_and_queues_one_batch(): void
+    {
+        $this->configureDrive();
+        $participant = User::factory()->create(['role' => 'participant']);
+        GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'refresh_token' => 'refresh', 'drive_folder_id' => 'folder', 'destination_source' => 'picker', 'connected_at' => now()]);
+        Queue::fake();
+
+        $this->actingAs($participant)->post(route('google-drive.sync'))->assertRedirect()->assertSessionHas('status', 'Sync queued.');
+        Queue::assertPushed(SyncTrainingDataJob::class);
+        Queue::assertNotPushed(ExportSummaryReportsJob::class);
+        $this->assertDatabaseHas('google_drive_syncs', ['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => GoogleDriveSync::ENQUEUED]);
+        $this->actingAs($participant)->post(route('google-drive.sync'))->assertRedirect()->assertSessionHas('status', 'Google Drive sync is already in progress.');
+        $this->assertDatabaseCount('google_drive_syncs', 1);
+    }
+
+    public function test_stale_queued_sync_is_failed_by_status_endpoint_instead_of_polling_forever(): void
+    {
+        $this->configureDrive();
+        $participant = User::factory()->create(['role' => 'participant']);
+        GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'refresh_token' => 'refresh', 'drive_folder_id' => 'folder', 'destination_source' => 'picker', 'connected_at' => now()]);
+        $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => GoogleDriveSync::IN_PROGRESS]);
+        DB::table('google_drive_syncs')->where('id', $sync->id)->update(['updated_at' => now()->subSeconds(601)]);
+
+        $response = $this->actingAs($participant)->getJson(route('google-drive.sync.status'));
+
+        $response->assertOk()->assertJsonPath('status', GoogleDriveSync::FAILED);
+        $this->assertDatabaseHas('google_drive_syncs', ['id' => $sync->id, 'status' => GoogleDriveSync::FAILED]);
+    }
+
+    public function test_export_tracking_is_isolated_by_destination(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        $folderA = GoogleDriveExport::forDestination($participant->id, 'weekly_workbook', '2', 'folder-a');
+        $folderA->update(['drive_file_id' => 'a-123', 'status' => GoogleDriveExport::COMPLETED]);
+        $folderB = GoogleDriveExport::forDestination($participant->id, 'weekly_workbook', '2', 'folder-b');
+
+        $this->assertNull($folderB->drive_file_id);
+        $this->assertSame('a-123', GoogleDriveExport::forDestination($participant->id, 'weekly_workbook', '2', 'folder-a')->drive_file_id);
+        $this->assertSame(2, GoogleDriveExport::query()->where('user_id', $participant->id)->count());
+    }
+
+    public function test_nested_sync_does_not_adopt_legacy_root_workbook_tracking(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'refresh_token' => 'refresh', 'drive_folder_id' => 'root', 'destination_source' => 'picker', 'connected_at' => now()]);
+        $legacy = GoogleDriveExport::create(['user_id' => $participant->id, 'export_type' => 'weekly_workbook', 'scope_key' => '2', 'destination_folder_id' => 'root', 'drive_file_id' => 'legacy-root-workbook', 'status' => GoogleDriveExport::COMPLETED]);
+        $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]);
+        $drive = Mockery::mock(GoogleDriveService::class);
+        $drive->shouldReceive('validateDestination')->once()->andReturn('root');
+        $drive->shouldReceive('ensureFolder')->times(5)->andReturnUsing(fn ($received, string $name, string $parent): string => 'folder-'.md5($name.'|'.$parent));
+        $drive->shouldReceive('uploadFile')->times(4)->andReturnUsing(fn ($received, string $name): string => 'nested-'.$name);
+        $workbooks = Mockery::mock(TrainingWorkbookService::class);
+        $workbooks->shouldReceive('forWeek')->times(3)->andReturn('xlsx');
+        $workbooks->shouldReceive('forGeneralTraining')->once()->andReturn('xlsx');
+
+        (new SyncTrainingDataJob($sync->id))->handle(app(GoogleDriveConnectionService::class), $drive, Mockery::mock(TrainingExportService::class), $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
+
+        $this->assertSame('legacy-root-workbook', $legacy->fresh()->drive_file_id);
+        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'weekly_workbook_nested', 'scope_key' => '2', 'drive_file_id' => 'nested-Week 2.xlsx']);
+    }
+
+    public function test_full_sync_exports_evidence_attached_to_the_current_draft_version(): void
+    {
+        Storage::fake('local');
+        $participant = User::factory()->create(['role' => 'participant']);
+        $program = Program::factory()->create(['is_active' => true]);
+        $week = TrainingWeek::factory()->create(['program_id' => $program->id, 'week_number' => 2]);
+        $activity = Activity::factory()->create(['training_week_id' => $week->id, 'position' => 1, 'title' => 'Validation Checklist']);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
+        $evidence = SubmissionEvidence::factory()->for($version, 'submissionVersion')->create(['evidence_type' => 'file', 'disk' => 'local', 'path' => 'evidence/activity-proof.png', 'original_filename' => 'activity-proof.png', 'mime_type' => 'image/png']);
+        Storage::disk('local')->put($evidence->path, 'activity evidence');
+        $connection = GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'refresh_token' => 'refresh', 'drive_folder_id' => 'root', 'destination_source' => 'picker', 'connected_at' => now()]);
+        $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]);
+
+        $drive = Mockery::mock(GoogleDriveService::class);
+        $drive->shouldReceive('validateDestination')->once()->andReturn('root');
+        $drive->shouldReceive('ensureFolder')->times(7)->andReturnUsing(function ($received, string $name, string $parent, ?string $existing = null): string {
+            return 'folder-'.md5($name.'|'.$parent);
+        });
+        $drive->shouldReceive('uploadFile')->times(5)->andReturnUsing(fn ($received, $name) => 'drive-'.$name);
+        $exports = Mockery::mock(TrainingExportService::class);
+        $workbooks = Mockery::mock(TrainingWorkbookService::class);
+        $workbooks->shouldReceive('forWeek')->times(3)->andReturn('xlsx');
+        $workbooks->shouldReceive('forGeneralTraining')->once()->andReturn('xlsx');
+
+        app()->instance(GoogleDriveService::class, $drive);
+        (new SyncTrainingDataJob($sync->id))->handle(app(GoogleDriveConnectionService::class), $drive, $exports, $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
+
+        $this->assertDatabaseHas('google_drive_evidence_exports', ['submission_evidence_id' => $evidence->id, 'status' => 'completed', 'destination_folder_id' => 'root']);
+        $this->assertSame('completed', $sync->fresh()->component_results['Evidences']['status']);
+        $this->assertSame(1, $sync->fresh()->component_results['Evidences']['completed']);
+        $this->assertSame(0, $sync->fresh()->component_results['Evidences']['failed']);
+    }
+
+    public function test_sync_reconciles_five_evidence_files_with_partial_drive_tracking_and_reuses_ids(): void
+    {
+        Storage::fake('local');
+        $participant = User::factory()->create(['role' => 'participant']);
+        $program = Program::factory()->create(['is_active' => true]);
+        $week = TrainingWeek::factory()->create(['program_id' => $program->id, 'week_number' => 2]);
+        $activity = Activity::factory()->create(['training_week_id' => $week->id, 'position' => 2, 'title' => 'AI Output Error Detection']);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
+        $names = array_map(static fn (int $index): string => "Week2-Activity2-{$index}.png", range(1, 5));
+        $evidence = collect($names)->map(function (string $name) use ($version): SubmissionEvidence {
+            $record = SubmissionEvidence::factory()->for($version, 'submissionVersion')->create([
+                'evidence_type' => 'file',
+                'disk' => 'local',
+                'path' => 'evidence/'.$name,
+                'original_filename' => $name,
+                'mime_type' => 'image/png',
+            ]);
+            Storage::disk('local')->put($record->path, 'image-'.$name);
+
+            return $record;
+        });
+        $connection = GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'refresh_token' => 'refresh', 'drive_folder_id' => 'root', 'destination_source' => 'picker', 'connected_at' => now()]);
+        $existingIds = ['drive-1', 'drive-2', 'drive-3'];
+        foreach ($evidence->take(3) as $index => $record) {
+            GoogleDriveEvidenceExport::create([
+                'submission_evidence_id' => $record->id,
+                'destination_folder_id' => 'root',
+                'drive_file_id' => $existingIds[$index],
+                'status' => 'completed',
+            ]);
+        }
+        $syncs = collect([
+            GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]),
+            GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]),
+        ]);
+        $calls = [];
+        $drive = Mockery::mock(GoogleDriveService::class);
+        $drive->shouldReceive('validateDestination')->twice()->andReturn('root');
+        $drive->shouldReceive('ensureFolder')->times(14)->andReturnUsing(fn ($received, string $name, string $parent, ?string $existing = null): string => 'folder-'.md5($name.'|'.$parent));
+        $drive->shouldReceive('uploadFile')->times(18)->andReturnUsing(function ($received, string $name, string $content, string $parent, string $mime, ?string $existing = null) use (&$calls): string {
+            $calls[] = [$name, $existing];
+
+            return 'drive-'.$name;
+        });
+        $workbooks = Mockery::mock(TrainingWorkbookService::class);
+        $workbooks->shouldReceive('forWeek')->times(6)->andReturn('xlsx');
+        $workbooks->shouldReceive('forGeneralTraining')->times(2)->andReturn('xlsx');
+
+        foreach ($syncs as $sync) {
+            (new SyncTrainingDataJob($sync->id))->handle(app(GoogleDriveConnectionService::class), $drive, Mockery::mock(TrainingExportService::class), $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
+        }
+
+        $evidenceCalls = collect($calls)->filter(fn (array $call): bool => in_array($call[0], $names, true))->values();
+        $this->assertCount(10, $evidenceCalls);
+        $this->assertSame(['drive-1', 'drive-2', 'drive-3', null, null], $evidenceCalls->take(5)->pluck(1)->all());
+        $this->assertSame(['drive-Week2-Activity2-1.png', 'drive-Week2-Activity2-2.png', 'drive-Week2-Activity2-3.png', 'drive-Week2-Activity2-4.png', 'drive-Week2-Activity2-5.png'], $evidenceCalls->slice(5)->pluck(1)->all());
+        $this->assertDatabaseCount('google_drive_evidence_exports', 5);
+        $this->assertSame(5, GoogleDriveEvidenceExport::query()->where('status', 'completed')->count());
+    }
+
+    public function test_repeated_full_sync_updates_tracked_workbooks_in_place(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        for ($i = 0; $i < 5; $i++) {
+            DailyLog::create(['user_id' => $participant->id, 'activity_id' => null, 'logged_on' => now()->subDays($i)->toDateString(), 'content' => "Repeated general log {$i}"]);
+        }
+        $connection = GoogleDriveConnection::create([
+            'user_id' => $participant->id,
+            'access_token' => 'token',
+            'refresh_token' => 'refresh',
+            'drive_folder_id' => 'root',
+            'destination_source' => 'picker',
+            'connected_at' => now(),
+        ]);
+        $first = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]);
+        $second = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]);
+        $third = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]);
+        $calls = [];
+        $folderCalls = [];
+        $ids = [];
+
+        $drive = Mockery::mock(GoogleDriveService::class);
+        $drive->shouldReceive('validateDestination')->times(3)->andReturn('root');
+        $drive->shouldReceive('ensureFolder')->times(15)->andReturnUsing(function ($received, string $name, string $parent, ?string $existing = null) use (&$folderCalls): string {
+            $folderCalls[] = [$name, $parent, $existing];
+
+            return 'folder-'.md5($name.'|'.$parent);
+        });
+        $drive->shouldReceive('uploadFile')->times(12)->andReturnUsing(function ($received, string $name, string $content, string $parent, string $mime, ?string $existing = null) use (&$calls, &$ids): string {
+            $calls[] = [$name, $parent, $existing];
+            $ids[$name] ??= 'drive-'.count($ids);
+
+            return $ids[$name];
+        });
+        $exports = Mockery::mock(TrainingExportService::class);
+        $workbooks = Mockery::mock(TrainingWorkbookService::class);
+        $workbooks->shouldReceive('forWeek')->times(9)->andReturn('xlsx');
+        $workbooks->shouldReceive('forGeneralTraining')->times(3)->andReturn('xlsx');
+
+        (new SyncTrainingDataJob($first->id))->handle(app(GoogleDriveConnectionService::class), $drive, $exports, $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
+        (new SyncTrainingDataJob($second->id))->handle(app(GoogleDriveConnectionService::class), $drive, $exports, $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
+        (new SyncTrainingDataJob($third->id))->handle(app(GoogleDriveConnectionService::class), $drive, $exports, $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
+
+        $this->assertCount(12, $calls);
+        $this->assertSame(3, collect($calls)->where('0', 'Week 1.xlsx')->count());
+        $this->assertNotContains('Activity Scores.xlsx', array_column($calls, 0));
+        $this->assertNotContains('Training Progress.xlsx', array_column($calls, 0));
+        $this->assertNotContains('Gate Progress.xlsx', array_column($calls, 0));
+        $this->assertNotContains('Lab Record.xlsx', array_column($calls, 0));
+        $this->assertNotContains('Daily Logs.xlsx', array_column($calls, 0));
+        foreach (array_slice($calls, 0, 4) as [$name, $parent, $existing]) {
+            $this->assertNull($existing, $name.' should be created on the first sync.');
+        }
+        foreach (array_slice($calls, 4) as [$name, $parent, $existing]) {
+            $this->assertSame($ids[$name], $existing, $name.' should be updated using its tracked Drive ID.');
+        }
+        $weekFolders = collect($folderCalls)->filter(fn (array $call): bool => in_array($call[0], ['Week 2', 'Week 3', 'Week 4'], true));
+        $evidenceFolders = collect($folderCalls)->filter(fn (array $call): bool => $call[0] === 'Evidences');
+        $this->assertCount(9, $weekFolders);
+        $this->assertCount(3, $evidenceFolders);
+        $this->assertNotContains('Week 2 - Evidences', array_column($folderCalls, 0));
+        $this->assertNotContains('Week 3 - Evidences', array_column($folderCalls, 0));
+        $this->assertNotContains('Week 4 - Evidences', array_column($folderCalls, 0));
+        foreach ($weekFolders as [$name, $parent]) {
+            $this->assertSame('root', $parent, $name.' should be rooted at the Picker folder.');
+        }
+        $weekFolderIds = $weekFolders->mapWithKeys(fn (array $call): array => [$call[0] => 'folder-'.md5($call[0].'|root')]);
+        $this->assertCount(3, $weekFolderIds);
+        foreach (['Week 1', 'Evidences', 'Week 2', 'Week 3', 'Week 4'] as $folderName) {
+            $callsForFolder = collect($folderCalls)->filter(fn (array $call): bool => $call[0] === $folderName)->values();
+            $this->assertCount(3, $callsForFolder);
+            $expectedParent = $folderName === 'Evidences' ? 'folder-'.md5('Week 1|root') : 'root';
+            foreach ($callsForFolder as $index => [$name, $parent, $existing]) {
+                $this->assertSame($expectedParent, $parent, $name.' should be rooted correctly.');
+                $this->assertSame($index === 0 ? null : 'folder-'.md5($name.'|'.$parent), $existing, $name.' should reuse its tracked Drive ID.');
+            }
+        }
+        $this->assertSame('folder-'.md5('Week 2|root'), $calls[1][1]);
+        $this->assertSame('folder-'.md5('Week 3|root'), $calls[2][1]);
+        $this->assertSame('folder-'.md5('Week 4|root'), $calls[3][1]);
+        $this->assertSame(9, GoogleDriveExport::query()->where('user_id', $participant->id)->count());
+        $this->assertSame(9, GoogleDriveExport::query()->where('user_id', $participant->id)->where('status', GoogleDriveExport::COMPLETED)->count());
+        $this->assertSame(4, GoogleDriveExport::query()->where('user_id', $participant->id)->where('export_type', 'weekly_workbook_nested')->count());
+        $this->assertSame(4, GoogleDriveExport::query()->where('user_id', $participant->id)->where('export_type', 'week_folder')->count());
+        $this->assertSame(1, GoogleDriveExport::query()->where('user_id', $participant->id)->where('export_type', 'week_evidences_folder')->count());
+    }
+
+    public function test_ready_participant_sees_header_sync_action_using_canonical_route(): void
+    {
+        $this->configureDrive();
+        $participant = User::factory()->create(['role' => 'participant']);
+        GoogleDriveConnection::create([
+            'user_id' => $participant->id,
+            'access_token' => 'token',
+            'refresh_token' => 'refresh',
+            'drive_folder_id' => 'folder',
+            'destination_source' => 'picker',
+            'connected_at' => now(),
+        ]);
+
+        $response = $this->actingAs($participant)->get(route('profile.show'));
+
+        $response->assertOk()
+            ->assertSee('SYNC TO GOOGLE DRIVE')
+            ->assertSee('action="'.route('google-drive.sync').'"', false)
+            ->assertSee('name="_token"', false)
+            ->assertSee('method="POST"', false);
+    }
+
+    public function test_header_guides_participant_without_connection_to_profile_setup(): void
+    {
+        $this->configureDrive();
+        $participant = User::factory()->create(['role' => 'participant']);
+
+        $this->actingAs($participant)->get(route('profile.show'))
+            ->assertOk()
+            ->assertSee('SET UP GOOGLE DRIVE')
+            ->assertDontSee('SYNC TO GOOGLE DRIVE');
+    }
+
+    public function test_header_requires_picker_destination_and_does_not_treat_legacy_link_as_ready(): void
+    {
+        $this->configureDrive();
+        $participant = User::factory()->create(['role' => 'participant', 'drive_link' => 'https://drive.google.com/drive/folders/legacy']);
+        GoogleDriveConnection::create([
+            'user_id' => $participant->id,
+            'access_token' => 'token',
+            'refresh_token' => 'refresh',
+            'destination_source' => 'legacy',
+            'connected_at' => now(),
+        ]);
+
+        $this->actingAs($participant)->get(route('profile.show'))
+            ->assertOk()
+            ->assertSee('CHOOSE DRIVE FOLDER')
+            ->assertDontSee('SYNC TO GOOGLE DRIVE');
+    }
+
+    public function test_active_sync_is_non_clickable_in_header(): void
+    {
+        $this->configureDrive();
+        $participant = User::factory()->create(['role' => 'participant']);
+        GoogleDriveConnection::create([
+            'user_id' => $participant->id,
+            'access_token' => 'token',
+            'refresh_token' => 'refresh',
+            'drive_folder_id' => 'folder',
+            'destination_source' => 'picker',
+            'connected_at' => now(),
+        ]);
+        GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => GoogleDriveSync::IN_PROGRESS]);
+
+        $this->actingAs($participant)->get(route('profile.show'))
+            ->assertOk()
+            ->assertSee('SYNCING...')
+            ->assertSee('disabled', false)
+            ->assertDontSee('SYNC TO GOOGLE DRIVE');
+    }
+
+    public function test_coach_does_not_see_participant_sync_action(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+
+        $this->actingAs($coach)->get(route('profile.show'))
+            ->assertOk()
+            ->assertDontSee('SYNC TO GOOGLE DRIVE')
+            ->assertDontSee('SET UP GOOGLE DRIVE');
+    }
+
+    public function test_drive_setup_is_required_before_starting_an_official_activity(): void
+    {
+        $this->configureDrive();
+        $this->seed(QaTrainingProgramSeeder::class);
+        $participant = User::factory()->create(['role' => 'participant']);
+        AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()]);
+        $week = TrainingWeek::query()->where('week_number', 2)->firstOrFail();
+        $activity = $week->activities()->where('position', 2)->where('is_active', true)->firstOrFail();
+
+        $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHasErrors('google_drive_setup');
+    }
+
+    public function test_legacy_drive_link_does_not_satisfy_activity_readiness(): void
+    {
+        $this->configureDrive();
+        $this->seed(QaTrainingProgramSeeder::class);
+        $participant = User::factory()->create(['role' => 'participant', 'drive_link' => 'https://drive.google.com/drive/folders/legacy']);
+        $week = TrainingWeek::query()->where('week_number', 2)->firstOrFail();
+        $activity = $week->activities()->where('position', 2)->where('is_active', true)->firstOrFail();
+
+        $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))
+            ->assertRedirect(route('dashboard'));
+    }
+}

@@ -1,0 +1,28 @@
+@extends('layouts.app')
+
+@section('content')
+<style>
+.report-shell{display:grid;gap:22px}.report-nav{display:flex;gap:8px;flex-wrap:wrap}.report-nav a{padding:9px 14px;border:1px solid var(--line);border-radius:999px;color:var(--muted)}.report-nav a.active{background:#281d56;border-color:#6d50cf;color:#fff}.report-head{display:flex;justify-content:space-between;gap:18px;align-items:end;flex-wrap:wrap}.report-head h1{margin-bottom:0}.report-filters{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:end}.table-wrap{overflow-x:auto}.report-table{width:100%;min-width:950px;border-collapse:separate;border-spacing:0}.report-table th,.report-table td{padding:15px 16px;text-align:left;border-bottom:1px solid #252b48;vertical-align:top}.report-table th{color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase;background:#0d1225}.report-table tbody tr:hover{background:#151b34}.path-chip{display:inline-flex;padding:6px 9px;border-radius:999px;background:#1c2442;border:1px solid #343d68;color:#dbeafe;font-size:12px}.log-content{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55;color:#dbe3ff}.muted{color:var(--muted)}.pagination{margin-top:18px}
+@media(max-width:900px){.report-filters{grid-template-columns:1fr 1fr}}@media(max-width:560px){.report-filters{grid-template-columns:1fr}}
+</style>
+<div class="report-shell">
+    <div class="eyebrow">COACH / REPORTS</div>
+    <div class="report-head"><div><h1>Detailed Daily Logs</h1><p class="muted">Review the actual entries submitted by participants.</p></div></div>
+    <nav class="report-nav" aria-label="Reports"><a href="{{ route('coach.reports') }}">Progress</a><a href="{{ route('coach.reports.daily-logs') }}">Daily Log Completion</a><a class="active" href="{{ route('coach.reports.daily-logs.details') }}">Daily Log Details</a><a href="{{ route('coach.reports.missing-submissions') }}">Missing Submissions</a></nav>
+    <form class="card report-filters" method="GET" action="{{ route('coach.reports.daily-logs.details') }}" aria-label="Detailed Daily Log filters">
+        <div class="field"><label for="detail-participant">Participant</label><select id="detail-participant" name="participant"><option value="">All participants</option>@foreach($participants as $participant)<option value="{{ $participant->id }}" @selected((string)($filters['participant'] ?? '')===(string)$participant->id)>{{ $participant->name }}</option>@endforeach</select></div>
+        <div class="field"><label for="detail-path">Training Path</label><select id="detail-path" name="path"><option value="">All paths</option>@foreach(['manual'=>'Manual','automation'=>'Automation','automation_manual'=>'Automation / Manual'] as $value=>$label)<option value="{{ $value }}" @selected(($filters['path'] ?? '')===$value)>{{ $label }}</option>@endforeach</select></div>
+        <div class="field"><label for="detail-mentor">Mentor</label><select id="detail-mentor" name="mentor"><option value="">All mentors</option>@foreach($mentors as $mentor)<option value="{{ $mentor->id }}" @selected((string)($filters['mentor'] ?? '')===(string)$mentor->id)>{{ $mentor->name }}</option>@endforeach</select></div>
+        <div class="field"><label for="detail-week">Week</label><select id="detail-week" name="week"><option value="">All weeks</option>@foreach([2,3,4] as $week)<option value="{{ $week }}" @selected((string)($filters['week'] ?? '')===(string)$week)>Week {{ $week }}</option>@endforeach</select></div>
+        <div class="field"><label for="detail-activity">Work/Activity</label><select id="detail-activity" name="activity"><option value="">All activities</option>@foreach($activities as $activity)<option value="{{ $activity->id }}" @selected((string)($filters['activity'] ?? '')===(string)$activity->id)>{{ $activity->title }}</option>@endforeach</select></div>
+        <div class="field"><label for="detail-from">Log date from</label><input id="detail-from" type="date" name="from" value="{{ $filters['from'] ?? '' }}"></div>
+        <div class="field"><label for="detail-to">Log date to</label><input id="detail-to" type="date" name="to" value="{{ $filters['to'] ?? '' }}"></div>
+        <div class="actions"><button class="btn" type="submit">Apply filters</button><a class="btn secondary" href="{{ route('coach.reports.daily-logs.details') }}">Clear</a></div>
+    </form>
+    <section class="card"><div class="report-head"><h2>Submitted entries</h2><span class="muted">{{ $logs->total() }} matching log(s)</span></div>
+        <div class="table-wrap"><table class="report-table"><thead><tr><th>Participant</th><th>Training Path</th><th>Log Date</th><th>Week</th><th>Work/Activity</th><th>Mentor</th><th>Details</th></tr></thead><tbody>
+        @forelse($logs as $log)<tr><td><strong>{{ $log->participant->name }}</strong><div class="muted">{{ $log->participant->email }}</div></td><td><span class="path-chip">{{ $log->participant->trainingPathLabel() }}</span></td><td>{{ $log->logged_on?->format('M j, Y') }}</td><td>{{ $log->activity?->week?->week_number ? 'Week '.$log->activity->week->week_number : '—' }}</td><td>{{ $log->activity?->title ?? 'General Training' }}</td><td>{{ $log->participant->assignedCoaches->pluck('name')->filter()->join(', ') ?: 'Not assigned' }}</td><td><details><summary>View details</summary><div class="log-content" style="margin-top:10px">{{ $log->content }}</div><div class="muted" style="margin-top:10px">Submitted {{ $log->created_at?->format('M j, Y g:i A') }}</div></details></td></tr>@empty<tr><td colspan="7"><div class="empty-state">No Daily Logs match the selected filters.</div></td></tr>@endforelse
+        </tbody></table></div>{{ $logs->links() }}
+    </section>
+</div>
+@endsection

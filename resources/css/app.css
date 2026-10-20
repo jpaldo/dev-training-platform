@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+.warning { color: #fde68a; }
+
+.flatpickr-calendar { background:#11162b; border:1px solid #293052; box-shadow:0 18px 45px rgba(0,0,0,.45); color:#eef2ff; }
+.flatpickr-months .flatpickr-month,.flatpickr-current-month .flatpickr-monthDropdown-months,.flatpickr-current-month input.cur-year,.flatpickr-weekdays,.flatpickr-weekday { background:#11162b; color:#eef2ff; fill:#eef2ff; }
+.flatpickr-day { color:#eef2ff; }
+.flatpickr-day:hover,.flatpickr-day:focus { background:#281d56; border-color:#8b5cf6; }
+.flatpickr-day.selected,.flatpickr-day.startRange,.flatpickr-day.endRange { background:#8b5cf6; border-color:#8b5cf6; color:#fff; }
+.flatpickr-day.flatpickr-disabled,.flatpickr-day.flatpickr-disabled:hover { color:#66708f; }
+.flatpickr-time,.flatpickr-time input,.flatpickr-time .flatpickr-am-pm { background:#0a0f21; color:#eef2ff; }
+.flatpickr-time input:focus,.flatpickr-time .flatpickr-am-pm:focus { background:#281d56; }
+.flatpickr-input[readonly] { cursor:pointer; }
+p[id="mentor-interview-timezone"] { display:none; }

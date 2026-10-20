@@ -4,11 +4,12 @@ namespace App\Services;
 
 use App\Models\Activity;
 use App\Models\ActivityScore;
+use App\Models\ActivitySubmission;
+use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
 
 class ScoringService
@@ -38,28 +39,102 @@ class ScoringService
         return ($total >= 76 && $total <= 84) || ($runningAverage !== null && abs($total - $runningAverage) > 15);
     }
 
-    public function weekly(User $participant, $week): array
+    /**
+     * @return array{rows: Collection<int, array{activity: Activity, submission: ?ActivitySubmission, version: ?SubmissionVersion, score: ?ActivityScore}>, completed: int, total: int, scored: int, average: ?int}
+     */
+    public function weekly(User $participant, TrainingWeek $week): array
     {
-        $activities = $week->activities()->where('is_active', true)->with(['submissions' => fn (Relation $q): Relation => $q->where('user_id', $participant->id)->with('versions.activityScore.dimensions')->latest('attempt_number')])->orderBy('position')->get();
-        $rows = $activities->map(function (Activity $activity): array {
-            $submission = $activity->submissions->first();
-            $version = $submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $v): bool => in_array($v->status, ['submitted', 'resubmitted', 'approved', 'completed'], true)) ?? $submission?->versions->sortByDesc('version_number')->first();
+        return $this->weeklySummaries(collect([$participant]), collect([$week]))[$participant->id][$week->id];
+    }
 
-            return ['activity' => $activity, 'submission' => $submission, 'version' => $version, 'score' => $version?->activityScore];
+    /**
+     * @return array{weeks: Collection<int, array{rows: Collection<int, array{activity: Activity, submission: ?ActivitySubmission, version: ?SubmissionVersion, score: ?ActivityScore}>, completed: int, total: int, scored: int, average: ?int}>, completed: int, total: int, scored: int, average: ?int}
+     */
+    public function summary(User $participant, Program $program): array
+    {
+        return $this->summaries(collect([$participant]), $program)[$participant->id];
+    }
+
+    /**
+     * Summarize Weeks 2–4 of the program for each participant with a fixed number of queries.
+     *
+     * @param  Collection<int, User>  $participants
+     * @return Collection<int, array{weeks: Collection<int, array{rows: Collection<int, array{activity: Activity, submission: ?ActivitySubmission, version: ?SubmissionVersion, score: ?ActivityScore}>, completed: int, total: int, scored: int, average: ?int}>, completed: int, total: int, scored: int, average: ?int}> keyed by participant id
+     */
+    public function summaries(Collection $participants, Program $program): Collection
+    {
+        $weeks = $program->weeks()->whereIn('week_number', [2, 3, 4])->orderBy('position')->get();
+        $weeklySummaries = $this->weeklySummaries($participants, $weeks);
+
+        return $participants->mapWithKeys(function (User $participant) use ($weeks, $weeklySummaries): array {
+            $participantWeeks = $weeks->mapWithKeys(fn (TrainingWeek $week): array => [$week->week_number => $weeklySummaries[$participant->id][$week->id]]);
+            $rows = $participantWeeks->flatMap(fn (array $week): Collection => $week['rows']);
+
+            return [$participant->id => ['weeks' => $participantWeeks, ...$this->totals($rows)]];
         });
+    }
+
+    /**
+     * Score every active activity of the given weeks for each participant with a fixed number of queries.
+     *
+     * @param  Collection<int, User>  $participants
+     * @param  Collection<int, TrainingWeek>  $weeks
+     * @return Collection<int, Collection<int, array{rows: Collection<int, array{activity: Activity, submission: ?ActivitySubmission, version: ?SubmissionVersion, score: ?ActivityScore}>, completed: int, total: int, scored: int, average: ?int}>> keyed by participant id, then week id
+     */
+    private function weeklySummaries(Collection $participants, Collection $weeks): Collection
+    {
+        $activities = Activity::query()->whereIn('training_week_id', $weeks->pluck('id'))->where('is_active', true)->orderBy('position')->get();
+        $activitiesByWeek = $activities->groupBy('training_week_id');
+        $attemptsByParticipantAndActivity = ActivitySubmission::query()
+            ->whereIn('activity_id', $activities->modelKeys())
+            ->whereIn('user_id', $participants->pluck('id'))
+            ->with('versions.activityScore.dimensions')
+            ->latest('attempt_number')
+            ->get()
+            ->groupBy(['user_id', 'activity_id']);
+
+        return $participants->mapWithKeys(fn (User $participant): array => [
+            $participant->id => $weeks->mapWithKeys(fn (TrainingWeek $week): array => [
+                $week->id => $this->weekSummary(($activitiesByWeek[$week->id] ?? collect())->map(
+                    fn (Activity $activity): array => $this->scoreRow($activity, $attemptsByParticipantAndActivity[$participant->id][$activity->id] ?? collect()),
+                )),
+            ]),
+        ]);
+    }
+
+    /**
+     * @param  Collection<int, ActivitySubmission>  $attempts  the participant's submissions of the activity, latest attempt first
+     * @return array{activity: Activity, submission: ?ActivitySubmission, version: ?SubmissionVersion, score: ?ActivityScore}
+     */
+    private function scoreRow(Activity $activity, Collection $attempts): array
+    {
+        $submission = $attempts->first();
+        $version = $submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $v): bool => in_array($v->status, ['submitted', 'resubmitted', 'approved', 'completed'], true)) ?? $submission?->versions->sortByDesc('version_number')->first();
+
+        return ['activity' => $activity, 'submission' => $submission, 'version' => $version, 'score' => $version?->activityScore];
+    }
+
+    /**
+     * @param  Collection<int, array{activity: Activity, submission: ?ActivitySubmission, version: ?SubmissionVersion, score: ?ActivityScore}>  $rows
+     * @return array{rows: Collection<int, array{activity: Activity, submission: ?ActivitySubmission, version: ?SubmissionVersion, score: ?ActivityScore}>, completed: int, total: int, scored: int, average: ?int}
+     */
+    private function weekSummary(Collection $rows): array
+    {
+        return ['rows' => $rows, ...$this->totals($rows)];
+    }
+
+    /**
+     * Completion and published-score totals of a set of activity rows.
+     *
+     * @param  Collection<int, array{activity: Activity, submission: ?ActivitySubmission, version: ?SubmissionVersion, score: ?ActivityScore}>  $rows
+     * @return array{completed: int, total: int, scored: int, average: ?int}
+     */
+    private function totals(Collection $rows): array
+    {
         $scored = $rows->filter(fn (array $row): bool => $row['score']?->status === 'published' && $row['score']->total_score !== null);
         $completed = $rows->filter(fn (array $row): bool => in_array($row['submission']?->status, ['submitted', 'resubmitted', 'approved', 'completed'], true))->count();
 
-        return ['rows' => $rows, 'completed' => $completed, 'total' => $rows->count(), 'scored' => $scored->count(), 'average' => $scored->isEmpty() ? null : (int) round($scored->avg(fn (array $row): int => $row['score']->total_score))];
-    }
-
-    public function summary(User $participant, $program): array
-    {
-        $weeks = $program->weeks()->whereIn('week_number', [2, 3, 4])->orderBy('position')->get()->mapWithKeys(fn (TrainingWeek $week): array => [$week->week_number => $this->weekly($participant, $week)]);
-        $rows = $weeks->flatMap(fn (array $week): Collection => $week['rows']);
-        $scored = $rows->filter(fn (array $row): bool => $row['score']?->status === 'published' && $row['score']->total_score !== null);
-
-        return ['weeks' => $weeks, 'completed' => $rows->filter(fn (array $row): bool => in_array($row['submission']?->status, ['submitted', 'resubmitted', 'approved', 'completed'], true))->count(), 'total' => $rows->count(), 'scored' => $scored->count(), 'average' => $scored->isEmpty() ? null : (int) round($scored->avg(fn (array $row): int => $row['score']->total_score))];
+        return ['completed' => $completed, 'total' => $rows->count(), 'scored' => $scored->count(), 'average' => $scored->isEmpty() ? null : (int) round($scored->avg(fn (array $row): int => $row['score']->total_score))];
     }
 
     public function runningAverage(User $participant, $exceptVersion = null): ?int

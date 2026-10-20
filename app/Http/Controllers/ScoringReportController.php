@@ -43,7 +43,9 @@ class ScoringReportController extends Controller
     public function participantSummary(ExportParticipantScoreSummaryRequest $request, ScoringReportService $reports, ScoringService $scoring): StreamedResponse
     {
         $program = Program::query()->where('is_active', true)->firstOrFail();
-        $rows = $reports->participants($request->validated())->map(fn (User $p): array => [$p->name, $p->email, $p->training_path, $p->assignedCoaches->pluck('name')->implode('; '), $scoring->summary($p, $program)]);
+        $participants = $reports->participants($request->validated());
+        $summaries = $scoring->summaries($participants, $program);
+        $rows = $participants->map(fn (User $p): array => [$p->name, $p->email, $p->training_path, $p->assignedCoaches->pluck('name')->implode('; '), $summaries[$p->id]]);
 
         return $this->csv('participant-score-summary.csv', ['Participant', 'Email', 'QA Path', 'Assigned Coach(es)', 'Completed Activities', 'Scored Activities', 'Unscored Activities', 'Week 2 Average', 'Week 3 Average', 'Week 4 Average', 'Overall Average', 'Current Performance Band', 'Latest Score Date'], $rows->map(function (array $r): array {
             $s = $r[4];

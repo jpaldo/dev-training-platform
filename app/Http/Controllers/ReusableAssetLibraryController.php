@@ -8,6 +8,7 @@ use App\Models\ActivitySubmission;
 use App\Models\SubmissionVersion;
 use App\Models\User;
 use App\Services\ReusableAssetLibraryService;
+use App\Services\SubmissionEvidenceFileService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -54,20 +55,20 @@ class ReusableAssetLibraryController extends Controller
         ]);
     }
 
-    public function preview(Request $request, SubmissionVersion $submissionVersion, ReusableAssetLibraryService $library, SubmissionEvidenceController $evidenceController): JsonResponse
+    public function preview(Request $request, SubmissionVersion $submissionVersion, ReusableAssetLibraryService $library, SubmissionEvidenceFileService $evidenceFiles): JsonResponse
     {
         $this->authorizeTrainingUser($request);
         $asset = $library->assetForVersion($submissionVersion);
 
-        return $evidenceController->sharedPreview($request, $asset);
+        return $evidenceFiles->previewResponse($asset);
     }
 
-    public function view(Request $request, SubmissionVersion $submissionVersion, ReusableAssetLibraryService $library, SubmissionEvidenceController $evidenceController): BinaryFileResponse|StreamedResponse|View
+    public function view(Request $request, SubmissionVersion $submissionVersion, ReusableAssetLibraryService $library, SubmissionEvidenceFileService $evidenceFiles): BinaryFileResponse|StreamedResponse|View
     {
         $this->authorizeTrainingUser($request);
         $asset = $library->assetForVersion($submissionVersion);
 
-        return $evidenceController->sharedView($request, $asset);
+        return $evidenceFiles->viewResponse($asset);
     }
 
     public function download(Request $request, SubmissionVersion $submissionVersion, ReusableAssetLibraryService $library): StreamedResponse

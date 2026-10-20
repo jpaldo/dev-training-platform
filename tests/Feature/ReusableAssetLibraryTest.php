@@ -68,6 +68,12 @@ class ReusableAssetLibraryTest extends TestCase
             ->assertJsonPath('content', 'Reusable prompt content');
 
         $this->actingAs($viewer)
+            ->get(route('training.reusable-assets.view', $version))
+            ->assertOk()
+            ->assertHeader('Content-Disposition', 'inline; filename="asset.md"')
+            ->assertStreamedContent('Reusable prompt content');
+
+        $this->actingAs($viewer)
             ->get(route('training.reusable-assets.download', $version))
             ->assertOk()
             ->assertHeader('Content-Disposition', 'attachment; filename=asset.md');

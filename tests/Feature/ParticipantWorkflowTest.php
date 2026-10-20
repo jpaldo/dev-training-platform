@@ -651,6 +651,102 @@ class ParticipantWorkflowTest extends TestCase
             ->assertJsonPath('rows.0.1', '<script>alert(1)</script>');
     }
 
+    public function test_evidence_requires_the_content_url_or_file_its_type_needs(): void
+    {
+        [$participant, $week2, $activity] = $this->trainingFixture();
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+        $deliverable = ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
+        $expectedErrors = [
+            'text' => ['content' => 'Text evidence is required.'],
+            'link' => ['url' => 'A URL is required for link evidence.'],
+            'screenshot' => ['file' => 'A file is required for this evidence.'],
+        ];
+
+        foreach ($expectedErrors as $type => $error) {
+            $requirement = EvidenceRequirement::factory()->for($deliverable)->create(['evidence_type' => $type]);
+
+            $this->actingAs($participant)
+                ->post(route('training.evidence.store', [$week2, $activity, $version]), ['evidence_requirement_id' => $requirement->id])
+                ->assertSessionHasErrors($error);
+        }
+
+        $this->assertDatabaseCount('submission_evidence', 0);
+    }
+
+    public function test_link_evidence_stores_only_the_url_and_queues_the_activity_export(): void
+    {
+        Queue::fake();
+        [$participant, $week2, $activity] = $this->trainingFixture();
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+        $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'link']);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
+
+        $this->actingAs($participant)
+            ->post(route('training.evidence.store', [$week2, $activity, $version]), ['evidence_requirement_id' => $requirement->id, 'url' => 'https://example.test/report', 'content' => 'Ignored text'])
+            ->assertRedirect(route('training.submission.edit', [$week2, $activity]))
+            ->assertSessionHas('status', 'Evidence added.');
+
+        $evidence = SubmissionEvidence::query()->sole();
+        $this->assertSame('link', $evidence->evidence_type);
+        $this->assertSame('https://example.test/report', $evidence->url);
+        $this->assertNull($evidence->content);
+        Queue::assertPushed(ExportActivityJob::class, fn (ExportActivityJob $job): bool => $job->versionId === $version->id);
+    }
+
+    public function test_uploaded_file_is_deleted_when_its_evidence_record_cannot_be_created(): void
+    {
+        Storage::fake('local');
+        [$participant, $week2, $activity] = $this->trainingFixture();
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+        $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'file']);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
+        SubmissionEvidence::creating(function (): void {
+            throw new \RuntimeException('Evidence could not be saved.');
+        });
+
+        $this->actingAs($participant)
+            ->postJson(route('training.evidence.store', [$week2, $activity, $version]), ['evidence_requirement_id' => $requirement->id, 'file' => UploadedFile::fake()->create('proof.png', 20, 'image/png')])
+            ->assertServerError();
+
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_video_evidence_view_serves_the_stored_file_inline(): void
+    {
+        Storage::fake('local');
+        [$participant, , $activity] = $this->trainingFixture();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
+        $path = 'evidence/'.$participant->id.'/'.$version->id.'/demo.mp4';
+        Storage::disk('local')->put($path, 'video');
+        $evidence = SubmissionEvidence::factory()->for($version, 'submissionVersion')->create(['evidence_type' => 'file', 'disk' => 'local', 'path' => $path, 'original_filename' => 'demo.mp4', 'mime_type' => 'video/mp4']);
+
+        $this->actingAs($participant)->get(route('training.evidence.view', $evidence))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'video/mp4')
+            ->assertHeader('Content-Disposition', 'inline; filename="demo.mp4"')
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+    }
+
+    public function test_unreadable_office_evidence_preview_returns_an_error_message(): void
+    {
+        Storage::fake('local');
+        [$participant, , $activity] = $this->trainingFixture();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
+        $path = 'evidence/'.$participant->id.'/'.$version->id.'/broken.xlsx';
+        Storage::disk('local')->put($path, 'not a workbook');
+        $evidence = SubmissionEvidence::factory()->for($version, 'submissionVersion')->create(['evidence_type' => 'file', 'disk' => 'local', 'path' => $path, 'original_filename' => 'broken.xlsx', 'mime_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+
+        $this->actingAs($participant)->get(route('training.evidence.preview', $evidence))
+            ->assertUnprocessable()
+            ->assertExactJson(['message' => 'Unable to preview this evidence.']);
+    }
+
     public function test_participant_daily_logs_are_owned_and_activity_associations_are_checked(): void
     {
         [$participant, , $activity] = $this->trainingFixture();

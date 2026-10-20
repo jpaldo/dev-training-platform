@@ -153,6 +153,26 @@ class WeekFourWorkflowTest extends TestCase
         $response->assertDontSee('AI Usage Frequency')->assertDontSee('How many times do you use AI?')->assertDontSee('Failed AI Attempt / Learning');
     }
 
+    public function test_mock_interview_partners_show_whether_they_have_unlocked_week_four(): void
+    {
+        [, $week4] = $this->fixture();
+        $participant = User::factory()->create();
+        $unlockedPartner = User::factory()->create(['name' => 'Unlocked Partner']);
+        $lockedPartner = User::factory()->create(['name' => 'Locked Partner']);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->unlockWeek($participant, $week4);
+        $this->unlockWeek($unlockedPartner, $week4);
+        AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()]);
+        foreach ([$unlockedPartner, $lockedPartner] as $partner) {
+            WeekFourInterviewPair::create(['participant_one_id' => min($participant->id, $partner->id), 'participant_two_id' => max($participant->id, $partner->id), 'assigned_by_id' => $admin->id, 'status' => 'active']);
+        }
+        $activity = $week4->activities()->where('position', 2)->firstOrFail();
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$week4, $activity]))
+            ->assertOk()
+            ->assertSeeInOrder(['Unlocked Partner', 'WEEK 4: UNLOCKED', 'Locked Partner', 'WEEK 4: LOCKED', 'Your partner has not unlocked Week 4 yet.']);
+    }
+
     public function test_coach_can_view_official_questionnaire_but_participant_cannot(): void
     {
         [, $week4] = $this->fixture();

@@ -401,6 +401,35 @@ class DevelopmentAccountProvisioningTest extends TestCase
         $this->assertDatabaseCount('activity_submissions', 0);
     }
 
+    public function test_first_attempt_at_a_later_week_two_activity_preselects_the_lab_record_used_earlier(): void
+    {
+        $this->seed();
+        $participant = User::factory()->create();
+        $week = Program::first()->weeks()->where('week_number', 2)->first();
+        $activityOne = $week->activities()->where('position', 1)->first();
+        $activityTwo = $week->activities()->where('position', 2)->first();
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+        $newest = ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => 'owner', 'artifact_code' => 'AI-TC-101', 'status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now()]);
+        $usedEarlier = ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => 'owner', 'artifact_code' => 'AI-TC-100', 'status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now()->subDay()]);
+        $earlier = ActivitySubmission::create(['activity_id' => $activityOne->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
+        $earlier->versions()->create(['version_number' => 1, 'status' => 'submitted', 'submitted_at' => now(), 'validation_submission_id' => $usedEarlier->id, 'field_values' => []]);
+        $edit = route('training.submission.edit', [$week, $activityTwo]);
+
+        $this->actingAs($participant)->get($edit)->assertOk()
+            ->assertSee('value="'.$usedEarlier->id.'" selected', false)
+            ->assertDontSee('value="'.$newest->id.'" selected', false);
+
+        $this->actingAs($participant)->get($edit.'?validation_submission_id='.$newest->id)->assertOk()
+            ->assertSee('value="'.$newest->id.'" selected', false)
+            ->assertDontSee('value="'.$usedEarlier->id.'" selected', false);
+
+        $current = ActivitySubmission::create(['activity_id' => $activityTwo->id, 'user_id' => $participant->id, 'status' => 'draft']);
+        $current->versions()->create(['version_number' => 1, 'status' => 'draft', 'field_values' => []]);
+
+        $this->actingAs($participant)->get($edit)->assertOk()
+            ->assertDontSee('value="'.$usedEarlier->id.'" selected', false);
+    }
+
     public function test_participant_can_view_only_owned_lab_record_without_creating_submission(): void
     {
         $this->seed();

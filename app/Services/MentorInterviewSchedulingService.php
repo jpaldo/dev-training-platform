@@ -9,6 +9,7 @@ use App\Models\ParticipantNotification;
 use App\Models\User;
 use App\Models\WeekFourMentorInterviewSchedule;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
@@ -21,6 +22,19 @@ class MentorInterviewSchedulingService
     public function assignedMentor(User $participant): ?User
     {
         return $participant->assignedCoaches()->where('role', 'coach')->where('is_active', true)->orderBy('users.name')->first();
+    }
+
+    /**
+     * The participant's latest pending or scheduled mentor interview for the activity, including schedules saved without an activity.
+     */
+    public function openScheduleFor(User $participant, Activity $activity): ?WeekFourMentorInterviewSchedule
+    {
+        return WeekFourMentorInterviewSchedule::query()
+            ->where('participant_id', $participant->id)
+            ->where(fn (Builder $query): Builder => $query->where('activity_id', $activity->id)->orWhereNull('activity_id'))
+            ->whereIn('status', [WeekFourMentorInterviewSchedule::PENDING, WeekFourMentorInterviewSchedule::SCHEDULED])
+            ->latest('id')
+            ->first();
     }
 
     public function schedule(User $participant, Activity $activity, string $scheduledAt): WeekFourMentorInterviewSchedule

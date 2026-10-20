@@ -5,11 +5,14 @@ namespace Tests\Feature;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\Program;
+use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\User;
 use App\Services\WeekThreeWorkspaceService;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -75,6 +78,35 @@ class WeekThreeWorkspaceTest extends TestCase
 
         $this->assertSame('Original finding', $version->fresh()->field_values['week_three_snapshot']['findings'][0]['title']);
         $this->assertSame('Changed later', $service->snapshot($participant, $week)['findings'][0]['title']);
+    }
+
+    public function test_submitting_a_week_three_activity_checkpoints_the_workspace_onto_the_version(): void
+    {
+        Queue::fake();
+        Storage::fake('local');
+        $this->seed(QaTrainingProgramSeeder::class);
+        $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
+        $week = $program->weeks()->where('week_number', 3)->firstOrFail();
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        GateEvaluation::create(['training_gate_id' => $program->weeks()->where('week_number', 2)->firstOrFail()->gates()->firstOrFail()->id, 'user_id' => $participant->id, 'status' => 'passed', 'evaluated_at' => now()]);
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+        $finding = ['description' => 'Observed', 'steps_to_reproduce' => 'Steps', 'expected_result' => 'Expected', 'actual_result' => 'Actual', 'human_validation' => 'supported', 'human_validation_explanation' => 'Evidence', 'severity' => 'medium', 'blast_radius' => 'Area', 'affected_areas' => 'Feature', 'next_step' => 'Investigate'];
+        app(WeekThreeWorkspaceService::class)->save($participant, $week, ['findings' => array_map(fn (int $number): array => ['title' => 'Finding '.$number, ...$finding], range(1, 5))]);
+        $activity = $week->activities()->where('position', 1)->firstOrFail();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft', 'field_values' => ['notes' => 'Draft notes']]);
+        $requirement = $activity->requirements()->with('evidenceRequirements')->get()->flatMap->evidenceRequirements->firstWhere('is_required', true);
+        Storage::disk('local')->put('evidence/finding-report.txt', 'Report');
+        SubmissionEvidence::create(['submission_version_id' => $version->id, 'evidence_requirement_id' => $requirement->id, 'evidence_type' => $requirement->evidence_type, 'title' => 'Report', 'content' => 'Report', 'url' => 'https://example.test/report', 'disk' => 'local', 'path' => 'evidence/finding-report.txt', 'original_filename' => 'finding-report.txt']);
+
+        $this->actingAs($participant)->post(route('training.submission.submit', [$week, $activity, $version]))
+            ->assertRedirect(route('training.submission.edit', [$week, $activity]))
+            ->assertSessionHas('status', 'Submission sent for review.');
+
+        $version->refresh();
+        $this->assertSame('submitted', $version->status);
+        $this->assertSame('Draft notes', $version->field_values['notes']);
+        $this->assertSame(['Finding 1', 'Finding 2', 'Finding 3', 'Finding 4', 'Finding 5'], array_column($version->field_values['week_three_snapshot']['findings'], 'title'));
     }
 
     public function test_week_three_activity_urls_require_prior_submissions(): void

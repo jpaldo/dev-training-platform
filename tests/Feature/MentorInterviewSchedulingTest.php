@@ -153,6 +153,20 @@ class MentorInterviewSchedulingTest extends TestCase
         $this->assertDatabaseHas('week_four_mentor_interview_schedules', ['google_event_id' => 'event-no-peer']);
     }
 
+    public function test_submission_page_shows_the_open_mentor_interview_schedule_including_one_booked_before_the_activity(): void
+    {
+        [$participant, $mentor, $activity] = $this->fixture();
+        $schedule = ['participant_id' => $participant->id, 'mentor_id' => $mentor->id, 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHour(), 'timezone' => 'Asia/Manila', 'duration_minutes' => 60];
+        WeekFourMentorInterviewSchedule::create([...$schedule, 'activity_id' => null, 'status' => WeekFourMentorInterviewSchedule::SCHEDULED, 'google_meet_url' => 'https://meet.google.com/early-schedule']);
+        WeekFourMentorInterviewSchedule::create([...$schedule, 'activity_id' => $activity->id, 'status' => WeekFourMentorInterviewSchedule::CANCELLED, 'google_meet_url' => 'https://meet.google.com/cancelled-schedule']);
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$activity->week, $activity]))
+            ->assertOk()
+            ->assertSee('week-four-progress-item complete"><span class="status-icon">✓</span> Mentor mock interview scheduled', false)
+            ->assertSee('https://meet.google.com/early-schedule')
+            ->assertDontSee('https://meet.google.com/cancelled-schedule');
+    }
+
     /** @return array{0:User,1:User,2:Activity} */
     private function fixture(bool $calendarScope = true): array
     {

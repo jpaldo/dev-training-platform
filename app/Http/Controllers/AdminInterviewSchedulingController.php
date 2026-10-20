@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\SaveInterviewSchedulerRequest;
+use App\Http\Requests\UpdateInterviewPagePublicTitleRequest;
+use App\Http\Requests\UploadInterviewPageLogoRequest;
 use App\Models\InterviewScheduler;
 use App\Models\User;
-use App\Rules\ExternalBookingUrl;
 use App\Services\InterviewBookingLinkService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AdminInterviewSchedulingController extends Controller
@@ -25,16 +26,16 @@ class AdminInterviewSchedulingController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(SaveInterviewSchedulerRequest $request): RedirectResponse
     {
-        $scheduler = InterviewScheduler::create($this->validated($request));
+        $scheduler = InterviewScheduler::create($this->interviewerAttributes($request));
 
         return back()->with('status', ucfirst(str_replace('_', ' ', $scheduler->interview_type)).' interviewer added.');
     }
 
-    public function update(Request $request, InterviewScheduler $interviewer): RedirectResponse
+    public function update(SaveInterviewSchedulerRequest $request, InterviewScheduler $interviewer): RedirectResponse
     {
-        $interviewer->update($this->validated($request));
+        $interviewer->update($this->interviewerAttributes($request));
 
         return back()->with('status', 'Interviewer updated.');
     }
@@ -67,9 +68,8 @@ class AdminInterviewSchedulingController extends Controller
         return back()->with('status', 'Interviewer removed.');
     }
 
-    public function uploadLogo(Request $request, InterviewBookingLinkService $links): RedirectResponse
+    public function uploadLogo(UploadInterviewPageLogoRequest $request, InterviewBookingLinkService $links): RedirectResponse
     {
-        $request->validate(['logo' => ['required', 'file', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048']]);
         $links->saveLogo($request->file('logo'));
 
         return back()->with('status', 'Public interview page logo saved.');
@@ -82,29 +82,18 @@ class AdminInterviewSchedulingController extends Controller
         return back()->with('status', 'Public interview page logo removed.');
     }
 
-    public function updatePublicTitle(Request $request, InterviewBookingLinkService $links): RedirectResponse
+    public function updatePublicTitle(UpdateInterviewPagePublicTitleRequest $request, InterviewBookingLinkService $links): RedirectResponse
     {
-        $data = $request->validate(['public_title' => ['nullable', 'string', 'max:100']]);
+        $data = $request->validated();
         $links->savePublicTitle($data['public_title'] ?? null);
 
         return back()->with('status', 'Public interview page title saved.');
     }
 
     /** @return array<string, mixed> */
-    private function validated(Request $request): array
+    private function interviewerAttributes(SaveInterviewSchedulerRequest $request): array
     {
-        $type = $request->input('interview_type');
-        $data = $request->validate([
-            'interview_type' => ['required', 'in:mock,final_reassessment,both'],
-            'user_id' => ['nullable', 'integer', 'exists:users,id'],
-            'full_name' => ['required', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255'],
-            'booking_url' => ['nullable', 'string', 'max:2000', new ExternalBookingUrl],
-            'mock_booking_url' => [Rule::requiredIf(in_array($type, ['mock', 'both'], true)), 'nullable', 'string', 'max:2000', new ExternalBookingUrl],
-            'final_booking_url' => [Rule::requiredIf(in_array($type, ['final_reassessment', 'both'], true)), 'nullable', 'string', 'max:2000', new ExternalBookingUrl],
-            'is_active' => ['nullable', 'boolean'],
-            'display_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
-        ]);
+        $data = $request->validated();
 
         return $data + ['booking_url' => $data['mock_booking_url'] ?? $data['final_booking_url'] ?? $data['booking_url'] ?? null, 'is_active' => $request->boolean('is_active'), 'display_order' => $request->integer('display_order')];
     }

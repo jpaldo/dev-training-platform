@@ -86,6 +86,13 @@ class ReusableAssetLibraryTest extends TestCase
     }
 
     /** @return array{0: User, 1: SubmissionVersion} */
+    public function test_users_without_a_training_role_cannot_filter_the_library(): void
+    {
+        $user = User::factory()->create(['role' => 'guest']);
+
+        $this->actingAs($user)->get(route('training.reusable-assets.index', ['search' => str_repeat('a', 101)]))->assertForbidden();
+    }
+
     private function assetFixture(string $submissionStatus): array
     {
         $this->seed(QaTrainingProgramSeeder::class);

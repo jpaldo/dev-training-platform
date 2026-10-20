@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreMentorInterviewAvailabilityRequest;
+use App\Http\Requests\UpdateMentorInterviewAvailabilityRequest;
 use App\Models\MentorInterviewAvailability;
 use App\Models\User;
 use App\Services\MentorInterviewAvailabilityService;
@@ -24,18 +26,18 @@ class MentorInterviewAvailabilityController extends Controller
         return view('coach.mentor-availability', compact('items', 'mentor', 'mentors', 'slots'));
     }
 
-    public function store(Request $request, MentorInterviewAvailabilityService $availability): RedirectResponse
+    public function store(StoreMentorInterviewAvailabilityRequest $request, MentorInterviewAvailabilityService $availability): RedirectResponse
     {
-        $data = $request->validate(['mentor_id' => ['nullable', 'integer'], 'available_date' => ['required', 'date_format:Y-m-d'], 'start_time' => ['required', 'date_format:H:i'], 'end_time' => ['required', 'date_format:H:i'], 'slot_duration_minutes' => ['required', 'integer', 'between:15,240'], 'capacity' => ['required', 'integer', 'between:1,20']]);
+        $data = $request->validated();
         $mentor = $request->user()->role === 'admin' ? User::query()->where('role', 'coach')->findOrFail($data['mentor_id']) : $request->user();
         $availability->create($mentor, $data);
 
         return back()->with('status', 'Mentor interview availability added.');
     }
 
-    public function update(Request $request, MentorInterviewAvailability $availability, MentorInterviewAvailabilityService $service): RedirectResponse
+    public function update(UpdateMentorInterviewAvailabilityRequest $request, MentorInterviewAvailability $availability, MentorInterviewAvailabilityService $service): RedirectResponse
     {
-        $data = $request->validate(['available_date' => ['required', 'date_format:Y-m-d'], 'start_time' => ['required', 'date_format:H:i'], 'end_time' => ['required', 'date_format:H:i'], 'slot_duration_minutes' => ['required', 'integer', 'between:15,240'], 'capacity' => ['required', 'integer', 'between:1,20']]);
+        $data = $request->validated();
         $service->update($request->user(), $availability, $data);
 
         return back()->with('status', 'Mentor interview availability updated.');

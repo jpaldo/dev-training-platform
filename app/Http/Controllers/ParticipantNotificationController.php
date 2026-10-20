@@ -2,20 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\FilterParticipantNotificationsRequest;
 use App\Models\ParticipantNotification;
 use App\Services\ParticipantNotificationService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class ParticipantNotificationController extends Controller
 {
-    public function index(Request $request, ParticipantNotificationService $service): View
+    public function index(FilterParticipantNotificationsRequest $request, ParticipantNotificationService $service): View
     {
         $user = $request->user();
         $service->sync($user);
-        $filter = $request->validate(['filter' => ['nullable', 'in:all,unread,read']])['filter'] ?? 'all';
-        $notifications = $user->participantNotifications()->when($filter === 'unread', fn ($q) => $q->unread())->when($filter === 'read', fn ($q) => $q->where('is_read', true))->latest()->paginate(25)->withQueryString();
+        $filter = $request->validated('filter') ?? 'all';
+        $notifications = $user->participantNotifications()->when($filter === 'unread', fn (Builder $q): Builder => $q->unread())->when($filter === 'read', fn (Builder $q): Builder => $q->where('is_read', true))->latest()->paginate(25)->withQueryString();
 
         return view('participant.notifications', compact('notifications', 'filter'));
     }

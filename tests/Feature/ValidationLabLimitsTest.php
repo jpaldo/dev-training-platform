@@ -56,6 +56,17 @@ class ValidationLabLimitsTest extends TestCase
         ])->assertOk();
     }
 
+    public function test_artifact_intake_checks_artifact_fields_only_after_base_fields_pass(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+
+        $this->actingAs($participant)->post(route('start'), [
+            'feature_area' => 'User Login / OTP Verification',
+            'artifact_content' => 'Valid artifact content.',
+        ])->assertSessionHasErrors('trainee_name')
+            ->assertSessionDoesntHaveErrors(['artifact_type', 'ai_tool', 'artifact_name']);
+    }
+
     public function test_lab_activity_page_renders_char_limit_and_counter_for_prompt_and_artifact(): void
     {
         $participant = User::factory()->create(['role' => 'participant']);

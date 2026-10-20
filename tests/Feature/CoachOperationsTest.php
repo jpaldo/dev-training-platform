@@ -184,6 +184,15 @@ class CoachOperationsTest extends TestCase
             ->assertOk()->assertSee('21')->assertSee('22 Daily Logs');
     }
 
+    public function test_coach_daily_log_history_for_non_participant_is_not_found_even_with_invalid_filters(): void
+    {
+        $this->seedProgram();
+        $coach = User::factory()->create(['role' => 'coach']);
+        $otherCoach = User::factory()->create(['role' => 'coach']);
+
+        $this->actingAs($coach)->get(route('coach.participants.daily-logs', [$otherCoach, 'date' => now()->addWeek()->toDateString()]))->assertNotFound();
+    }
+
     public function test_participants_cannot_access_coach_daily_log_history(): void
     {
         $this->seedProgram();
@@ -400,5 +409,46 @@ class CoachOperationsTest extends TestCase
         $this->assertSame(2, $activity->submissions()->where('user_id', $participant->id)->count());
         $this->assertDatabaseHas('activity_recovery_requests', ['id' => $request->id, 'status' => 'approved']);
         $this->assertSame('original', $version->fresh()->field_values['answer']);
+    }
+
+    public function test_participant_cannot_request_recovery_for_another_participants_submission_even_with_invalid_message(): void
+    {
+        $failed = ActivitySubmission::factory()->create(['status' => 'failed']);
+
+        $this->actingAs(User::factory()->create())->post(route('training.recovery.store', $failed), ['message' => str_repeat('a', 2001)])->assertForbidden();
+        $this->assertDatabaseCount('activity_recovery_requests', 0);
+    }
+
+    public function test_participant_recovery_request_with_one_already_pending_redirects_without_validating_message(): void
+    {
+        $participant = User::factory()->create();
+        $failed = ActivitySubmission::factory()->create(['user_id' => $participant->id, 'status' => 'failed']);
+        ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'requested_at' => now()]);
+
+        $this->actingAs($participant)->post(route('training.recovery.store', $failed), ['message' => str_repeat('a', 2001)])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', 'Review requested. Waiting for coach response.');
+        $this->assertDatabaseCount('activity_recovery_requests', 1);
+    }
+
+    public function test_coach_cannot_decide_recovery_request_that_is_no_longer_pending_even_with_invalid_input(): void
+    {
+        $participant = User::factory()->create();
+        $failed = ActivitySubmission::factory()->create(['user_id' => $participant->id, 'status' => 'failed']);
+        $request = ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'status' => 'declined', 'requested_at' => now()]);
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))->post(route('coach.recovery.decide', $request), ['decision' => 'invalid'])->assertStatus(422);
+        $this->assertDatabaseHas('activity_recovery_requests', ['id' => $request->id, 'status' => 'declined']);
+    }
+
+    public function test_unassigned_coach_cannot_decide_recovery_request_even_with_invalid_input(): void
+    {
+        $participant = User::factory()->create();
+        $failed = ActivitySubmission::factory()->create(['user_id' => $participant->id, 'status' => 'failed']);
+        $request = ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'requested_at' => now()]);
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))->post(route('coach.recovery.decide', $request), ['decision' => 'invalid'])->assertForbidden();
+        $this->assertDatabaseHas('activity_recovery_requests', ['id' => $request->id, 'status' => 'pending']);
     }
 }

@@ -2,18 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreValidationArtifactRequest;
+use App\Http\Requests\StoreValidationSubmissionRequest;
+use App\Http\Requests\VerifyLabOtpRequest;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\ValidationSubmission;
-use App\Services\EvidenceFilePolicy;
-use App\Support\FieldLimits;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 
 class ValidationLabController extends Controller
 {
-    public function index()
+    public function index(): RedirectResponse|View
     {
         if (Auth::check()) {
             return Auth::user()->isCoachOrAdmin() ? redirect()->route('coach.dashboard') : redirect()->route('dashboard');
@@ -22,7 +24,7 @@ class ValidationLabController extends Controller
         return view('home');
     }
 
-    public function labHome(Request $request)
+    public function labHome(Request $request): RedirectResponse|View
     {
         if (Auth::check()) {
             session(['trainee_name' => Auth::user()->name]);
@@ -40,33 +42,11 @@ class ValidationLabController extends Controller
         return view('lab.activity');
     }
 
-    public function artifact(Request $request)
+    public function artifact(StoreValidationArtifactRequest $request): RedirectResponse|View
     {
-        $data = $request->validate([
-            'trainee_name' => ['required', 'string', 'max:100'],
-            'feature_area' => ['nullable', 'string', 'max:160'],
-            'other_feature_area' => ['nullable', 'string', 'max:160'],
-            'artifact_type' => ['nullable', 'string', 'max:120'],
-            'other_artifact_type' => ['nullable', 'string', 'max:120'],
-            'ai_tool' => ['nullable', 'string', 'max:120'],
-            'prompt' => ['nullable', 'string', 'max:'.FieldLimits::EXACT_PROMPT_OUTPUT],
-            'artifact_name' => ['nullable', 'string', 'max:160'],
-            'artifact_content' => ['nullable', 'string', 'max:'.FieldLimits::EXACT_PROMPT_OUTPUT],
-            'evidence_files' => ['nullable', 'array', 'max:10'],
-            'evidence_files.*' => app(EvidenceFilePolicy::class)->generalRules(),
-        ]);
-        $legacy = blank($data['feature_area'] ?? null) && blank($data['artifact_content'] ?? null);
+        $data = $request->validated();
+        $legacy = $request->isLegacyArtifact();
         if (! $legacy) {
-            $request->validate([
-                'feature_area' => ['required', 'string', Rule::in(config('validation_lab.feature_areas'))],
-                'other_feature_area' => ['required_if:feature_area,Other', 'nullable', 'string', 'max:160'],
-                'artifact_type' => ['required', 'string', Rule::in(config('validation_lab.artifact_types'))],
-                'other_artifact_type' => ['required_if:artifact_type,Other', 'nullable', 'string', 'max:120'],
-                'ai_tool' => ['required', 'string', 'max:120'],
-                'artifact_name' => ['required', 'string', 'max:160'],
-                'artifact_content' => ['required', 'string', 'max:'.FieldLimits::EXACT_PROMPT_OUTPUT],
-                'prompt' => ['nullable', 'string', 'max:'.FieldLimits::EXACT_PROMPT_OUTPUT],
-            ]);
             $data['artifact_name'] = trim((string) $data['artifact_name']);
             if ($data['feature_area'] === 'Other') {
                 $data['feature_area'] = trim((string) ($data['other_feature_area'] ?? ''));
@@ -95,7 +75,7 @@ class ValidationLabController extends Controller
         return view('artifact', ['trainee' => $data['trainee_name'], 'artifact' => $data]);
     }
 
-    public function checklist(Request $request)
+    public function checklist(Request $request): View
     {
         abort_unless(session('trainee_name'), 403);
 
@@ -112,35 +92,9 @@ class ValidationLabController extends Controller
         ]);
     }
 
-    public function submit(Request $request)
+    public function submit(StoreValidationSubmissionRequest $request): RedirectResponse
     {
-        $request->merge(['artifact_name' => is_string($request->input('artifact_name')) ? trim($request->input('artifact_name')) : $request->input('artifact_name')]);
-        $data = $request->validate([
-            'artifact_code' => ['required', 'string'],
-            'artifact_name' => ['required', 'string', 'max:160'],
-            'feature_area' => ['nullable', 'string', 'max:160'],
-            'artifact_type' => ['nullable', 'string', 'max:120'],
-            'ai_tool' => ['nullable', 'string', 'max:120'],
-            'prompt' => ['nullable', 'string', 'max:'.FieldLimits::EXACT_PROMPT_OUTPUT],
-            'artifact_content' => ['nullable', 'string', 'max:'.FieldLimits::EXACT_PROMPT_OUTPUT],
-            'evidence_files' => ['nullable', 'array', 'max:10'],
-            'evidence_files.*' => app(EvidenceFilePolicy::class)->generalRules(),
-            'source_status' => ['required', 'in:pass,issue'],
-            'source_notes' => ['required', 'string', 'max:'.FieldLimits::CHECK_NOTES],
-            'scope_status' => ['required', 'in:pass,issue'],
-            'scope_notes' => ['required', 'string', 'max:'.FieldLimits::CHECK_NOTES],
-            'spec_status' => ['required', 'in:pass,issue'],
-            'spec_notes' => ['required', 'string', 'max:'.FieldLimits::CHECK_NOTES],
-            'cross_check_status' => ['required', 'in:pass,issue'],
-            'cross_check_notes' => ['required', 'string', 'max:'.FieldLimits::CHECK_NOTES],
-            'run_status' => ['required', 'in:pass,issue'],
-            'run_notes' => ['required', 'string', 'max:'.FieldLimits::CHECK_NOTES],
-            'log_status' => ['required', 'in:pass,issue'],
-            'log_notes' => ['required', 'string', 'max:'.FieldLimits::CHECK_NOTES],
-            'finding' => ['required', 'string', 'max:'.FieldLimits::FINDING],
-            'decision' => ['required', 'in:accept,revise,reject,reprompt'],
-            'evidence_notes' => ['required', 'string', 'max:'.FieldLimits::EVIDENCE],
-        ]);
+        $data = $request->validated();
         $data['trainee_name'] = session('trainee_name', 'Unknown trainee');
         $data['user_id'] = Auth::id();
         $selected = session('validation_artifact', []);
@@ -169,7 +123,7 @@ class ValidationLabController extends Controller
         return redirect()->route('result', $submission);
     }
 
-    public function submitRecord(Request $request, ValidationSubmission $submission)
+    public function submitRecord(Request $request, ValidationSubmission $submission): RedirectResponse
     {
         abort_unless((int) $submission->user_id === (int) $request->user()->id, 403);
         abort_unless($submission->status === ValidationSubmission::DRAFT, 422);
@@ -191,12 +145,12 @@ class ValidationLabController extends Controller
 
     private function nextArtifactCode(): string
     {
-        $max = ValidationSubmission::query()->pluck('artifact_code')->map(fn ($code) => (int) preg_replace('/\D+/', '', (string) $code))->max() ?? 14;
+        $max = ValidationSubmission::query()->pluck('artifact_code')->map(fn (string $code): int => (int) preg_replace('/\D+/', '', (string) $code))->max() ?? 14;
 
         return 'AI-TC-'.str_pad((string) max(15, $max + 1), 3, '0', STR_PAD_LEFT);
     }
 
-    public function result(ValidationSubmission $submission)
+    public function result(ValidationSubmission $submission): View
     {
         $activityOneUrl = null;
         if (Auth::check() && Auth::user()->role === 'participant' && (int) $submission->user_id === (int) Auth::id() && $submission->isSubmitted()) {
@@ -210,7 +164,7 @@ class ValidationLabController extends Controller
         return view('result', compact('submission', 'activityOneUrl'));
     }
 
-    public function ownedRecord(Request $request, ValidationSubmission $submission)
+    public function ownedRecord(Request $request, ValidationSubmission $submission): View
     {
         $user = $request->user();
         $isOwner = $submission->user_id !== null && (int) $submission->user_id === (int) $user->id;
@@ -228,26 +182,25 @@ class ValidationLabController extends Controller
         return view('result', compact('submission'));
     }
 
-    public function appLogin()
+    public function appLogin(): View
     {
         return view('lab.login');
     }
 
-    public function sendOtp(Request $request)
+    public function sendOtp(Request $request): RedirectResponse
     {
         session(['otp_sent' => true]);
 
         return redirect()->route('lab.otp');
     }
 
-    public function otp()
+    public function otp(): View
     {
         return view('lab.otp');
     }
 
-    public function verifyOtp(Request $request)
+    public function verifyOtp(VerifyLabOtpRequest $request): RedirectResponse|View
     {
-        $request->validate(['otp' => ['required', 'digits:6']]);
         if ($request->otp === '248163') {
             return view('lab.success');
         }

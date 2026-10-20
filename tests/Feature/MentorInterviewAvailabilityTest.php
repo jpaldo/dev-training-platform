@@ -57,12 +57,62 @@ class MentorInterviewAvailabilityTest extends TestCase
         $this->actingAs($participant)->post(route('coach.mentor-availability.store'), $payload)->assertForbidden();
     }
 
+    public function test_admin_adds_availability_for_the_selected_mentor(): void
+    {
+        [, $mentor] = $this->fixture();
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->post(route('coach.mentor-availability.store'), $this->availabilityPayload() + ['mentor_id' => $mentor->id])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('mentor_interview_availabilities', ['mentor_id' => $mentor->id, 'start_time' => '09:00', 'capacity' => 1]);
+    }
+
+    public function test_mentor_can_update_own_availability_but_not_another_mentors(): void
+    {
+        [, $mentor] = $this->fixture();
+        $otherMentor = User::factory()->create(['role' => 'coach', 'is_active' => true]);
+        $availability = MentorInterviewAvailability::create($this->availabilityPayload() + ['mentor_id' => $mentor->id, 'status' => MentorInterviewAvailability::OPEN]);
+        $update = ['end_time' => '11:00', 'capacity' => 2] + $this->availabilityPayload();
+
+        $this->actingAs($otherMentor)
+            ->patch(route('coach.mentor-availability.update', $availability), $update)
+            ->assertForbidden();
+        $this->assertSame(1, $availability->fresh()->capacity);
+
+        $this->actingAs($mentor)
+            ->patch(route('coach.mentor-availability.update', $availability), $update)
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+        $this->assertSame(2, $availability->fresh()->capacity);
+    }
+
+    public function test_availability_update_validates_input_before_checking_ownership(): void
+    {
+        [, $mentor] = $this->fixture();
+        $otherMentor = User::factory()->create(['role' => 'coach', 'is_active' => true]);
+        $availability = MentorInterviewAvailability::create($this->availabilityPayload() + ['mentor_id' => $mentor->id, 'status' => MentorInterviewAvailability::OPEN]);
+
+        $this->actingAs($otherMentor)
+            ->patch(route('coach.mentor-availability.update', $availability), ['start_time' => '9am', 'capacity' => 21] + $this->availabilityPayload())
+            ->assertRedirect()
+            ->assertSessionHasErrors(['start_time', 'capacity']);
+    }
+
     public function test_calendar_disabled_does_not_hide_coach_availability_management_and_admin_can_inspect(): void
     {
         [$participant, $mentor] = $this->fixture();
         app(GoogleDriveConfigurationService::class)->saveParticipantCalendarAvailability(false);
         $this->actingAs($mentor)->get(route('coach.mentor-booking-calendar.index'))->assertOk()->assertSee('MENTOR BOOKING CALENDAR');
         $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.mentor-booking-calendar.index'))->assertOk()->assertSee('MENTOR BOOKING CALENDAR');
+    }
+
+    /** @return array{available_date: string, start_time: string, end_time: string, slot_duration_minutes: int, capacity: int} */
+    private function availabilityPayload(): array
+    {
+        return ['available_date' => now('Asia/Manila')->addDays(4)->toDateString(), 'start_time' => '09:00', 'end_time' => '10:00', 'slot_duration_minutes' => 60, 'capacity' => 1];
     }
 
     /** @return array{0:User,1:User} */

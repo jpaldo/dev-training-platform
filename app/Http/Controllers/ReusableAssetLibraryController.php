@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\FilterReusableAssetsRequest;
 use App\Models\ActivityRequirement;
+use App\Models\ActivitySubmission;
 use App\Models\SubmissionVersion;
 use App\Models\User;
 use App\Services\ReusableAssetLibraryService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -15,22 +18,18 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReusableAssetLibraryController extends Controller
 {
-    public function index(Request $request, ReusableAssetLibraryService $library): View
+    public function index(FilterReusableAssetsRequest $request, ReusableAssetLibraryService $library): View
     {
-        $this->authorizeTrainingUser($request);
-        $filters = $request->validate([
-            'search' => ['nullable', 'string', 'max:100'],
-            'asset_type' => ['nullable', 'string', 'max:100'],
-        ]);
+        $filters = $request->validated();
         $items = $library->approvedSubmissions($filters)->paginate(12)->withQueryString();
-        $items->setCollection($items->getCollection()->map(function ($submission) use ($library): array {
+        $items->setCollection($items->getCollection()->map(function (ActivitySubmission $submission) use ($library): array {
             $published = $library->assetForSubmission($submission);
 
             return ['submission' => $submission, 'version' => $published['version'], 'asset' => $published['asset']];
         }));
 
         $assetTypes = ActivityRequirement::query()
-            ->whereHas('activity', fn ($activity): mixed => $activity->where('position', 1)->whereHas('week', fn ($week): mixed => $week->where('week_number', 4)))
+            ->whereHas('activity', fn (Builder $activity): Builder => $activity->where('position', 1)->whereHas('week', fn (Builder $week): Builder => $week->where('week_number', 4)))
             ->get()
             ->flatMap(fn (ActivityRequirement $requirement): array => $requirement->configuration['options'] ?? [])
             ->filter()

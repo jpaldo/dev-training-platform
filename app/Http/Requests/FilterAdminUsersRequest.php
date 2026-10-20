@@ -1,0 +1,32 @@
+<?php
+
+namespace App\Http\Requests;
+
+use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Foundation\Http\FormRequest;
+
+class FilterAdminUsersRequest extends FormRequest
+{
+    /**
+     * Determine if the user is authorized to make this request.
+     */
+    public function authorize(): bool
+    {
+        return $this->user()?->hasAnyRole(['admin']) === true;
+    }
+
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array<string, ValidationRule|array<mixed>|string>
+     */
+    public function rules(): array
+    {
+        return [
+            'search' => ['nullable', 'string', 'max:100'],
+            'access_type' => ['nullable', 'in:admin,coach,qa_manual,qa_automation,qa_automation_manual'],
+            'status' => ['nullable', 'in:active,disabled'],
+            'path' => ['nullable', 'in:manual,automation,automation_manual'],
+        ];
+    }
+}

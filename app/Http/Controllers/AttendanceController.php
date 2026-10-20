@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\CheckInAttendanceRequest;
+use App\Http\Requests\FilterAttendanceSessionsRequest;
 use App\Models\AttendanceSession;
 use App\Models\User;
 use App\Services\TrainingExportCoordinator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,11 +26,11 @@ class AttendanceController extends Controller
         return view('attendance.index', ['sessions' => $sessions, 'activeSession' => $user->attendanceSessions()->whereNull('check_out_at')->latest('check_in_at')->first()]);
     }
 
-    public function checkIn(Request $request, TrainingExportCoordinator $exports): RedirectResponse
+    public function checkIn(CheckInAttendanceRequest $request, TrainingExportCoordinator $exports): RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
-        $data = $request->validate(['return_to' => ['nullable', 'string', 'max:2048']]);
+        $data = $request->validated();
         DB::transaction(function () use ($user): void {
             User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
             if (AttendanceSession::query()->where('user_id', $user->id)->whereNull('check_out_at')->exists()) {
@@ -63,17 +66,17 @@ class AttendanceController extends Controller
         return back()->with('status', 'Training session checked out.');
     }
 
-    public function manage(Request $request): View
+    public function manage(FilterAttendanceSessionsRequest $request): View
     {
-        $filters = $request->validate(['date_from' => ['nullable', 'date'], 'date_to' => ['nullable', 'date', 'after_or_equal:date_from'], 'participant' => ['nullable', 'integer'], 'path' => ['nullable', 'in:manual,automation,automation_manual'], 'status' => ['nullable', 'in:active,completed']]);
+        $filters = $request->validated();
         $sessions = $this->filtered($filters)->latest('check_in_at')->paginate(25)->withQueryString();
 
         return view('attendance.manage', ['sessions' => $sessions, 'participants' => User::query()->where('role', 'participant')->orderBy('name')->get(), 'filters' => $filters]);
     }
 
-    public function export(Request $request): StreamedResponse
+    public function export(FilterAttendanceSessionsRequest $request): StreamedResponse
     {
-        $filters = $request->validate(['date_from' => ['nullable', 'date'], 'date_to' => ['nullable', 'date', 'after_or_equal:date_from'], 'participant' => ['nullable', 'integer'], 'path' => ['nullable', 'in:manual,automation,automation_manual'], 'status' => ['nullable', 'in:active,completed']]);
+        $filters = $request->validated();
         $sessions = $this->filtered($filters)->latest('check_in_at')->get();
 
         return response()->streamDownload(function () use ($sessions): void {
@@ -86,11 +89,22 @@ class AttendanceController extends Controller
         }, 'attendance.csv', ['Content-Type' => 'text/csv']);
     }
 
-    private function filtered(array $filters)
+    /**
+     * @param  array{date_from?: ?string, date_to?: ?string, participant?: int|string|null, path?: ?string, status?: ?string}  $filters
+     * @return Builder<AttendanceSession>
+     */
+    private function filtered(array $filters): Builder
     {
-        return AttendanceSession::query()->with('participant')->whereHas('participant', function ($query) use ($filters): void {
-            $query->where('role', 'participant')->when($filters['path'] ?? null, fn ($q, $path) => $q->where('training_path', $path));
-        })->when($filters['date_from'] ?? null, fn ($query, $date) => $query->whereDate('check_in_at', '>=', $date))->when($filters['date_to'] ?? null, fn ($query, $date) => $query->whereDate('check_in_at', '<=', $date))->when($filters['participant'] ?? null, fn ($query, $id) => $query->where('user_id', $id))->when(($filters['status'] ?? null) === 'active', fn ($query) => $query->whereNull('check_out_at'))->when(($filters['status'] ?? null) === 'completed', fn ($query) => $query->whereNotNull('check_out_at'));
+        return AttendanceSession::query()
+            ->with('participant')
+            ->whereHas('participant', function (Builder $query) use ($filters): void {
+                $query->where('role', 'participant')->when($filters['path'] ?? null, fn (Builder $q, string $path): Builder => $q->where('training_path', $path));
+            })
+            ->when($filters['date_from'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('check_in_at', '>=', $date))
+            ->when($filters['date_to'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('check_in_at', '<=', $date))
+            ->when($filters['participant'] ?? null, fn (Builder $query, int|string $id): Builder => $query->where('user_id', $id))
+            ->when(($filters['status'] ?? null) === 'active', fn (Builder $query): Builder => $query->whereNull('check_out_at'))
+            ->when(($filters['status'] ?? null) === 'completed', fn (Builder $query): Builder => $query->whereNotNull('check_out_at'));
     }
 
     private function isSafeInternalUrl(string $url, Request $request): bool

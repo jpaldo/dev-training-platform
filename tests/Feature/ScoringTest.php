@@ -164,6 +164,13 @@ class ScoringTest extends TestCase
         $this->actingAs($coach)->get(route('coach.reports.participant-summary'))->assertOk()->assertDownload('participant-score-summary.csv');
     }
 
+    public function test_participant_summary_without_an_active_program_is_not_found_before_validation(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+
+        $this->actingAs($coach)->get(route('coach.reports.participant-summary', ['week' => 9]))->assertNotFound();
+    }
+
     public function test_scoring_page_displays_answers_and_ordered_prompt_history_for_exact_version(): void
     {
         [$participant, $coach, $version] = $this->fixture();
@@ -408,6 +415,22 @@ class ScoringTest extends TestCase
         [$participant, , $version] = $this->fixture();
 
         $this->actingAs($participant)->postJson(route('coach.scoring.improve', $version), ['text' => 'Private feedback.', 'dimension' => 'D1'])->assertForbidden();
+    }
+
+    public function test_unassigned_coach_is_forbidden_from_improving_feedback_before_validation(): void
+    {
+        [, , $version] = $this->fixture();
+        $unassigned = User::factory()->create(['role' => 'coach']);
+
+        $this->actingAs($unassigned)->postJson(route('coach.scoring.improve', $version), ['dimension' => 'D9'])->assertForbidden();
+    }
+
+    public function test_improving_feedback_on_draft_version_is_not_found_before_validation(): void
+    {
+        [, $coach, $version] = $this->fixture();
+        $version->update(['status' => 'draft']);
+
+        $this->actingAs($coach)->postJson(route('coach.scoring.improve', $version), ['dimension' => 'D9'])->assertNotFound();
     }
 
     public function test_improve_provider_failure_does_not_replace_original_text(): void

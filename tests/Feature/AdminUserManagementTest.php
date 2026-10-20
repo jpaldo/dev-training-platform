@@ -81,4 +81,16 @@ class AdminUserManagementTest extends TestCase
         $this->actingAs($admin)->post(route('admin.users.assignments', $participant), ['coach_ids' => [$inactiveCoach->id, $otherParticipant->id]])->assertRedirect();
         $this->assertCount(0, $participant->fresh()->assignedCoaches);
     }
+
+    public function test_admin_assignment_returns_not_found_for_non_participant_before_validating_input(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $coach = User::factory()->create(['role' => 'coach', 'is_active' => true]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.assignments', $coach), ['coach_ids' => ['not-a-number']])
+            ->assertNotFound();
+
+        $this->assertCount(0, $coach->fresh()->assignedCoaches);
+    }
 }

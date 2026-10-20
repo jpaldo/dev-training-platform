@@ -2,43 +2,38 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreWeeklyVideoRecordingRequest;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
-use App\Services\EvidenceFilePolicy;
 use App\Services\WeekProgressionService;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WeeklyVideoRecordingController extends Controller
 {
-    public function edit(Request $request, TrainingWeek $trainingWeek, WeekProgressionService $progression)
+    public function edit(Request $request, TrainingWeek $trainingWeek, WeekProgressionService $progression): View
     {
         /** @var User $user */
         $user = $request->user();
         $progression->ensureCanAccessWeek($user, $trainingWeek);
         $recording = WeeklyVideoRecording::query()->where('user_id', $user->id)->where('training_week_id', $trainingWeek->id)->first();
-        $gatePassed = $trainingWeek->gates()->where('is_active', true)->whereHas('evaluations', fn ($query) => $query->where('user_id', $user->id)->where('status', 'passed'))->exists();
+        $gatePassed = $trainingWeek->gates()->where('is_active', true)->whereHas('evaluations', fn (Builder $query): Builder => $query->where('user_id', $user->id)->where('status', 'passed'))->exists();
 
         return view('training.video-recording', compact('trainingWeek', 'recording', 'gatePassed'));
     }
 
-    public function store(Request $request, TrainingWeek $trainingWeek, WeekProgressionService $progression)
+    public function store(StoreWeeklyVideoRecordingRequest $request, TrainingWeek $trainingWeek): RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
-        $progression->ensureCanAccessWeek($user, $trainingWeek);
         $recording = WeeklyVideoRecording::query()->where('user_id', $user->id)->where('training_week_id', $trainingWeek->id)->first();
-        $gatePassed = $trainingWeek->gates()->where('is_active', true)->whereHas('evaluations', fn ($query) => $query->where('user_id', $user->id)->where('status', 'passed'))->exists();
-        abort_if($gatePassed, 422, 'This week is locked after Gate completion.');
-        $policy = app(EvidenceFilePolicy::class);
-        $maxKb = (int) config('training.weekly_video_max_kb', 358400);
-        $data = $request->validate([
-            'video' => array_merge(['required'], $policy->videoRules()),
-            'notes' => ['nullable', 'string', 'max:5000'],
-        ], ['video.max' => 'The video must not exceed '.round($maxKb / 1024, 1).' MB.']);
+        $data = $request->validated();
 
         $file = $request->file('video');
         if (! $file) {

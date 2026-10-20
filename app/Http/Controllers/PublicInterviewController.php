@@ -2,14 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreInterviewerRegistrationRequest;
 use App\Models\InterviewScheduler;
-use App\Rules\ExternalBookingUrl;
 use App\Services\InterviewBookingLinkService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -32,27 +30,20 @@ class PublicInterviewController extends Controller
         return view('public.interview-register', ['publicTitle' => $links->publicTitle()]);
     }
 
-    public function storeRegistration(Request $request): RedirectResponse
+    public function storeRegistration(StoreInterviewerRegistrationRequest $request): RedirectResponse
     {
-        $key = 'public-interviewer-registration|'.$request->ip();
-        if (RateLimiter::tooManyAttempts($key, 5)) {
+        if ($request->isRateLimited()) {
             return back()->withErrors(['registration' => 'Too many submissions. Please try again later.'])->withInput();
         }
-        RateLimiter::hit($key, 600);
 
-        $data = $request->validate([
-            'full_name' => ['required', 'string', 'max:255'],
-            'interview_type' => ['required', 'in:mock,final_reassessment,both'],
-            'mock_booking_url' => [Rule::requiredIf(fn (): bool => in_array($request->input('interview_type'), ['mock', 'both'], true)), 'nullable', 'string', 'max:2000', new ExternalBookingUrl],
-            'final_booking_url' => [Rule::requiredIf(fn (): bool => in_array($request->input('interview_type'), ['final_reassessment', 'both'], true)), 'nullable', 'string', 'max:2000', new ExternalBookingUrl],
-        ]);
+        $data = $request->validated();
         $name = trim($data['full_name']);
         $mockUrl = isset($data['mock_booking_url']) ? $this->normalizeBookingUrl((string) $data['mock_booking_url']) : null;
         $finalUrl = isset($data['final_booking_url']) ? $this->normalizeBookingUrl((string) $data['final_booking_url']) : null;
-        $duplicate = InterviewScheduler::query()->whereIn('approval_status', [InterviewScheduler::PENDING, InterviewScheduler::APPROVED])->whereRaw('LOWER(full_name) = ?', [mb_strtolower($name)])->where(function ($query) use ($mockUrl, $finalUrl): void {
-            $query->where(function ($query) use ($mockUrl, $finalUrl): void {
+        $duplicate = InterviewScheduler::query()->whereIn('approval_status', [InterviewScheduler::PENDING, InterviewScheduler::APPROVED])->whereRaw('LOWER(full_name) = ?', [mb_strtolower($name)])->where(function (Builder $query) use ($mockUrl, $finalUrl): void {
+            $query->where(function (Builder $query) use ($mockUrl, $finalUrl): void {
                 $query->where('mock_booking_url', $mockUrl)->where('final_booking_url', $finalUrl);
-            })->orWhere(function ($query) use ($mockUrl, $finalUrl): void {
+            })->orWhere(function (Builder $query) use ($mockUrl, $finalUrl): void {
                 $query->whereNull('mock_booking_url')->whereNull('final_booking_url')->where('booking_url', $mockUrl ?: $finalUrl);
             });
         })->exists();

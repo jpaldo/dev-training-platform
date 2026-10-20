@@ -2,35 +2,36 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\DecideRecoveryRequestRequest;
+use App\Http\Requests\StoreRecoveryRequestRequest;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivitySubmission;
-use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\View\View;
 
 class RecoveryRequestController extends Controller
 {
-    public function store(Request $request, ActivitySubmission $activitySubmission)
+    public function store(StoreRecoveryRequestRequest $request, ActivitySubmission $activitySubmission): RedirectResponse
     {
-        abort_unless($activitySubmission->user_id === $request->user()->id && $activitySubmission->status === 'failed', 403);
-        if (ActivityRecoveryRequest::where('activity_submission_id', $activitySubmission->id)->where('status', 'pending')->exists()) {
+        if ($request->hasPendingRecoveryRequest()) {
             return back()->with('status', 'Review requested. Waiting for coach response.');
-        } ActivityRecoveryRequest::create(['user_id' => $request->user()->id, 'activity_submission_id' => $activitySubmission->id, 'message' => $request->validate(['message' => ['nullable', 'string', 'max:2000']])['message'] ?? null, 'requested_at' => now()]);
+        }
+        ActivityRecoveryRequest::create(['user_id' => $request->user()->id, 'activity_submission_id' => $activitySubmission->id, 'message' => $request->validated('message'), 'requested_at' => now()]);
 
         return back()->with('status', 'Review requested. Waiting for coach response.');
     }
 
-    public function index()
+    public function index(): View
     {
         $requests = ActivityRecoveryRequest::with(['participant', 'submission.activity', 'submission.versions'])->where('status', 'pending')->latest()->paginate(25)->withQueryString();
 
         return view('coach.recovery_requests', compact('requests'));
     }
 
-    public function decide(Request $request, ActivityRecoveryRequest $recoveryRequest)
+    public function decide(DecideRecoveryRequestRequest $request, ActivityRecoveryRequest $recoveryRequest): RedirectResponse
     {
-        abort_unless($recoveryRequest->status === 'pending', 422);
-        abort_unless($request->user()->canManageParticipant($recoveryRequest->participant), 403);
-        $data = $request->validate(['decision' => ['required', 'in:approved,declined'], 'coach_response' => ['nullable', 'string', 'max:2000']]);
+        $data = $request->validated();
         DB::transaction(function () use ($recoveryRequest, $data, $request): void {
             $retry = null;
             if ($data['decision'] === 'approved') {

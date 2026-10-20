@@ -2,17 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\PreviewMarkdownRequest;
 use App\Support\Markdown;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class MarkdownPreviewController extends Controller
 {
-    public function __invoke(Request $request): JsonResponse
+    public function __invoke(PreviewMarkdownRequest $request): JsonResponse
     {
-        $content = $request->validate([
-            'content' => ['nullable', 'string', 'max:60000'],
-        ])['content'] ?? '';
+        $content = $request->validated('content') ?? '';
 
         return response()->json(['html' => Markdown::toHtml($content)]);
     }

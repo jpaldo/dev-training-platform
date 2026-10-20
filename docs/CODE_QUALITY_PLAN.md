@@ -48,16 +48,16 @@ Add explicit return types (and parameter types where missing).
 
 Move the 42 inline validations into Form Requests. Keep the rules and error messages exactly the same; existing validation tests must pass unchanged. Batch by controller.
 
-- [ ] `CoachOperationsController` — lines 44, 58, 77, 94, 105, 141, 259, 291, 316
-- [ ] `ValidationLabController` — 45, 60, 118, 250
-- [ ] `AdminInterviewSchedulingController` — 72, 87, 97
-- [ ] `AttendanceController` — 30, 68, 76
-- [ ] `AdminUserController` — 30, 73
-- [ ] `MentorInterviewAvailabilityController` — 29, 38
-- [ ] `RecoveryRequestController` — 17, 33
-- [ ] `ScoringController` — 28, 82
-- [ ] `WeekFourMentorInterviewController` — 21, 33
-- [ ] Single-call controllers: `AdminAiSettingsController` (31), `DailyLogExportController` (14), `DailyLogReportController` (17), `GoogleDriveDestinationController` (24), `MarkdownPreviewController` (13), `MentorBookingCalendarController` (27), `MissingSubmissionReportController` (50), `ParticipantNotificationController` (17), `PublicInterviewController` (43), `ReusableAssetLibraryController` (21), `ScoringReportController` (17), `WeekThreeWorkspaceController` (15), `WeeklyVideoRecordingController` (38)
+- [x] `CoachOperationsController` — lines 49, 63, 82, 99, 110, 146, 264, 296, 321. Nine Form Requests (`Filter…`, `AssignWeekFourPairRequest`, `WaiveWeekFourPeerInterviewRequest`, `StorePartnerFeedbackRequest`, `ExportCoachReportRequest`). The non-participant 404 (and the `view` policy for daily logs) moved into `authorize()` so it still wins over validation. Only remaining order change: if the Week 4 position-2 activity is missing, an over-long waiver `reason` now gets a validation error instead of 404.
+- [x] `ValidationLabController` — lines 47, 62, 120, 252. Three Form Requests: `StoreValidationArtifactRequest` (`artifact`; the stricter second-stage rules run in an `after()` hook only when the base rules pass and the request is not the legacy name-only start, so the error set is unchanged), `StoreValidationSubmissionRequest` (`submit`; the `artifact_name` trim moved to `prepareForValidation`), `VerifyLabOtpRequest` (`verifyOtp`). No pre-validation checks existed, so no order changes.
+- [x] `AdminInterviewSchedulingController` — 72, 87, 97. Three Form Requests: `SaveInterviewSchedulerRequest` (shared by `store` and `update`, as the old private `validated()` helper was; the post-validation `booking_url`/`is_active`/`display_order` defaults stay in the controller's `interviewerAttributes()`), `UploadInterviewPageLogoRequest` (`uploadLogo`), `UpdateInterviewPagePublicTitleRequest` (`updatePublicTitle`). `authorize()` mirrors the route's `role:admin`. No pre-validation checks existed (the `{interviewer}` 404 still comes from route binding first), so no order changes.
+- [x] `AttendanceController` — 31, 69, 77. Two Form Requests: `CheckInAttendanceRequest` (`checkIn`; the safe-URL `return_to` check stays after validation in the controller, as before) and `FilterAttendanceSessionsRequest` (shared by `manage` and `export`, which had identical rules). `authorize()` mirrors the routes' `role:participant` and `role:coach,admin`/`role:admin` middleware, which still runs first. No pre-validation checks existed, so no order changes.
+- [x] `AdminUserController` — 33, 76. Two Form Requests: `FilterAdminUsersRequest` (`index`) and `UpdateParticipantAssignmentsRequest` (`assignments`). The non-participant 404 moved into `authorize()` so it still wins over validation (covered by a new test). `authorize()` mirrors the route's `role:admin`. No other order changes.
+- [x] `MentorInterviewAvailabilityController` — 29, 38. Two Form Requests: `StoreMentorInterviewAvailabilityRequest` (`store`) and `UpdateMentorInterviewAvailabilityRequest` (`update`). `authorize()` mirrors the route's `role:coach,admin`. The ownership check (`MentorInterviewAvailabilityService::authorizeAccess`) stays in the service after validation, so another mentor's invalid input still gets validation errors before the 403 (covered by new tests). No order changes.
+- [x] `RecoveryRequestController` — 19, 35. Two Form Requests: `StoreRecoveryRequestRequest` (`store`) and `DecideRecoveryRequestRequest` (`decide`). The owner/failed-status 403 and, for `decide`, the not-pending 422 followed by the `canManageParticipant` 403 moved into `authorize()` in their original order, so they still win over validation. For `store`, the "already pending" redirect also ran before validation: `rules()` returns no rules when a pending request exists (memoized `hasPendingRecoveryRequest()`, which the controller reuses for the redirect), so an invalid `message` still gets the same status redirect. All four paths are covered by new tests. No order changes.
+- [x] `ScoringController` — 29, 83. Two Form Requests: `FilterScoringParticipantsRequest` (`index`; `authorize()` mirrors the route's `role:coach,admin`) and `ImproveScoringFeedbackRequest` (`improveFeedback`). The draft/non-participant 404 followed by the `canManageParticipant` 403 moved into `authorize()` in their original order, so they still win over validation (covered by new tests). The only visible difference: the 403 JSON body now carries Laravel's "This action is unauthorized." message instead of an empty one. No order changes.
+- [x] `WeekFourMentorInterviewController` — 21, 33. One Form Request, `ScheduleMentorInterviewRequest`, shared by `store` and `update` (identical rules and messages). The activity-not-in-this-week 404 moved into `authorize()` so it still wins over validation (covered by a new test). `authorize()` otherwise returns true; the route's `role:participant` still runs first. No order changes.
+- [x] Single-call controllers: `AdminAiSettingsController` (31), `DailyLogExportController` (14), `DailyLogReportController` (20), `GoogleDriveDestinationController` (24), `MarkdownPreviewController` (13), `MentorBookingCalendarController` (27), `MissingSubmissionReportController` (50), `ParticipantNotificationController` (18), `PublicInterviewController` (44), `ReusableAssetLibraryController` (23), `ScoringReportController` (21), `WeekThreeWorkspaceController` (15), `WeeklyVideoRecordingController` (41). Fourteen Form Requests: `TestAiSettingsRequest`, `ExportDailyLogsRequest`, `FilterDailyLogReportRequest` (shared by `index`, `export`, `details`), `StoreGoogleDriveDestinationRequest`, `PreviewMarkdownRequest`, `StoreMentorBookingCalendarRequest`, `FilterMissingSubmissionsRequest` (`index`, `export`), `FilterParticipantNotificationsRequest`, `StoreInterviewerRegistrationRequest`, `FilterReusableAssetsRequest`, `FilterScoringReportRequest` (`index`, `scores`, `completion`) plus `ExportParticipantScoreSummaryRequest` (extends it for `participantSummary`), `UpdateWeekThreeWorkspaceRequest`, `StoreWeeklyVideoRecordingRequest`. The filter rules differ between the Daily Log, missing-submission and scoring reports (and from `FilterScoringParticipantsRequest`), so none are shared across controllers. Pre-validation checks kept in order: the training-role 403 (`FilterReusableAssetsRequest`), the participant-role 403 (`UpdateWeekThreeWorkspaceRequest`), and the week-access 403 followed by the locked-after-Gate 422 (`StoreWeeklyVideoRecordingRequest`) moved into `authorize()`; the public registration rate limit is counted in `prepareForValidation()` and a limited request skips validation so the controller still returns the "Too many submissions" redirect; the participant summary skips validation when no program is active so the `firstOrFail()` 404 still wins. Each path is covered by a new test. Only remaining order change: `ParticipantNotificationController::index` now validates `filter` before `ParticipantNotificationService::sync()`, so a request with an invalid filter no longer syncs before its validation redirect (the next valid page load syncs as before). No `->validate(` / `Validator::make` calls remain in `app/Http/Controllers`.
 
 Line numbers are from the audit on 2026-10-20 and will drift; search for `->validate(` / `Validator::make` to find the current locations.
 
@@ -67,10 +67,10 @@ Line numbers are from the audit on 2026-10-20 and will drift; search for `->vali
 
 Replace per-row queries with eager loading or single aggregate queries. For each hotspot, add a feature test that fails if the query count grows with the number of rows (e.g. compare `DB::getQueryLog()` counts for 1 vs 3 records).
 
-- [ ] `ParticipantDashboardController` (lines ~34–103) — per-activity `submissions()` queries (twice), per-week daily-log count and video lookup, per-activity Validation Lab `exists()`, per-gate readiness. Highest-traffic page; do this first.
-- [ ] `CoachOperationsController` (~49)
-- [ ] `ScoringReportController` (~35, ~48)
-- [ ] `DailyLogReportController` (~52)
+- [ ] `ParticipantDashboardController` (lines ~40–109) — per-activity `submissions()` queries (twice), per-week daily-log count and video lookup, per-activity Validation Lab `exists()`, per-gate readiness. Highest-traffic page; do this first.
+- [ ] `CoachOperationsController` (~63)
+- [ ] `ScoringReportController` (~39, ~53)
+- [ ] `DailyLogReportController` (~61)
 - [ ] `ReusableAssetLibraryController` (~26)
 
 ---
@@ -79,10 +79,10 @@ Replace per-row queries with eager loading or single aggregate queries. For each
 
 Move business logic into services (existing ones where they fit); controllers keep only the HTTP concerns. Do this after Phases 2–3 so the code being moved is already clean.
 
-- [ ] `CoachOperationsController` (352 lines) — split by area if it helps (e.g. participants, reviews, Week 4 pairing), each delegating to services.
-- [ ] `SubmissionEvidenceController` (346 lines)
-- [ ] `ValidationLabController` (257 lines)
-- [ ] `ActivitySubmissionController` (237 lines)
+- [ ] `CoachOperationsController` (362 lines) — split by area if it helps (e.g. participants, reviews, Week 4 pairing), each delegating to services.
+- [ ] `SubmissionEvidenceController` (347 lines)
+- [ ] `ValidationLabController` (210 lines)
+- [ ] `ActivitySubmissionController` (242 lines)
 
 ---
 
@@ -137,3 +137,8 @@ Note: the view "query" counts come from a pattern search and include some Collec
 
 - [ ] `resources/css/app.css` contains `p[id="mentor-interview-timezone"] { display:none; }`. It became active when the layout started loading `app.css`, so the timezone line on the Week 4 submission page is now hidden. Confirm that it should stay hidden, or remove the rule.
 - [ ] `APP_NAME` in `.env` / `.env.example` is still `Laravel`, so outgoing mail uses "Laravel" as the sender name. Set it to `"Developer Training Platform"`?
+- [ ] `DailyLogReportController::details` repeats the whole filter query from `rows` (only the ordering and pagination differ). Extract the shared filter constraints (e.g. a `DailyLog` scope or a service method) when this controller is slimmed or moved to a Form Request?
+- [ ] Four methods in `app/` still have untyped parameters (closures are all typed now): `ScoringService::weekly($week)`, `ScoringService::summary($program)`, `ScoringService::runningAverage($exceptVersion)` and `ActivitySubmissionController::carryForwardLabRecord($labRecords)`. Add a Phase 1 item to type them?
+- [ ] `ValidationLabController::artifact` still returns `back()->withErrors()` when the "Other" feature area / artifact type or the artifact name is blank after trimming. With the global `TrimStrings` and `ConvertEmptyStringsToNull` middleware, whitespace-only input already fails `required_if` / `required` in `StoreValidationArtifactRequest`, so these branches look unreachable. Remove them (or fold them into the Form Request) when the controller is slimmed in Phase 4?
+- [ ] `MentorInterviewAvailabilityController::store` passes the validated `mentor_id` into `MentorInterviewAvailabilityService::create`, where `$data + ['mentor_id' => $mentor->id]` keeps the request's value. A coach who posts another coach's `mentor_id` therefore creates availability owned by that coach, and an admin who omits `mentor_id` gets a 500 (undefined array key). Drop `mentor_id` from the data passed to the service and make it `required` for admins?
+- [ ] `POST /interviews/register` has both `throttle:5,10` route middleware and an in-request limiter (`StoreInterviewerRegistrationRequest`, 5 attempts per 600 s per IP). The middleware answers the sixth request with a 429 first, so the friendlier "Too many submissions" redirect is effectively unreachable. Keep one of them (drop the middleware for the redirect, or drop the in-request limiter)?

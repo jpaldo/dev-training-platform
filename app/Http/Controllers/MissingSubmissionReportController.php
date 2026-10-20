@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\FilterMissingSubmissionsRequest;
 use App\Models\User;
 use App\Services\MissingSubmissionReportService;
 use Illuminate\Http\Request;
@@ -12,9 +13,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MissingSubmissionReportController extends Controller
 {
-    public function index(Request $request, MissingSubmissionReportService $report): View
+    public function index(FilterMissingSubmissionsRequest $request, MissingSubmissionReportService $report): View
     {
-        $filters = $this->filters($request);
+        $filters = $request->validated();
         $rows = $report->rows($filters);
         $actionable = $rows->reject(fn (array $row): bool => $row['status'] === 'Expectation Not Configured');
         $paginator = $this->paginate($rows, $request);
@@ -31,9 +32,9 @@ class MissingSubmissionReportController extends Controller
         return view('coach.missing-submissions', compact('paginator', 'filters', 'summary', 'participants', 'mentors', 'report'));
     }
 
-    public function export(Request $request, MissingSubmissionReportService $report): StreamedResponse
+    public function export(FilterMissingSubmissionsRequest $request, MissingSubmissionReportService $report): StreamedResponse
     {
-        $rows = $report->rows($this->filters($request));
+        $rows = $report->rows($request->validated());
 
         return response()->streamDownload(function () use ($rows): void {
             $out = fopen('php://output', 'w');
@@ -43,21 +44,6 @@ class MissingSubmissionReportController extends Controller
             }
             fclose($out);
         }, 'missing-submissions.csv', ['Content-Type' => 'text/csv']);
-    }
-
-    private function filters(Request $request): array
-    {
-        return $request->validate([
-            'participant' => ['nullable', 'integer'],
-            'path' => ['nullable', 'in:manual,automation,automation_manual'],
-            'mentor' => ['nullable', 'integer'],
-            'category' => ['nullable', 'in:general_training,daily_logs,activities,video_recording'],
-            'week' => ['nullable', 'in:general,2,3,4'],
-            'requirement' => ['nullable', 'string', 'max:100'],
-            'status' => ['nullable', 'in:not_submitted,partial'],
-            'from' => ['nullable', 'date'],
-            'to' => ['nullable', 'date', 'after_or_equal:from'],
-        ]);
     }
 
     private function paginate(Collection $rows, Request $request): LengthAwarePaginator

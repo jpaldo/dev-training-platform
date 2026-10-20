@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Rules\ExternalBookingUrl;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
 use Tests\TestCase;
 
@@ -93,6 +94,26 @@ class InterviewSchedulingTest extends TestCase
         $this->from(route('interviews.register'))->post(route('interviews.register.store'), ['full_name' => 'Mock Missing', 'interview_type' => 'mock'])->assertSessionHasErrors('mock_booking_url');
         $this->from(route('interviews.register'))->post(route('interviews.register.store'), ['full_name' => 'Final Missing', 'interview_type' => 'final_reassessment'])->assertSessionHasErrors('final_booking_url');
         $this->from(route('interviews.register'))->post(route('interviews.register.store'), ['full_name' => 'Both Missing', 'interview_type' => 'both', 'mock_booking_url' => 'https://calendar.app.google/mock'])->assertSessionHasErrors('final_booking_url');
+    }
+
+    public function test_rate_limited_public_registration_is_rejected_before_validation(): void
+    {
+        foreach (range(1, 5) as $attempt) {
+            RateLimiter::hit('public-interviewer-registration|127.0.0.1', 600);
+        }
+
+        $this->from(route('interviews.register'))->post(route('interviews.register.store'), ['interview_type' => 'other'])
+            ->assertRedirect(route('interviews.register'))
+            ->assertSessionHasErrors('registration')
+            ->assertSessionDoesntHaveErrors(['full_name', 'interview_type']);
+        $this->assertDatabaseCount('interview_schedulers', 0);
+    }
+
+    public function test_invalid_public_registration_counts_toward_the_rate_limit(): void
+    {
+        $this->from(route('interviews.register'))->post(route('interviews.register.store'), ['interview_type' => 'other'])->assertSessionHasErrors('interview_type');
+
+        $this->assertSame(1, RateLimiter::attempts('public-interviewer-registration|127.0.0.1'));
     }
 
     public function test_provider_neutral_booking_urls_are_accepted_and_mixed_providers_work(): void

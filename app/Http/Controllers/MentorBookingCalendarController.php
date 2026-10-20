@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreMentorBookingCalendarRequest;
 use App\Models\InterviewScheduler;
 use App\Models\User;
-use App\Rules\ExternalBookingUrl;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -20,11 +20,11 @@ class MentorBookingCalendarController extends Controller
         return view('coach.mentor-availability', compact('booking'));
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(StoreMentorBookingCalendarRequest $request): RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
-        $data = $request->validate(['booking_url' => ['required', 'string', 'max:2000', new ExternalBookingUrl]]);
+        $data = $request->validated();
         InterviewScheduler::query()->updateOrCreate(
             ['interview_type' => InterviewScheduler::MOCK, 'user_id' => $user->id],
             ['full_name' => $user->name, 'email' => $user->email, 'booking_url' => $data['booking_url'], 'mock_booking_url' => $data['booking_url'], 'is_active' => true, 'display_order' => 0],

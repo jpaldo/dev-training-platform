@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\TestAiSettingsRequest;
 use App\Http\Requests\UpdateAiSettingsRequest;
 use App\Models\AdminAuditLog;
 use App\Services\AiProviderConfigurationService;
 use App\Services\AiScoringProviderResolver;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class AdminAiSettingsController extends Controller
@@ -26,13 +26,9 @@ class AdminAiSettingsController extends Controller
         return redirect()->route('admin.settings.ai')->with('status', 'AI scoring settings saved.');
     }
 
-    public function test(Request $request, AiScoringProviderResolver $resolver): RedirectResponse
+    public function test(TestAiSettingsRequest $request, AiScoringProviderResolver $resolver): RedirectResponse
     {
-        $data = $request->validate([
-            'provider' => ['nullable', 'in:openrouter,openai,anthropic,gemini'],
-            'model' => ['nullable', 'string', 'max:255', 'regex:/^[A-Za-z0-9][A-Za-z0-9._:\/-]*$/'],
-            'api_key' => ['nullable', 'string', 'max:4096'],
-        ]);
+        $data = $request->validated();
         $result = $resolver->test(['enabled' => true, ...$data]);
         if ($result['ok']) {
             return redirect()->route('admin.settings.ai')->with('status', $result['message']);

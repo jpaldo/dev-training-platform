@@ -2,16 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\FilterAdminUsersRequest;
 use App\Http\Requests\StoreAdminUserRequest;
 use App\Http\Requests\UpdateAdminUserRequest;
+use App\Http\Requests\UpdateParticipantAssignmentsRequest;
 use App\Models\AdminAuditLog;
 use App\Models\User;
 use App\Services\PasswordSetupService;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -25,13 +28,13 @@ class AdminUserController extends Controller
         'qa_automation_manual' => 'QA Automation / Manual',
     ];
 
-    public function index(Request $request): View
+    public function index(FilterAdminUsersRequest $request): View
     {
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100'], 'access_type' => ['nullable', 'in:admin,coach,qa_manual,qa_automation,qa_automation_manual'], 'status' => ['nullable', 'in:active,disabled'], 'path' => ['nullable', 'in:manual,automation,automation_manual']]);
-        $users = User::query()->when($filters['search'] ?? null, fn ($query, $search) => $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")))
-            ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('is_active', $status === 'active'))
-            ->when($filters['path'] ?? null, fn ($query, $path) => $query->where('training_path', $path))
-            ->when($filters['access_type'] ?? null, fn ($query, $type) => $query->where(fn ($q) => match ($type) {
+        $filters = $request->validated();
+        $users = User::query()->when($filters['search'] ?? null, fn (Builder $query, string $search): Builder => $query->where(fn (Builder $q): Builder => $q->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")))
+            ->when($filters['status'] ?? null, fn (Builder $query, string $status): Builder => $query->where('is_active', $status === 'active'))
+            ->when($filters['path'] ?? null, fn (Builder $query, string $path): Builder => $query->where('training_path', $path))
+            ->when($filters['access_type'] ?? null, fn (Builder $query, string $type): Builder => $query->where(fn (Builder $q): Builder => match ($type) {
                 'admin' => $q->where('role', 'admin'),
                 'coach' => $q->where('role', 'coach'),
                 'qa_manual' => $q->where('role', 'participant')->where('training_path', 'manual'),
@@ -62,15 +65,14 @@ class AdminUserController extends Controller
 
     public function edit(User $user): View
     {
-        $user->load(['attendanceSessions' => fn ($query) => $query->latest('check_in_at')->limit(5), 'assignedCoaches']);
+        $user->load(['attendanceSessions' => fn (Relation $query): Relation => $query->latest('check_in_at')->limit(5), 'assignedCoaches']);
 
         return view('admin.users.form', ['user' => $user, 'accessTypes' => self::ACCESS_TYPES, 'currentAccessType' => $this->accessType($user), 'coaches' => User::query()->where('role', 'coach')->where('is_active', true)->orderBy('name')->get()]);
     }
 
-    public function assignments(Request $request, User $user): RedirectResponse
+    public function assignments(UpdateParticipantAssignmentsRequest $request, User $user): RedirectResponse
     {
-        abort_unless($user->role === 'participant', 404);
-        $data = $request->validate(['coach_ids' => ['nullable', 'array'], 'coach_ids.*' => ['integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('role', 'coach')->where('is_active', true))]]);
+        $data = $request->validated();
         $coachIds = $data['coach_ids'] ?? [];
         $user->assignedCoaches()->sync($coachIds);
         $this->audit($request, $user, 'participant_assignments_updated', ['coach_count' => count($coachIds)]);

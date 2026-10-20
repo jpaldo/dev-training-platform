@@ -255,4 +255,14 @@ class WeekFourWorkflowTest extends TestCase
         $this->actingAs($admin)->post(route('coach.week-four.peer-waiver.revoke', $participant))->assertRedirect();
         $this->assertNotNull(WeekFourPeerInterviewWaiver::query()->where('participant_id', $participant->id)->firstOrFail()->revoked_at);
     }
+
+    public function test_peer_waiver_for_non_participant_is_not_found_even_with_invalid_reason(): void
+    {
+        $this->fixture();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $coach = User::factory()->create(['role' => 'coach']);
+
+        $this->actingAs($admin)->post(route('coach.week-four.peer-waiver.store', $coach), ['reason' => str_repeat('a', 1001)])->assertNotFound();
+        $this->assertDatabaseMissing('week_four_peer_interview_waivers', ['participant_id' => $coach->id]);
+    }
 }

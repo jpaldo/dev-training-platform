@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\FilterScoringParticipantsRequest;
+use App\Http\Requests\ImproveScoringFeedbackRequest;
 use App\Http\Requests\StoreActivityScoreRequest;
 use App\Http\Requests\StoreSecondReaderScoreRequest;
 use App\Jobs\ExportActivityJob;
@@ -14,6 +16,7 @@ use App\Services\ScoringService;
 use App\Services\ScoringSuggestionService;
 use App\Services\SubmissionAnswerPresenter;
 use App\Services\TrainingSyncCoordinator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,12 +26,12 @@ use RuntimeException;
 
 class ScoringController extends Controller
 {
-    public function index(Request $request, ScoringService $scoring): View
+    public function index(FilterScoringParticipantsRequest $request, ScoringService $scoring): View
     {
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:100'], 'path' => ['nullable', 'in:manual,automation,automation_manual'], 'week' => ['nullable', 'integer', 'in:2,3,4'], 'activity' => ['nullable', 'integer'], 'score_status' => ['nullable', 'in:scored,unscored'], 'band' => ['nullable', 'in:Exemplary,Proficient,Developing,Beginning,Minimal'], 'assigned_to_me' => ['nullable', 'boolean']]);
+        $filters = $request->validated();
         $program = Program::query()->where('is_active', true)->firstOrFail();
-        $participants = User::query()->where('role', 'participant')->when($filters['path'] ?? null, fn ($q, $v) => $q->where('training_path', $v))->when($filters['search'] ?? null, fn ($q, $v) => $q->where(fn ($s) => $s->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))->when($filters['week'] ?? null, fn ($q, $v) => $q->whereHas('activitySubmissions.activity.week', fn ($w) => $w->where('week_number', $v)))->when($filters['activity'] ?? null, fn ($q, $v) => $q->whereHas('activitySubmissions.activity', fn ($a) => $a->whereKey($v)))->when(($filters['assigned_to_me'] ?? false) && $request->user()->role === 'coach', fn ($q) => $q->whereHas('assignedCoaches', fn ($c) => $c->whereKey($request->user()->id)))->when(($filters['score_status'] ?? null) === 'scored', fn ($q) => $q->whereHas('activitySubmissions.versions.activityScore', fn ($s) => $s->where('status', 'published')))->when(($filters['score_status'] ?? null) === 'unscored', fn ($q) => $q->whereDoesntHave('activitySubmissions.versions.activityScore'))->when($filters['band'] ?? null, fn ($q, $v) => $q->whereHas('activitySubmissions.versions.activityScore', fn ($s) => $s->where('performance_band', $v)))->with('assignedCoaches')->paginate(25)->withQueryString();
-        $rows = $participants->getCollection()->map(fn ($participant) => ['participant' => $participant, 'summary' => $scoring->summary($participant, $program)])->values();
+        $participants = User::query()->where('role', 'participant')->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $s): Builder => $s->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('activitySubmissions.activity.week', fn (Builder $w): Builder => $w->where('week_number', $v)))->when($filters['activity'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('activitySubmissions.activity', fn (Builder $a): Builder => $a->whereKey($v)))->when(($filters['assigned_to_me'] ?? false) && $request->user()->role === 'coach', fn (Builder $q): Builder => $q->whereHas('assignedCoaches', fn (Builder $c): Builder => $c->whereKey($request->user()->id)))->when(($filters['score_status'] ?? null) === 'scored', fn (Builder $q): Builder => $q->whereHas('activitySubmissions.versions.activityScore', fn (Builder $s): Builder => $s->where('status', 'published')))->when(($filters['score_status'] ?? null) === 'unscored', fn (Builder $q): Builder => $q->whereDoesntHave('activitySubmissions.versions.activityScore'))->when($filters['band'] ?? null, fn (Builder $q, string $v): Builder => $q->whereHas('activitySubmissions.versions.activityScore', fn (Builder $s): Builder => $s->where('performance_band', $v)))->with('assignedCoaches')->paginate(25)->withQueryString();
+        $rows = $participants->getCollection()->map(fn (User $participant): array => ['participant' => $participant, 'summary' => $scoring->summary($participant, $program)])->values();
         $participants->setCollection($rows);
 
         return view('scoring.index', compact('participants', 'filters'));
@@ -74,12 +77,9 @@ class ScoringController extends Controller
         return back()->with('status', 'Suggested scoring generated. Review it before saving the mentor score.');
     }
 
-    public function improveFeedback(Request $request, SubmissionVersion $submissionVersion, ScoringSuggestionService $suggestions): JsonResponse
+    public function improveFeedback(ImproveScoringFeedbackRequest $request, SubmissionVersion $submissionVersion, ScoringSuggestionService $suggestions): JsonResponse
     {
-        $submissionVersion->load('submission.participant');
-        abort_unless($submissionVersion->status !== 'draft' && $submissionVersion->submission->participant->role === 'participant', 404);
-        abort_unless($request->user()->canManageParticipant($submissionVersion->submission->participant), 403);
-        $data = $request->validate(['text' => ['required', 'string', 'max:10000'], 'dimension' => ['nullable', 'string', 'in:D1,D2,D3,D4,D5']]);
+        $data = $request->validated();
         try {
             return response()->json(['text' => $suggestions->improve($data['text'], $data['dimension'] ?? null), 'message' => 'Feedback improved. Review before saving.']);
         } catch (RuntimeException $exception) {
@@ -107,7 +107,7 @@ class ScoringController extends Controller
                 $score->dimensions()->updateOrCreate(['dimension' => $dimension], ['points' => $values['points'], 'evidence_reasoning' => $values['evidence_reasoning']]);
             }
             if ($previous !== $total || $previousDimensions !== null || $previousOverallFeedback !== ($data['overall_feedback'] ?? null)) {
-                $score->history()->create(['scorer_id' => $request->user()->id, 'previous_score' => $previous, 'new_score' => $total, 'previous_dimensions' => $previousDimensions, 'new_dimensions' => collect($data['dimensions'])->mapWithKeys(fn ($v, $k) => [$k => $v['points']])->all(), 'previous_reasoning' => $previousReasoning, 'new_reasoning' => collect($data['dimensions'])->mapWithKeys(fn ($v, $k) => [$k => $v['evidence_reasoning']])->all(), 'previous_overall_feedback' => $previousOverallFeedback, 'new_overall_feedback' => $data['overall_feedback'] ?? null, 'reason' => $data['history_reason'] ?? null]);
+                $score->history()->create(['scorer_id' => $request->user()->id, 'previous_score' => $previous, 'new_score' => $total, 'previous_dimensions' => $previousDimensions, 'new_dimensions' => collect($data['dimensions'])->mapWithKeys(fn (array $v, string $k): array => [$k => $v['points']])->all(), 'previous_reasoning' => $previousReasoning, 'new_reasoning' => collect($data['dimensions'])->mapWithKeys(fn (array $v, string $k): array => [$k => $v['evidence_reasoning']])->all(), 'previous_overall_feedback' => $previousOverallFeedback, 'new_overall_feedback' => $data['overall_feedback'] ?? null, 'reason' => $data['history_reason'] ?? null]);
             }
         });
         ExportActivityJob::dispatch($submissionVersion->id);

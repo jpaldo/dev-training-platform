@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
@@ -261,6 +262,23 @@ class WeeklyVideoRecordingTest extends TestCase
         }
 
         $this->assertDatabaseCount('weekly_video_recordings', 0);
+    }
+
+    public function test_upload_to_a_week_locked_after_gate_completion_is_rejected_before_validation(): void
+    {
+        [$participant, $week] = $this->week();
+        GateEvaluation::factory()->for($week->gates()->firstOrFail(), 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+
+        $this->actingAs($participant)->post(route('training.video-recording.store', $week), [])->assertStatus(422);
+        $this->assertDatabaseCount('weekly_video_recordings', 0);
+    }
+
+    public function test_upload_to_an_inaccessible_week_is_forbidden_before_validation(): void
+    {
+        [$participant, $week] = $this->week();
+        $nextWeek = TrainingWeek::factory()->for($week->program)->create(['week_number' => 3, 'position' => 2, 'is_active' => true]);
+
+        $this->actingAs($participant)->post(route('training.video-recording.store', $nextWeek), [])->assertForbidden();
     }
 
     private function week(): array

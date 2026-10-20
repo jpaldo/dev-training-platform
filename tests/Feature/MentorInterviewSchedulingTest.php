@@ -134,6 +134,15 @@ class MentorInterviewSchedulingTest extends TestCase
         $this->assertStringContainsString('future date and time', session('errors')->first('mentor_schedule'));
     }
 
+    public function test_activity_from_another_week_is_not_found_before_validation_runs(): void
+    {
+        [$participant, , $activity] = $this->fixture();
+        $otherWeek = $activity->week->program->weeks()->where('week_number', 3)->firstOrFail();
+
+        $this->actingAs($participant)->post(route('training.mentor-interview.schedule', [$otherWeek, $activity]), [])->assertNotFound();
+        $this->actingAs($participant)->put(route('training.mentor-interview.reschedule', [$otherWeek, $activity]), [])->assertNotFound();
+    }
+
     public function test_peer_interview_is_not_required_before_mentor_scheduling(): void
     {
         [$participant, , $activity] = $this->fixture();

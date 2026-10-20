@@ -3,10 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
+use App\Models\EvidenceRequirement;
+use App\Models\GateCriterion;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
+use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
@@ -261,6 +265,43 @@ class WeekTwoGateTest extends TestCase
         $criteria = $gate->criteria->pluck('id')->mapWithKeys(fn ($id) => [$id => $id === $video->id ? 'met' : 'not_met'])->all();
 
         $this->actingAs($coach)->post(route('training.coach.gates.update', [$week2, $participant, $gate]), ['status' => 'needs_revision', 'criteria' => $criteria])->assertSessionHasErrors('criteria.'.$video->id);
+    }
+
+    public function test_required_evidence_is_checked_on_the_latest_submitted_version(): void
+    {
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
+        $activity = Activity::factory()->for($week, 'week')->create(['position' => 1]);
+        $evidenceRequirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create())->create(['is_required' => true, 'minimum_count' => 1]);
+        $gate = TrainingGate::factory()->for($week, 'week')->create();
+        $participant = User::factory()->create();
+        $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'resubmitted']);
+        $firstVersion = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 1, 'status' => 'submitted']);
+        $latestVersion = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 2, 'status' => 'resubmitted']);
+        SubmissionEvidence::factory()->for($firstVersion, 'submissionVersion')->for($evidenceRequirement, 'evidenceRequirement')->create();
+
+        $this->assertArrayHasKey('evidence_1', app(WeekTwoGateService::class)->readiness($participant, $gate));
+
+        SubmissionEvidence::factory()->for($latestVersion, 'submissionVersion')->for($evidenceRequirement, 'evidenceRequirement')->create();
+
+        $this->assertArrayNotHasKey('evidence_1', app(WeekTwoGateService::class)->readiness($participant, $gate));
+    }
+
+    public function test_legacy_weekly_loom_link_satisfies_the_weekly_video_requirement(): void
+    {
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
+        $activity = Activity::factory()->for($week, 'week')->create(['position' => 3]);
+        $loomRequirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'gate_evidence']))->create(['evidence_type' => 'url']);
+        $gate = TrainingGate::factory()->for($week, 'week')->create();
+        GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_loom']);
+        $participant = User::factory()->create();
+
+        $this->assertArrayHasKey('weekly_video', app(WeekTwoGateService::class)->readiness($participant, $gate));
+
+        $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted']);
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
+        SubmissionEvidence::factory()->for($version, 'submissionVersion')->for($loomRequirement, 'evidenceRequirement')->create(['evidence_type' => 'url', 'url' => 'https://www.loom.com/share/week-2']);
+
+        $this->assertArrayNotHasKey('weekly_video', app(WeekTwoGateService::class)->readiness($participant, $gate));
     }
 
     #[DataProvider('latestAttemptStates')]

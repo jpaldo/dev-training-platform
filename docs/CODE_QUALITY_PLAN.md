@@ -67,7 +67,7 @@ Line numbers are from the audit on 2026-10-20 and will drift; search for `->vali
 
 Replace per-row queries with eager loading or single aggregate queries. For each hotspot, add a feature test that fails if the query count grows with the number of rows (e.g. compare `DB::getQueryLog()` counts for 1 vs 3 records).
 
-- [ ] `ParticipantDashboardController` (lines ~40–109) — per-activity `submissions()` queries (twice), per-week daily-log count and video lookup, per-activity Validation Lab `exists()`, per-gate readiness. Highest-traffic page; do this first.
+- [x] `ParticipantDashboardController` (lines ~40–109) — per-activity `submissions()` queries (twice), per-week daily-log count and video lookup, per-activity Validation Lab `exists()`, per-gate readiness. Highest-traffic page; do this first. Done: week/activity/gate assembly moved to `ParticipantDashboardService` with batched loads; `WeekProgressionService` resolves passed weeks with one query (`weekStates()`, also used by `isWeekPassed`/`canAccessWeek`/`isProgramCompleted`); `WeekTwoGateService::readiness()` now delegates to the batched `readinessForGates()`. Dashboard queries: 58 → 47 for 1 week/activity/gate, 180 → 47 for 3 (`ParticipantDashboardControllerTest`).
 - [ ] `CoachOperationsController` (~63)
 - [ ] `ScoringReportController` (~39, ~53)
 - [ ] `DailyLogReportController` (~61)
@@ -135,6 +135,8 @@ Note: the view "query" counts come from a pattern search and include some Collec
 
 ## Open decisions
 
+- [ ] `ParticipantNotificationService::sync()` runs on every dashboard request (via `dashboard()`) and is still N+1 for Weeks 2–4: per-week progression and daily-log count, per-activity submission, review, evidence and "all submitted" queries, per-gate `readiness()` and passed-evaluation lookup, plus a `firstOrNew()` and possible `save()` per notification key. `ParticipantDashboardControllerTest` numbers its weeks from 5 to keep this out of the measurement. Add a Phase 3 item for it (and consider running the sync on writes or in a job rather than on every page view)?
+- [ ] The dashboard's mock-interview partner list still calls `WeekProgressionService::canAccessWeek()` / `isWeekPassed()` per Week 4 pair (about 3 queries per pair). Pairs are few, so this was left as is; batch it if pairs grow.
 - [ ] `resources/css/app.css` contains `p[id="mentor-interview-timezone"] { display:none; }`. It became active when the layout started loading `app.css`, so the timezone line on the Week 4 submission page is now hidden. Confirm that it should stay hidden, or remove the rule.
 - [ ] `APP_NAME` in `.env` / `.env.example` is still `Laravel`, so outgoing mail uses "Laravel" as the sender name. Set it to `"Developer Training Platform"`?
 - [ ] `DailyLogReportController::details` repeats the whole filter query from `rows` (only the ordering and pagination differ). Extract the shared filter constraints (e.g. a `DailyLog` scope or a service method) when this controller is slimmed or moved to a Form Request?

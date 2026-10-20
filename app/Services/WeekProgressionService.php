@@ -8,14 +8,14 @@ use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 class WeekProgressionService
 {
     public function isWeekPassed(User $user, TrainingWeek $week): bool
     {
-        $gates = $week->gates()->get();
-
-        return $gates->isNotEmpty() && $gates->every(fn (TrainingGate $gate): bool => $gate->evaluations()->where('user_id', $user->id)->where('status', 'passed')->exists());
+        return $this->passedWeekIds($user, collect([$week]))->contains($week->id);
     }
 
     public function canAccessWeek(User $user, TrainingWeek $week): bool
@@ -27,14 +27,67 @@ class WeekProgressionService
             return false;
         }
 
-        return $week->program->weeks()->where('position', '<', $week->position)->orderBy('position')->get()->every(fn (TrainingWeek $prior): bool => $this->isWeekPassed($user, $prior));
+        $priorWeeks = $week->program->weeks()->where('position', '<', $week->position)->orderBy('position')->get();
+
+        return $this->allWeeksPassed($priorWeeks, $this->passedWeekIds($user, $priorWeeks));
+    }
+
+    /**
+     * Resolve the pass and access state of every week of one program with a fixed number of queries.
+     *
+     * @param  Collection<int, TrainingWeek>  $programWeeks  every week of the program, active or not
+     * @return Collection<int, array{passed: bool, accessible: bool}> keyed by week id
+     */
+    public function weekStates(User $user, Collection $programWeeks): Collection
+    {
+        $passedWeekIds = $this->passedWeekIds($user, $programWeeks);
+
+        return $programWeeks->mapWithKeys(fn (TrainingWeek $week): array => [$week->id => [
+            'passed' => $passedWeekIds->contains($week->id),
+            'accessible' => match (true) {
+                $user->isCoachOrAdmin() => true,
+                $user->role !== 'participant' => false,
+                default => $this->allWeeksPassed($programWeeks->where('position', '<', $week->position), $passedWeekIds),
+            },
+        ]]);
     }
 
     public function isProgramCompleted(User $user, Program $program): bool
     {
         $weeks = $program->weeks()->where('is_active', true)->orderBy('position')->get();
 
-        return $weeks->isNotEmpty() && $weeks->every(fn (TrainingWeek $week): bool => $this->isWeekPassed($user, $week));
+        return $weeks->isNotEmpty() && $this->allWeeksPassed($weeks, $this->passedWeekIds($user, $weeks));
+    }
+
+    /**
+     * Ids of the given weeks that have at least one Gate and a passed evaluation by the user for every Gate.
+     *
+     * @param  Collection<int, TrainingWeek>  $weeks
+     * @return Collection<int, int>
+     */
+    private function passedWeekIds(User $user, Collection $weeks): Collection
+    {
+        if ($weeks->isEmpty()) {
+            return collect();
+        }
+
+        return TrainingGate::query()
+            ->select(['id', 'training_week_id'])
+            ->whereIn('training_week_id', $weeks->pluck('id'))
+            ->withExists(['evaluations as passed_by_user' => fn (Builder $query): Builder => $query->where('user_id', $user->id)->where('status', 'passed')])
+            ->get()
+            ->groupBy('training_week_id')
+            ->filter(fn (Collection $gates): bool => $gates->every(fn (TrainingGate $gate): bool => $gate->passed_by_user))
+            ->keys();
+    }
+
+    /**
+     * @param  Collection<int, TrainingWeek>  $weeks
+     * @param  Collection<int, int>  $passedWeekIds
+     */
+    private function allWeeksPassed(Collection $weeks, Collection $passedWeekIds): bool
+    {
+        return $weeks->every(fn (TrainingWeek $week): bool => $passedWeekIds->contains($week->id));
     }
 
     public function ensureCanAccessWeek(User $user, TrainingWeek $week): void

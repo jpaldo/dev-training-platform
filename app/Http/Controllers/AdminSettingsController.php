@@ -12,6 +12,7 @@ use App\Services\GoogleDriveConfigurationService;
 use App\Services\GoogleDriveConnectionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Mail\Message;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
@@ -99,7 +100,7 @@ class AdminSettingsController extends Controller
         $email->applyRuntimeConfiguration();
 
         try {
-            Mail::raw('This is a Developer Training Platform email configuration test.', function ($message) use ($request): void {
+            Mail::raw('This is a Developer Training Platform email configuration test.', function (Message $message) use ($request): void {
                 $message->to($request->string('recipient')->toString())->subject('Developer Training Platform email test');
             });
         } catch (Throwable $exception) {

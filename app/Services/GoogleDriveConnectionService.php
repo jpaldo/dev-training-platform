@@ -347,7 +347,7 @@ class GoogleDriveConnectionService
                 $context['google_error_message'] = is_string($error['message'] ?? null) ? $error['message'] : null;
                 $context['google_error_status'] = is_string($error['status'] ?? null) ? $error['status'] : null;
                 $context['google_error_reasons'] = collect($error['errors'] ?? [])
-                    ->filter(fn ($item) => is_array($item) && is_string($item['reason'] ?? null))
+                    ->filter(fn (mixed $item): bool => is_array($item) && is_string($item['reason'] ?? null))
                     ->pluck('reason')
                     ->values()
                     ->all();

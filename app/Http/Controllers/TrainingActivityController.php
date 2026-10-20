@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Activity;
 use App\Models\ActivityRecoveryRequest;
+use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\GoogleDriveEvidenceExport;
 use App\Models\GoogleDriveExport;
@@ -14,6 +15,8 @@ use App\Services\ExportLifecycleService;
 use App\Services\GoogleDriveReadinessService;
 use App\Services\SubmissionWorkflowService;
 use App\Services\WeekProgressionService;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -37,19 +40,19 @@ class TrainingActivityController extends Controller
             return redirect()->route('lab.activity', ['continue' => 'validation-checklist'])
                 ->with('status', 'Complete and submit a QA Validation Lab record before starting the Validation Checklist.');
         }
-        $requirements = $activity->requirements()->when($user->role === 'participant', function ($query) use ($user): void {
-            $query->where(function ($pathQuery) use ($user): void {
+        $requirements = $activity->requirements()->when($user->role === 'participant', function (Builder $query) use ($user): void {
+            $query->where(function (Builder $pathQuery) use ($user): void {
                 $pathQuery->whereNull('participant_path')->orWhereIn('participant_path', $user->eligibleTrainingPaths());
             });
         })->with('evidenceRequirements')->orderBy('position')->get();
         if ($user->role === 'participant') {
-            $requirements = $requirements->filter(fn ($requirement): bool => ! ($requirement->configuration['deprecated'] ?? false))->values();
+            $requirements = $requirements->filter(fn (ActivityRequirement $requirement): bool => ! ($requirement->configuration['deprecated'] ?? false))->values();
         }
-        $submission = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $user->id)->with(['versions' => fn ($query) => $query->with(['evidence', 'reviews', 'activityScore'])->orderByDesc('version_number')])->orderByDesc('attempt_number')->first();
+        $submission = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $user->id)->with(['versions' => fn (Relation $query): Relation => $query->with(['evidence', 'reviews', 'activityScore'])->orderByDesc('version_number')])->orderByDesc('attempt_number')->first();
         if ($user->role === 'participant' && $readiness->enforced() && ! $readiness->isReady($user) && ! $submission) {
             return redirect()->route('dashboard')->withErrors(['google_drive_setup' => $readiness->message($user)]);
         }
-        $attempts = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $user->id)->with(['versions' => fn ($query) => $query->with(['reviews', 'activityScore'])->orderByDesc('version_number')])->orderBy('attempt_number')->get();
+        $attempts = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $user->id)->with(['versions' => fn (Relation $query): Relation => $query->with(['reviews', 'activityScore'])->orderByDesc('version_number')])->orderBy('attempt_number')->get();
         $latestVersion = $submission?->versions->first();
         $recoveryRequests = ActivityRecoveryRequest::whereIn('activity_submission_id', $attempts->pluck('id'))->latest()->get();
         $labRecords = $activity->configuration['lab_route'] ?? null

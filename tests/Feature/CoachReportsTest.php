@@ -74,6 +74,41 @@ class CoachReportsTest extends TestCase
         $response->assertOk()->assertSee('page=2')->assertSee('Completion summary');
     }
 
+    public function test_daily_log_completion_export_applies_participant_mentor_week_and_activity_filters(): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $mentored = User::factory()->create(['name' => 'Mentored Participant']);
+        $mentoredPeer = User::factory()->create(['name' => 'Mentored Peer']);
+        $unassigned = User::factory()->create(['name' => 'Unassigned Participant']);
+        $mentored->assignedCoaches()->attach($coach->id);
+        $mentoredPeer->assignedCoaches()->attach($coach->id);
+        $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
+        $weekTwo = $program->weeks()->where('week_number', 2)->firstOrFail();
+        $weekTwoActivity = $weekTwo->activities()->firstOrFail();
+        $otherWeekTwoActivity = $weekTwo->activities()->skip(1)->firstOrFail();
+        $weekThreeActivity = $program->weeks()->where('week_number', 3)->firstOrFail()->activities()->firstOrFail();
+        DailyLog::create(['user_id' => $mentored->id, 'activity_id' => $weekTwoActivity->id, 'logged_on' => '2026-09-10', 'content' => 'Work']);
+        DailyLog::create(['user_id' => $mentored->id, 'activity_id' => $otherWeekTwoActivity->id, 'logged_on' => '2026-09-11', 'content' => 'Work']);
+        DailyLog::create(['user_id' => $mentored->id, 'activity_id' => $weekThreeActivity->id, 'logged_on' => '2026-09-17', 'content' => 'Work']);
+        DailyLog::create(['user_id' => $mentoredPeer->id, 'activity_id' => $weekTwoActivity->id, 'logged_on' => '2026-09-10', 'content' => 'Work']);
+        DailyLog::create(['user_id' => $unassigned->id, 'activity_id' => $weekTwoActivity->id, 'logged_on' => '2026-09-10', 'content' => 'Work']);
+
+        $mentorAndWeekCsv = $this->actingAs($coach)->get(route('coach.reports.daily-logs.export', ['mentor' => $coach->id, 'week' => 2]))->assertOk()->streamedContent();
+
+        $this->assertStringContainsString('2026-09-11', $mentorAndWeekCsv);
+        $this->assertStringContainsString('Mentored Peer', $mentorAndWeekCsv);
+        $this->assertStringNotContainsString('2026-09-17', $mentorAndWeekCsv);
+        $this->assertStringNotContainsString('Unassigned Participant', $mentorAndWeekCsv);
+
+        $participantAndActivityCsv = $this->actingAs($coach)->get(route('coach.reports.daily-logs.export', ['participant' => $mentored->id, 'activity' => $weekTwoActivity->id]))->assertOk()->streamedContent();
+
+        $rows = array_values(array_filter(explode("\n", $participantAndActivityCsv)));
+        $this->assertCount(2, $rows);
+        $this->assertStringContainsString('"Mentored Participant"', $rows[1]);
+        $this->assertStringContainsString('2026-09-10', $rows[1]);
+    }
+
     public function test_progress_report_uses_friendly_paths_and_mentor_filter(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);

@@ -6,10 +6,12 @@ use App\Http\Requests\StoreSubmissionDraftRequest;
 use App\Jobs\ExportActivityJob;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
+use App\Models\SubmissionInteraction;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\ValidationSubmission;
+use App\Models\WeekFourInterviewPair;
 use App\Models\WeekFourMentorInterviewSchedule;
 use App\Services\GoogleDriveConfigurationService;
 use App\Services\GoogleDriveReadinessService;
@@ -22,6 +24,9 @@ use App\Services\WeekFourReviewPresenter;
 use App\Services\WeekProgressionService;
 use App\Services\WeekThreeWorkspaceService;
 use App\Support\Markdown;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -40,9 +45,9 @@ class ActivitySubmissionController extends Controller
         abort_unless($submissionVersion->submission->user_id === $user->id && $submissionVersion->submission->activity_id === $activity->id && $submissionVersion->submission->activity->training_week_id === $trainingWeek->id, 404);
         abort_unless($submissionVersion->status !== 'draft', 404);
 
-        $configured = collect($workflow->fieldDefinitions($activity, $user))->mapWithKeys(fn ($field): array => [$field['key'] => $field['label']])->all();
+        $configured = collect($workflow->fieldDefinitions($activity, $user))->mapWithKeys(fn (array $field): array => [$field['key'] => $field['label']])->all();
         $legacyLabels = ['thread_drive_link' => 'Thread / Drive Link', 'ai_tool' => 'AI Tool', 'artifact_type' => 'Artifact Type', 'prompt' => 'Prompt', 'exact_ai_output' => 'Exact AI Output', 'ai_output' => 'AI Output', 'pre_acceptance_question' => 'Pre-acceptance Question', 'validation_performed' => 'Validation Performed'];
-        $responses = collect($submissionVersion->field_values ?? [])->except(['week_three_snapshot'])->map(fn ($value, $key): array => [
+        $responses = collect($submissionVersion->field_values ?? [])->except(['week_three_snapshot'])->map(fn (mixed $value, int|string $key): array => [
             'label' => $configured[$key] ?? $legacyLabels[$key] ?? ucwords(str_replace('_', ' ', $key)),
             'value' => $value,
             'markdown' => in_array($key, Markdown::OUTPUT_FIELDS, true),
@@ -82,7 +87,7 @@ class ActivitySubmissionController extends Controller
         if ($user->role === 'participant' && $this->isValidationChecklist($trainingWeek, $activity) && ! $this->hasSubmittedLabRecord($user)) {
             return redirect()->route('training.activities.show', [$trainingWeek, $activity])->withErrors(['lab_prerequisite' => 'Submit a QA Validation Lab record before starting this activity.']);
         }
-        $submission = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $user->id)->with(['versions' => fn ($query) => $query->with(['evidence', 'reviews', 'validationSubmission', 'interactions'])->orderByDesc('version_number')])->orderByDesc('attempt_number')->first();
+        $submission = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $user->id)->with(['versions' => fn (Relation $query): Relation => $query->with(['evidence', 'reviews', 'validationSubmission', 'interactions'])->orderByDesc('version_number')])->orderByDesc('attempt_number')->first();
         $version = $submission?->versions->first();
 
         $fields = $workflow->fieldDefinitions($activity, $user);
@@ -100,14 +105,14 @@ class ActivitySubmissionController extends Controller
         $interviewPairs = $trainingWeek->week_number === 4 && $activity->position === 2 ? $interviews->pairsFor($user) : collect();
         $interviewPair = $interviewPairs->first();
         $interviewPartner = $interviewPair?->partnerFor($user->id);
-        $interviewPartners = $interviewPairs->map(fn ($pair) => $pair->partnerFor($user->id))->filter()->values();
+        $interviewPartners = $interviewPairs->map(fn (WeekFourInterviewPair $pair): ?User => $pair->partnerFor($user->id))->filter()->values();
         $feedbackGiven = $interviewPair?->feedback()->where('author_id', $user->id)->get()->keyBy('question_number') ?? collect();
         $feedbackReceived = $interviewPair?->feedback()->where('recipient_id', $user->id)->get()->keyBy('question_number') ?? collect();
-        $partnerInterview = $interviewPartner?->activitySubmissions()->where('activity_id', $activity->id)->with(['versions' => fn ($query) => $query->whereIn('status', ['submitted', 'resubmitted', 'approved', 'completed'])->orderByDesc('version_number')])->latest('attempt_number')->first()?->versions->first();
+        $partnerInterview = $interviewPartner?->activitySubmissions()->where('activity_id', $activity->id)->with(['versions' => fn (Relation $query): Relation => $query->whereIn('status', ['submitted', 'resubmitted', 'approved', 'completed'])->orderByDesc('version_number')])->latest('attempt_number')->first()?->versions->first();
         $weekFourPracticeState = $trainingWeek->week_number === 4 && $activity->position === 2 ? $interviews->participantPracticeState($user, $interviewPartner) : null;
         $mentor = $trainingWeek->week_number === 4 && $activity->position === 2 ? $mentorScheduling->assignedMentor($user) : null;
         $mentorSchedule = $trainingWeek->week_number === 4 && $activity->position === 2
-            ? WeekFourMentorInterviewSchedule::query()->where('participant_id', $user->id)->where(function ($query) use ($activity): void {
+            ? WeekFourMentorInterviewSchedule::query()->where('participant_id', $user->id)->where(function (Builder $query) use ($activity): void {
                 $query->where('activity_id', $activity->id)->orWhereNull('activity_id');
             })->whereIn('status', [WeekFourMentorInterviewSchedule::PENDING, WeekFourMentorInterviewSchedule::SCHEDULED])->latest('id')->first()
             : null;
@@ -117,7 +122,7 @@ class ActivitySubmissionController extends Controller
             $weekFourPartnerStatus = $weekFour && ($progression->canAccessWeek($interviewPartner, $weekFour) || $progression->isWeekPassed($interviewPartner, $weekFour)) ? 'unlocked' : 'locked';
         }
         $weekFourForPartners = $trainingWeek->week_number === 4 && $activity->position === 2 ? $trainingWeek->program->weeks()->where('week_number', 4)->first() : null;
-        $partnerStatuses = $interviewPartners->mapWithKeys(function ($partner) use ($weekFourForPartners, $progression): array {
+        $partnerStatuses = $interviewPartners->mapWithKeys(function (User $partner) use ($weekFourForPartners, $progression): array {
             $weekFour = $weekFourForPartners;
 
             return [$partner->id => $weekFour && ($progression->canAccessWeek($partner, $weekFour) || $progression->isWeekPassed($partner, $weekFour)) ? 'unlocked' : 'locked'];
@@ -136,12 +141,12 @@ class ActivitySubmissionController extends Controller
 
         $previous = ActivitySubmission::query()
             ->where('user_id', $user->id)
-            ->whereHas('activity', fn ($query) => $query->where('training_week_id', $activity->training_week_id)->where('position', '<', $activity->position))
-            ->with(['versions' => fn ($query) => $query->orderByDesc('version_number')])
+            ->whereHas('activity', fn (Builder $query): Builder => $query->where('training_week_id', $activity->training_week_id)->where('position', '<', $activity->position))
+            ->with(['versions' => fn (Relation $query): Relation => $query->orderByDesc('version_number')])
             ->orderByDesc('attempt_number')
             ->get()
-            ->flatMap(fn ($item) => $item->versions)
-            ->first(fn ($version) => filled($version->validation_submission_id));
+            ->flatMap(fn (ActivitySubmission $item): Collection => $item->versions)
+            ->first(fn (SubmissionVersion $version): bool => filled($version->validation_submission_id));
 
         return $previous ? $labRecords->firstWhere('id', $previous->validation_submission_id) : null;
     }
@@ -189,7 +194,7 @@ class ActivitySubmissionController extends Controller
         }
         abort_unless($submission->status === 'needs_revision', 422);
         $latest = $submission->versions->sortByDesc('version_number')->firstOrFail();
-        $version = $workflow->saveDraft($user, $activity, $latest->field_values ?? [], $latest->participant_note, $latest->interactions->map(fn ($interaction): array => ['prompt' => $interaction->prompt, 'output' => $interaction->output])->all());
+        $version = $workflow->saveDraft($user, $activity, $latest->field_values ?? [], $latest->participant_note, $latest->interactions->map(fn (SubmissionInteraction $interaction): array => ['prompt' => $interaction->prompt, 'output' => $interaction->output])->all());
         ExportActivityJob::dispatch($version->id);
         $syncs->request($user, 'activity_resubmitted');
 

@@ -6,6 +6,7 @@ use App\Models\MentorInterviewAvailability;
 use App\Models\User;
 use App\Models\WeekFourMentorInterviewSchedule;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -14,7 +15,7 @@ class MentorInterviewAvailabilityService
 {
     public function listForMentor(User $mentor, bool $includeClosed = true): Collection
     {
-        return MentorInterviewAvailability::query()->where('mentor_id', $mentor->id)->when(! $includeClosed, fn ($query) => $query->where('status', MentorInterviewAvailability::OPEN))->orderBy('available_date')->orderBy('start_time')->get();
+        return MentorInterviewAvailability::query()->where('mentor_id', $mentor->id)->when(! $includeClosed, fn (Builder $query): Builder => $query->where('status', MentorInterviewAvailability::OPEN))->orderBy('available_date')->orderBy('start_time')->get();
     }
 
     public function create(User $mentor, array $data): MentorInterviewAvailability

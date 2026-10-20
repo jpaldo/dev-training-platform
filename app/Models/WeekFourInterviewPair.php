@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -33,7 +34,7 @@ class WeekFourInterviewPair extends Model
 
     public static function forParticipant(int $userId): ?self
     {
-        return static::query()->where('status', 'active')->where(fn ($query) => $query->where('participant_one_id', $userId)->orWhere('participant_two_id', $userId))->with(['participantOne', 'participantTwo'])->first();
+        return static::query()->where('status', 'active')->where(fn (Builder $query): Builder => $query->where('participant_one_id', $userId)->orWhere('participant_two_id', $userId))->with(['participantOne', 'participantTwo'])->first();
     }
 
     /** @return Collection<int, self> */
@@ -41,7 +42,7 @@ class WeekFourInterviewPair extends Model
     {
         return static::query()
             ->where('status', 'active')
-            ->where(fn ($query) => $query->where('participant_one_id', $userId)->orWhere('participant_two_id', $userId))
+            ->where(fn (Builder $query): Builder => $query->where('participant_one_id', $userId)->orWhere('participant_two_id', $userId))
             ->with(['participantOne.assignedCoaches', 'participantTwo.assignedCoaches', 'feedback'])
             ->orderBy('id')
             ->get();

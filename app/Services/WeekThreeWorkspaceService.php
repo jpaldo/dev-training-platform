@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Activity;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Models\WeekThreeFinding;
+use App\Models\WeekThreeTest;
 use App\Models\WeekThreeWorkspace;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -74,20 +76,20 @@ class WeekThreeWorkspaceService
 
         $workspace = $this->workspace($user, $activity->week)->load(['findings.tests.fixValidation']);
         $findings = $workspace->findings;
-        $complete = $findings->filter(fn ($finding): bool => collect(['title', 'description', 'steps_to_reproduce', 'expected_result', 'actual_result', 'human_validation', 'human_validation_explanation', 'severity', 'blast_radius', 'affected_areas', 'next_step'])->every(fn ($key): bool => filled($finding->{$key})));
+        $complete = $findings->filter(fn (WeekThreeFinding $finding): bool => collect(['title', 'description', 'steps_to_reproduce', 'expected_result', 'actual_result', 'human_validation', 'human_validation_explanation', 'severity', 'blast_radius', 'affected_areas', 'next_step'])->every(fn (string $key): bool => filled($finding->{$key})));
         if ($activity->position === 1 && $complete->count() < 5) {
             throw ValidationException::withMessages(['week_three' => 'Complete five evidence-backed findings before submitting Activity 1.']);
         }
         if ($activity->position === 2) {
-            $missing = $complete->filter(function ($finding) use ($user): bool {
-                return ! collect($this->requiredPaths($user))->every(function ($path) use ($finding): bool {
+            $missing = $complete->filter(function (WeekThreeFinding $finding) use ($user): bool {
+                return ! collect($this->requiredPaths($user))->every(function (string $path) use ($finding): bool {
                     $test = $finding->tests->firstWhere('path', $path);
                     $required = ['name', 'steps', 'expected_result', 'actual_result', 'execution_result', 'execution_evidence'];
                     if ($path === 'automation') {
                         $required = array_merge($required, ['framework', 'script_location', 'artifact_evidence']);
                     }
 
-                    return $test && collect($required)->every(fn ($key): bool => filled($test->{$key}));
+                    return $test && collect($required)->every(fn (string $key): bool => filled($test->{$key}));
                 });
             })->count();
             if ($complete->count() < 5 || $missing > 0) {
@@ -95,7 +97,7 @@ class WeekThreeWorkspaceService
             }
         }
         if ($activity->position === 3) {
-            $missing = $complete->flatMap->tests->filter(fn ($test): bool => in_array($test->path, $this->requiredPaths($user), true))->filter(fn ($test): bool => ! $test->fixValidation || ! filled($test->fixValidation->buggy_result) || ! filled($test->fixValidation->bug_free_result) || ! filled($test->fixValidation->status) || ! filled($test->fixValidation->evidence))->count();
+            $missing = $complete->flatMap->tests->filter(fn (WeekThreeTest $test): bool => in_array($test->path, $this->requiredPaths($user), true))->filter(fn (WeekThreeTest $test): bool => ! $test->fixValidation || ! filled($test->fixValidation->buggy_result) || ! filled($test->fixValidation->bug_free_result) || ! filled($test->fixValidation->status) || ! filled($test->fixValidation->evidence))->count();
             if ($complete->count() < 5 || $missing > 0 || blank($workspace->regression_areas) || blank($workspace->regression_issues) || blank($workspace->coverage_gaps) || blank($workspace->final_conclusion)) {
                 throw ValidationException::withMessages(['week_three' => 'Complete fix validation for every test and the regression/coverage conclusion before submitting Activity 3.']);
             }

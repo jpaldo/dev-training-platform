@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ActivityRequirement;
 use App\Models\SubmissionVersion;
 use App\Support\Markdown;
 
@@ -11,10 +12,10 @@ class SubmissionAnswerPresenter
     {
         $version->loadMissing('submission.activity.requirements', 'interactions');
         $activity = $version->submission->activity;
-        $configured = $activity->requirements()->where('requirement_type', 'submission_field')->orderBy('position')->get()->mapWithKeys(fn ($requirement): array => [$requirement->configuration['key'] ?? '' => $requirement->configuration['label'] ?? $requirement->title]);
+        $configured = $activity->requirements()->where('requirement_type', 'submission_field')->orderBy('position')->get()->mapWithKeys(fn (ActivityRequirement $requirement): array => [$requirement->configuration['key'] ?? '' => $requirement->configuration['label'] ?? $requirement->title]);
         $legacyLabels = ['feature_area' => 'Feature / Area', 'environment' => 'Environment', 'ai_tool' => 'AI Tool', 'artifact_type' => 'Artifact Type', 'exact_prompt' => 'Exact Prompt', 'exact_ai_output' => 'Exact AI Output', 'prompt' => 'Prompt', 'ai_output' => 'AI Output'];
 
-        return collect($version->field_values ?? [])->except(['week_three_snapshot'])->map(fn ($value, $key): array => [
+        return collect($version->field_values ?? [])->except(['week_three_snapshot'])->map(fn (mixed $value, int|string $key): array => [
             'key' => $key,
             'label' => $configured[$key] ?? $legacyLabels[$key] ?? ucwords(str_replace('_', ' ', $key)),
             'value' => $value,
@@ -33,7 +34,7 @@ class SubmissionAnswerPresenter
             return 'Not provided';
         }
 
-        return collect($value)->map(function ($item, $key): string {
+        return collect($value)->map(function (mixed $item, int|string $key): string {
             $label = ucwords(str_replace(['_', '-'], ' ', (string) $key));
             $display = $this->displayValue($item);
 
@@ -47,7 +48,7 @@ class SubmissionAnswerPresenter
             return [];
         }
 
-        return collect($value)->map(function ($item, $key): array {
+        return collect($value)->map(function (mixed $item, int|string $key): array {
             return [
                 'label' => ucwords(str_replace(['_', '-'], ' ', (string) $key)),
                 'value' => $this->displayValue($item),
@@ -62,7 +63,7 @@ class SubmissionAnswerPresenter
             return [];
         }
 
-        $findings = collect($snapshot['findings'] ?? [])->filter(fn ($finding): bool => is_array($finding))->values();
+        $findings = collect($snapshot['findings'] ?? [])->filter(fn (mixed $finding): bool => is_array($finding))->values();
         $allowedPaths = match ($trainingPath) {
             'automation' => ['automation'],
             'automation_manual' => ['manual', 'automation'],
@@ -86,7 +87,7 @@ class SubmissionAnswerPresenter
                 'blast_radius' => 'Blast Radius',
                 'next_step' => 'Next Step',
             ]),
-            'tests' => collect($finding['tests'] ?? [])->filter(fn ($test): bool => is_array($test))->filter(fn (array $test): bool => in_array($test['path'] ?? null, $allowedPaths, true))->values()->map(fn (array $test): array => [
+            'tests' => collect($finding['tests'] ?? [])->filter(fn (mixed $test): bool => is_array($test))->filter(fn (array $test): bool => in_array($test['path'] ?? null, $allowedPaths, true))->values()->map(fn (array $test): array => [
                 'path' => $test['path'] ?? null,
                 'path_label' => ucfirst(str_replace('_', ' / ', (string) ($test['path'] ?? ''))),
                 'title' => $this->text($test['name'] ?? null),
@@ -151,7 +152,7 @@ class SubmissionAnswerPresenter
             return '';
         }
 
-        return collect($value)->map(fn ($item, $key): string => is_scalar($item) ? (string) $item : ((string) $key.': '.$this->text($item)))->implode("\n");
+        return collect($value)->map(fn (mixed $item, int|string $key): string => is_scalar($item) ? (string) $item : ((string) $key.': '.$this->text($item)))->implode("\n");
     }
 
     /** @param array<int,array<string,mixed>> $findings */

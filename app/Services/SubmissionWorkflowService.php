@@ -3,13 +3,18 @@
 namespace App\Services;
 
 use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\EvidenceRequirement;
+use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\User;
 use App\Models\ValidationSubmission;
 use App\Models\WeekFourInterviewPair;
 use App\Models\WeekFourMentorInterviewSchedule;
+use App\Models\WeekFourPartnerFeedback;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -20,18 +25,21 @@ class SubmissionWorkflowService
 {
     public function fieldDefinitions(Activity $activity, User $user): array
     {
-        return $activity->requirements()->where('requirement_type', 'submission_field')->when($user->role === 'participant', function ($query) use ($user): void {
-            $query->where(function ($pathQuery) use ($user): void {
+        return $activity->requirements()->where('requirement_type', 'submission_field')->when($user->role === 'participant', function (Builder $query) use ($user): void {
+            $query->where(function (Builder $pathQuery) use ($user): void {
                 $pathQuery->whereNull('participant_path')->orWhereIn('participant_path', $user->eligibleTrainingPaths());
             });
-        })->orderBy('position')->get()->filter(fn ($req): bool => ! ($req->configuration['deprecated'] ?? false))->mapWithKeys(fn ($req): array => [$req->configuration['key'] => $req->configuration])->all();
+        })->orderBy('position')->get()->filter(fn (ActivityRequirement $req): bool => ! ($req->configuration['deprecated'] ?? false))->mapWithKeys(fn (ActivityRequirement $req): array => [$req->configuration['key'] => $req->configuration])->all();
     }
 
-    public function evidenceRequirements(Activity $activity, User $user)
+    /**
+     * @return Collection<int, EvidenceRequirement>
+     */
+    public function evidenceRequirements(Activity $activity, User $user): Collection
     {
-        return EvidenceRequirement::query()->whereHas('activityRequirement', function ($query) use ($activity, $user): void {
-            $query->where('activity_id', $activity->id)->where('requirement_type', '!=', 'gate_evidence')->when($user->role === 'participant', function ($q) use ($user): void {
-                $q->where(function ($pathQuery) use ($user): void {
+        return EvidenceRequirement::query()->whereHas('activityRequirement', function (Builder $query) use ($activity, $user): void {
+            $query->where('activity_id', $activity->id)->where('requirement_type', '!=', 'gate_evidence')->when($user->role === 'participant', function (Builder $q) use ($user): void {
+                $q->where(function (Builder $pathQuery) use ($user): void {
                     $pathQuery->whereNull('participant_path')->orWhereIn('participant_path', $user->eligibleTrainingPaths());
                 });
             });
@@ -136,7 +144,7 @@ class SubmissionWorkflowService
                 $values['partner_snapshot'] = ['display_name' => $partner?->name, 'email' => $partner?->email, 'training_path' => $partner?->training_path];
                 // debug
                 $pair = WeekFourInterviewPair::forParticipant($user->id);
-                $values['mutual_feedback_snapshot'] = ['given' => $pair?->feedback()->where('author_id', $user->id)->get()->mapWithKeys(fn ($feedback): array => [(string) $feedback->question_number => ['content' => $feedback->content, 'author_name' => $user->name, 'recipient_name' => $partner?->name]])->all() ?? [], 'received' => $pair?->feedback()->where('recipient_id', $user->id)->get()->mapWithKeys(fn ($feedback): array => [(string) $feedback->question_number => ['content' => $feedback->content, 'author_name' => $partner?->name, 'recipient_name' => $user->name]])->all() ?? []];
+                $values['mutual_feedback_snapshot'] = ['given' => $pair?->feedback()->where('author_id', $user->id)->get()->mapWithKeys(fn (WeekFourPartnerFeedback $feedback): array => [(string) $feedback->question_number => ['content' => $feedback->content, 'author_name' => $user->name, 'recipient_name' => $partner?->name]])->all() ?? [], 'received' => $pair?->feedback()->where('recipient_id', $user->id)->get()->mapWithKeys(fn (WeekFourPartnerFeedback $feedback): array => [(string) $feedback->question_number => ['content' => $feedback->content, 'author_name' => $partner?->name, 'recipient_name' => $user->name]])->all() ?? []];
                 if (! $legacyInterview) {
                     $values['practice_interview_snapshot'] = app(WeekFourInterviewService::class)->snapshot($user);
                 }
@@ -156,7 +164,7 @@ class SubmissionWorkflowService
             foreach ($this->evidenceRequirements($submission->activity, $user) as $req) {
                 $evidence = $version->evidence()->where('evidence_requirement_id', $req->id)->get();
                 if (in_array($req->evidence_type, ['file', 'screenshot', 'asset'], true)) {
-                    $evidence = $evidence->filter(fn ($item): bool => filled($item->disk)
+                    $evidence = $evidence->filter(fn (SubmissionEvidence $item): bool => filled($item->disk)
                         && filled($item->path)
                         && filled($item->original_filename)
                         && Storage::disk($item->disk)->exists($item->path));
@@ -229,10 +237,10 @@ class SubmissionWorkflowService
             throw ValidationException::withMessages(['submission' => 'Both participants must give and receive feedback on at least 2 interview answers before submission.']);
         }
         if (array_key_exists('practice_questions', $values)) {
-            if (count(array_filter($values['practice_questions'], fn ($question): bool => filled($question))) < 15) {
+            if (count(array_filter($values['practice_questions'], fn (mixed $question): bool => filled($question))) < 15) {
                 throw ValidationException::withMessages(['submission' => 'Prepare all 15 practice questions for your partner before submitting.']);
             }
-            if (count(array_filter($values['practice_answers'] ?? [], fn ($answer): bool => filled($answer))) < 15) {
+            if (count(array_filter($values['practice_answers'] ?? [], fn (mixed $answer): bool => filled($answer))) < 15) {
                 throw ValidationException::withMessages(['submission' => 'Answer all 15 practice questions from your partner before submitting.']);
             }
         }

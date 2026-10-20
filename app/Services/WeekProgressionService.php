@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Activity;
 use App\Models\Program;
+use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -14,7 +15,7 @@ class WeekProgressionService
     {
         $gates = $week->gates()->get();
 
-        return $gates->isNotEmpty() && $gates->every(fn ($gate): bool => $gate->evaluations()->where('user_id', $user->id)->where('status', 'passed')->exists());
+        return $gates->isNotEmpty() && $gates->every(fn (TrainingGate $gate): bool => $gate->evaluations()->where('user_id', $user->id)->where('status', 'passed')->exists());
     }
 
     public function canAccessWeek(User $user, TrainingWeek $week): bool

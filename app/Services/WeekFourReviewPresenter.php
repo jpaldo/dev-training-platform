@@ -41,9 +41,9 @@ class WeekFourReviewPresenter
         if (filled($values['practice_interview_snapshot'] ?? null)) {
             $snapshot = $values['practice_interview_snapshot'];
 
-            return ['forward' => collect($snapshot['questions_for_partner'] ?? [])->map(function ($question, $number) use ($snapshot): array {
+            return ['forward' => collect($snapshot['questions_for_partner'] ?? [])->map(function (mixed $question, int|string $number) use ($snapshot): array {
                 return ['number' => (int) $number, 'title' => 'Question by participant', 'prompt' => $question, 'answer' => $snapshot['partner_answers'][$number] ?? null, 'feedback' => $snapshot['feedback_given'][$number]['content'] ?? null];
-            })->values()->all(), 'reverse' => collect($snapshot['partner_questions'] ?? [])->map(function ($question, $number) use ($snapshot): array {
+            })->values()->all(), 'reverse' => collect($snapshot['partner_questions'] ?? [])->map(function (mixed $question, int|string $number) use ($snapshot): array {
                 return ['number' => (int) $number, 'title' => 'Question by partner', 'prompt' => $question, 'answer' => $snapshot['answers_to_partner'][$number] ?? null, 'feedback' => $snapshot['feedback_received'][$number]['content'] ?? null];
             })->values()->all()];
         }

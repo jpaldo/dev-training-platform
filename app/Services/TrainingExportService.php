@@ -3,12 +3,15 @@
 namespace App\Services;
 
 use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\User;
+use App\Models\ValidationSubmission;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 class TrainingExportService
@@ -16,7 +19,7 @@ class TrainingExportService
     public function dailyLogs(User $participant, ?int $weekNumber = null): string
     {
         $logs = DailyLog::query()->with(['activity.week'])->where('user_id', $participant->id)
-            ->when($weekNumber, fn ($q) => $q->whereHas('activity.week', fn ($week) => $week->where('week_number', $weekNumber)))
+            ->when($weekNumber, fn (Builder $q): Builder => $q->whereHas('activity.week', fn (Builder $week): Builder => $week->where('week_number', $weekNumber)))
             ->orderBy('logged_on')->orderBy('id')->get();
 
         return $this->csv(['Daily Log ID', 'Participant', 'QA Path', 'Training Week', 'Log Date', 'Work/Activity', 'Daily Log'], $logs->map(fn (DailyLog $log): array => [$log->id, $participant->name, $participant->trainingPathLabel(), $log->activity?->week?->week_number, $log->logged_on?->toDateString(), $log->activity?->title ?? 'General training', $log->content]));
@@ -25,10 +28,10 @@ class TrainingExportService
     public function activity(User $participant, int $activityId): string
     {
         $activity = Activity::query()->with('week')->findOrFail($activityId);
-        $requirements = $activity->requirements()->where('requirement_type', 'submission_field')->where(function ($query) use ($participant): void {
+        $requirements = $activity->requirements()->where('requirement_type', 'submission_field')->where(function (Builder $query) use ($participant): void {
             $query->whereNull('participant_path')->orWhereIn('participant_path', $participant->eligibleTrainingPaths());
-        })->orderBy('position')->get()->filter(fn ($requirement): bool => ! ($requirement->configuration['deprecated'] ?? false));
-        $fieldKeys = $requirements->mapWithKeys(fn ($requirement): array => [$requirement->configuration['key'] => $requirement->configuration['label'] ?? $requirement->title])->all();
+        })->orderBy('position')->get()->filter(fn (ActivityRequirement $requirement): bool => ! ($requirement->configuration['deprecated'] ?? false));
+        $fieldKeys = $requirements->mapWithKeys(fn (ActivityRequirement $requirement): array => [$requirement->configuration['key'] => $requirement->configuration['label'] ?? $requirement->title])->all();
         $submission = ActivitySubmission::query()
             ->with(['participant', 'activity.week', 'versions.validationSubmission', 'versions.activityScore.dimensions', 'versions.reviews.reviewer', 'versions.evidence.googleDriveExport'])
             ->where('user_id', $participant->id)
@@ -104,8 +107,8 @@ class TrainingExportService
         if ($program) {
             foreach ($program->weeks->whereIn('week_number', [2, 3, 4]) as $week) {
                 $required = $week->activities()->where('is_active', true)->count();
-                $completed = $participant->activitySubmissions()->whereHas('activity', fn ($q) => $q->where('training_week_id', $week->id))->whereIn('status', ['submitted', 'resubmitted', 'approved', 'completed'])->count();
-                $logs = $participant->dailyLogs()->whereHas('activity', fn ($q) => $q->where('training_week_id', $week->id))->count();
+                $completed = $participant->activitySubmissions()->whereHas('activity', fn (Builder $q): Builder => $q->where('training_week_id', $week->id))->whereIn('status', ['submitted', 'resubmitted', 'approved', 'completed'])->count();
+                $logs = $participant->dailyLogs()->whereHas('activity', fn (Builder $q): Builder => $q->where('training_week_id', $week->id))->count();
                 $gateStatus = $progression->isWeekPassed($participant, $week) ? 'passed' : ($progression->canAccessWeek($participant, $week) ? 'in progress' : 'locked');
                 $weekStatus = $gateStatus === 'passed' ? 'Completed' : ($gateStatus === 'locked' ? 'Locked' : 'In progress');
                 $nextAction = $weekStatus === 'Completed' ? 'Continue to next week' : ($weekStatus === 'Locked' ? 'Pass previous Gate' : ($completed < $required ? 'Complete activities' : ($logs < 5 ? 'Complete daily logs' : 'Complete Gate requirements')));
@@ -118,16 +121,16 @@ class TrainingExportService
 
     public function gateProgress(User $participant): string
     {
-        $gates = TrainingGate::query()->with('week')->whereHas('week', fn ($q) => $q->whereIn('week_number', [2, 3, 4]))->get();
+        $gates = TrainingGate::query()->with('week')->whereHas('week', fn (Builder $q): Builder => $q->whereIn('week_number', [2, 3, 4]))->get();
 
-        return $this->csv(['Participant', 'Week', 'Gate', 'Status'], $gates->map(fn ($gate) => [$participant->name, $gate->week->week_number, $gate->title, $participant->gateEvaluations()->where('training_gate_id', $gate->id)->value('status') ?? 'not evaluated']));
+        return $this->csv(['Participant', 'Week', 'Gate', 'Status'], $gates->map(fn (TrainingGate $gate): array => [$participant->name, $gate->week->week_number, $gate->title, $participant->gateEvaluations()->where('training_gate_id', $gate->id)->value('status') ?? 'not evaluated']));
     }
 
     public function activityScores(User $participant): string
     {
-        $versions = SubmissionVersion::query()->with(['submission.activity.week', 'activityScore.dimensions'])->whereHas('submission', fn ($q) => $q->where('user_id', $participant->id))->get();
+        $versions = SubmissionVersion::query()->with(['submission.activity.week', 'activityScore.dimensions'])->whereHas('submission', fn (Builder $q): Builder => $q->where('user_id', $participant->id))->get();
 
-        return $this->csv(['Participant', 'Week', 'Activity', 'Activity Score', 'Score Band', 'Score Published At', 'D1 - Deliverable Quality', 'D2 - Validation & Verification', 'D3 - AI-Augmented Workflow', 'D4 - Judgment & Iteration', 'D5 - Evidence & Reasoning'], $versions->map(function ($version) use ($participant): array {
+        return $this->csv(['Participant', 'Week', 'Activity', 'Activity Score', 'Score Band', 'Score Published At', 'D1 - Deliverable Quality', 'D2 - Validation & Verification', 'D3 - AI-Augmented Workflow', 'D4 - Judgment & Iteration', 'D5 - Evidence & Reasoning'], $versions->map(function (SubmissionVersion $version) use ($participant): array {
             $score = $version->activityScore;
             $dims = $score?->dimensions?->keyBy('dimension') ?? collect();
 
@@ -139,7 +142,7 @@ class TrainingExportService
     {
         $records = $participant->validationSubmissions()->latest('id')->get();
         $headers = ['Record ID', 'Artifact Code', 'Artifact Name', 'Feature / Area', 'Artifact Type', 'AI Tool', 'Exact Prompt', 'AI-Generated Artifact', 'Source Result', 'Source Details', 'Scope Result', 'Scope Details', 'Spec Result', 'Spec Details', 'Cross-check Result', 'Cross-check Details', 'Run Result', 'Run Details', 'Log Result', 'Log Details', 'Evidence Record', 'What Did the Validation Catch?', 'Decision', 'Created At', 'Updated At', 'Evidence Count', 'Evidence File Names'];
-        $rows = $records->map(fn ($record): array => [$record->id, $record->artifact_code, $record->artifact_name, $record->feature_area, $record->artifact_type, $record->ai_tool, $record->prompt, $record->artifact_content, $record->source_status, $record->source_notes, $record->scope_status, $record->scope_notes, $record->spec_status, $record->spec_notes, $record->cross_check_status, $record->cross_check_notes, $record->run_status, $record->run_notes, $record->log_status, $record->log_notes, $record->evidence_notes, $record->finding, $record->decision, $record->created_at, $record->updated_at, count($record->evidence_files ?? []), collect($record->evidence_files ?? [])->pluck('original_filename')->filter()->implode(' | ')])->all();
+        $rows = $records->map(fn (ValidationSubmission $record): array => [$record->id, $record->artifact_code, $record->artifact_name, $record->feature_area, $record->artifact_type, $record->ai_tool, $record->prompt, $record->artifact_content, $record->source_status, $record->source_notes, $record->scope_status, $record->scope_notes, $record->spec_status, $record->spec_notes, $record->cross_check_status, $record->cross_check_notes, $record->run_status, $record->run_notes, $record->log_status, $record->log_notes, $record->evidence_notes, $record->finding, $record->decision, $record->created_at, $record->updated_at, count($record->evidence_files ?? []), collect($record->evidence_files ?? [])->pluck('original_filename')->filter()->implode(' | ')])->all();
 
         return $this->csv($headers, collect($rows));
     }

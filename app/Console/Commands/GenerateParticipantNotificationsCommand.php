@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Jobs\GenerateParticipantNotificationsJob;
 use App\Models\User;
 use Illuminate\Console\Command;
+use Illuminate\Foundation\Bus\PendingDispatch;
 
 class GenerateParticipantNotificationsCommand extends Command
 {
@@ -14,7 +15,7 @@ class GenerateParticipantNotificationsCommand extends Command
 
     public function handle(): int
     {
-        User::query()->where('role', 'participant')->where('is_active', true)->pluck('id')->each(fn (int $id) => GenerateParticipantNotificationsJob::dispatch($id));
+        User::query()->where('role', 'participant')->where('is_active', true)->pluck('id')->each(fn (int $id): PendingDispatch => GenerateParticipantNotificationsJob::dispatch($id));
         $this->info('Participant notification jobs queued.');
 
         return self::SUCCESS;

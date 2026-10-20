@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\TrainingGate;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
+use Illuminate\Database\Eloquent\Builder;
 
 class WeekTwoGateService
 {
@@ -12,7 +13,7 @@ class WeekTwoGateService
     {
         $week = $gate->week()->with('activities')->firstOrFail();
         $reasons = [];
-        $logs = $participant->dailyLogs()->whereHas('activity', fn ($q) => $q->where('training_week_id', $week->id))->count();
+        $logs = $participant->dailyLogs()->whereHas('activity', fn (Builder $q): Builder => $q->where('training_week_id', $week->id))->count();
         // Every active training week requires five participant daily logs.
         // The count is scoped through the week's activities, never globally.
         $minimumLogs = $this->minimumDailyLogs();

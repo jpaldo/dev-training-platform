@@ -16,9 +16,11 @@ use App\Services\TrainingExportService;
 use App\Services\TrainingSyncCoordinator;
 use App\Services\TrainingWorkbookService;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -120,11 +122,11 @@ class SyncTrainingDataJob implements ShouldQueue
 
         try {
             $versions = SubmissionVersion::query()->with(['submission.activity.week', 'evidence'])
-                ->whereHas('submission', fn ($q) => $q->where('user_id', $participant->id))
-                ->whereHas('submission.activity.week', fn ($q) => $q->where('week_number', $weekNumber))
+                ->whereHas('submission', fn (Builder $q): Builder => $q->where('user_id', $participant->id))
+                ->whereHas('submission.activity.week', fn (Builder $q): Builder => $q->where('week_number', $weekNumber))
                 ->get()
                 ->groupBy('activity_submission_id')
-                ->flatMap(function ($items) {
+                ->flatMap(function (Collection $items): Collection {
                     $latest = $items->sortByDesc('version_number')->first();
                     $latestSubmitted = $items->sortByDesc('version_number')->first(fn (SubmissionVersion $version): bool => $version->status !== 'draft');
 
@@ -193,7 +195,7 @@ class SyncTrainingDataJob implements ShouldQueue
         foreach ($linkedRecords as $record) {
             $version = SubmissionVersion::query()->with('submission.activity.week')
                 ->where('validation_submission_id', $record->id)
-                ->whereHas('submission', fn ($q) => $q->where('user_id', $participant->id))
+                ->whereHas('submission', fn (Builder $q): Builder => $q->where('user_id', $participant->id))
                 ->latest('version_number')->first();
             if (! $version || (int) $version->submission->activity->week->week_number !== $weekNumber) {
                 continue;
@@ -239,7 +241,7 @@ class SyncTrainingDataJob implements ShouldQueue
             $record->update(['evidence_files' => $files]);
         }
 
-        $video = WeeklyVideoRecording::query()->where('user_id', $participant->id)->whereHas('week', fn ($q) => $q->where('week_number', $weekNumber))->first();
+        $video = WeeklyVideoRecording::query()->where('user_id', $participant->id)->whereHas('week', fn (Builder $q): Builder => $q->where('week_number', $weekNumber))->first();
         if ($video && $video->disk && $video->path && Storage::disk($video->disk)->exists($video->path)) {
             try {
                 $evidenceWeekFolder = $ensureEvidenceFolder();

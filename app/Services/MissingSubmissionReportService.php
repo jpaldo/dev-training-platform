@@ -3,9 +3,15 @@
 namespace App\Services;
 
 use App\Models\Activity;
+use App\Models\ActivitySubmission;
+use App\Models\DailyLog;
 use App\Models\Program;
+use App\Models\SubmissionEvidence;
+use App\Models\SubmissionVersion;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
 
 class MissingSubmissionReportService
@@ -17,9 +23,9 @@ class MissingSubmissionReportService
     {
         $participants = User::query()
             ->where('role', 'participant')
-            ->when($filters['participant'] ?? null, fn ($query, $value) => $query->whereKey($value))
-            ->when($filters['path'] ?? null, fn ($query, $value) => $query->where('training_path', $value))
-            ->when($filters['mentor'] ?? null, fn ($query, $value) => $query->whereHas('assignedCoaches', fn ($coach) => $coach->whereKey($value)))
+            ->when($filters['participant'] ?? null, fn (Builder $query, int|string $value): Builder => $query->whereKey($value))
+            ->when($filters['path'] ?? null, fn (Builder $query, string $value): Builder => $query->where('training_path', $value))
+            ->when($filters['mentor'] ?? null, fn (Builder $query, int|string $value): Builder => $query->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($value)))
             ->with([
                 'assignedCoaches:id,name',
                 'dailyLogs.activity.week',
@@ -30,7 +36,7 @@ class MissingSubmissionReportService
             ->orderBy('name')
             ->get();
 
-        $program = Program::query()->where('is_active', true)->with(['weeks' => fn ($query) => $query->whereIn('week_number', [2, 3, 4])->where('is_active', true)->with(['activities' => fn ($activities) => $activities->where('is_active', true)->with('requirements')->orderBy('position')])])->first();
+        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $query): Relation => $query->whereIn('week_number', [2, 3, 4])->where('is_active', true)->with(['activities' => fn (Relation $activities): Relation => $activities->where('is_active', true)->with('requirements')->orderBy('position')])])->first();
         if (! $program) {
             return collect();
         }
@@ -41,8 +47,8 @@ class MissingSubmissionReportService
         foreach ($participants as $participant) {
             $mentor = $participant->assignedCoaches->pluck('name')->filter()->implode(', ') ?: 'Not assigned';
             $generalLogs = $participant->dailyLogs
-                ->filter(fn ($log): bool => ! $log->activity_id)
-                ->filter(fn ($log): bool => $this->dateMatches($log->logged_on, $filters));
+                ->filter(fn (DailyLog $log): bool => ! $log->activity_id)
+                ->filter(fn (DailyLog $log): bool => $this->dateMatches($log->logged_on, $filters));
             $generalExpected = config('training.general_training_daily_logs_expected');
             // General Training is represented by DailyLog rows without an
             // activity. It is Week 1 for reporting only; it is not a
@@ -59,8 +65,8 @@ class MissingSubmissionReportService
                     continue;
                 }
                 $logs = $participant->dailyLogs
-                    ->filter(fn ($log): bool => $log->activity?->training_week_id === $week->id)
-                    ->filter(fn ($log): bool => $this->dateMatches($log->logged_on, $filters));
+                    ->filter(fn (DailyLog $log): bool => $log->activity?->training_week_id === $week->id)
+                    ->filter(fn (DailyLog $log): bool => $this->dateMatches($log->logged_on, $filters));
                 $this->addDailyRow($rows, $participant, $mentor, 'Daily Logs', $week->week_number, "Week {$week->week_number} Daily Logs", $weeklyExpected, $logs);
 
                 if (! $participant->weeklyVideoRecordings->contains('training_week_id', $week->id)) {
@@ -73,7 +79,7 @@ class MissingSubmissionReportService
                     }
                     $hasSubmittedVersion = $participant->activitySubmissions
                         ->where('activity_id', $activity->id)
-                        ->contains(fn ($submission): bool => $submission->versions->contains(fn ($version): bool => filled($version->submitted_at) || in_array($version->status, ['submitted', 'resubmitted', 'approved', 'completed', 'failed'], true)));
+                        ->contains(fn (ActivitySubmission $submission): bool => $submission->versions->contains(fn (SubmissionVersion $version): bool => filled($version->submitted_at) || in_array($version->status, ['submitted', 'resubmitted', 'approved', 'completed', 'failed'], true)));
                     if ($hasSubmittedVersion) {
                         continue;
                     }
@@ -150,7 +156,7 @@ class MissingSubmissionReportService
         $version = $submission?->versions->sortByDesc('version_number')->first();
 
         return $version?->evidence
-            ->filter(fn ($evidence): bool => filled($evidence->path))
+            ->filter(fn (SubmissionEvidence $evidence): bool => filled($evidence->path))
             ->count() ?? 0;
     }
 

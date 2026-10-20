@@ -3,10 +3,13 @@
 namespace App\Services;
 
 use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
 use App\Models\SubmissionVersion;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use ZipArchive;
 
 class TrainingWorkbookService
@@ -15,7 +18,7 @@ class TrainingWorkbookService
 
     public function forWeek(User $participant, int $weekNumber): string
     {
-        $activities = Activity::query()->with('week')->whereHas('week', fn ($q) => $q->where('week_number', $weekNumber))->where('is_active', true)->orderBy('position')->get();
+        $activities = Activity::query()->with('week')->whereHas('week', fn (Builder $q): Builder => $q->where('week_number', $weekNumber))->where('is_active', true)->orderBy('position')->get();
         $sheets = [];
         $usedNames = [];
         foreach ($activities as $activity) {
@@ -51,15 +54,15 @@ class TrainingWorkbookService
 
     private function activityRows(User $participant, Activity $activity): array
     {
-        $requirements = $activity->requirements()->where('requirement_type', 'submission_field')->where(fn ($q) => $q->whereNull('participant_path')->orWhereIn('participant_path', $participant->eligibleTrainingPaths()))->orderBy('position')->get()->filter(fn ($r) => ! ($r->configuration['deprecated'] ?? false));
-        $allRequirements = $activity->requirements()->where('requirement_type', 'submission_field')->where(fn ($q) => $q->whereNull('participant_path')->orWhereIn('participant_path', $participant->eligibleTrainingPaths()))->orderBy('position')->get();
-        $fields = $requirements->mapWithKeys(fn ($r) => [$r->configuration['key'] => $r->configuration['label'] ?? $r->title]);
+        $requirements = $activity->requirements()->where('requirement_type', 'submission_field')->where(fn (Builder $q): Builder => $q->whereNull('participant_path')->orWhereIn('participant_path', $participant->eligibleTrainingPaths()))->orderBy('position')->get()->filter(fn (ActivityRequirement $r): bool => ! ($r->configuration['deprecated'] ?? false));
+        $allRequirements = $activity->requirements()->where('requirement_type', 'submission_field')->where(fn (Builder $q): Builder => $q->whereNull('participant_path')->orWhereIn('participant_path', $participant->eligibleTrainingPaths()))->orderBy('position')->get();
+        $fields = $requirements->mapWithKeys(fn (ActivityRequirement $r): array => [$r->configuration['key'] => $r->configuration['label'] ?? $r->title]);
         $labHeaders = $activity->week->week_number === 2 ? ['QA Validation Lab Record', 'Artifact Code', 'Artifact Name'] : [];
         $headers = ['Participant', 'QA Path', 'Week', 'Activity', 'Submission ID', 'Attempt', 'Submission Version', 'Submission Status', 'Submitted At', 'Participant Notes', ...$labHeaders, ...$fields->values()->all()];
         $submission = ActivitySubmission::query()
             ->where('user_id', $participant->id)
             ->where('activity_id', $activity->id)
-            ->with(['activity.week', 'versions' => fn ($query) => $query->with(['validationSubmission'])->orderByDesc('version_number')])
+            ->with(['activity.week', 'versions' => fn (Relation $query): Relation => $query->with(['validationSubmission'])->orderByDesc('version_number')])
             ->latest('attempt_number')
             ->first();
         $version = $submission?->versions->first(fn (SubmissionVersion $candidate): bool => $candidate->status !== 'draft')
@@ -70,7 +73,7 @@ class TrainingWorkbookService
         }
         $historicalFields = collect();
         if ($version) {
-            $historicalFields = $allRequirements->filter(fn ($requirement) => ($requirement->configuration['deprecated'] ?? false) && array_key_exists($requirement->configuration['key'], $version->field_values ?? []))->mapWithKeys(fn ($requirement): array => [$requirement->configuration['key'] => $requirement->configuration['label'] ?? $requirement->title]);
+            $historicalFields = $allRequirements->filter(fn (ActivityRequirement $requirement): bool => ($requirement->configuration['deprecated'] ?? false) && array_key_exists($requirement->configuration['key'], $version->field_values ?? []))->mapWithKeys(fn (ActivityRequirement $requirement): array => [$requirement->configuration['key'] => $requirement->configuration['label'] ?? $requirement->title]);
         }
         $headers = array_merge($headers, $historicalFields->values()->all());
         $row = array_fill(0, count($headers), null);
@@ -103,11 +106,11 @@ class TrainingWorkbookService
 
         $snapshot = $version->field_values['week_three_snapshot'] ?? [];
         $findings = collect($snapshot['findings'] ?? []);
-        $tests = $findings->flatMap(fn ($finding) => $finding['tests'] ?? [])->values()->all();
-        $fixes = collect($tests)->map(fn ($test) => $test['fix_validation'] ?? null)->filter()->values()->all();
+        $tests = $findings->flatMap(fn (mixed $finding): mixed => $finding['tests'] ?? [])->values()->all();
+        $fixes = collect($tests)->map(fn (mixed $test): mixed => $test['fix_validation'] ?? null)->filter()->values()->all();
         $regression = collect($snapshot)->only(['regression_areas', 'regression_issues', 'coverage_gaps', 'final_conclusion'])->all();
         $values = [$participant->name, $participant->trainingPathLabel(), 3, $activity->title, $version->submission->id, $version->submission->attempt_number, $version->version_number, $version->submission->status, $version->submitted_at, $version->participant_note];
-        $values[] = json_encode($findings->map(fn ($finding) => collect($finding)->except(['tests'])->all())->values()->all(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $values[] = json_encode($findings->map(fn (mixed $finding): array => collect($finding)->except(['tests'])->all())->values()->all(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $values[] = json_encode($tests, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $values[] = json_encode($fixes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $values[] = json_encode($regression, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -122,9 +125,9 @@ class TrainingWorkbookService
 
     private function dailyLogRows(User $participant, int $weekNumber): array
     {
-        $logs = DailyLog::query()->with('activity.week')->where('user_id', $participant->id)->whereHas('activity.week', fn ($q) => $q->where('week_number', $weekNumber))->oldest('logged_on')->get();
+        $logs = DailyLog::query()->with('activity.week')->where('user_id', $participant->id)->whereHas('activity.week', fn (Builder $q): Builder => $q->where('week_number', $weekNumber))->oldest('logged_on')->get();
         $headers = ['Date', 'Participant', 'QA Path', 'Week', 'Activity', 'Daily Log', 'Created At', 'Updated At'];
-        $rows = $logs->map(fn (DailyLog $log) => [$log->logged_on, $participant->name, $participant->trainingPathLabel(), $log->activity?->week?->week_number, $log->activity?->title ?? 'General training', $log->content, $log->created_at, $log->updated_at])->all();
+        $rows = $logs->map(fn (DailyLog $log): array => [$log->logged_on, $participant->name, $participant->trainingPathLabel(), $log->activity?->week?->week_number, $log->activity?->title ?? 'General training', $log->content, $log->created_at, $log->updated_at])->all();
 
         return [$headers, ...$rows];
     }
@@ -138,7 +141,7 @@ class TrainingWorkbookService
             ->oldest('id')
             ->get();
         $headers = ['Date', 'Participant', 'QA Path', 'Week', 'Activity', 'Daily Log', 'Created At', 'Updated At'];
-        $rows = $logs->map(fn (DailyLog $log) => [$log->logged_on, $participant->name, $participant->trainingPathLabel(), 'General Training', 'General training', $log->content, $log->created_at, $log->updated_at])->all();
+        $rows = $logs->map(fn (DailyLog $log): array => [$log->logged_on, $participant->name, $participant->trainingPathLabel(), 'General Training', 'General training', $log->content, $log->created_at, $log->updated_at])->all();
 
         return [$headers, ...$rows];
     }
@@ -168,7 +171,7 @@ class TrainingWorkbookService
         $zip = new ZipArchive;
         $path = tempnam(sys_get_temp_dir(), 'qa-xlsx-');
         $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
-        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'.implode('', array_map(fn ($i) => '<Override PartName="/xl/worksheets/sheet'.$i.'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>', range(1, count($sheets)))).'</Types>');
+        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'.implode('', array_map(fn (int $i): string => '<Override PartName="/xl/worksheets/sheet'.$i.'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>', range(1, count($sheets)))).'</Types>');
         $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
         $rels = '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
         foreach (array_keys($sheets) as $i) {

@@ -14,6 +14,7 @@ use App\Services\GoogleDriveReadinessService;
 use App\Services\SubmissionWorkflowService;
 use App\Services\TrainingSyncCoordinator;
 use App\Services\WeekProgressionService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,8 +36,8 @@ class SubmissionEvidenceController extends Controller
         Gate::authorize('update', $submissionVersion);
         $workflow->ensureDraft($user, $submissionVersion);
         $data = $request->validated();
-        $requirement = EvidenceRequirement::query()->whereKey($data['evidence_requirement_id'])->whereHas('activityRequirement', function ($query) use ($activity, $user): void {
-            $query->where('activity_id', $activity->id)->where(function ($q) use ($user): void {
+        $requirement = EvidenceRequirement::query()->whereKey($data['evidence_requirement_id'])->whereHas('activityRequirement', function (Builder $query) use ($activity, $user): void {
+            $query->where('activity_id', $activity->id)->where(function (Builder $q) use ($user): void {
                 $q->whereNull('participant_path')->orWhereIn('participant_path', $user->eligibleTrainingPaths());
             });
         })->firstOrFail();
@@ -201,13 +202,13 @@ class SubmissionEvidenceController extends Controller
         rewind($stream);
         $rows = [];
         while (($row = fgetcsv($stream)) !== false && count($rows) < 101) {
-            $rows[] = array_map(static fn ($value): string => is_scalar($value) || $value === null ? (string) $value : '', array_slice($row, 0, 30));
+            $rows[] = array_map(static fn (?string $value): string => is_scalar($value) || $value === null ? (string) $value : '', array_slice($row, 0, 30));
         }
         fclose($stream);
         $truncated = count($rows) > 100 || strlen($contents) >= 2_000_000 ? 'Showing the first 100 rows.' : null;
         $headers = array_shift($rows) ?: [];
 
-        return array_filter(['kind' => 'table', 'headers' => $headers, 'rows' => array_slice($rows, 0, 100), 'truncated' => $truncated], static fn ($value): bool => $value !== null);
+        return array_filter(['kind' => 'table', 'headers' => $headers, 'rows' => array_slice($rows, 0, 100), 'truncated' => $truncated], static fn (mixed $value): bool => $value !== null);
     }
 
     /** @return array{kind: string, headers: array<int, string>, rows: array<int, array<int, string>>, truncated?: string} */

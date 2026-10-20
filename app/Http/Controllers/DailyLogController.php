@@ -8,11 +8,13 @@ use App\Models\Activity;
 use App\Models\DailyLog;
 use App\Models\GoogleDriveExport;
 use App\Models\Program;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\ExportLifecycleService;
 use App\Services\TrainingExportCoordinator;
 use App\Services\TrainingSyncCoordinator;
 use App\Services\WeekProgressionService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -26,9 +28,9 @@ class DailyLogController extends Controller
         $lifecycle->reconcileStale($user->id);
 
         $program = Program::query()->where('is_active', true)->with('weeks')->first();
-        $weeklyProgress = $program ? $program->weeks->where('is_active', true)->sortBy('week_number')->map(fn ($week): array => [
+        $weeklyProgress = $program ? $program->weeks->where('is_active', true)->sortBy('week_number')->map(fn (TrainingWeek $week): array => [
             'week' => $week,
-            'count' => $user->dailyLogs()->whereHas('activity', fn ($query) => $query->where('training_week_id', $week->id))->count(),
+            'count' => $user->dailyLogs()->whereHas('activity', fn (Builder $query): Builder => $query->where('training_week_id', $week->id))->count(),
         ])->values() : collect();
 
         $exports = GoogleDriveExport::query()->where('user_id', $user->id)->where('export_type', 'daily_logs')->get()->keyBy('scope_key');

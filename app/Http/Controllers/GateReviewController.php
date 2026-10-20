@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreGateReviewRequest;
+use App\Models\Activity;
+use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
@@ -10,6 +12,7 @@ use App\Models\User;
 use App\Services\TrainingExportCoordinator;
 use App\Services\TrainingSyncCoordinator;
 use App\Services\WeekTwoGateService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -41,11 +44,11 @@ class GateReviewController extends Controller
 
         $weekActivities = $trainingWeek->activities()->where('is_active', true)->get();
         $activitySubmissions = $participant->activitySubmissions()->whereIn('activity_id', $weekActivities->pluck('id'))->get()->keyBy('activity_id');
-        $completedActivities = $weekActivities->filter(fn ($activity): bool => in_array($activitySubmissions->get($activity->id)?->status, ['submitted', 'resubmitted', 'approved', 'completed'], true))->count();
-        $weeklyLogCount = $participant->dailyLogs()->whereHas('activity', fn ($query) => $query->where('training_week_id', $trainingWeek->id))->count();
+        $completedActivities = $weekActivities->filter(fn (Activity $activity): bool => in_array($activitySubmissions->get($activity->id)?->status, ['submitted', 'resubmitted', 'approved', 'completed'], true))->count();
+        $weeklyLogCount = $participant->dailyLogs()->whereHas('activity', fn (Builder $query): Builder => $query->where('training_week_id', $trainingWeek->id))->count();
         $weeklyLoom = $service->weeklyVideo($participant, $trainingGate);
         $requiredCriteria = $trainingGate->criteria()->where('is_required', true)->get();
-        $satisfiedCriteria = $requiredCriteria->filter(fn ($criterion): bool => in_array($criterion->criterion_type, ['weekly_video', 'weekly_loom'], true) ? $weeklyLoom['status'] === 'met' : $evaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id)?->status === 'met')->count();
+        $satisfiedCriteria = $requiredCriteria->filter(fn (GateCriterion $criterion): bool => in_array($criterion->criterion_type, ['weekly_video', 'weekly_loom'], true) ? $weeklyLoom['status'] === 'met' : $evaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id)?->status === 'met')->count();
 
         return view('coach.gate_review', ['trainingWeek' => $trainingWeek, 'participant' => $participant, 'gate' => $trainingGate->load('criteria'), 'evaluation' => $evaluation, 'weeklyLoom' => $weeklyLoom, 'readiness' => $readiness, 'readinessSummary' => $this->readinessSummary($participant, $trainingGate, $readiness), 'weeklyLogCount' => $weeklyLogCount, 'activityProgress' => "{$completedActivities} / {$weekActivities->count()} submitted", 'satisfiedCriteria' => $satisfiedCriteria, 'requiredCriteriaCount' => $requiredCriteria->count(), 'canManage' => request()->user()->canManageParticipant($participant)]);
     }
@@ -58,9 +61,9 @@ class GateReviewController extends Controller
         $existing = $trainingGate->evaluations()->where('user_id', $participant->id)->first();
         Gate::authorize($existing ? 'update' : 'create', $existing ?? GateEvaluation::class);
         $criteria = $trainingGate->criteria()->where('is_required', true)->get();
-        $missing = $criteria->filter(fn ($criterion) => ($data['criteria'][$criterion->id] ?? null) !== 'met');
+        $missing = $criteria->filter(fn (GateCriterion $criterion): bool => ($data['criteria'][$criterion->id] ?? null) !== 'met');
         $readiness = $service->readiness($participant, $trainingGate);
-        $weeklyLoomCriterion = $criteria->first(fn ($criterion): bool => in_array($criterion->criterion_type, ['weekly_video', 'weekly_loom'], true));
+        $weeklyLoomCriterion = $criteria->first(fn (GateCriterion $criterion): bool => in_array($criterion->criterion_type, ['weekly_video', 'weekly_loom'], true));
         if ($data['status'] !== 'passed' && $weeklyLoomCriterion && ($data['criteria'][$weeklyLoomCriterion->id] ?? null) === 'met' && $service->weeklyVideo($participant, $trainingGate)['status'] === 'missing') {
             throw ValidationException::withMessages(['criteria.'.$weeklyLoomCriterion->id => 'The Weekly Video Recording cannot be marked Met until a video is uploaded.']);
         }
@@ -87,7 +90,7 @@ class GateReviewController extends Controller
     private function readinessSummary(User $participant, TrainingGate $gate, array $readiness): array
     {
         $week = $gate->week;
-        $logs = $participant->dailyLogs()->whereHas('activity', fn ($q) => $q->where('training_week_id', $week->id))->count();
+        $logs = $participant->dailyLogs()->whereHas('activity', fn (Builder $q): Builder => $q->where('training_week_id', $week->id))->count();
         $minimum = 5;
         $summary = [];
         if (array_key_exists('daily_logs', $readiness)) {

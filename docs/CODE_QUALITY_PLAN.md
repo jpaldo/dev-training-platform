@@ -33,14 +33,14 @@ The standing conventions for new and touched code live in the "Code Quality Rule
 
 Add explicit return types (and parameter types where missing).
 
-- [ ] `app/Http/Controllers/ValidationLabController.php` — `index`, `labHome`, `artifact`, `checklist`, `submit`, `submitRecord`, `result`, `ownedRecord`, `appLogin`, `sendOtp`, `otp`, `verifyOtp`
-- [ ] `app/Http/Controllers/RecoveryRequestController.php` — `store`, `index`, `decide`
-- [ ] `app/Http/Controllers/WeeklyVideoRecordingController.php` — `edit`, `store`
-- [ ] `app/Http/Controllers/AttendanceController.php` — `filtered`
-- [ ] `app/Http/Controllers/DailyLogReportController.php` — `rows`
-- [ ] `app/Services/SubmissionWorkflowService.php` — `evidenceRequirements`
-- [ ] `app/Services/ScoringReportService.php` — `participants`
-- [ ] Sweep for closures without return types in `app/` and fix them in the same batch.
+- [x] `app/Http/Controllers/ValidationLabController.php` — `index`, `labHome`, `artifact`, `checklist`, `submit`, `submitRecord`, `result`, `ownedRecord`, `appLogin`, `sendOtp`, `otp`, `verifyOtp`
+- [x] `app/Http/Controllers/RecoveryRequestController.php` — `store`, `index`, `decide`
+- [x] `app/Http/Controllers/WeeklyVideoRecordingController.php` — `edit`, `store`
+- [x] `app/Http/Controllers/AttendanceController.php` — `filtered`
+- [x] `app/Http/Controllers/DailyLogReportController.php` — `rows`
+- [x] `app/Services/SubmissionWorkflowService.php` — `evidenceRequirements`
+- [x] `app/Services/ScoringReportService.php` — `participants`
+- [x] Sweep for closures without return types in `app/` and fix them in the same batch.
 
 ---
 

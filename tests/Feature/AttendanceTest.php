@@ -84,6 +84,31 @@ class AttendanceTest extends TestCase
         $this->actingAs($admin)->get(route('admin.attendance.export'))->assertDownload('attendance.csv');
     }
 
+    public function test_export_applies_date_participant_and_completed_status_filters(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $participant = User::factory()->create();
+        $otherParticipant = User::factory()->create();
+        $inRange = Carbon::parse('2026-09-10 09:00:00', config('app.timezone'));
+        AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => $inRange, 'check_out_at' => $inRange->copy()->addHour(), 'total_seconds' => 3600]);
+        AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => $inRange->copy()->addDay(), 'check_out_at' => null]);
+        AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => $inRange->copy()->subDays(5), 'check_out_at' => $inRange->copy()->subDays(5)->addHour(), 'total_seconds' => 3600]);
+        AttendanceSession::create(['user_id' => $otherParticipant->id, 'check_in_at' => $inRange, 'check_out_at' => $inRange->copy()->addHour(), 'total_seconds' => 3600]);
+
+        $csv = $this->actingAs($coach)->get(route('coach.attendance.export', [
+            'date_from' => '2026-09-09',
+            'date_to' => '2026-09-11',
+            'participant' => $participant->id,
+            'status' => 'completed',
+        ]))->assertOk()->streamedContent();
+
+        $rows = array_values(array_filter(explode("\n", $csv)));
+        $this->assertCount(2, $rows);
+        $this->assertStringContainsString($participant->email, $rows[1]);
+        $this->assertStringContainsString('2026-09-10', $rows[1]);
+        $this->assertStringContainsString('Checked out', $rows[1]);
+    }
+
     public function test_participant_cannot_access_management_or_modify_completed_session(): void
     {
         $participant = User::factory()->create();

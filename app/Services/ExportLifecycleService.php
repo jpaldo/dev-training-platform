@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\GoogleDriveExport;
 use App\Models\GoogleDriveSync;
 use Illuminate\Contracts\Queue\Job;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -132,7 +133,7 @@ class ExportLifecycleService
         $reconciled += GoogleDriveSync::query()
             ->whereIn('status', [GoogleDriveSync::ENQUEUED, GoogleDriveSync::IN_PROGRESS])
             ->where('updated_at', '<', $cutoff)
-            ->when($userId !== null, fn ($q) => $q->where('user_id', $userId))
+            ->when($userId !== null, fn (Builder $q): Builder => $q->where('user_id', $userId))
             ->update([
                 'status' => GoogleDriveSync::FAILED,
                 'error' => 'Synchronization stopped before completion. Please retry the sync.',

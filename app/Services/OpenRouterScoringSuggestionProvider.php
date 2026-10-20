@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\ScoringSuggestionProvider;
+use App\Models\SubmissionInteraction;
 use App\Models\SubmissionVersion;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
@@ -148,7 +149,7 @@ class OpenRouterScoringSuggestionProvider implements ScoringSuggestionProvider
 
         $shape = is_array($decoded['dimensions'] ?? null)
             ? 'wrapped_dimensions'
-            : (collect(['D1', 'D2', 'D3', 'D4', 'D5'])->every(fn ($key) => array_key_exists($key, $decoded)) ? 'top_level_dimensions' : 'other');
+            : (collect(['D1', 'D2', 'D3', 'D4', 'D5'])->every(fn (string $key): bool => array_key_exists($key, $decoded)) ? 'top_level_dimensions' : 'other');
         Log::warning('AI scoring response metadata received.', [
             'phase' => $phase,
             'http_status' => $response->status(),
@@ -172,7 +173,7 @@ class OpenRouterScoringSuggestionProvider implements ScoringSuggestionProvider
     {
         $items = $decoded['dimensions'] ?? null;
         Log::warning('AI scoring response shape received.', ['phase' => $phase, 'top_level_keys' => array_keys($decoded), 'dimensions_type' => get_debug_type($items)]);
-        if (! is_array($items) && collect(array_keys($dimensions))->every(fn ($key) => array_key_exists($key, $decoded))) {
+        if (! is_array($items) && collect(array_keys($dimensions))->every(fn (int|string $key): bool => array_key_exists($key, $decoded))) {
             $items = array_intersect_key($decoded, $dimensions);
         }
         if (! is_array($items)) {
@@ -276,7 +277,7 @@ class OpenRouterScoringSuggestionProvider implements ScoringSuggestionProvider
         if (is_array($decoded['dimensions'] ?? null)) {
             return 'wrapped_dimensions';
         }
-        if (collect(array_keys($dimensions))->every(fn ($key) => array_key_exists($key, $decoded))) {
+        if (collect(array_keys($dimensions))->every(fn (int|string $key): bool => array_key_exists($key, $decoded))) {
             return 'top_level_dimensions';
         }
 
@@ -349,17 +350,17 @@ class OpenRouterScoringSuggestionProvider implements ScoringSuggestionProvider
             'task' => 'Suggest, do not finalize, a mentor score for this immutable submission.',
             'submission_version' => $version->id,
             'answers' => $answers,
-            'interactions' => $version->interactions->map(fn ($item) => ['sequence' => $item->sequence, 'prompt' => $item->prompt, 'output' => $item->output])->values()->all(),
-            'evidence' => array_map(fn (array $item) => array_filter($item, fn ($key) => $key !== 'image_url', ARRAY_FILTER_USE_KEY), $evidence['items']),
+            'interactions' => $version->interactions->map(fn (SubmissionInteraction $item): array => ['sequence' => $item->sequence, 'prompt' => $item->prompt, 'output' => $item->output])->values()->all(),
+            'evidence' => array_map(fn (array $item): array => array_filter($item, fn (int|string $key): bool => $key !== 'image_url', ARRAY_FILTER_USE_KEY), $evidence['items']),
             'dimensions' => $dimensions,
             'output_contract' => 'Return only the exact JSON schema: dimensions.D1 through dimensions.D5 must each contain suggested_score as an integer within its supplied maximum, non-empty feedback, and non-empty evidence_basis. Include non-empty overall_feedback. Do not put dimension fields or feedback at the top level.',
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $images = array_values(array_filter($evidence['items'], fn (array $item) => isset($item['image_url'])));
+        $images = array_values(array_filter($evidence['items'], fn (array $item): bool => isset($item['image_url'])));
         if ($images === []) {
             return $context;
         }
 
-        return array_merge([['type' => 'text', 'text' => $context]], array_map(fn (array $item) => ['type' => 'image_url', 'image_url' => ['url' => $item['image_url']]], $images));
+        return array_merge([['type' => 'text', 'text' => $context]], array_map(fn (array $item): array => ['type' => 'image_url', 'image_url' => ['url' => $item['image_url']]], $images));
     }
 
     private function testPrompt(): string

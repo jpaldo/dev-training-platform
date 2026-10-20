@@ -9,6 +9,8 @@ use App\Models\Program;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 
 class ParticipantNotificationService
 {
@@ -26,7 +28,7 @@ class ParticipantNotificationService
         }
 
         $this->state($participant, 'general_daily_logs', 'daily_logs', 'General Training Daily Logs incomplete', $this->generalLogBody($participant), route('daily-logs.index'), $this->generalLogsMissing($participant) > 0);
-        $program = Program::query()->where('is_active', true)->with(['weeks' => fn ($q) => $q->whereIn('week_number', [2, 3, 4])->where('is_active', true)->with(['activities' => fn ($a) => $a->where('is_active', true)->orderBy('position'), 'gates'])])->first();
+        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $q): Relation => $q->whereIn('week_number', [2, 3, 4])->where('is_active', true)->with(['activities' => fn (Relation $a): Relation => $a->where('is_active', true)->orderBy('position'), 'gates'])])->first();
         if (! $program) {
             return;
         }
@@ -41,7 +43,7 @@ class ParticipantNotificationService
             $this->state($participant, "week:{$week->id}:daily_logs", 'daily_logs', "Week {$week->week_number} Daily Logs incomplete", "You have completed {$logs} of {$this->gates->minimumDailyLogs()} required Daily Logs for Week {$week->week_number}. {$remaining} Daily Log".($remaining === 1 ? '' : 's').' are still missing.', route('daily-logs.index'), $remaining > 0);
 
             foreach ($week->activities as $activity) {
-                $submission = $participant->activitySubmissions()->where('activity_id', $activity->id)->latest('attempt_number')->with(['versions' => fn ($q) => $q->latest('version_number')])->first();
+                $submission = $participant->activitySubmissions()->where('activity_id', $activity->id)->latest('attempt_number')->with(['versions' => fn (Relation $q): Relation => $q->latest('version_number')])->first();
                 $status = $submission?->status;
                 $url = route('training.activities.show', [$week, $activity]);
                 $this->state($participant, "week:{$week->id}:activity:{$activity->id}:incomplete", 'activity_incomplete', 'Activity incomplete', "{$activity->title} has not been completed for Week {$week->week_number}.", $url, ! $submission || $status === 'failed');
@@ -105,7 +107,7 @@ class ParticipantNotificationService
 
     private function weekLogCount(User $participant, TrainingWeek $week): int
     {
-        return $participant->dailyLogs()->whereHas('activity', fn ($q) => $q->where('training_week_id', $week->id))->count();
+        return $participant->dailyLogs()->whereHas('activity', fn (Builder $q): Builder => $q->where('training_week_id', $week->id))->count();
     }
 
     private function missingEvidence(Activity $activity, ?ActivitySubmission $submission): bool

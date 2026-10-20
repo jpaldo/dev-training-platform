@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\WeekFourInterviewPair;
 use App\Models\WeekFourMentorInterviewSchedule;
 use App\Services\AdminSettingsStatusService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\View\View;
 
 class AdminDashboardController extends Controller
@@ -54,6 +55,6 @@ class AdminDashboardController extends Controller
 
         $week = $program->weeks()->where('week_number', $weekNumber)->first();
 
-        return $week ? User::query()->where('role', 'participant')->whereHas('activitySubmissions', fn ($query) => $query->whereHas('activity', fn ($activity) => $activity->where('training_week_id', $week->id)))->count() : 0;
+        return $week ? User::query()->where('role', 'participant')->whereHas('activitySubmissions', fn (Builder $query): Builder => $query->whereHas('activity', fn (Builder $activity): Builder => $activity->where('training_week_id', $week->id)))->count() : 0;
     }
 }

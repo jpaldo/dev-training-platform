@@ -9,6 +9,8 @@ use App\Services\EmailConfigurationService;
 use App\Services\GoogleDriveConfigurationService;
 use App\Services\GoogleDriveReadinessService;
 use App\Services\ParticipantNotificationService;
+use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\View\View as ViewContract;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -20,7 +22,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(ScoringSuggestionProvider::class, function ($app): ScoringSuggestionProvider {
+        $this->app->singleton(ScoringSuggestionProvider::class, function (Application $app): ScoringSuggestionProvider {
             return $app->make(AiScoringProviderResolver::class)->resolve();
         });
     }
@@ -32,7 +34,7 @@ class AppServiceProvider extends ServiceProvider
     {
         app(EmailConfigurationService::class)->applyRuntimeConfiguration();
 
-        View::composer('layouts.app', function ($view): void {
+        View::composer('layouts.app', function (ViewContract $view): void {
             $user = Auth::user();
             if (! $user || $user->role !== 'participant') {
                 $view->with(['participantDriveHeader' => null, 'participantNotificationUnreadCount' => 0]);

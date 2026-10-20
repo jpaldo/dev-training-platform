@@ -64,7 +64,7 @@ class AiProviderConfigurationService
             'model' => $resolved['model'] ?: '',
             'has_api_key' => filled($resolved['api_key']),
             'provider_label' => self::PROVIDERS[$resolved['provider'] ?? 'openrouter'] ?? 'OpenRouter',
-            'configured_providers' => collect(self::PROVIDERS)->mapWithKeys(fn ($label, $provider): array => [$provider => filled($this->secretForProvider($provider)) && filled($this->modelForProvider($provider))])->all(),
+            'configured_providers' => collect(self::PROVIDERS)->mapWithKeys(fn (string $label, string $provider): array => [$provider => filled($this->secretForProvider($provider)) && filled($this->modelForProvider($provider))])->all(),
             'source' => $resolved['source'],
             'status' => ! $resolved['enabled'] ? 'Disabled' : ($resolved['configured'] ? 'Configured' : 'Not Configured'),
         ];

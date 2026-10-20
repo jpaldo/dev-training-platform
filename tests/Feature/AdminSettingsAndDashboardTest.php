@@ -114,6 +114,21 @@ class AdminSettingsAndDashboardTest extends TestCase
         $this->actingAs($admin)->post(route('admin.settings.email.test'), ['recipient' => 'admin@example.test'])->assertRedirect()->assertSessionHas('status');
     }
 
+    public function test_admin_test_email_is_delivered_to_the_recipient(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->post(route('admin.settings.email.test'), ['recipient' => 'admin@example.test'])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status');
+
+        $messages = app('mailer')->getSymfonyTransport()->messages();
+        $this->assertCount(1, $messages);
+        $this->assertSame('admin@example.test', $messages->first()->getOriginalMessage()->getTo()[0]->getAddress());
+    }
+
     public function test_log_mailer_does_not_require_smtp_fields_and_non_admin_cannot_modify_settings(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

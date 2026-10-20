@@ -7,6 +7,7 @@ use App\Models\TrainingWeek;
 use App\Services\GoogleDriveConnectionService;
 use App\Services\TrainingExportCoordinator;
 use App\Services\WeekProgressionService;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -16,7 +17,7 @@ class ActivityExportController extends Controller
     {
         $user = $request->user();
         $progression->ensureCanAccessActivity($user, $trainingWeek, $activity);
-        $submission = $user->activitySubmissions()->where('activity_id', $activity->id)->with(['versions' => fn ($query) => $query->latest('version_number')])->first();
+        $submission = $user->activitySubmissions()->where('activity_id', $activity->id)->with(['versions' => fn (Relation $query): Relation => $query->latest('version_number')])->first();
 
         if (! $google->enabled() || ! $user->googleDriveConnection) {
             return back()->withErrors(['google_drive' => 'Connect Google Drive before exporting this activity.']);

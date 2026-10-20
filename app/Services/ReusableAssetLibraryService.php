@@ -6,6 +6,8 @@ use App\Models\ActivitySubmission;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
@@ -16,7 +18,7 @@ class ReusableAssetLibraryService
     {
         return ActivitySubmission::query()
             ->whereIn('status', ['approved', 'completed'])
-            ->whereNotExists(fn ($query) => $query->select(DB::raw('1'))
+            ->whereNotExists(fn (QueryBuilder $query): QueryBuilder => $query->select(DB::raw('1'))
                 ->from('activity_submissions as newer_submissions')
                 ->whereColumn('newer_submissions.activity_id', 'activity_submissions.activity_id')
                 ->whereColumn('newer_submissions.user_id', 'activity_submissions.user_id')
@@ -42,7 +44,7 @@ class ReusableAssetLibraryService
             ->with([
                 'participant',
                 'activity.week',
-                'versions' => fn ($version): mixed => $version->orderByDesc('version_number')->with('evidence.evidenceRequirement'),
+                'versions' => fn (Relation $version): Relation => $version->orderByDesc('version_number')->with('evidence.evidenceRequirement'),
             ])
             ->orderByDesc('completed_at')
             ->orderByDesc('id');

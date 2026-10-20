@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>{{ $title ?? 'QA Training Platform' }}</title>
+    <title>{{ $title ?? 'Developer Training Platform' }}</title>
     @vite('resources/js/app.js')
     @isset($metaDescription)<meta name="description" content="{{ $metaDescription }}">@endisset
     <style>
@@ -57,7 +57,7 @@
 <body>
 <div class="wrap {{ auth()->check() ? 'app-shell' : 'guest-shell' }}">
     <div class="nav">
-        <a class="brand" href="{{ route('home') }}">⚡ QA TRAINING PLATFORM</a>
+        <a class="brand" href="{{ route('home') }}">⚡ DEVELOPER TRAINING PLATFORM</a>
         @auth
             @if(auth()->user()->role === 'admin')
                 <span class="nav-links">
@@ -91,7 +91,7 @@
         @endauth
     </div>
     @yield('content')
-    <footer class="site-footer" aria-label="Legal"><span>© {{ date('Y') }} QA Training Platform</span><a href="{{ route('privacy-policy') }}">Privacy Policy</a><a href="{{ route('terms-of-service') }}">Terms of Service</a></footer>
+    <footer class="site-footer" aria-label="Legal"><span>© {{ date('Y') }} Developer Training Platform</span><a href="{{ route('privacy-policy') }}">Privacy Policy</a><a href="{{ route('terms-of-service') }}">Terms of Service</a></footer>
 </div>
 </body>
 </html>

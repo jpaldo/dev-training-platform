@@ -3,7 +3,7 @@
 <article class="card legal-page" style="max-width:900px;margin:0 auto">
     <div class="eyebrow">LEGAL</div><h1>Terms of Service</h1>
     <p class="muted">Last updated: September 11, 2026</p>
-    <p>These Terms govern your use of the QA Training Platform. By using the platform, you agree to use it responsibly and consistently with these Terms.</p>
+    <p>These Terms govern your use of the Developer Training Platform. By using the platform, you agree to use it responsibly and consistently with these Terms.</p>
     <h2>Acceptable use</h2>
     <p>Use the platform only for authorized QA training and related program activities. Keep your account information accurate, protect your credentials, and do not attempt to access another person’s account, submissions, evidence, scores, files, or private data.</p>
     <h2>Training submissions and evidence</h2>

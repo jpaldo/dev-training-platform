@@ -32,7 +32,7 @@ class InterviewBookingLinkService
     {
         $title = trim((string) ApplicationSetting::query()->where('key', self::TITLE_KEY)->value('value'));
 
-        return $title !== '' ? $title : 'QA Training Platform';
+        return $title !== '' ? $title : 'Developer Training Platform';
     }
 
     public function savePublicTitle(?string $title): void

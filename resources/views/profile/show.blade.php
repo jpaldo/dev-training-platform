@@ -4,7 +4,7 @@
 <style>
 .profile-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start}.profile-section-card{max-width:none;min-width:0}.profile-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.profile-actions form{margin:0;max-width:100%}.profile-actions .btn{white-space:normal}@media(max-width:900px){.profile-columns{grid-template-columns:1fr}}
 </style>
-<div class="eyebrow">QA TRAINING PLATFORM</div>
+<div class="eyebrow">DEVELOPER TRAINING PLATFORM</div>
 <div class="page-heading"><div><h1>Profile</h1><p class="muted">Manage your account information and connected services.</p></div></div>
 <div class="profile-columns">
     <div class="card profile-section-card">

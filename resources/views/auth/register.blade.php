@@ -4,7 +4,7 @@
 @extends('layouts.app')
 
 @section('content')
-    <div class="eyebrow">QA TRAINING PLATFORM</div>
+    <div class="eyebrow">DEVELOPER TRAINING PLATFORM</div>
     <h1>Create participant account</h1>
     <div class="card" style="max-width:640px">
         <form class="form" method="post" action="{{ route('register.store') }}">

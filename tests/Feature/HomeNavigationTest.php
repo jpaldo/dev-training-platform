@@ -16,7 +16,7 @@ class HomeNavigationTest extends TestCase
 
     public function test_guest_sees_platform_home_and_auth_links(): void
     {
-        $this->get('/')->assertOk()->assertSee('QA TRAINING PLATFORM')->assertSee('Log in')->assertSee('Create account');
+        $this->get('/')->assertOk()->assertSee('DEVELOPER TRAINING PLATFORM')->assertSee('Log in')->assertSee('Create account');
     }
 
     public function test_legal_pages_are_public_and_linked_from_home(): void

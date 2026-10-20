@@ -3,7 +3,7 @@
 <article class="card legal-page" style="max-width:900px;margin:0 auto">
     <div class="eyebrow">LEGAL</div><h1>Privacy Policy</h1>
     <p class="muted">Last updated: September 11, 2026</p>
-    <p>This Privacy Policy explains how the QA Training Platform (“the platform”) handles information when you use its QA training services.</p>
+    <p>This Privacy Policy explains how the Developer Training Platform (“the platform”) handles information when you use its QA training services.</p>
     <h2>Information used by the platform</h2>
     <p>The platform uses account details such as your name, email address, role, QA path, and profile information you provide. It also stores the training information you submit, including activity responses, artifacts, evidence, participant notes, Validation Lab records, reviews, scores, and related feedback.</p>
     <p>When you use attendance features, the platform records check-in and check-out timestamps and the resulting session duration. Coaches/Mentors and Admins may access training records needed to operate, review, and administer the program.</p>

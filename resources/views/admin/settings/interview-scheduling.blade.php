@@ -3,13 +3,13 @@
 @section('content')
 <div class="eyebrow">INTERVIEW SCHEDULING</div>
 <h1>Interview Scheduling</h1>
-<p class="muted">Store public booking pages managed by interviewers through external scheduling services. The QA Training Platform does not create events or Meet links.</p>
+<p class="muted">Store public booking pages managed by interviewers through external scheduling services. The Developer Training Platform does not create events or Meet links.</p>
 
 <section class="card">
     <h2>Public Interview Page</h2>
     <form method="POST" action="{{ route('admin.settings.interview-scheduling.title.update') }}" class="form">
         @csrf
-        <div class="field"><label for="public_title">Public Page Title</label><input id="public_title" name="public_title" value="{{ $publicTitle }}" maxlength="100" placeholder="QA Training Platform"></div>
+        <div class="field"><label for="public_title">Public Page Title</label><input id="public_title" name="public_title" value="{{ $publicTitle }}" maxlength="100" placeholder="Developer Training Platform"></div>
         <button class="btn" type="submit">Save Public Page Title</button>
     </form>
     <p class="muted">{{ $logoConfigured ? 'A public logo is configured.' : 'No logo configured; the public page uses the configured title as its branding fallback.' }}</p>

@@ -40,7 +40,7 @@ class InterviewSchedulingTest extends TestCase
         $this->get(route('interviews.register'))->assertSee('Full Scale AI Training');
 
         $this->actingAs($admin)->post(route('admin.settings.interview-scheduling.title.update'), ['public_title' => ''])->assertRedirect();
-        $this->get(route('interviews.index'))->assertSee('QA Training Platform');
+        $this->get(route('interviews.index'))->assertSee('Developer Training Platform');
     }
 
     public function test_public_registration_page_renders_the_form_and_calendar_configuration_link(): void

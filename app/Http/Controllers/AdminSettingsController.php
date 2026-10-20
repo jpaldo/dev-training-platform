@@ -99,8 +99,8 @@ class AdminSettingsController extends Controller
         $email->applyRuntimeConfiguration();
 
         try {
-            Mail::raw('This is a QA Training Platform email configuration test.', function ($message) use ($request): void {
-                $message->to($request->string('recipient')->toString())->subject('QA Training Platform email test');
+            Mail::raw('This is a Developer Training Platform email configuration test.', function ($message) use ($request): void {
+                $message->to($request->string('recipient')->toString())->subject('Developer Training Platform email test');
             });
         } catch (Throwable $exception) {
             Log::warning('Admin email configuration test failed.', ['exception' => $exception::class]);

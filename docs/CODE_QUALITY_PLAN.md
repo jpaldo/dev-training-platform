@@ -80,7 +80,7 @@ Replace per-row queries with eager loading or single aggregate queries. For each
 
 Move business logic into services (existing ones where they fit); controllers keep only the HTTP concerns. Do this after Phases 2–3 so the code being moved is already clean.
 
-- [ ] Delete the unused `ReusableAssetLibraryService::assetTypes()` (no callers; `ReusableAssetLibraryController::index` builds the asset-type list from the Week 4 Activity 1 requirement options). Decided 2026-10-21 (see Open decisions).
+- [x] Delete the unused `ReusableAssetLibraryService::assetTypes()` (no callers; `ReusableAssetLibraryController::index` builds the asset-type list from the Week 4 Activity 1 requirement options). Decided 2026-10-21 (see Open decisions).
 - [ ] `CoachOperationsController` (366 lines) — split by area if it helps (e.g. participants, reviews, Week 4 pairing), each delegating to services.
 - [ ] `SubmissionEvidenceController` (347 lines)
 - [ ] `ValidationLabController` (210 lines)

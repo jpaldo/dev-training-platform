@@ -8,7 +8,6 @@ use App\Models\SubmissionVersion;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Query\Builder as QueryBuilder;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 class ReusableAssetLibraryService
@@ -84,17 +83,5 @@ class ReusableAssetLibraryService
         return $evidence->evidenceRequirement?->evidence_type === 'asset'
             && filled($evidence->disk)
             && filled($evidence->path);
-    }
-
-    /** @return array<int, string> */
-    public function assetTypes(LengthAwarePaginator $items): array
-    {
-        return $items->getCollection()
-            ->map(fn (ActivitySubmission $submission): ?string => $submission->versions->sortByDesc('version_number')->first()?->field_values['asset_type'] ?? null)
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values()
-            ->all();
     }
 }

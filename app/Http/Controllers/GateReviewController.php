@@ -3,12 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreGateReviewRequest;
-use App\Models\Activity;
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Services\CoachGateReviewPageService;
 use App\Services\TrainingExportCoordinator;
 use App\Services\TrainingSyncCoordinator;
 use App\Services\WeekTwoGateService;
@@ -32,25 +32,15 @@ class GateReviewController extends Controller
         return view('participant.gate', ['trainingWeek' => $trainingWeek, 'gate' => $trainingGate->load('criteria'), 'evaluation' => $evaluation, 'readiness' => $readiness, 'weeklyLoom' => $service->weeklyVideo($participant, $trainingGate), 'readinessSummary' => $this->readinessSummary($participant, $trainingGate, $readiness)]);
     }
 
-    public function show(TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, WeekTwoGateService $service): View
+    public function show(TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, CoachGateReviewPageService $page): View
     {
         $this->guard($trainingWeek, $participant, $trainingGate);
-        $evaluation = $trainingGate->evaluations()->where('user_id', $participant->id)->with('criterionEvaluations')->first();
+        $evaluation = $trainingGate->evaluations()->where('user_id', $participant->id)->first();
         if ($evaluation) {
             Gate::authorize('view', $evaluation);
         }
 
-        $readiness = $service->readiness($participant, $trainingGate);
-
-        $weekActivities = $trainingWeek->activities()->where('is_active', true)->get();
-        $activitySubmissions = $participant->activitySubmissions()->whereIn('activity_id', $weekActivities->pluck('id'))->get()->keyBy('activity_id');
-        $completedActivities = $weekActivities->filter(fn (Activity $activity): bool => in_array($activitySubmissions->get($activity->id)?->status, ['submitted', 'resubmitted', 'approved', 'completed'], true))->count();
-        $weeklyLogCount = $participant->dailyLogs()->whereHas('activity', fn (Builder $query): Builder => $query->where('training_week_id', $trainingWeek->id))->count();
-        $weeklyLoom = $service->weeklyVideo($participant, $trainingGate);
-        $requiredCriteria = $trainingGate->criteria()->where('is_required', true)->get();
-        $satisfiedCriteria = $requiredCriteria->filter(fn (GateCriterion $criterion): bool => in_array($criterion->criterion_type, ['weekly_video', 'weekly_loom'], true) ? $weeklyLoom['status'] === 'met' : $evaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id)?->status === 'met')->count();
-
-        return view('coach.gate_review', ['trainingWeek' => $trainingWeek, 'participant' => $participant, 'gate' => $trainingGate->load('criteria'), 'evaluation' => $evaluation, 'weeklyLoom' => $weeklyLoom, 'readiness' => $readiness, 'readinessSummary' => $this->readinessSummary($participant, $trainingGate, $readiness), 'weeklyLogCount' => $weeklyLogCount, 'activityProgress' => "{$completedActivities} / {$weekActivities->count()} submitted", 'satisfiedCriteria' => $satisfiedCriteria, 'requiredCriteriaCount' => $requiredCriteria->count(), 'canManage' => request()->user()->canManageParticipant($participant)]);
+        return view('coach.gate_review', $page->showData($trainingWeek, $participant, $trainingGate, $evaluation));
     }
 
     public function update(StoreGateReviewRequest $request, TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, WeekTwoGateService $service, TrainingExportCoordinator $exports, TrainingSyncCoordinator $syncs): RedirectResponse

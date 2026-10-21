@@ -485,8 +485,10 @@ class ParticipantWorkflowTest extends TestCase
         $this->assertStringContainsString('Version 2', $html);
         $this->assertStringContainsString('Version 1', $html);
         $this->assertStringNotContainsString('Version 3', $html);
-        $this->assertStringContainsString('class="pill version-status needs_revision"', $html);
-        $this->assertSame(1, substr_count($html, 'class="pill version-current"'));
+        $this->assertSame(2, substr_count($html, 'data-version-row'));
+        $this->assertSame(1, preg_match_all('/aria-current="true"\s+data-version-row/', $html));
+        $this->assertSame(1, preg_match('/<strong>Version 2<\/strong>\s*<span[^>]*border-amber-500[^>]*>Needs revision<\/span>/', $html));
+        $this->assertSame(1, substr_count($html, '>Viewing</span>'));
         $this->assertSame(1, substr_count($html, '>View</a>'));
         $this->assertSame(1, substr_count($html, 'Read only'));
     }

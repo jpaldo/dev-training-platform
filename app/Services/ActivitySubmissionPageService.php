@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Activity;
 use App\Models\ActivityScore;
-use App\Models\ActivityScoreDimension;
 use App\Models\ActivitySubmission;
 use App\Models\EvidenceRequirement;
 use App\Models\SubmissionEvidence;
@@ -83,7 +82,7 @@ class ActivitySubmissionPageService
             'labRecords' => $labRecords,
             'selectedLabRecord' => $selectedLabRecord,
             'labRecordChecks' => $this->labRecordChecks($selectedLabRecord),
-            'versionRows' => $this->versionRows($submission, $version),
+            'versionRows' => $this->versionRows($submission?->versions ?? collect(), $version),
             'weekThreeWorkspace' => $trainingWeek->week_number === 3 ? $this->weekThreeWorkspace->present($participant, $trainingWeek, $activity) : null,
             ...$weekFourInterview,
             'weekFourGuide' => $trainingWeek->week_number === 4 ? $this->weekFourSubmission->guide($activity, $version, $weekFourInterview['partnerFeedback']) : null,
@@ -92,10 +91,11 @@ class ActivitySubmissionPageService
     }
 
     /**
-     * Data for a submitted version: the labelled answers, the participant's own Lab record, the published score and the
-     * Week 3 and Week 4 review blocks.
+     * Data for a submitted version: the status summary, the labelled answers, the participant's own Lab record, the
+     * evidence, the coach reviews with the published score and its dimension rows, the Week 3 and Week 4 review blocks,
+     * and the submitted version history.
      *
-     * @return array{responses: Collection<int|string, array{label: string, value: mixed, markdown: bool}>, labRecord: ?ValidationSubmission, finalScore: ?ActivityScore, finalDimensions: Collection<string, ActivityScoreDimension>, weekThreeReview: ?array<string, mixed>, weekFourReview: ?array<string, mixed>}
+     * @return array{pathLabel: string, statusLabel: string, statusTone: string, responses: Collection<int|string, array{label: string, value: mixed, text: mixed, markdown: bool}>, labRecord: ?ValidationSubmission, evidenceItems: Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, reviewRows: list<array{decision_label: string, tone: string, comments: ?string}>, finalScore: ?ActivityScore, dimensionRows: list<array{dimension: string, points: int, evidence_reasoning: string}>, isAwaitingRevision: bool, weekThreeReview: ?array<string, mixed>, weekFourReview: ?array<string, mixed>, weekFourTitle: ?string, versionRows: list<array{version: SubmissionVersion, status_label: string, tone: string, is_current: bool}>}
      */
     public function showData(User $participant, TrainingWeek $trainingWeek, Activity $activity, SubmissionVersion $version): array
     {
@@ -103,18 +103,37 @@ class ActivitySubmissionPageService
         $responses = collect($version->field_values ?? [])->except(['week_three_snapshot'])->map(fn (mixed $value, int|string $key): array => [
             'label' => $configured[$key] ?? self::LEGACY_LABELS[$key] ?? ucwords(str_replace('_', ' ', $key)),
             'value' => $value,
+            'text' => is_scalar($value) ? $value : json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'markdown' => in_array($key, Markdown::OUTPUT_FIELDS, true),
         ]);
         $finalScore = $version->activityScore?->status === 'published' ? $version->activityScore : null;
         $weekThreeSnapshot = $trainingWeek->week_number === 3 ? ($version->field_values['week_three_snapshot'] ?? null) : null;
+        $weekFourReview = $this->weekFour->present($activity, $version->field_values ?? []);
+        $versions = $version->submission->versions;
 
         return [
+            'pathLabel' => ucfirst($version->submission->participant->training_path ?? 'QA'),
+            'statusLabel' => $this->statusLabel($version->status),
+            'statusTone' => $this->statusTone($version->status),
             'responses' => $responses,
             'labRecord' => $version->validationSubmission?->user_id === $participant->id ? $version->validationSubmission : null,
+            'evidenceItems' => $this->evidenceItems($version->evidence),
+            'reviewRows' => $version->reviews->map(fn (SubmissionReview $review): array => [
+                'decision_label' => $this->statusLabel($review->decision),
+                'tone' => $this->statusTone($review->decision),
+                'comments' => $review->comments,
+            ])->values()->all(),
             'finalScore' => $finalScore,
-            'finalDimensions' => $finalScore?->dimensions?->keyBy('dimension') ?? collect(),
+            'dimensionRows' => $this->dimensionRows($finalScore),
+            'isAwaitingRevision' => $version->submission->status === 'needs_revision',
             'weekThreeReview' => $weekThreeSnapshot ? $this->answers->weekThreeReview($weekThreeSnapshot, (int) $activity->position, $version->submission->participant->training_path) : null,
-            'weekFourReview' => $this->weekFour->present($activity, $version->field_values ?? []),
+            'weekFourReview' => $weekFourReview,
+            'weekFourTitle' => $weekFourReview ? match ($activity->position) {
+                1 => 'Reusable AI Asset',
+                2 => 'Mock Level 3 Interview',
+                default => 'Strict-mode Leveling Assessment',
+            } : null,
+            'versionRows' => $versions->count() > 1 ? $this->versionRows($versions->where('status', '!=', 'draft')->sortByDesc('version_number'), $version) : [],
         ];
     }
 
@@ -244,11 +263,7 @@ class ActivitySubmissionPageService
 
             return [
                 'requirement' => $requirement,
-                'evidence' => $evidence->where('evidence_requirement_id', $requirement->id)->map(function (SubmissionEvidence $item): array {
-                    $isFile = filled($item->disk) && filled($item->path) && filled($item->original_filename);
-
-                    return ['evidence' => $item, 'is_file' => $isFile, 'type_label' => $isFile ? 'Uploaded File' : ucfirst($item->evidence_type)];
-                })->values()->toBase(),
+                'evidence' => $this->evidenceItems($evidence->where('evidence_requirement_id', $requirement->id)),
                 'input' => $input,
                 'file_label' => match ($input) {
                     'text' => 'Or upload artifact',
@@ -287,22 +302,74 @@ class ActivitySubmissionPageService
     }
 
     /**
-     * The version history, newest first, with each version's status label and tone and whether it is the one being edited.
+     * The evidence items with whether each is an uploaded file and the type label to show.
      *
+     * @param  Collection<int, SubmissionEvidence>  $evidence
+     * @return Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>
+     */
+    private function evidenceItems(Collection $evidence): Collection
+    {
+        return $evidence->map(function (SubmissionEvidence $item): array {
+            $isFile = filled($item->disk) && filled($item->path) && filled($item->original_filename);
+
+            return ['evidence' => $item, 'is_file' => $isFile, 'type_label' => $isFile ? 'Uploaded File' : ucfirst($item->evidence_type)];
+        })->values()->toBase();
+    }
+
+    /**
+     * The published score's dimension rows (D1 to D5, in order) that were scored.
+     *
+     * @return list<array{dimension: string, points: int, evidence_reasoning: string}>
+     */
+    private function dimensionRows(?ActivityScore $score): array
+    {
+        $dimensions = $score?->dimensions->keyBy('dimension') ?? collect();
+
+        return collect(array_keys(ScoringService::DIMENSIONS))
+            ->filter(fn (string $dimension): bool => $dimensions->has($dimension))
+            ->map(fn (string $dimension): array => [
+                'dimension' => $dimension,
+                'points' => $dimensions->get($dimension)->points,
+                'evidence_reasoning' => $dimensions->get($dimension)->evidence_reasoning,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The given versions in order, with each version's status label and tone and whether it is the one being shown.
+     *
+     * @param  Collection<int, SubmissionVersion>  $versions
      * @return list<array{version: SubmissionVersion, status_label: string, tone: string, is_current: bool}>
      */
-    private function versionRows(?ActivitySubmission $submission, ?SubmissionVersion $version): array
+    private function versionRows(Collection $versions, ?SubmissionVersion $version): array
     {
-        return ($submission?->versions ?? collect())->map(fn (SubmissionVersion $historic): array => [
+        return $versions->map(fn (SubmissionVersion $historic): array => [
             'version' => $historic,
-            'status_label' => ucfirst(str_replace('_', ' ', $historic->status)),
-            'tone' => match ($historic->status) {
-                'approved', 'completed' => 'success',
-                'failed' => 'danger',
-                'needs_revision' => 'warning',
-                default => 'neutral',
-            },
+            'status_label' => $this->statusLabel($historic->status),
+            'tone' => $this->statusTone($historic->status),
             'is_current' => $version !== null && $historic->is($version),
         ])->values()->all();
+    }
+
+    /**
+     * A submission, version or review status as a label: "needs_revision" becomes "Needs revision".
+     */
+    private function statusLabel(string $status): string
+    {
+        return ucfirst(str_replace('_', ' ', $status));
+    }
+
+    /**
+     * The badge tone of a submission, version or review status.
+     */
+    private function statusTone(string $status): string
+    {
+        return match ($status) {
+            'approved', 'completed' => 'success',
+            'failed', 'rejected' => 'danger',
+            'needs_revision' => 'warning',
+            default => 'neutral',
+        };
     }
 }

@@ -165,6 +165,36 @@ class GoogleDriveSyncTest extends TestCase
         $this->assertStringNotContainsString('OTHER', $csv);
     }
 
+    public function test_lab_record_export_prints_the_stored_check_results_and_decision(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        $record = ValidationSubmission::create([
+            'user_id' => $participant->id,
+            'trainee_name' => $participant->name,
+            'artifact_code' => 'AI-TC-060',
+            'source_status' => 'pass',
+            'scope_status' => 'issue',
+            'cross_check_status' => 'pass',
+            'run_status' => 'issue',
+            'log_status' => 'pass',
+            'decision' => 'reprompt',
+        ]);
+
+        $csv = app(TrainingExportService::class)->labRecords($participant);
+        $rows = array_map(str_getcsv(...), array_values(array_filter(explode("\n", trim($csv)))));
+        $exported = array_combine($rows[0], $rows[1]);
+
+        $this->assertCount(2, $rows);
+        $this->assertSame((string) $record->id, $exported['Record ID']);
+        $this->assertSame('pass', $exported['Source Result']);
+        $this->assertSame('issue', $exported['Scope Result']);
+        $this->assertSame('', $exported['Spec Result']);
+        $this->assertSame('pass', $exported['Cross-check Result']);
+        $this->assertSame('issue', $exported['Run Result']);
+        $this->assertSame('pass', $exported['Log Result']);
+        $this->assertSame('reprompt', $exported['Decision']);
+    }
+
     public function test_sqlite_evidence_tracking_references_submission_evidence_table(): void
     {
         $foreignKey = collect(DB::select('PRAGMA foreign_key_list(google_drive_evidence_exports)'))

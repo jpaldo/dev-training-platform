@@ -467,6 +467,7 @@ class GoogleDriveExportTest extends TestCase
         $this->assertStringNotContainsString('stale draft', $csv);
         $this->assertStringContainsString('Artifact Code', $csv);
         $this->assertStringContainsString('VAL-123', $csv);
+        $this->assertStringContainsString('"Validation Lab","Source Status",pass', $csv);
         $this->assertStringContainsString('https://example.test/report', $csv);
         $this->assertStringContainsString('drive-evidence', $csv);
     }

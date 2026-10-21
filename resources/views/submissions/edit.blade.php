@@ -394,7 +394,7 @@
                                                             <div class="{{ $rowClasses }} content-start">
                                                                 <strong>RESULT</strong>
                                                                 <p class="m-0"><strong>Finding</strong><br><span class="wrap-anywhere whitespace-pre-line">{{ $selectedLabRecord->finding ?: 'Not provided' }}</span></p>
-                                                                <p class="m-0"><strong>Decision</strong><br>{{ $selectedLabRecord->decision ? strtoupper($selectedLabRecord->decision) : 'Not provided' }}</p>
+                                                                <p class="m-0"><strong>Decision</strong><br>{{ $selectedLabRecord->decision ? strtoupper($selectedLabRecord->decision->value) : 'Not provided' }}</p>
                                                                 <p class="m-0"><strong>Validation Evidence / Notes</strong><br><span class="wrap-anywhere whitespace-pre-line">{{ $selectedLabRecord->evidence_notes ?: 'Not provided' }}</span></p>
                                                             </div>
                                                         </div>

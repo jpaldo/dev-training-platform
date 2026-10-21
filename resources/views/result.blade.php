@@ -63,7 +63,7 @@
         <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-3" aria-label="Finding and evidence">
             <h2 class="{{ $sectionTitleClasses }}">Finding</h2>
             <p class="m-0 whitespace-pre-wrap wrap-break-word">{{ $submission->finding ?: 'Not provided' }}</p>
-            <h2 class="{{ $sectionTitleClasses }} mt-3">Decision: {{ $submission->decision ? strtoupper($submission->decision) : 'Not provided' }}</h2>
+            <h2 class="{{ $sectionTitleClasses }} mt-3">Decision: {{ $submission->decision ? strtoupper($submission->decision->value) : 'Not provided' }}</h2>
             <h2 class="{{ $sectionTitleClasses }} mt-3">Evidence Record</h2>
             <p class="m-0 whitespace-pre-wrap wrap-break-word">{{ $submission->evidence_notes ?: 'Not provided' }}</p>
             @if(filled($submission->evidence_files))

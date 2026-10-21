@@ -56,8 +56,9 @@
                             <label class="{{ $labelClasses }}">Status</label>
                             <select name="{{ $check['key'] }}_status" required class="{{ $controlClasses }}">
                                 <option value="">Select</option>
-                                <option value="pass" @selected(old($check['key'].'_status') === 'pass')>Confirmed / Pass</option>
-                                <option value="issue" @selected(old($check['key'].'_status') === 'issue')>Issue / Gap Found</option>
+                                @foreach($checkStatusOptions as $option)
+                                    <option value="{{ $option['value'] }}" @selected(old($check['key'].'_status') === $option['value'])>{{ $option['label'] }}</option>
+                                @endforeach
                             </select>
                         </div>
                         <div class="grid min-w-0 gap-2" data-character-counter>
@@ -78,10 +79,9 @@
                     <label class="{{ $labelClasses }}">Decision</label>
                     <select name="decision" required class="{{ $controlClasses }}">
                         <option value="">Select</option>
-                        <option value="accept" @selected(old('decision') === 'accept')>Accept</option>
-                        <option value="revise" @selected(old('decision') === 'revise')>Revise</option>
-                        <option value="reject" @selected(old('decision') === 'reject')>Reject</option>
-                        <option value="reprompt" @selected(old('decision') === 'reprompt')>Re-prompt AI</option>
+                        @foreach($decisionOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected(old('decision') === $option['value'])>{{ $option['label'] }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div class="grid min-w-0 gap-2">

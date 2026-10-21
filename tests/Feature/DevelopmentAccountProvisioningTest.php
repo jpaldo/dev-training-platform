@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ValidationCheckStatus;
+use App\Enums\ValidationDecision;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\ActivitySubmission;
 use App\Models\Program;
@@ -448,6 +450,56 @@ class DevelopmentAccountProvisioningTest extends TestCase
         $this->assertSame(6, substr_count($details->getContent(), 'View Details'));
         $this->actingAs($participant)->get(route('lab.records.show', $foreign))->assertForbidden();
         $this->assertDatabaseCount('activity_submissions', 0);
+    }
+
+    public function test_six_check_form_accepts_only_the_listed_check_statuses_and_decisions(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        $this->actingAs($participant)->withSession(['trainee_name' => $participant->name]);
+
+        $this->post(route('checklist.submit'), $this->labPayload(['source_status' => 'passed', 'log_status' => 'PASS', 'decision' => 'approve']))
+            ->assertSessionHasErrors([
+                'source_status' => 'The selected source status is invalid.',
+                'log_status' => 'The selected log status is invalid.',
+                'decision' => 'The selected decision is invalid.',
+            ]);
+        $this->assertDatabaseCount('validation_submissions', 0);
+
+        $this->post(route('checklist.submit'), $this->labPayload(['scope_status' => 'issue', 'decision' => 'reprompt']))->assertRedirect();
+
+        $record = ValidationSubmission::latest('id')->firstOrFail();
+        $this->assertSame(ValidationCheckStatus::Pass, $record->source_status);
+        $this->assertSame(ValidationCheckStatus::Issue, $record->scope_status);
+        $this->assertSame(ValidationDecision::Reprompt, $record->decision);
+    }
+
+    public function test_selected_lab_record_dialog_shows_each_check_result_and_the_decision(): void
+    {
+        $this->seed();
+        $participant = User::factory()->create();
+        $week = Program::firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
+        $activity = $week->activities()->where('position', 1)->firstOrFail();
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+        $record = ValidationSubmission::create(array_merge($this->labPayload(), [
+            'user_id' => $participant->id,
+            'trainee_name' => $participant->name,
+            'scope_status' => 'issue',
+            'spec_status' => null,
+            'decision' => 'reprompt',
+            'status' => ValidationSubmissionStatus::Submitted,
+            'submitted_at' => now(),
+        ]));
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]).'?validation_submission_id='.$record->id)
+            ->assertOk()
+            ->assertSeeInOrder([
+                '<dialog',
+                '<strong>SOURCE</strong>', '>PASS</span>',
+                '<strong>SCOPE</strong>', '>ISSUE</span>',
+                '<strong>SPEC</strong>', '>NOT PROVIDED</span>',
+                '<strong>CROSS-CHECK</strong>', '>PASS</span>',
+                '<strong>Decision</strong><br>REPROMPT</p>',
+            ], false);
     }
 
     public function test_lab_record_details_show_an_empty_state_for_missing_check_notes(): void

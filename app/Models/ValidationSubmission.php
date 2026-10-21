@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ValidationCheckStatus;
+use App\Enums\ValidationDecision;
 use App\Enums\ValidationSubmissionStatus;
 use Illuminate\Database\Eloquent\Model;
 
@@ -21,7 +23,18 @@ class ValidationSubmission extends Model
      */
     protected function casts(): array
     {
-        return ['evidence_files' => 'array', 'status' => ValidationSubmissionStatus::class, 'submitted_at' => 'datetime'];
+        return [
+            'source_status' => ValidationCheckStatus::class,
+            'scope_status' => ValidationCheckStatus::class,
+            'spec_status' => ValidationCheckStatus::class,
+            'cross_check_status' => ValidationCheckStatus::class,
+            'run_status' => ValidationCheckStatus::class,
+            'log_status' => ValidationCheckStatus::class,
+            'decision' => ValidationDecision::class,
+            'evidence_files' => 'array',
+            'status' => ValidationSubmissionStatus::class,
+            'submitted_at' => 'datetime',
+        ];
     }
 
     public function isDraft(): bool

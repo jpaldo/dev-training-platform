@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\ValidationCheckStatus;
+use App\Enums\ValidationDecision;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
@@ -55,10 +57,10 @@ class ValidationLabService
     }
 
     /**
-     * The six-check form's checks (field prefix, number, label and question), its field limits and the
-     * evidence upload's accepted file types.
+     * The six-check form's checks (field prefix, number, label and question), its status and decision options, its
+     * field limits and the evidence upload's accepted file types.
      *
-     * @return array{checks: list<array{key: string, number: int, label: string, question: string}>, checkNotesMaxLength: int, findingMaxLength: int, evidenceMaxLength: int, evidenceAccept: string}
+     * @return array{checks: list<array{key: string, number: int, label: string, question: string}>, checkStatusOptions: list<array{value: string, label: string}>, decisionOptions: list<array{value: string, label: string}>, checkNotesMaxLength: int, findingMaxLength: int, evidenceMaxLength: int, evidenceAccept: string}
      */
     public function checklistFormData(): array
     {
@@ -69,6 +71,8 @@ class ValidationLabService
 
         return [
             'checks' => $checks,
+            'checkStatusOptions' => array_map(fn (ValidationCheckStatus $status): array => ['value' => $status->value, 'label' => $status->label()], ValidationCheckStatus::cases()),
+            'decisionOptions' => array_map(fn (ValidationDecision $decision): array => ['value' => $decision->value, 'label' => $decision->label()], ValidationDecision::cases()),
             'checkNotesMaxLength' => FieldLimits::CHECK_NOTES,
             'findingMaxLength' => FieldLimits::FINDING,
             'evidenceMaxLength' => FieldLimits::EVIDENCE,
@@ -77,8 +81,8 @@ class ValidationLabService
     }
 
     /**
-     * A Lab record's six check results in order: the check label, whether it passed (any other status, including
-     * none, shows as an issue found) and the participant's notes.
+     * A Lab record's six check results in order: the check label, whether it passed (`Issue` and a missing status
+     * both show as an issue found) and the participant's notes.
      *
      * @return list<array{label: string, isPassed: bool, notes: ?string}>
      */
@@ -88,7 +92,7 @@ class ValidationLabService
         foreach (self::CHECKS as $key => $check) {
             $checks[] = [
                 'label' => $check['label'],
-                'isPassed' => $submission->{$key.'_status'} === 'pass',
+                'isPassed' => $submission->{$key.'_status'} === ValidationCheckStatus::Pass,
                 'notes' => $submission->{$key.'_notes'},
             ];
         }

@@ -296,7 +296,7 @@ class ActivitySubmissionPageService
 
         $checks = [];
         foreach (self::LAB_RECORD_CHECKS as $label => [$status, $notes]) {
-            $checks[] = ['label' => $label, 'status' => strtoupper($record->{$status} ?? 'Not provided'), 'notes' => $record->{$notes} ?: 'Not provided'];
+            $checks[] = ['label' => $label, 'status' => strtoupper($record->{$status}?->value ?? 'Not provided'), 'notes' => $record->{$notes} ?: 'Not provided'];
         }
 
         return $checks;

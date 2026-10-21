@@ -3,25 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateProfileRequest;
-use App\Models\GoogleDriveSync;
-use App\Services\GoogleDriveConfigurationService;
+use App\Services\ProfilePageService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class ProfileController extends Controller
 {
-    public function show(Request $request, GoogleDriveConfigurationService $configuration): View
+    public function show(Request $request, ProfilePageService $page): View
     {
-        return view('profile.show', [
-            'user' => $request->user()->load('googleDriveConnection'),
-            'googleDriveEnabled' => $configuration->isEnabled(),
-            'googleDriveOAuthConfigured' => $configuration->isOAuthConfigured(),
-            'googleDriveCanConnect' => $configuration->canConnect(),
-            'googleDrivePickerApiKey' => $configuration->getPickerApiKey(),
-            'googleDriveProjectNumber' => $configuration->getProjectNumber(),
-            'latestGoogleDriveSync' => GoogleDriveSync::query()->where('user_id', $request->user()->id)->latest('id')->first(),
-        ]);
+        return view('profile.show', $page->showData($request->user()));
     }
 
     public function update(UpdateProfileRequest $request): RedirectResponse

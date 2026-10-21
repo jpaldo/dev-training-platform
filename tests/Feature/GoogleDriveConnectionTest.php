@@ -225,7 +225,7 @@ class GoogleDriveConnectionTest extends TestCase
 
         $html = $this->actingAs($participant)->get(route('profile.show'))->assertOk()->getContent();
 
-        $this->assertLessThan(strpos($html, '<h2>Google Drive Settings'), strpos($html, '<h2>Your profile'));
+        $this->assertLessThan(strpos($html, '>Google Drive Settings</h2>'), strpos($html, '>Your profile</h2>'));
     }
 
     public function test_participant_can_save_picker_destination_without_ownership_requirement(): void

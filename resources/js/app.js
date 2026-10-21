@@ -247,6 +247,216 @@ const initializeInterviewerTypeFields = () => {
     sync();
 };
 
+/**
+ * On the profile page, open the Google Drive Picker from the `[data-drive-picker]` button (rendered only while Google
+ * Drive can connect; the page loads `apis.google.com/js/api.js` alongside it) so the participant can choose an export
+ * folder: fetch a short-lived token from `data-token-url`, show the folder picker over a backdrop, and post the chosen
+ * folder to `data-save-url`. Problems are shown in `[data-drive-picker-error]`.
+ */
+const initializeGoogleDrivePicker = () => {
+    const button = document.querySelector('[data-drive-picker]');
+    const error = document.querySelector('[data-drive-picker-error]');
+    const unavailableMessage = 'Google Drive folder selection could not be opened. Please try again.';
+
+    const showError = (message) => {
+        if (error) {
+            error.textContent = message;
+            error.hidden = false;
+        }
+    };
+
+    if (!button) {
+        return;
+    }
+
+    if (!button.dataset.apiKey || !button.dataset.appId) {
+        button.disabled = true;
+        showError('Google Drive folder selection is not configured. Please contact an administrator.');
+
+        return;
+    }
+
+    const pickerStyle = document.createElement('style');
+    pickerStyle.id = 'qa-picker-layout';
+    pickerStyle.textContent = '.qa-picker-backdrop{position:fixed;inset:0;background:rgba(8,11,24,.68);z-index:9998}.picker-dialog-bg{position:fixed!important;inset:0!important;z-index:9998!important;background:transparent!important}.picker-dialog{position:fixed!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important;width:min(1000px,calc(100vw - 48px))!important;height:min(700px,calc(100vh - 48px))!important;max-width:calc(100vw - 48px)!important;max-height:calc(100vh - 48px)!important;z-index:9999!important}@media(max-width:600px){.picker-dialog{width:calc(100vw - 24px)!important;height:calc(100vh - 24px)!important;max-width:calc(100vw - 24px)!important;max-height:calc(100vh - 24px)!important}}';
+    document.head.appendChild(pickerStyle);
+
+    let pickerLoadAttempts = 0;
+
+    const loadPicker = () => {
+        if (!window.gapi) {
+            if (++pickerLoadAttempts > 100) {
+                showError(unavailableMessage);
+
+                return;
+            }
+
+            window.setTimeout(loadPicker, 100);
+
+            return;
+        }
+
+        try {
+            window.gapi.load('picker', {
+                callback: () => {
+                    button.dataset.pickerReady = '1';
+                },
+            });
+        } catch {
+            showError(unavailableMessage);
+        }
+    };
+
+    const submitFolder = (folder) => {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = button.dataset.saveUrl;
+
+        const fields = {
+            _token: document.querySelector('input[name="_token"]')?.value || '',
+            folder_id: folder.id,
+            folder_name: folder.name || '',
+            resource_key: folder.resourceKey || '',
+            drive_id: folder.driveId || '',
+        };
+
+        Object.entries(fields).forEach(([name, value]) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = value;
+            form.appendChild(input);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+    };
+
+    const openPicker = (accessToken) => {
+        const { picker } = window.google ?? {};
+
+        if (!picker || button.dataset.pickerReady !== '1') {
+            throw new Error(unavailableMessage);
+        }
+
+        const previousOverflow = document.body.style.overflow;
+        const previousScrollY = window.scrollY;
+        const backdrop = document.createElement('div');
+        backdrop.className = 'qa-picker-backdrop';
+        backdrop.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(backdrop);
+        document.body.style.overflow = 'hidden';
+
+        let observer;
+
+        const cleanup = () => {
+            observer?.disconnect();
+            backdrop.remove();
+            document.body.style.overflow = previousOverflow;
+            window.scrollTo(0, previousScrollY);
+            button.disabled = false;
+        };
+
+        const view = new picker.DocsView(picker.ViewId.FOLDERS)
+            .setIncludeFolders(true)
+            .setSelectFolderEnabled(true)
+            .setMimeTypes('application/vnd.google-apps.folder');
+
+        const folderPicker = new picker.PickerBuilder()
+            .setDeveloperKey(button.dataset.apiKey)
+            .setAppId(button.dataset.appId)
+            .setOAuthToken(accessToken)
+            .setOrigin(`${window.location.protocol}//${window.location.host}`)
+            .addView(view)
+            .setSize(Math.min(1000, window.innerWidth - 48), Math.min(700, window.innerHeight - 48))
+            .setCallback((data) => {
+                if (data.action !== picker.Action.PICKED || !data.docs?.[0]) {
+                    cleanup();
+
+                    return;
+                }
+
+                cleanup();
+                submitFolder(data.docs[0]);
+            })
+            .build();
+
+        observer = new MutationObserver(() => {
+            if (!document.querySelector('.picker-dialog')) {
+                cleanup();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        folderPicker.setVisible(true);
+    };
+
+    loadPicker();
+
+    button.addEventListener('click', async () => {
+        button.disabled = true;
+
+        try {
+            const response = await fetch(button.dataset.tokenUrl, { headers: { Accept: 'application/json' } });
+
+            if (!response.ok) {
+                throw new Error('Google Drive connection needs to be refreshed.');
+            }
+
+            const token = await response.json();
+
+            if (!token.access_token) {
+                throw new Error('Google Drive connection needs to be refreshed.');
+            }
+
+            const openWhenReady = () => {
+                if (button.dataset.pickerReady === '1') {
+                    openPicker(token.access_token);
+                } else {
+                    window.setTimeout(openWhenReady, 100);
+                }
+            };
+
+            openWhenReady();
+        } catch (exception) {
+            showError(exception.message || unavailableMessage);
+            button.disabled = false;
+        }
+    });
+};
+
+/**
+ * On the profile page, while the latest Google Drive sync is still running (`data-drive-sync-status-url` is set),
+ * poll its status every two seconds and reload the page once the sync has finished.
+ */
+const initializeGoogleDriveSyncStatus = () => {
+    const status = document.querySelector('[data-drive-sync-status-url]');
+
+    if (!status) {
+        return;
+    }
+
+    const finishedStatuses = ['completed', 'completed_with_errors', 'failed'];
+
+    const poll = async () => {
+        try {
+            const response = await fetch(status.dataset.driveSyncStatusUrl, { headers: { Accept: 'application/json' } });
+            const data = await response.json();
+
+            if (finishedStatuses.includes(data.status)) {
+                window.location.reload();
+
+                return;
+            }
+        } catch {
+            // A failed status check is retried on the next poll.
+        }
+
+        window.setTimeout(poll, 2000);
+    };
+
+    window.setTimeout(poll, 1500);
+};
+
 const initializePage = () => {
     initializeMentorDateTimePickers();
     initializeSidebarDrawer();
@@ -255,6 +465,8 @@ const initializePage = () => {
     initializeMarkdownFlushOnSubmit();
     initializeAiProviderSettings();
     initializeInterviewerTypeFields();
+    initializeGoogleDrivePicker();
+    initializeGoogleDriveSyncStatus();
 };
 
 if (document.readyState === 'loading') {

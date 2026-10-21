@@ -1,40 +1,139 @@
-@if ($user->role === 'participant')
-    <div class="card profile-section-card">
-        <h2>Google Drive Settings</h2>
-        <p class="muted">Connect your Google account so the training platform can securely save your detailed training exports and other supported files to your selected Google Drive folder.</p>
-        <div class="field"><label for="drive_link">Google Drive Link (legacy, optional)</label><input id="drive_link" name="drive_link" type="url" value="{{ old('drive_link', $user->drive_link) }}" placeholder="https://drive.google.com/drive/folders/..." maxlength="2048"><p class="muted">Use Choose Google Drive Folder above for the authorized export destination. Existing links are retained for compatibility and are not treated as Picker authorization.</p>@error('drive_link')<p class="error">{{ $message }}</p>@enderror</div>
-        @if ($errors->has('google_drive'))<p class="error">{{ $errors->first('google_drive') }}</p>@endif
-        @if ($user->googleDriveConnection)
-            <p class="success">Google Drive Connected</p>
-            <p class="muted"><strong>Connected as:</strong> {{ $user->googleDriveConnection->google_email ?: 'Account connected' }}<br><strong>Connected:</strong> {{ $user->googleDriveConnection->connected_at?->timezone(config('app.timezone'))->format('F j, Y, g:i A') }}</p>
-            <p class="muted"><strong>Export folder:</strong>
-                @if ($user->googleDriveConnection->destination_source === 'picker' && $user->googleDriveConnection->drive_folder_id)
-                    {{ $user->googleDriveConnection->drive_folder_name ?: 'Selected Google Drive folder' }} <span class="success">&middot; Configured</span>
-                @elseif ($user->drive_link)
-                    <span class="error">No export folder selected.</span><br><span>Legacy folder link{{ $user->googleDriveConnection->drive_folder_name ? ' · '.$user->googleDriveConnection->drive_folder_name : '' }}</span><br>Please choose the folder through Google Drive to authorize it for exports.
-                @else<span class="error">No export folder selected.</span>@endif
-            </p>
-            @php($pickerConfigured = filled($googleDrivePickerApiKey) && filled($googleDriveProjectNumber))
-            <h3>Google Drive Sync</h3>
-            @if ($latestGoogleDriveSync)
-            <p class="muted" data-drive-sync-status><strong>Latest sync:</strong> {{ in_array($latestGoogleDriveSync->status, ['enqueued', 'in_progress'], true) ? 'Syncing…' : ($latestGoogleDriveSync->status === 'completed' ? 'Successfully synced to Google Drive.' : str_replace('_', ' ', ucfirst($latestGoogleDriveSync->status))) }}@if($latestGoogleDriveSync->last_successful_sync_at)<br><strong>Last successful sync:</strong> {{ $latestGoogleDriveSync->last_successful_sync_at->format('M j, Y g:i A') }}@endif</p>
-                @if ($latestGoogleDriveSync->status === 'completed_with_errors' && $latestGoogleDriveSync->error)<p class="error">{{ $latestGoogleDriveSync->error }}</p>@endif
-                @if ($latestGoogleDriveSync->status === 'completed_with_errors' && $latestGoogleDriveSync->component_results)<div class="error"><strong>Failed components:</strong><ul>@foreach ($latestGoogleDriveSync->component_results as $name => $result) @if (($result['status'] ?? null) === 'failed')<li>{{ $name }}@if (! empty($result['message'])) — {{ $result['message'] }}@endif</li>@endif @endforeach</ul></div>@endif
-            @endif
-            @php($canSync = $pickerConfigured && $user->googleDriveConnection->destination_source === 'picker' && filled($user->googleDriveConnection->drive_folder_id))
-            <div class="profile-actions"><form method="post" action="{{ route('google-drive.sync') }}">@csrf<button class="btn" type="submit" @disabled(! $canSync)>{{ $latestGoogleDriveSync && in_array($latestGoogleDriveSync->status, ['enqueued', 'in_progress'], true) ? 'SYNCING...' : ($canSync ? 'SYNC TO GOOGLE DRIVE' : 'CHOOSE GOOGLE DRIVE FOLDER') }}</button></form><button class="btn" type="button" data-drive-picker data-token-url="{{ route('profile.google-drive.picker-token') }}" data-save-url="{{ route('profile.google-drive.destination') }}" data-api-key="{{ $googleDrivePickerApiKey }}" data-app-id="{{ $googleDriveProjectNumber }}" @disabled(! $pickerConfigured)>{{ $user->googleDriveConnection->destination_source === 'picker' ? 'Change Folder' : 'Choose Google Drive Folder' }}</button><form method="post" action="{{ route('profile.google-drive.disconnect') }}" onsubmit="return confirm('Disconnect Google Drive? Your existing Training Drive Link will not be changed.');">@csrf<button class="btn secondary" type="submit">Disconnect Google Drive</button></form></div>
-            <p class="error" data-drive-picker-error @if ($pickerConfigured) hidden @endif>{{ $pickerConfigured ? '' : 'Google Drive folder selection is not configured. Please contact an administrator.' }}</p>
-        @elseif (! $googleDriveCanConnect && ! $googleDriveEnabled)
-            <p class="muted"><strong>Google Drive is currently unavailable.</strong><br>Google Drive connection is not currently configured by the administrator.</p>
-        @elseif (! $googleDriveCanConnect && ! $googleDriveOAuthConfigured)
-            <p class="muted"><strong>Google Drive is not ready to connect.</strong><br>The administrator must complete the Google OAuth configuration before you can connect.</p>
-        @else
-            <p class="muted"><strong>Not connected</strong></p><h3>Connect Google Drive</h3><a class="btn" href="{{ route('profile.google-drive.connect') }}">Connect Google Drive</a>
+@if($googleDrive)
+    @php
+        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
+        $labelClasses = 'text-sm font-extrabold';
+        $hintClasses = 'm-0 text-sm/relaxed text-muted';
+        $fieldErrorClasses = 'm-0 text-sm text-rose-200';
+        $subsectionTitleClasses = 'm-0 text-base font-extrabold';
+        $connection = $googleDrive['connection'];
+        $sync = $googleDrive['sync'];
+        $picker = $googleDrive['picker'];
+    @endphp
+
+    <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-5" aria-labelledby="profile-drive-title">
+        <div class="grid gap-2">
+            <h2 id="profile-drive-title" class="m-0 text-xl font-extrabold">Google Drive Settings</h2>
+            <p class="{{ $hintClasses }}">Connect your Google account so the training platform can securely save your detailed training exports and other supported files to your selected Google Drive folder.</p>
+        </div>
+
+        <div class="grid min-w-0 gap-2">
+            <label for="drive_link" class="{{ $labelClasses }}">Google Drive Link (legacy, optional)</label>
+            <input id="drive_link" name="drive_link" type="url" value="{{ old('drive_link', $user->drive_link) }}" placeholder="https://drive.google.com/drive/folders/..." maxlength="2048" aria-describedby="drive-link-hint" class="{{ $controlClasses }}">
+            <p id="drive-link-hint" class="{{ $hintClasses }}">Use Choose Google Drive Folder above for the authorized export destination. Existing links are retained for compatibility and are not treated as Picker authorization.</p>
+            @error('drive_link')
+                <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+            @enderror
+        </div>
+
+        @if($errors->has('google_drive'))
+            <x-ui.alert tone="error" role="alert">{{ $errors->first('google_drive') }}</x-ui.alert>
         @endif
-    </div>
-@endif
-@if ($user->role === 'participant' && $latestGoogleDriveSync && in_array($latestGoogleDriveSync->status, ['enqueued', 'in_progress'], true))
-<script>
-(() => { const status = document.querySelector('[data-drive-sync-status]'); const url = @json(route('google-drive.sync.status')); if (!status) return; const poll = async () => { try { const response = await fetch(url, { headers: { Accept: 'application/json' } }); const data = await response.json(); if (data.status === 'completed' || data.status === 'completed_with_errors' || data.status === 'failed') { window.location.reload(); return; } } catch (error) {} window.setTimeout(poll, 2000); }; window.setTimeout(poll, 1500); })();
-</script>
+
+        @if($googleDrive['state'] === 'connected')
+            <div class="grid justify-items-start gap-3">
+                <x-ui.badge tone="success">Google Drive Connected</x-ui.badge>
+
+                <dl class="m-0 grid w-full grid-cols-1 gap-2 text-sm/relaxed text-muted">
+                    <div class="flex flex-wrap gap-x-2">
+                        <dt class="font-extrabold text-slate-100">Connected as:</dt>
+                        <dd class="m-0 min-w-0 wrap-anywhere">{{ $connection['account_label'] }}</dd>
+                    </div>
+                    <div class="flex flex-wrap gap-x-2">
+                        <dt class="font-extrabold text-slate-100">Connected:</dt>
+                        <dd class="m-0">{{ $connection['connected_at_label'] }}</dd>
+                    </div>
+                    <div class="flex flex-wrap gap-x-2">
+                        <dt class="font-extrabold text-slate-100">Export folder:</dt>
+                        <dd class="m-0 grid min-w-0 gap-1">
+                            @if($connection['folder_state'] === 'configured')
+                                <span class="flex flex-wrap items-center gap-2 wrap-anywhere">
+                                    {{ $connection['folder_name'] }}
+                                    <x-ui.badge tone="success">Configured</x-ui.badge>
+                                </span>
+                            @else
+                                <span class="text-rose-200">No export folder selected.</span>
+                                @if($connection['folder_state'] === 'legacy')
+                                    <span class="wrap-anywhere">{{ $connection['legacy_folder_label'] }}</span>
+                                    <span>Please choose the folder through Google Drive to authorize it for exports.</span>
+                                @endif
+                            @endif
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+
+            <section class="grid grid-cols-1 gap-4" aria-labelledby="profile-drive-sync-title">
+                <h3 id="profile-drive-sync-title" class="{{ $subsectionTitleClasses }}">Google Drive Sync</h3>
+
+                @if($sync)
+                    <dl class="m-0 grid grid-cols-1 gap-2 text-sm/relaxed text-muted" data-drive-sync-status @if($sync['status_url']) data-drive-sync-status-url="{{ $sync['status_url'] }}" @endif>
+                        <div class="flex flex-wrap gap-x-2">
+                            <dt class="font-extrabold text-slate-100">Latest sync:</dt>
+                            <dd class="m-0">{{ $sync['status_label'] }}</dd>
+                        </div>
+                        @if($sync['last_successful_sync_label'])
+                            <div class="flex flex-wrap gap-x-2">
+                                <dt class="font-extrabold text-slate-100">Last successful sync:</dt>
+                                <dd class="m-0">{{ $sync['last_successful_sync_label'] }}</dd>
+                            </div>
+                        @endif
+                    </dl>
+
+                    @if($sync['error'])
+                        <x-ui.alert tone="error">{{ $sync['error'] }}</x-ui.alert>
+                    @endif
+
+                    @if($sync['failed_components'] !== null)
+                        <x-ui.alert tone="error" class="grid gap-2">
+                            <strong>Failed components:</strong>
+                            <ul class="m-0 grid gap-1 pl-5">
+                                @foreach($sync['failed_components'] as $component)
+                                    <li>{{ $component['name'] }}@if($component['message']) — {{ $component['message'] }}@endif</li>
+                                @endforeach
+                            </ul>
+                        </x-ui.alert>
+                    @endif
+                @endif
+
+                <div class="flex flex-wrap items-center gap-3">
+                    <form method="post" action="{{ route('google-drive.sync') }}" class="m-0 max-w-full">
+                        @csrf
+                        <x-ui.button variant="secondary" type="submit" :disabled="! $googleDrive['can_sync']">{{ $googleDrive['sync_button_label'] }}</x-ui.button>
+                    </form>
+
+                    <x-ui.button
+                        variant="secondary"
+                        :disabled="! $picker['is_configured']"
+                        :data-drive-picker="$picker['is_enabled']"
+                        data-token-url="{{ route('profile.google-drive.picker-token') }}"
+                        data-save-url="{{ route('profile.google-drive.destination') }}"
+                        data-api-key="{{ $picker['api_key'] }}"
+                        data-app-id="{{ $picker['app_id'] }}"
+                        class="disabled:cursor-not-allowed disabled:opacity-55"
+                    >{{ $picker['label'] }}</x-ui.button>
+
+                    <form method="post" action="{{ route('profile.google-drive.disconnect') }}" onsubmit="return confirm('Disconnect Google Drive? Your existing Training Drive Link will not be changed.');" class="m-0 max-w-full">
+                        @csrf
+                        <x-ui.button variant="secondary" type="submit">Disconnect Google Drive</x-ui.button>
+                    </form>
+                </div>
+
+                <x-ui.alert tone="error" role="alert" data-drive-picker-error :hidden="$picker['is_configured']">{{ $picker['is_configured'] ? '' : 'Google Drive folder selection is not configured. Please contact an administrator.' }}</x-ui.alert>
+            </section>
+
+            @if($picker['is_enabled'])
+                <script src="https://apis.google.com/js/api.js" async defer></script>
+            @endif
+        @elseif($googleDrive['state'] === 'unavailable')
+            <p class="{{ $hintClasses }}"><strong class="text-slate-100">Google Drive is currently unavailable.</strong><br>Google Drive connection is not currently configured by the administrator.</p>
+        @elseif($googleDrive['state'] === 'not_ready')
+            <p class="{{ $hintClasses }}"><strong class="text-slate-100">Google Drive is not ready to connect.</strong><br>The administrator must complete the Google OAuth configuration before you can connect.</p>
+        @else
+            <div class="grid justify-items-start gap-3">
+                <p class="{{ $hintClasses }}"><strong class="text-slate-100">Not connected</strong></p>
+                <h3 class="{{ $subsectionTitleClasses }}">Connect Google Drive</h3>
+                <x-ui.button variant="secondary" :href="route('profile.google-drive.connect')">Connect Google Drive</x-ui.button>
+            </div>
+        @endif
+    </x-ui.card>
 @endif

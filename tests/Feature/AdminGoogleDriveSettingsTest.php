@@ -174,12 +174,9 @@ class AdminGoogleDriveSettingsTest extends TestCase
             ->assertOk()
             ->assertSee('data-api-key="environment-picker-key"', false)
             ->assertSee('data-app-id="1068406488956"', false)
-            ->assertSee("document.addEventListener('DOMContentLoaded'", false)
-            ->assertSee('qa-picker-backdrop', false)
-            ->assertSee('setSize(', false)
-            ->assertSee('setVisible(true)', false)
-            ->assertSee('type="button"', false)
-            ->assertDontSee('data-drive-picker disabled', false)
+            ->assertSee('data-drive-picker="data-drive-picker"', false)
+            ->assertDontSee('disabled data-drive-picker', false)
+            ->assertSee('<script src="https://apis.google.com/js/api.js" async defer></script>', false)
             ->assertDontSee('refresh-token');
     }
 

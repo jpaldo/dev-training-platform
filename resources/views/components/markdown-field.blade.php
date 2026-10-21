@@ -7,12 +7,19 @@
     'maxlength' => null,
     'placeholder' => null,
 ])
-<div class="markdown-field">
-    <div class="markdown-tabs" role="group" aria-label="Write or preview">
-        <button type="button" class="markdown-tab markdown-tab-active" data-markdown-mode="write" aria-pressed="true">Write</button>
-        <button type="button" class="markdown-tab" data-markdown-mode="preview" aria-pressed="false">Preview</button>
+
+@php
+    $modeButtonClasses = 'cursor-pointer rounded-lg border-0 bg-transparent px-3 py-1.5 font-sans text-sm font-extrabold text-muted transition hover:text-slate-100 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent/50 aria-pressed:bg-brand-soft aria-pressed:text-white';
+@endphp
+
+<div class="markdown-field grid min-w-0 grid-cols-1 gap-2">
+    <div class="flex w-fit gap-1 rounded-xl border border-line bg-field p-0.5" role="group" aria-label="Write or preview">
+        <button type="button" class="{{ $modeButtonClasses }}" data-markdown-mode="write" aria-pressed="true">Write</button>
+        <button type="button" class="{{ $modeButtonClasses }}" data-markdown-mode="preview" aria-pressed="false">Preview</button>
     </div>
     <textarea id="{{ $id }}" name="{{ $name }}" rows="{{ $rows }}" data-markdown-source data-markdown-paste @required($required) @if($maxlength) maxlength="{{ $maxlength }}" @endif @if($placeholder) placeholder="{{ $placeholder }}" @endif {{ $attributes }}>{{ $value }}</textarea>
-    <div class="markdown markdown-preview" data-markdown-preview hidden></div>
-    @if($maxlength)<span class="muted" data-char-count>0 / {{ number_format($maxlength) }} characters</span>@endif
+    <div class="markdown min-h-28 min-w-0 rounded-xl border border-line bg-field px-3.5 py-3" data-markdown-preview hidden></div>
+    @if($maxlength)
+        <span class="text-sm text-muted" data-char-count>0 / {{ number_format($maxlength) }} characters</span>
+    @endif
 </div>

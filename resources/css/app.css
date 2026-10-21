@@ -29,6 +29,118 @@
     --color-danger: #fb7185;
 }
 
+/*
+ * Rendered Markdown (`x-markdown`, `x-formatted-text` and the `x-markdown-field` preview). `Markdown::toHtml()`
+ * output carries no classes, so its prose styles live here in the components layer: they style every element
+ * without relying on browser defaults or the legacy layer, and caller utilities (padding, background) still win.
+ */
+@layer components {
+    .markdown {
+        @apply leading-[1.6] whitespace-normal;
+
+        & > :first-child {
+            @apply mt-0;
+        }
+
+        & > :last-child {
+            @apply mb-0;
+        }
+
+        & p {
+            @apply mx-0 mt-0 mb-[.7em];
+        }
+
+        & :is(h1, h2, h3, h4, h5, h6) {
+            @apply mx-0 mt-[1.1em] mb-[.45em] text-[1em] leading-tight font-bold text-white;
+        }
+
+        & h1 {
+            @apply text-[1.6em];
+        }
+
+        & h2 {
+            @apply text-[1.35em];
+        }
+
+        & h3 {
+            @apply text-[1.15em];
+        }
+
+        & :is(ul, ol) {
+            @apply mx-0 mt-0 mb-[.7em] pl-[1.4em];
+        }
+
+        & ul {
+            @apply list-disc;
+        }
+
+        & ol {
+            @apply list-decimal;
+        }
+
+        & li {
+            @apply my-[.15em];
+        }
+
+        & pre {
+            @apply mx-0 mt-0 mb-[.7em] overflow-x-auto rounded-lg border border-line bg-canvas p-3 font-mono text-[.9em] whitespace-pre;
+        }
+
+        & :not(pre) > code {
+            @apply rounded-md border border-line bg-field px-1 py-px font-mono text-[.9em];
+        }
+
+        & blockquote {
+            @apply mx-0 mt-[.2em] mb-[.7em] border-l-3 border-line py-[.1em] pr-0 pl-[1em] text-muted;
+        }
+
+        & a {
+            @apply text-accent underline;
+        }
+
+        & hr {
+            @apply mx-0 my-[1em] h-0 border-0 border-t border-line;
+        }
+
+        & table {
+            @apply mx-0 mt-0 mb-[.7em] w-full border-collapse text-[.95em];
+        }
+
+        & :is(th, td) {
+            @apply border border-line px-2.5 py-1.5 text-left;
+        }
+
+        & th {
+            @apply bg-field font-bold;
+        }
+
+        & img {
+            @apply h-auto max-w-full;
+        }
+    }
+
+    /* Submitted answers: long unbroken values wrap, and `Markdown::toHtml()` field labels (`### LABEL`) read as small caps. */
+    .formatted-text {
+        @apply max-w-full min-w-0 leading-[1.7] wrap-anywhere;
+
+        & h3 {
+            @apply mx-0 mt-5 mb-[.35rem] border-0 border-b border-line pb-[.3rem] text-[.82rem] tracking-[.11em] text-violet-300 uppercase;
+        }
+
+        & h3 + p {
+            @apply mt-1;
+        }
+
+        & pre {
+            @apply max-w-full;
+        }
+
+        & table {
+            @apply block max-w-full overflow-x-auto;
+        }
+    }
+}
+
 .warning { color: #fde68a; }
 
 .flatpickr-calendar { background:#11162b; border:1px solid #293052; box-shadow:0 18px 45px rgba(0,0,0,.45); color:#eef2ff; }

@@ -54,7 +54,7 @@ function renderPreview(panel, textarea, state, content) {
         return;
     }
     if (!content.trim()) {
-        panel.innerHTML = '<p class="muted">Nothing to preview.</p>';
+        panel.innerHTML = '<p class="text-muted">Nothing to preview.</p>';
         return;
     }
     panel.textContent = 'Rendering…';
@@ -98,7 +98,6 @@ document.querySelectorAll('[data-markdown-source]').forEach((textarea) => {
         const isPreview = mode === 'preview';
         tabs.forEach(tab => {
             const active = tab.dataset.markdownMode === mode;
-            tab.classList.toggle('markdown-tab-active', active);
             tab.setAttribute('aria-pressed', String(active));
         });
         textarea.hidden = isPreview;

@@ -6,6 +6,7 @@ use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\User;
 use App\Models\ValidationSubmission;
+use App\Support\FieldLimits;
 use Illuminate\Http\UploadedFile;
 
 class ValidationLabService
@@ -22,6 +23,25 @@ class ValidationLabService
     public function latestDraft(User $participant): ?ValidationSubmission
     {
         return $participant->validationSubmissions()->where('status', ValidationSubmission::DRAFT)->latest('updated_at')->first();
+    }
+
+    /**
+     * The Lab activity form's options and prefilled values: the signed-in user's name, the configured feature areas
+     * and artifact types with their defaults, the default AI tool and the Exact Prompt / AI-Generated Artifact limit.
+     *
+     * @return array{traineeName: ?string, featureAreas: list<string>, defaultFeatureArea: string, artifactTypes: list<string>, defaultArtifactType: string, defaultAiTool: string, textareaMaxLength: int}
+     */
+    public function activityFormData(?User $user): array
+    {
+        return [
+            'traineeName' => $user?->name,
+            'featureAreas' => config('validation_lab.feature_areas'),
+            'defaultFeatureArea' => config('validation_lab.default_artifact.feature_area'),
+            'artifactTypes' => config('validation_lab.artifact_types'),
+            'defaultArtifactType' => config('validation_lab.default_artifact.artifact_type'),
+            'defaultAiTool' => config('validation_lab.default_ai_tool'),
+            'textareaMaxLength' => FieldLimits::EXACT_PROMPT_OUTPUT,
+        ];
     }
 
     /**

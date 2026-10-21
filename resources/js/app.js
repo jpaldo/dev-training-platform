@@ -248,6 +248,32 @@ const initializeInterviewerTypeFields = () => {
 };
 
 /**
+ * On the QA Validation Lab activity form, show the `#other_{key}_wrap` field of each `[data-other-select="{key}"]`
+ * select, and require its `#other_{key}` input, only while "Other" is selected; any other choice clears the typed value.
+ */
+const initializeOtherSelectFields = () => {
+    document.querySelectorAll('[data-other-select]').forEach((select) => {
+        const key = select.dataset.otherSelect;
+        const wrap = document.getElementById(`other_${key}_wrap`);
+        const input = document.getElementById(`other_${key}`);
+
+        const sync = () => {
+            const isOtherSelected = select.value === 'Other';
+
+            wrap.hidden = !isOtherSelected;
+            input.required = isOtherSelected;
+
+            if (!isOtherSelected) {
+                input.value = '';
+            }
+        };
+
+        select.addEventListener('change', sync);
+        sync();
+    });
+};
+
+/**
  * On the profile page, open the Google Drive Picker from the `[data-drive-picker]` button (rendered only while Google
  * Drive can connect; the page loads `apis.google.com/js/api.js` alongside it) so the participant can choose an export
  * folder: fetch a short-lived token from `data-token-url`, show the folder picker over a backdrop, and post the chosen
@@ -465,6 +491,7 @@ const initializePage = () => {
     initializeMarkdownFlushOnSubmit();
     initializeAiProviderSettings();
     initializeInterviewerTypeFields();
+    initializeOtherSelectFields();
     initializeGoogleDrivePicker();
     initializeGoogleDriveSyncStatus();
 };

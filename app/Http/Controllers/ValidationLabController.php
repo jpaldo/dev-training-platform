@@ -39,7 +39,7 @@ class ValidationLabController extends Controller
             }
         }
 
-        return view('lab.activity');
+        return view('lab.activity', $lab->activityFormData($user));
     }
 
     public function artifact(StoreValidationArtifactRequest $request, ValidationLabService $lab): RedirectResponse|View

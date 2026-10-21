@@ -91,7 +91,16 @@
 
                 @if($isEditable)
                     @if($trainingWeek->week_number === 3)
-                        @include('submissions.week-three', ['activity' => $activity, 'trainingWeek' => $trainingWeek, 'workspace' => $weekThreeWorkspace, 'paths' => $weekThreePaths, 'version' => $version])
+                        @include('submissions.week-three', [
+                            'activity' => $activity,
+                            'trainingWeek' => $trainingWeek,
+                            'version' => $version,
+                            'workspace' => $weekThreeWorkspace,
+                            'sectionHeadingClasses' => $sectionHeadingClasses,
+                            'labelClasses' => $labelClasses,
+                            'controlClasses' => $controlClasses,
+                            'hintClasses' => $hintClasses,
+                        ])
                     @else
                         <form class="m-0 grid grid-cols-1 gap-5" method="post" action="{{ route('training.submission.draft', [$trainingWeek, $activity]) }}" data-submission-form>
                             @csrf

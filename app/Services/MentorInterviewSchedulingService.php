@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\MentorInterviewAvailabilityStatus;
 use App\Mail\MentorMockInterviewScheduled;
 use App\Models\Activity;
 use App\Models\MentorInterviewAvailability;
@@ -234,7 +235,7 @@ class MentorInterviewSchedulingService
 
     private function availabilityForSlot(User $mentor, CarbonImmutable $startsAt, CarbonImmutable $endsAt): ?MentorInterviewAvailability
     {
-        return MentorInterviewAvailability::query()->where('mentor_id', $mentor->id)->whereDate('available_date', $startsAt->toDateString())->where('status', MentorInterviewAvailability::OPEN)->get()->first(function (MentorInterviewAvailability $availability) use ($startsAt, $endsAt): bool {
+        return MentorInterviewAvailability::query()->where('mentor_id', $mentor->id)->whereDate('available_date', $startsAt->toDateString())->where('status', MentorInterviewAvailabilityStatus::Open)->get()->first(function (MentorInterviewAvailability $availability) use ($startsAt, $endsAt): bool {
             return collect($availability->slots($startsAt->getTimezone()->getName()))->contains(fn (array $slot): bool => $slot['starts_at']->equalTo($startsAt) && $slot['ends_at']->equalTo($endsAt));
         });
     }

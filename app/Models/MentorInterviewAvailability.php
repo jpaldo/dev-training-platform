@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\MentorInterviewAvailabilityStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -11,9 +12,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['mentor_id', 'available_date', 'start_time', 'end_time', 'slot_duration_minutes', 'capacity', 'status'])]
 class MentorInterviewAvailability extends Model
 {
-    public const OPEN = 'open';
-
-    public const CLOSED = 'closed';
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return ['status' => MentorInterviewAvailabilityStatus::class];
+    }
 
     public function mentor(): BelongsTo
     {
@@ -27,7 +34,7 @@ class MentorInterviewAvailability extends Model
 
     public function isOpen(): bool
     {
-        return $this->status === self::OPEN;
+        return $this->status === MentorInterviewAvailabilityStatus::Open;
     }
 
     /** @return list<array{starts_at:CarbonImmutable,ends_at:CarbonImmutable}> */

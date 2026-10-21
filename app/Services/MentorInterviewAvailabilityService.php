@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\MentorInterviewAvailabilityStatus;
 use App\Models\MentorInterviewAvailability;
 use App\Models\User;
 use App\Models\WeekFourMentorInterviewSchedule;
@@ -15,14 +16,14 @@ class MentorInterviewAvailabilityService
 {
     public function listForMentor(User $mentor, bool $includeClosed = true): Collection
     {
-        return MentorInterviewAvailability::query()->where('mentor_id', $mentor->id)->when(! $includeClosed, fn (Builder $query): Builder => $query->where('status', MentorInterviewAvailability::OPEN))->orderBy('available_date')->orderBy('start_time')->get();
+        return MentorInterviewAvailability::query()->where('mentor_id', $mentor->id)->when(! $includeClosed, fn (Builder $query): Builder => $query->where('status', MentorInterviewAvailabilityStatus::Open))->orderBy('available_date')->orderBy('start_time')->get();
     }
 
     public function create(User $mentor, array $data): MentorInterviewAvailability
     {
         $this->authorizeMentor($mentor);
         $availability = new MentorInterviewAvailability;
-        $availability->fill($data + ['mentor_id' => $mentor->id, 'slot_duration_minutes' => (int) config('training.week_four_mentor_interview_duration_minutes', 60), 'capacity' => 1, 'status' => MentorInterviewAvailability::OPEN]);
+        $availability->fill($data + ['mentor_id' => $mentor->id, 'slot_duration_minutes' => (int) config('training.week_four_mentor_interview_duration_minutes', 60), 'capacity' => 1, 'status' => MentorInterviewAvailabilityStatus::Open]);
         $this->validateWindow($availability);
         $this->ensureNoOverlap($availability);
         $availability->save();
@@ -48,7 +49,7 @@ class MentorInterviewAvailabilityService
     public function close(User $actor, MentorInterviewAvailability $availability): void
     {
         $this->authorizeAccess($actor, $availability);
-        $availability->update(['status' => MentorInterviewAvailability::CLOSED]);
+        $availability->update(['status' => MentorInterviewAvailabilityStatus::Closed]);
     }
 
     /** @return Collection<int, array<string,mixed>> */
@@ -151,7 +152,7 @@ class MentorInterviewAvailabilityService
         $date = CarbonImmutable::parse((string) $availability->available_date, $timezone);
         $start = CarbonImmutable::parse($date->format('Y-m-d').' '.$availability->start_time, $timezone);
         $end = CarbonImmutable::parse($date->format('Y-m-d').' '.$availability->end_time, $timezone);
-        $overlap = MentorInterviewAvailability::query()->where('mentor_id', $availability->mentor_id)->whereDate('available_date', $date->toDateString())->whereKeyNot($availability->id ?? 0)->where('status', MentorInterviewAvailability::OPEN)->get()->contains(function (MentorInterviewAvailability $existing) use ($date, $start, $end, $timezone): bool {
+        $overlap = MentorInterviewAvailability::query()->where('mentor_id', $availability->mentor_id)->whereDate('available_date', $date->toDateString())->whereKeyNot($availability->id ?? 0)->where('status', MentorInterviewAvailabilityStatus::Open)->get()->contains(function (MentorInterviewAvailability $existing) use ($date, $start, $end, $timezone): bool {
             $existingStart = CarbonImmutable::parse($date->format('Y-m-d').' '.$existing->start_time, $timezone);
             $existingEnd = CarbonImmutable::parse($date->format('Y-m-d').' '.$existing->end_time, $timezone);
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\MentorInterviewAvailabilityStatus;
 use App\Models\GoogleDriveConnection;
 use App\Models\MentorInterviewAvailability;
 use App\Models\Program;
@@ -74,7 +75,7 @@ class MentorInterviewAvailabilityTest extends TestCase
     {
         [, $mentor] = $this->fixture();
         $otherMentor = User::factory()->create(['role' => 'coach', 'is_active' => true]);
-        $availability = MentorInterviewAvailability::create($this->availabilityPayload() + ['mentor_id' => $mentor->id, 'status' => MentorInterviewAvailability::OPEN]);
+        $availability = MentorInterviewAvailability::create($this->availabilityPayload() + ['mentor_id' => $mentor->id, 'status' => MentorInterviewAvailabilityStatus::Open]);
         $update = ['end_time' => '11:00', 'capacity' => 2] + $this->availabilityPayload();
 
         $this->actingAs($otherMentor)
@@ -93,12 +94,38 @@ class MentorInterviewAvailabilityTest extends TestCase
     {
         [, $mentor] = $this->fixture();
         $otherMentor = User::factory()->create(['role' => 'coach', 'is_active' => true]);
-        $availability = MentorInterviewAvailability::create($this->availabilityPayload() + ['mentor_id' => $mentor->id, 'status' => MentorInterviewAvailability::OPEN]);
+        $availability = MentorInterviewAvailability::create($this->availabilityPayload() + ['mentor_id' => $mentor->id, 'status' => MentorInterviewAvailabilityStatus::Open]);
 
         $this->actingAs($otherMentor)
             ->patch(route('coach.mentor-availability.update', $availability), ['start_time' => '9am', 'capacity' => 21] + $this->availabilityPayload())
             ->assertRedirect()
             ->assertSessionHasErrors(['start_time', 'capacity']);
+    }
+
+    public function test_closing_availability_frees_its_window_for_new_availability(): void
+    {
+        [, $mentor] = $this->fixture();
+
+        $this->actingAs($mentor)
+            ->post(route('coach.mentor-availability.store'), $this->availabilityPayload())
+            ->assertSessionHasNoErrors();
+        $availability = MentorInterviewAvailability::query()->where('mentor_id', $mentor->id)->sole();
+        $this->assertSame(MentorInterviewAvailabilityStatus::Open, $availability->status);
+
+        $this->actingAs($mentor)
+            ->post(route('coach.mentor-availability.store'), $this->availabilityPayload())
+            ->assertSessionHasErrors('start_time');
+
+        $this->actingAs($mentor)
+            ->patch(route('coach.mentor-availability.close', $availability))
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+        $this->assertSame(MentorInterviewAvailabilityStatus::Closed, $availability->fresh()->status);
+
+        $this->actingAs($mentor)
+            ->post(route('coach.mentor-availability.store'), $this->availabilityPayload())
+            ->assertSessionHasNoErrors();
+        $this->assertSame(2, MentorInterviewAvailability::query()->where('mentor_id', $mentor->id)->count());
     }
 
     public function test_calendar_disabled_does_not_hide_coach_availability_management_and_admin_can_inspect(): void

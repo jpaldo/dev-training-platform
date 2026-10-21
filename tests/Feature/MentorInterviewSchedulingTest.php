@@ -2,13 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Enums\MentorInterviewScheduleStatus;
 use App\Models\Activity;
+use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
 use App\Models\GateEvaluation;
 use App\Models\GoogleDriveConnection;
 use App\Models\MentorInterviewAvailability;
 use App\Models\Program;
+use App\Models\SubmissionEvidence;
 use App\Models\User;
+use App\Models\WeekFourInterviewPair;
 use App\Models\WeekFourMentorInterviewSchedule;
 use App\Models\WeekFourPeerInterviewWaiver;
 use App\Services\GoogleDriveConfigurationService;
@@ -31,7 +35,7 @@ class MentorInterviewSchedulingTest extends TestCase
         $this->actingAs($participant)->post(route('training.mentor-interview.schedule', [$activity->week, $activity]), ['scheduled_at' => now('Asia/Manila')->addDay()->setTime(15, 0)->format('Y-m-d\\TH:i')])->assertRedirect()->assertSessionHas('status');
 
         $schedule = WeekFourMentorInterviewSchedule::query()->firstOrFail();
-        $this->assertSame(WeekFourMentorInterviewSchedule::SCHEDULED, $schedule->status);
+        $this->assertSame(MentorInterviewScheduleStatus::Scheduled, $schedule->status);
         $this->assertSame('event-1', $schedule->google_event_id);
         $this->assertSame('https://meet.google.com/abc-defg-hij', $schedule->google_meet_url);
         Http::assertSent(fn ($request): bool => $request->url() === 'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all' && $request['start']['timeZone'] === 'Asia/Manila' && $request['end']['timeZone'] === 'Asia/Manila' && $request['attendees'][0]['email'] === $participant->email && $request['attendees'][1]['email'] === $mentor->email && $request['conferenceData']['createRequest']['conferenceSolutionKey']['type'] === 'hangoutsMeet');
@@ -44,7 +48,7 @@ class MentorInterviewSchedulingTest extends TestCase
         Http::fake(['https://www.googleapis.com/calendar/v3/*' => Http::response(['error' => ['message' => 'denied']], 403)]);
 
         $this->actingAs($participant)->post(route('training.mentor-interview.schedule', [$activity->week, $activity]), ['scheduled_at' => now('Asia/Manila')->addDay()->setTime(15, 0)->format('Y-m-d\\TH:i')])->assertRedirect()->assertSessionHasErrors('mentor_schedule');
-        $this->assertDatabaseHas('week_four_mentor_interview_schedules', ['status' => WeekFourMentorInterviewSchedule::FAILED]);
+        $this->assertDatabaseHas('week_four_mentor_interview_schedules', ['status' => 'failed']);
     }
 
     public function test_mentor_interview_emails_can_be_disabled_without_affecting_calendar_completion(): void
@@ -157,14 +161,58 @@ class MentorInterviewSchedulingTest extends TestCase
     {
         [$participant, $mentor, $activity] = $this->fixture();
         $schedule = ['participant_id' => $participant->id, 'mentor_id' => $mentor->id, 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHour(), 'timezone' => 'Asia/Manila', 'duration_minutes' => 60];
-        WeekFourMentorInterviewSchedule::create([...$schedule, 'activity_id' => null, 'status' => WeekFourMentorInterviewSchedule::SCHEDULED, 'google_meet_url' => 'https://meet.google.com/early-schedule']);
-        WeekFourMentorInterviewSchedule::create([...$schedule, 'activity_id' => $activity->id, 'status' => WeekFourMentorInterviewSchedule::CANCELLED, 'google_meet_url' => 'https://meet.google.com/cancelled-schedule']);
+        WeekFourMentorInterviewSchedule::create([...$schedule, 'activity_id' => null, 'status' => MentorInterviewScheduleStatus::Scheduled, 'google_meet_url' => 'https://meet.google.com/early-schedule']);
+        WeekFourMentorInterviewSchedule::create([...$schedule, 'activity_id' => $activity->id, 'status' => MentorInterviewScheduleStatus::Cancelled, 'google_meet_url' => 'https://meet.google.com/cancelled-schedule']);
 
         $this->actingAs($participant)->get(route('training.submission.edit', [$activity->week, $activity]))
             ->assertOk()
             ->assertSee('Mentor mock interview scheduled <span class="sr-only">(complete)</span>', false)
             ->assertSee('https://meet.google.com/early-schedule')
             ->assertDontSee('https://meet.google.com/cancelled-schedule');
+    }
+
+    public function test_cancelling_a_scheduled_interview_deletes_its_calendar_event(): void
+    {
+        [$participant, $mentor, $activity] = $this->fixture();
+        Http::fake(['https://www.googleapis.com/calendar/v3/*' => Http::response(null, 204)]);
+        $schedule = WeekFourMentorInterviewSchedule::create(['participant_id' => $participant->id, 'mentor_id' => $mentor->id, 'activity_id' => $activity->id, 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHour(), 'timezone' => 'Asia/Manila', 'duration_minutes' => 60, 'status' => 'scheduled', 'google_event_id' => 'event-to-cancel']);
+
+        $this->actingAs($participant)
+            ->post(route('training.mentor-interview.cancel', $schedule))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'The Mentor mock interview has been cancelled.');
+
+        $this->assertSame(MentorInterviewScheduleStatus::Cancelled, $schedule->fresh()->status);
+        Http::assertSent(fn ($request): bool => $request->method() === 'DELETE' && $request->url() === 'https://www.googleapis.com/calendar/v3/calendars/primary/events/event-to-cancel?sendUpdates=all');
+    }
+
+    public function test_activity_two_submission_requires_a_scheduled_mentor_interview_and_records_its_status(): void
+    {
+        [$participant, $mentor, $activity] = $this->fixture();
+        $partner = User::factory()->create(['role' => 'participant', 'training_path' => 'automation']);
+        WeekFourInterviewPair::create(['participant_one_id' => min($participant->id, $partner->id), 'participant_two_id' => max($participant->id, $partner->id), 'assigned_by_id' => $mentor->id, 'status' => 'active']);
+        $schedule = WeekFourMentorInterviewSchedule::create(['participant_id' => $participant->id, 'mentor_id' => $mentor->id, 'activity_id' => $activity->id, 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHour(), 'timezone' => 'Asia/Manila', 'duration_minutes' => 60, 'status' => 'pending']);
+        $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'draft']);
+        $version = $submission->versions()->create(['version_number' => 1, 'status' => 'draft', 'field_values' => ['partner_user_id' => $partner->id, 'practice_questions' => [1 => 'How do you validate AI output?']]]);
+        $evidenceRequirement = $activity->requirements()->with('evidenceRequirements')->get()->flatMap->evidenceRequirements->firstWhere('is_required', true);
+        SubmissionEvidence::create(['submission_version_id' => $version->id, 'evidence_requirement_id' => $evidenceRequirement->id, 'evidence_type' => 'text', 'title' => 'Interview notes', 'content' => 'Interview evidence']);
+
+        $this->actingAs($participant)
+            ->post(route('training.submission.submit', [$activity->week, $activity, $version]))
+            ->assertRedirect()
+            ->assertSessionHasErrors(['submission' => 'Schedule your Mentor mock interview before submitting Activity 2.']);
+
+        $schedule->update(['status' => MentorInterviewScheduleStatus::Scheduled]);
+
+        $this->actingAs($participant)
+            ->post(route('training.submission.submit', [$activity->week, $activity, $version]))
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+        $this->assertSame('scheduled', $version->fresh()->field_values['practice_interview_snapshot']['mentor_schedule']['status']);
+        $this->actingAs($participant)
+            ->get(route('training.submission.show', [$activity->week, $activity, $version]))
+            ->assertOk()
+            ->assertSee('<strong>Status:</strong> Scheduled', false);
     }
 
     /** @return array{0:User,1:User,2:Activity} */

@@ -266,7 +266,7 @@
                                             </x-ui.alert>
                                         @endif
 
-                                        @if($mentorSchedule?->status === 'scheduled')
+                                        @if($mentorSchedule?->isScheduled())
                                             <p class="{{ $stepClasses['complete'] }} m-0 w-full">
                                                 <span class="w-4 shrink-0" aria-hidden="true">✓</span>
                                                 Mentor mock interview scheduled <span class="sr-only">(complete)</span>

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\MentorInterviewScheduleStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionVersion;
@@ -132,7 +133,7 @@ class WeekFourInterviewService
     public function revokeWaiver(User $authorizer, User $participant, Activity $activity): void
     {
         abort_unless($authorizer->canManageParticipant($participant), 403);
-        $scheduleExists = WeekFourMentorInterviewSchedule::query()->where('participant_id', $participant->id)->where('activity_id', $activity->id)->where('status', WeekFourMentorInterviewSchedule::SCHEDULED)->exists();
+        $scheduleExists = WeekFourMentorInterviewSchedule::query()->where('participant_id', $participant->id)->where('activity_id', $activity->id)->where('status', MentorInterviewScheduleStatus::Scheduled)->exists();
         $submittedExists = ActivitySubmission::query()->where('user_id', $participant->id)->where('activity_id', $activity->id)->whereIn('status', ['submitted', 'under_review', 'approved', 'completed'])->exists();
         if ($scheduleExists || $submittedExists) {
             throw ValidationException::withMessages(['waiver' => 'This waiver cannot be reversed after the participant has relied on it.']);
@@ -238,7 +239,7 @@ class WeekFourInterviewService
         $activity = Activity::query()->where('position', 2)->whereHas('week', fn (Builder $query): Builder => $query->where('week_number', 4))->first();
         $schedule = $activity ? WeekFourMentorInterviewSchedule::query()->where('participant_id', $participant->id)->where('activity_id', $activity->id)->with('mentor')->first() : null;
 
-        return ['partner' => $partner ? ['display_name' => $partner->name, 'email' => $partner->email, 'training_path' => $partner->training_path] : null, 'questions_for_partner' => $state['own_questions'], 'partner_questions' => $state['partner_questions'], 'answers_to_partner' => $state['answers_to_partner'], 'partner_answers' => $state['partner_answers'], 'feedback_given' => $pair?->feedback()->where('author_id', $participant->id)->get()->mapWithKeys(fn (WeekFourPartnerFeedback $item): array => [(string) $item->question_number => ['content' => $item->content, 'author_name' => $participant->name, 'recipient_name' => $partner?->name]])->all() ?? [], 'feedback_received' => $pair?->feedback()->where('recipient_id', $participant->id)->get()->mapWithKeys(fn (WeekFourPartnerFeedback $item): array => [(string) $item->question_number => ['content' => $item->content, 'author_name' => $partner?->name, 'recipient_name' => $participant->name]])->all() ?? [], 'mentor_schedule' => $schedule ? ['mentor_name' => $schedule->mentor?->name, 'mentor_email' => $schedule->mentor?->email, 'starts_at' => $schedule->starts_at?->toIso8601String(), 'ends_at' => $schedule->ends_at?->toIso8601String(), 'timezone' => $schedule->timezone, 'duration_minutes' => $schedule->duration_minutes, 'status' => $schedule->status, 'google_event_id' => $schedule->google_event_id] : null];
+        return ['partner' => $partner ? ['display_name' => $partner->name, 'email' => $partner->email, 'training_path' => $partner->training_path] : null, 'questions_for_partner' => $state['own_questions'], 'partner_questions' => $state['partner_questions'], 'answers_to_partner' => $state['answers_to_partner'], 'partner_answers' => $state['partner_answers'], 'feedback_given' => $pair?->feedback()->where('author_id', $participant->id)->get()->mapWithKeys(fn (WeekFourPartnerFeedback $item): array => [(string) $item->question_number => ['content' => $item->content, 'author_name' => $participant->name, 'recipient_name' => $partner?->name]])->all() ?? [], 'feedback_received' => $pair?->feedback()->where('recipient_id', $participant->id)->get()->mapWithKeys(fn (WeekFourPartnerFeedback $item): array => [(string) $item->question_number => ['content' => $item->content, 'author_name' => $partner?->name, 'recipient_name' => $participant->name]])->all() ?? [], 'mentor_schedule' => $schedule ? ['mentor_name' => $schedule->mentor?->name, 'mentor_email' => $schedule->mentor?->email, 'starts_at' => $schedule->starts_at?->toIso8601String(), 'ends_at' => $schedule->ends_at?->toIso8601String(), 'timezone' => $schedule->timezone, 'duration_minutes' => $schedule->duration_minutes, 'status' => $schedule->status->value, 'google_event_id' => $schedule->google_event_id] : null];
     }
 
     /** @return Builder<Activity> */

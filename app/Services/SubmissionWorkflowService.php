@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\MentorInterviewScheduleStatus;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
@@ -210,7 +211,7 @@ class SubmissionWorkflowService
             return;
         }
 
-        $mentorSchedule = WeekFourMentorInterviewSchedule::query()->where('participant_id', $user->id)->where('activity_id', $activity->id)->where('status', WeekFourMentorInterviewSchedule::SCHEDULED)->exists();
+        $mentorSchedule = WeekFourMentorInterviewSchedule::query()->where('participant_id', $user->id)->where('activity_id', $activity->id)->where('status', MentorInterviewScheduleStatus::Scheduled)->exists();
         if (! $mentorSchedule && array_key_exists('practice_questions', $values)) {
             throw ValidationException::withMessages(['submission' => 'Schedule your Mentor mock interview before submitting Activity 2.']);
         }

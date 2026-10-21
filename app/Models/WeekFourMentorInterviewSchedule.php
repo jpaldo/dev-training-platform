@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\MentorInterviewScheduleStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,19 +12,16 @@ class WeekFourMentorInterviewSchedule extends Model
 {
     use HasFactory;
 
-    public const PENDING = 'pending';
-
-    public const SCHEDULED = 'scheduled';
-
-    public const FAILED = 'failed';
-
-    public const CANCELLED = 'cancelled';
-
     protected $fillable = ['participant_id', 'mentor_id', 'activity_id', 'availability_id', 'starts_at', 'ends_at', 'timezone', 'duration_minutes', 'status', 'google_event_id', 'google_meet_url', 'google_conference_id', 'failure_reason', 'scheduled_at', 'cancelled_at'];
 
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
-        return ['starts_at' => 'datetime', 'ends_at' => 'datetime', 'scheduled_at' => 'datetime', 'cancelled_at' => 'datetime'];
+        return ['starts_at' => 'datetime', 'ends_at' => 'datetime', 'status' => MentorInterviewScheduleStatus::class, 'scheduled_at' => 'datetime', 'cancelled_at' => 'datetime'];
     }
 
     public function participant(): BelongsTo
@@ -44,6 +42,11 @@ class WeekFourMentorInterviewSchedule extends Model
     public function availability(): BelongsTo
     {
         return $this->belongsTo(MentorInterviewAvailability::class, 'availability_id');
+    }
+
+    public function isScheduled(): bool
+    {
+        return $this->status === MentorInterviewScheduleStatus::Scheduled;
     }
 
     public function startsAtInTimezone(?string $timezone = null): CarbonImmutable

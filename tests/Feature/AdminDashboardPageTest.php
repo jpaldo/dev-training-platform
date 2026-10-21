@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\MentorInterviewScheduleStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
@@ -42,7 +43,7 @@ class AdminDashboardPageTest extends TestCase
                 'starts_at' => now()->addDay(),
                 'ends_at' => now()->addDay()->addHour(),
                 'timezone' => 'Asia/Manila',
-                'status' => [WeekFourMentorInterviewSchedule::SCHEDULED, WeekFourMentorInterviewSchedule::FAILED, WeekFourMentorInterviewSchedule::PENDING][$index],
+                'status' => [MentorInterviewScheduleStatus::Scheduled, MentorInterviewScheduleStatus::Failed, MentorInterviewScheduleStatus::Pending][$index],
             ]);
         }
 

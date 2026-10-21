@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\MentorInterviewAvailabilityStatus;
+use App\Enums\MentorInterviewScheduleStatus;
 use App\Models\MentorInterviewAvailability;
 use App\Models\User;
 use App\Models\WeekFourMentorInterviewSchedule;
@@ -119,12 +120,12 @@ class MentorInterviewAvailabilityService
 
     private function bookedCount(MentorInterviewAvailability $availability): int
     {
-        return $availability->schedules()->where('status', WeekFourMentorInterviewSchedule::SCHEDULED)->count();
+        return $availability->schedules()->where('status', MentorInterviewScheduleStatus::Scheduled)->count();
     }
 
     private function bookedCountForSlot(MentorInterviewAvailability $availability, CarbonImmutable $startsAt, CarbonImmutable $endsAt): int
     {
-        return WeekFourMentorInterviewSchedule::query()->where('availability_id', $availability->id)->where('status', WeekFourMentorInterviewSchedule::SCHEDULED)->where('starts_at', $startsAt->utc())->where('ends_at', $endsAt->utc())->count();
+        return WeekFourMentorInterviewSchedule::query()->where('availability_id', $availability->id)->where('status', MentorInterviewScheduleStatus::Scheduled)->where('starts_at', $startsAt->utc())->where('ends_at', $endsAt->utc())->count();
     }
 
     private function validateWindow(MentorInterviewAvailability $availability): void

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\MentorInterviewScheduleStatus;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\Program;
@@ -47,8 +48,8 @@ class AdminDashboardPageService
             'weekFourStats' => [
                 ['label' => 'PARTNER ASSIGNED', 'value' => $pairedParticipantCount],
                 ['label' => 'WAITING FOR PARTNER', 'value' => max(0, $participantCount - $pairedParticipantCount)],
-                ['label' => 'MENTOR INTERVIEWS SCHEDULED', 'value' => WeekFourMentorInterviewSchedule::query()->where('status', WeekFourMentorInterviewSchedule::SCHEDULED)->count()],
-                ['label' => 'CALENDAR ATTENTION', 'value' => WeekFourMentorInterviewSchedule::query()->whereIn('status', [WeekFourMentorInterviewSchedule::FAILED, WeekFourMentorInterviewSchedule::PENDING])->count()],
+                ['label' => 'MENTOR INTERVIEWS SCHEDULED', 'value' => WeekFourMentorInterviewSchedule::query()->where('status', MentorInterviewScheduleStatus::Scheduled)->count()],
+                ['label' => 'CALENDAR ATTENTION', 'value' => WeekFourMentorInterviewSchedule::query()->whereIn('status', [MentorInterviewScheduleStatus::Failed, MentorInterviewScheduleStatus::Pending])->count()],
             ],
             'integrationStatuses' => [
                 ['label' => 'Google:', 'status' => $this->settings->google()['calendar_status']],

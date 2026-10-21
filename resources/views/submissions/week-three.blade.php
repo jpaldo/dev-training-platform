@@ -1,3 +1,8 @@
+{{-- Legacy styles this partial took over from the submission form; remove them when the partial is converted (Phase 5). --}}
+<style>
+    .submission-section-heading { margin: 22px 0 4px; padding: 14px 16px; border: 1px solid #293052; border-radius: 14px; background: rgba(27,35,64,.42); }
+    .submission-section-heading p { margin: 6px 0 0; }
+</style>
 @php
     $findings = $workspace?->findings ?? collect();
     $activityNumber = (int) ($activity->position ?? $activity->order ?? 1);

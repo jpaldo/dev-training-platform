@@ -162,7 +162,7 @@ class MentorInterviewSchedulingTest extends TestCase
 
         $this->actingAs($participant)->get(route('training.submission.edit', [$activity->week, $activity]))
             ->assertOk()
-            ->assertSee('week-four-progress-item complete"><span class="status-icon">✓</span> Mentor mock interview scheduled', false)
+            ->assertSee('Mentor mock interview scheduled <span class="sr-only">(complete)</span>', false)
             ->assertSee('https://meet.google.com/early-schedule')
             ->assertDontSee('https://meet.google.com/cancelled-schedule');
     }

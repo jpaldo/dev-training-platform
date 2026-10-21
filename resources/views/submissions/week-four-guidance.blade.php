@@ -1,3 +1,11 @@
+{{-- Legacy styles this partial took over from the submission form; remove them when the partial is converted (Phase 5). --}}
+<style>
+    .field-guidance { margin-top: 10px; border: 1px solid #293052; border-radius: 10px; background: rgba(27,35,64,.42); }
+    .field-guidance summary { cursor: pointer; padding: 9px 12px; color: #c7d2fe; font-size: .86rem; font-weight: 700; }
+    .field-guidance-content { padding: 0 12px 11px; color: #cbd5e1; font-size: .86rem; line-height: 1.5; }
+    .field-guidance-content p { margin: 8px 0 0; }
+    .field-guidance-content strong { color: #eef2ff; }
+</style>
 <section class="card week-four-guide" style="margin:18px 0">
     <div class="eyebrow">WEEK 4 · REUSABLE &amp; SUSTAINED LEVEL 3 PRACTICE</div>
     <h2>{{ $activity->position === 1 ? 'Build & Validate a Reusable AI Asset' : ($activity->position === 2 ? 'Mock Level 3 Interview' : 'Strict-mode Leveling Assessment') }}</h2>

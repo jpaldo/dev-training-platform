@@ -1,354 +1,609 @@
 @extends('layouts.app')
 
 @section('content')
-    @php($evidencePolicy = app(\App\Services\EvidenceFilePolicy::class))
-    @php($evidenceAccept = $evidencePolicy->acceptAttribute())
-    <style>
-        .week-four-peer-sections { display:grid; gap:22px; }
-        .week-four-question-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
-        @media(max-width:860px){.week-four-question-list{grid-template-columns:1fr;}}
-        .lab-modal { width: min(95vw, 1400px); max-width: none; max-height: min(86vh, 860px); padding: 0; border: 1px solid #293052; border-radius: 18px; background: #11162b; color: #eef2ff; }
-        .lab-modal::backdrop { background: rgba(3, 5, 15, .78); }
-        .lab-modal-content { padding: 24px; max-height: 86vh; overflow-y: auto; }
-        .lab-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-        .lab-modal-close { border: 1px solid #293052; border-radius: 10px; padding: 8px 12px; background: #1b2340; color: #fff; cursor: pointer; }
-        .lab-modal-summary { display: grid; gap: 4px; margin: 12px 0 20px; }
-        .lab-modal-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-        .lab-modal-column { display: grid; align-content: start; gap: 14px; }
-        .lab-check-card { margin: 0; padding: 16px; border-radius: 14px; }
-        .lab-check-status { display: inline-block; margin: 6px 0; font-size: 12px; font-weight: 900; letter-spacing: .08em; color: #a7f3d0; }
-        .lab-result-card { margin: 0; padding: 16px; border-radius: 14px; }
-        .field-guidance { margin-top: 10px; border: 1px solid #293052; border-radius: 10px; background: rgba(27,35,64,.42); }
-        .field-guidance summary { cursor: pointer; padding: 9px 12px; color: #c7d2fe; font-size: .86rem; font-weight: 700; }
-        .field-guidance-content { padding: 0 12px 11px; color: #cbd5e1; font-size: .86rem; line-height: 1.5; }
-        .field-guidance-content p { margin: 8px 0 0; }
-        .field-guidance-content strong { color: #eef2ff; }
-        .submission-section-heading { margin: 22px 0 4px; padding: 14px 16px; border: 1px solid #293052; border-radius: 14px; background: rgba(27,35,64,.42); }
-        .submission-section-heading p { margin: 6px 0 0; }
-        .coach-feedback-markdown h2, .coach-feedback-markdown h3, .coach-feedback-markdown h4 { margin: 0 0 8px; color: #fde68a; }
-        .coach-feedback-markdown p { margin: 8px 0; line-height: 1.55; }
-        .coach-feedback-markdown ul, .coach-feedback-markdown ol { margin: 8px 0 8px 20px; padding: 0; }
-        .week-four-progress { display: grid; gap: 8px; margin-top: 14px; }
-        .week-four-progress-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; font-weight: 700; }
-        .week-four-progress-item.complete { color: #a7f3d0; background: #063d2b; border: 1px solid #047857; }
-        .week-four-progress-item.incomplete { color: #fecdd3; background: #3b0d19; border: 1px solid #7f1d2d; }
-        .week-four-progress-item .status-icon { font-size: 0; width: 1.1rem; display: inline-block; }
-        .week-four-progress-item.complete .status-icon::after { content: '✓'; font-size: 1.1rem; }
-        .week-four-progress-item.incomplete .status-icon::after { content: '○'; font-size: 1.1rem; }
-        .week-four-peer-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
-        .week-four-question-list { display: grid; gap: 12px; }
-        .week-four-question-card { min-width: 0; }
-        .week-four-question-card textarea { width: 100%; min-height: 110px; resize: vertical; }
-        .week-four-status-badge { display: inline-block; margin-left: 8px; padding: 4px 8px; border-radius: 999px; font-size: .75rem; }
-        .week-four-status-badge.unlocked { color: #a7f3d0; background: #063d2b; }
-        .week-four-status-badge.locked { color: #fecdd3; background: #3b0d19; }
-        @media (max-width: 860px) { .week-four-peer-grid { grid-template-columns: 1fr; } }
-        @media (max-width: 760px) { .lab-modal { width: calc(100vw - 20px); } .lab-modal-content { padding: 18px; } .lab-modal-columns { grid-template-columns: 1fr; } }
-    </style>
-    <div class="eyebrow">SUBMISSION · WEEK {{ $trainingWeek->week_number }}</div>
-    <h1>{{ $activity->title }}</h1>
-    @php($coachFeedback = $submission?->versions->flatMap->reviews->sortByDesc('reviewed_at')->firstWhere('decision', 'needs_revision'))
-    @if($coachFeedback?->comments)<section class="card" style="margin-bottom:18px;border-color:#92400e;background:#211527"><h2>Coach Feedback</h2><div class="coach-feedback-markdown">{!! app(\App\Services\SafeMarkdownRenderer::class)->render($coachFeedback->comments) !!}</div><p class="muted">Decision: Needs revision</p></section>@endif
-    @if (session('status'))<div class="success">{{ session('status') }}</div>@endif
-    @if ($errors->any())<div class="error">{{ $errors->first() }}</div>@endif
-    @if($trainingWeek->week_number === 4)
-        @include('submissions.week-four-guidance', ['activity' => $activity, 'version' => $version])
-    @endif
-    <div class="card"><p class="muted">Current status: <strong>{{ $submission?->status ?? 'Not started' }}</strong>@if($version) · Version {{ $version->version_number }} ({{ $version->status }})@endif</p>
-        @if($submission?->status === 'needs_revision' && (!$version || $version->status !== 'draft'))
-            <p class="error">Your coach requested changes. Create a new editable revision; the previous submitted version remains immutable.</p>
-            <form method="POST" action="{{ route('training.submission.revise', [$trainingWeek, $activity]) }}" data-revise-submission>@csrf
-                <button class="btn" type="submit">Revise submission</button>
-            </form>
+    @php
+        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50 disabled:cursor-not-allowed disabled:opacity-60';
+        $textareaClasses = $controlClasses.' min-h-28 resize-y';
+        $fileClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-raised file:px-3 file:py-1.5 file:font-sans file:font-bold file:text-white focus-visible:outline-3 focus-visible:outline-accent/50 disabled:opacity-60';
+        $labelClasses = 'text-sm font-extrabold';
+        $hintClasses = 'm-0 text-sm/relaxed text-muted';
+        $sectionHeadingClasses = 'grid gap-1.5 rounded-xl border border-line bg-raised/40 px-4 py-3.5';
+        $rowClasses = 'grid min-w-0 gap-2 rounded-xl border border-line bg-field px-4 py-3.5';
+        $rowTitleClasses = 'm-0 text-sm font-black tracking-[0.08em]';
+        $guidanceClasses = 'rounded-xl border border-line bg-raised/40 text-sm/relaxed';
+        $guidanceSummaryClasses = 'cursor-pointer rounded-xl px-3 py-2.5 font-bold text-violet-200 focus-visible:outline-3 focus-visible:outline-accent/50';
+        $guidanceBodyClasses = 'grid gap-2 px-3 pb-3 text-slate-300 *:m-0 [&_strong]:text-slate-100';
+        $stepClasses = [
+            'complete' => 'flex items-center gap-2 rounded-lg border border-emerald-700 bg-emerald-950/70 px-2.5 py-2 text-sm font-bold text-emerald-200',
+            'incomplete' => 'flex items-center gap-2 rounded-lg border border-rose-900 bg-rose-950/70 px-2.5 py-2 text-sm font-bold text-rose-200',
+        ];
+        $feedbackClasses = 'grid gap-2 text-sm/relaxed *:m-0 [&_h2]:text-amber-200 [&_h3]:text-amber-200 [&_h4]:text-amber-200 [&_ol]:pl-5 [&_ul]:pl-5';
+    @endphp
+
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <header class="grid min-w-0 gap-2">
+            <x-ui.eyebrow>SUBMISSION · WEEK {{ $trainingWeek->week_number }}</x-ui.eyebrow>
+            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">{{ $activity->title }}</h1>
+        </header>
+
+        @if($mainAction)
+            {{-- The single main action stays in view: in the page header on desktop, pinned to the bottom of the screen on mobile. --}}
+            <div id="submission-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
+                @if($mainAction === 'submit')
+                    <form method="post" action="{{ route('training.submission.submit', [$trainingWeek, $activity, $version]) }}" class="m-0 flex flex-wrap items-center gap-3 lg:justify-end" data-final-submit-form>
+                        @csrf
+                        <p class="m-0 text-sm text-muted" data-submit-status role="status" aria-live="polite"></p>
+                        <x-ui.button type="submit" data-submit-button>Submit Activity</x-ui.button>
+                    </form>
+                @else
+                    <form method="POST" action="{{ route('training.submission.revise', [$trainingWeek, $activity]) }}" class="m-0" data-revise-submission>
+                        @csrf
+                        <x-ui.button type="submit">Revise submission</x-ui.button>
+                    </form>
+                @endif
+            </div>
         @endif
-        @if (!$version || $version->status === 'draft')
-            @if($trainingWeek->week_number === 3)
-                @include('submissions.week-three', ['activity' => $activity, 'trainingWeek' => $trainingWeek, 'workspace' => $weekThreeWorkspace, 'paths' => $weekThreePaths, 'version' => $version])
-            @else
-            <form class="form" method="post" action="{{ route('training.submission.draft', [$trainingWeek, $activity]) }}" data-submission-form>
-                @csrf
-                @if(collect($fields)->keys()->intersect(['prompt', 'exact_prompt', 'ai_output', 'exact_ai_output'])->isNotEmpty())
-                    @include('submissions.interactions', ['version' => $version])
+
+        <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
+            @if(session('status'))
+                <x-ui.alert tone="success" role="status">{{ session('status') }}</x-ui.alert>
+            @endif
+            @if($errors->any())
+                <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
+            @endif
+
+            @if($coachFeedback !== null)
+                <section class="grid gap-3 rounded-2xl border border-amber-800 bg-surface p-6" aria-labelledby="coach-feedback-title">
+                    <h2 id="coach-feedback-title" class="m-0 text-xl font-extrabold">Coach Feedback</h2>
+                    <div class="{{ $feedbackClasses }}">{{ $coachFeedback }}</div>
+                    <p class="m-0 text-sm text-muted">Decision: Needs revision</p>
+                </section>
+            @endif
+
+            @if($trainingWeek->week_number === 4)
+                @include('submissions.week-four-guidance', ['activity' => $activity, 'version' => $version])
+            @endif
+
+            <x-ui.card as="section" class="grid grid-cols-1 gap-5" aria-label="Submission form">
+                <p class="m-0 text-muted">
+                    Current status: <strong class="text-slate-100">{{ $submission?->status ?? 'Not started' }}</strong>
+                    @if($version)
+                        · Version {{ $version->version_number }} ({{ $version->status }})
+                    @endif
+                </p>
+                @if($mainAction === 'revise')
+                    <x-ui.alert tone="error">Your coach requested changes. Create a new editable revision; the previous submitted version remains immutable.</x-ui.alert>
                 @endif
-                @if($trainingWeek->week_number === 4 && $activity->position === 2)
-                    @php($interviewValues = $version?->field_values ?? [])
-                    @php($practiceState = $weekFourPracticeState ?? ['own_questions' => [], 'partner_questions' => [], 'answers_to_partner' => [], 'partner_answers' => []])
-                    <div class="submission-section-heading"><span class="eyebrow">MOCK LEVEL 3 INTERVIEW</span><p class="muted">Create your own peer-practice questions, answer your partner's questions, and exchange feedback. The official assessment questionnaire is reserved for Coach/Mentor/Admin use.</p></div>
-                    <div class="check"><strong>YOUR MOCK INTERVIEW PARTNERS</strong>@if(($interviewPartners ?? collect())->isNotEmpty())<p class="muted">Assigned by your QA Coach/Mentor. Each partner's interview content is kept separate.</p>@foreach($interviewPartners as $partner)@php($partnerStatus = $partnerStatuses[$partner->id] ?? null)<p><strong>{{ $partner->name }}</strong>@if($partnerStatus)<span class="week-four-status-badge {{ $partnerStatus }}">{{ $partnerStatus === 'unlocked' ? 'WEEK 4: UNLOCKED' : 'WEEK 4: LOCKED' }}</span>@endif<br>{{ $partner->email }}</p>@if($partnerStatus === 'locked')<p class="error"><strong>PARTNER WEEK 4 STATUS</strong><br>Your partner has not unlocked Week 4 yet. Please follow up with them to complete their remaining activities. You can continue preparing your own Week 4 work while you wait.</p>@endif @endforeach@else<p class="error">Partner Assignment Pending</p><p class="muted">Your QA Coach/Mentor has not assigned your mock interview partner yet.</p>@endif</div>
-                    <input type="hidden" name="field_values[partner_user_id]" value="{{ $interviewPartner?->id }}">
-                    <details class="field-guidance" style="margin-top:14px"><summary>Interview Guidance</summary><div class="field-guidance-content"><p>Hi {{ $user->name ?? 'there' }}, thanks for joining. Quick context before we start:</p><p>We're doing this to understand where everyone at Full Scale stands with AI — not to evaluate your performance, but to figure out where to invest in the right development for the right people.</p><p>One thing to keep in mind throughout: don't limit your answers to just what I ask. The questions are starting points. If a question makes you think of a specific project, tool, or experience — go there. The more detail and story you give me, the better.</p><p>Think of it less like a quiz and more like telling a teammate what you've been working on. There are no wrong answers. If you haven't used something yet, just say so — that's useful too.</p></div></details>
-                    @php($preparedCount = count(array_filter($practiceState['own_questions'] ?? [], fn ($value): bool => filled($value))))
-                    @php($answeredCount = count(array_filter($practiceState['answers_to_partner'] ?? [], fn ($value): bool => filled($value))))
-                    @php($feedbackGivenCount = $feedbackGiven->filter(fn ($item): bool => filled($item->content))->count())
-                    @php($feedbackReceivedCount = $feedbackReceived->filter(fn ($item): bool => filled($item->content))->count())
-                    <div class="check" style="margin-top:14px"><strong>PEER INTERVIEW PROGRESS</strong><div class="week-four-progress">
-                        <div class="week-four-progress-item {{ $interviewPartner ? 'complete' : 'incomplete' }}"><span class="status-icon">{{ $interviewPartner ? '✓' : '○' }}</span> Partner assigned</div>
-                        <div class="week-four-progress-item {{ filled($interviewValues['about_you'] ?? null) ? 'complete' : 'incomplete' }}"><span class="status-icon">{{ filled($interviewValues['about_you'] ?? null) ? '✓' : '○' }}</span> About You</div>
-                        <div class="week-four-progress-item {{ $preparedCount >= 15 ? 'complete' : 'incomplete' }}"><span class="status-icon">{{ $preparedCount >= 15 ? '✓' : '○' }}</span> My practice questions: {{ $preparedCount }} / 15</div>
-                        <div class="week-four-progress-item {{ $answeredCount >= 15 ? 'complete' : 'incomplete' }}"><span class="status-icon">{{ $answeredCount >= 15 ? '✓' : '○' }}</span> Partner questions answered: {{ $answeredCount }} / 15</div>
-                        <div class="week-four-progress-item {{ $feedbackGivenCount >= 2 ? 'complete' : 'incomplete' }}"><span class="status-icon">{{ $feedbackGivenCount >= 2 ? '✓' : '○' }}</span> Feedback given: {{ $feedbackGivenCount }} / 2 required</div>
-                        <div class="week-four-progress-item {{ $feedbackReceivedCount >= 2 ? 'complete' : 'incomplete' }}"><span class="status-icon">{{ $feedbackReceivedCount >= 2 ? '✓' : '○' }}</span> Feedback received: {{ $feedbackReceivedCount }} / 2 required</div>
-                    </div></div>
-                    <div class="field"><label for="about_you">ABOUT YOU *</label><p class="muted">Briefly introduce yourself, your role, and your primary responsibilities.</p><textarea id="about_you" name="field_values[about_you]" rows="5" required>{{ old('field_values.about_you', $interviewValues['about_you'] ?? '') }}</textarea></div>
-                    <div class="submission-section-heading"><span class="eyebrow">PEER MOCK INTERVIEW</span><p class="muted">Prepare your questions and answer your partner's questions. Partner questions and answers remain owned by the other participant.</p></div>
-                    <div class="week-four-peer-sections">
-                        <section><div class="submission-section-heading"><span class="eyebrow">{{ strtoupper($interviewPartner?->name ?? 'PARTNER') }}'S PRACTICE QUESTIONS FOR ME</span></div><div class="week-four-question-list">
-                            @foreach($weekFourPracticeSlots as $number)
-                                @php($partnerQuestion = $practiceState['partner_questions'][$number] ?? '')
-                                @php($answerValue = old('field_values.practice_answers.'.$number, $practiceState['answers_to_partner'][$number] ?? ''))
-                                <div class="check week-four-question-card"><strong>Q{{ $number }}</strong>@if($partnerQuestion)<p><strong>Partner Question</strong></p><div class="ai"><x-formatted-text :text="$partnerQuestion" /></div><label for="practice-answer-{{ $number }}">My Answer</label><textarea id="practice-answer-{{ $number }}" name="field_values[practice_answers][{{ $number }}]" rows="4" maxlength="10000">{{ $answerValue }}</textarea>@else<p class="muted">Waiting for your partner to prepare this question.</p>@endif</div>
-                            @endforeach
-                        </div></section>
-                        <section><div class="submission-section-heading"><span class="eyebrow">MY PRACTICE QUESTIONS FOR {{ strtoupper($interviewPartner?->name ?? 'MY PARTNER') }}</span><p class="muted">Write open-ended questions. Do not reproduce the official questionnaire.</p></div><div class="week-four-question-list">
-                            @foreach($weekFourPracticeSlots as $number)
-                                @php($questionValue = old('field_values.practice_questions.'.$number, $practiceState['own_questions'][$number] ?? ''))
-                                <div class="check week-four-question-card"><label for="practice-question-{{ $number }}">Q{{ $number }} · My Question</label><textarea id="practice-question-{{ $number }}" name="field_values[practice_questions][{{ $number }}]" rows="4" maxlength="5000" @disabled(filled($practiceState['partner_answers'][$number] ?? null))>{{ $questionValue }}</textarea>@if(filled($practiceState['partner_answers'][$number] ?? null))<p class="muted">Answered by {{ $interviewPartner?->name }} — question locked.</p>@else<p class="muted">Partner Answer: Waiting for {{ $interviewPartner?->name ?? 'your partner' }} to answer.</p>@endif</div>
-                            @endforeach
-                        </div><div class="submission-section-heading" style="margin-top:14px"><span class="eyebrow">PARTNER ANSWERS</span></div><div class="week-four-question-list">@foreach($weekFourPracticeSlots as $number)@if(filled($practiceState['partner_answers'][$number] ?? null))<div class="check week-four-question-card"><strong>Q{{ $number }}</strong><p class="muted">Answered by {{ $interviewPartner?->name }} — question locked.</p><x-formatted-text :text="$practiceState['partner_answers'][$number]" /></div>@endif @endforeach</div></section>
-                    </div>
-                    <div class="submission-section-heading"><span class="eyebrow">MENTOR MOCK INTERVIEW</span><p class="muted">Schedule a separate {{ config('training.week_four_mentor_interview_duration_minutes') }}-minute mock interview with your assigned Mentor/Coach.</p></div>
-                    @if($mentor)
-                        <div class="check"><strong>YOUR MENTOR</strong><p><strong>{{ $mentor->name }}</strong><br>{{ $mentor->email }}</p><p class="muted">Timezone: {{ config('training.week_four_mentor_interview_timezone') }} · Duration: {{ config('training.week_four_mentor_interview_duration_minutes') }} minutes</p>
-                        @if(! $participantCalendarEnabled)<p class="warning"><strong>CALENDAR / GOOGLE MEET UNAVAILABLE</strong><br>Calendar / Google Meet scheduling is temporarily unavailable while the integration is being configured. Your existing Google Drive connection is not affected.</p>@elseif($peerWaiver)<p class="success">✓ Peer mock interview requirement waived by Coach/Admin.</p>@elseif(! $peerPrerequisiteSatisfied)<p class="error"><strong>MENTOR SCHEDULING UNAVAILABLE</strong><br>Your partner mock interview is still incomplete. Complete the required peer interview steps before scheduling with your Mentor.</p>@endif
-                        @if($mentorSchedule?->status === 'scheduled')
-                            <div class="week-four-progress-item complete"><span class="status-icon">✓</span> Mentor mock interview scheduled</div><p><strong>{{ $mentorSchedule->startsAtInTimezone()->format('F j, Y') }}</strong><br>{{ $mentorSchedule->startsAtInTimezone()->format('g:i A') }} – {{ $mentorSchedule->endsAtInTimezone()->format('g:i A') }} ({{ $mentorSchedule->timezone }})</p><a class="btn secondary" href="{{ $mentorSchedule->google_meet_url }}" target="_blank" rel="noopener noreferrer">Join Google Meet</a><details style="margin-top:12px"><summary>Reschedule</summary><form method="POST" action="{{ route('training.mentor-interview.reschedule', [$trainingWeek, $activity]) }}" class="form">@csrf @method('PUT')<div class="field"><label for="mentor-interview-reschedule-at">New date and time <span aria-hidden="true">*</span></label><input id="mentor-interview-reschedule-at" type="datetime-local" name="scheduled_at" required min="{{ now($mentorSchedule->timezone)->format('Y-m-d\\TH:i') }}" value="{{ $mentorSchedule->startsAtInTimezone()->format('Y-m-d\\TH:i') }}" aria-describedby="mentor-interview-timezone"></div><p id="mentor-interview-timezone" class="muted">Timezone: {{ $mentorSchedule->timezone }} · Duration: {{ $mentorSchedule->duration_minutes }} minutes</p><button class="btn" type="submit">Update Schedule</button></form></details>
-                        @else
-                            @if(! $peerPrerequisiteSatisfied)<button class="btn secondary" type="button" disabled aria-disabled="true">Schedule Mock Interview — disabled</button>@endif
-                            <div class="week-four-progress-item incomplete"><span class="status-icon">○</span> Mentor mock interview scheduled</div><form method="POST" action="{{ route('training.mentor-interview.schedule', [$trainingWeek, $activity]) }}" class="form" style="margin-top:12px">@csrf<div class="field"><label for="mentor-interview-at">Schedule <span aria-hidden="true">*</span></label><input id="mentor-interview-at" type="datetime-local" name="scheduled_at" required min="{{ now(config('training.week_four_mentor_interview_timezone'))->format('Y-m-d\\TH:i') }}" aria-describedby="mentor-interview-timezone"></div><p id="mentor-interview-timezone" class="muted">Timezone: {{ config('training.week_four_mentor_interview_timezone') }} · Duration: {{ config('training.week_four_mentor_interview_duration_minutes') }} minutes</p><button class="btn" type="submit">Schedule Mock Interview</button></form>
-                        @endif</div>
+
+                @if($isEditable)
+                    @if($trainingWeek->week_number === 3)
+                        @include('submissions.week-three', ['activity' => $activity, 'trainingWeek' => $trainingWeek, 'workspace' => $weekThreeWorkspace, 'paths' => $weekThreePaths, 'version' => $version])
                     @else
-                        <div class="error"><strong>MENTOR MOCK INTERVIEW</strong><p>Waiting for Mentor Assignment</p><p class="muted">A Mentor/Coach must be assigned before you can schedule your mock interview.</p></div>
-                    @endif
-                    <script>
-                        (() => { const form = document.querySelector('[data-submission-form]'); if (!form) return; const prepared = [...form.querySelectorAll('[name^="field_values[practice_questions]"]')]; const answered = [...form.querySelectorAll('[name^="field_values[practice_answers]"]')]; const sync = () => { const count = (fields) => fields.filter((field) => field.value.trim() !== '').length; const preparedCount = form.querySelector('[data-prepared-count]'); const answeredCount = form.querySelector('[data-answered-count]'); if (preparedCount) preparedCount.textContent = count(prepared); if (answeredCount) answeredCount.textContent = count(answered); }; [...prepared, ...answered].forEach((field) => field.addEventListener('input', sync)); sync(); })();
-                        const mentorEligible = @json($peerPrerequisiteSatisfied && $participantCalendarEnabled);
-                        if (!mentorEligible) {
-                            document.querySelectorAll('input[name="scheduled_at"], button[type="submit"]').forEach((control) => {
-                                if (control.closest('form[action*="mentor-interview"]')) {
-                                    control.disabled = true;
-                                    control.setAttribute('aria-disabled', 'true');
-                                }
-                            });
-                        }
-                    </script>
-                @endif
-                @if(!($trainingWeek->week_number === 4 && $activity->position === 2))
-                @php($artifactContextShown = false)
-                @php($activityWorkShown = false)
-                @foreach ($fields as $key => $field)
-                    @if(($field['section'] ?? null) === 'artifact_context' && ! $artifactContextShown)
-                        <div class="submission-section-heading"><span class="eyebrow">1. AI / ARTIFACT CONTEXT</span><p class="muted">Document the AI artifact you are working with before recording your activity-specific QA work.</p></div>
-                        @php($artifactContextShown = true)
-                    @elseif(($field['section'] ?? null) !== 'artifact_context' && ! $activityWorkShown)
-                        <div class="submission-section-heading"><span class="eyebrow">{{ $artifactContextShown ? '2.' : '1.' }} YOUR QA WORK</span><p class="muted">Complete the activity-specific questions in the configured workflow order.</p></div>
-                        @php($activityWorkShown = true)
-                    @endif
-                    <div class="field">
-                        <label for="{{ $key }}">{{ $field['label'] }}{{ ($field['required'] ?? false) ? ' *' : '' }}</label>
-                        @if(in_array($key, ['exact_prompt', 'exact_ai_output', 'ai_output', 'prompt'], true))<p class="muted">Maximum 50,000 characters.</p>@endif
-                        @php($fieldMax = \App\Support\FieldLimits::forField($key, ($field['type'] ?? 'textarea')))
-                        @if(($field['type'] ?? null) === 'participant_selector')
-                            @if($activity->week?->week_number === 4 && $activity->position === 2)
-                                <input type="hidden" name="field_values[{{ $key }}]" value="{{ $interviewPartner?->id }}">
-                                @if($interviewPartner)<div class="check"><strong>Your Mock Interview Partner</strong><p><strong>{{ $interviewPartner->name }}</strong><br>{{ $interviewPartner->email }}</p><p class="muted">Assigned by your QA Coach/Mentor. This assignment is read-only.</p></div>@else<div class="error">Partner Assignment Pending<p class="muted">Your QA Coach/Mentor has not assigned your mock interview partner yet.</p></div>@endif
-                            @else
-                            <select id="{{ $key }}" name="field_values[{{ $key }}]" @required($field['required'] ?? false)>
-                                <option value="">Search or select a QA participant</option>
-                                @foreach($eligiblePartners as $partner)
-                                    <option value="{{ $partner->id }}" @selected((string) old('field_values.'.$key, $version?->field_values[$key] ?? '') === (string) $partner->id)>{{ $partner->name }} · {{ ucfirst(str_replace('_', ' / ', $partner->training_path ?? 'QA')) }}</option>
-                                @endforeach
-                            </select>
-                            <p class="muted">Your own account is excluded. The selected partner is saved in the submitted historical snapshot.</p>
+                        <form class="m-0 grid grid-cols-1 gap-5" method="post" action="{{ route('training.submission.draft', [$trainingWeek, $activity]) }}" data-submission-form>
+                            @csrf
+                            @if($showInteractions)
+                                @include('submissions.interactions', [
+                                    'rows' => $interactionRows,
+                                    'sectionHeadingClasses' => $sectionHeadingClasses,
+                                    'rowClasses' => $rowClasses,
+                                    'labelClasses' => $labelClasses,
+                                    'textareaClasses' => $textareaClasses,
+                                    'hintClasses' => $hintClasses,
+                                ])
                             @endif
-                        @elseif($activity->week?->week_number === 4 && $activity->position === 2 && str_ends_with($key, '_partner_feedback'))
-                            <p class="muted">Partner feedback is entered by your assigned partner in the Partner Feedback section below.</p>
-                        @elseif(($field['type'] ?? null) === 'date')
-                            <input id="{{ $key }}" type="date" name="field_values[{{ $key }}]" value="{{ old('field_values.'.$key, $version?->field_values[$key] ?? '') }}" @required($field['required'] ?? false)>
-                        @elseif($key === 'validation_submission_id')
-                            <select id="{{ $key }}" name="field_values[{{ $key }}]"><option value="">No Lab record selected</option>@foreach($labRecords as $record)<option value="{{ $record->id }}" @selected((string) old('field_values.'.$key, $selectedLabRecord?->id ?? $version?->field_values[$key] ?? '') === (string) $record->id)>#{{ $record->id }} · {{ $record->artifact_name ?: 'Name not provided' }} · {{ $record->artifact_code }} · {{ $record->created_at->format('Y-m-d H:i') }}</option>@endforeach</select>
-                            <p class="muted">Only your authenticated Lab records are shown.</p><a class="btn secondary" href="{{ route('lab.activity') }}">+ Create New Lab Record</a>
-                            @if($selectedLabRecord)
-                                <div class="check"><strong>QA Validation Lab Record</strong><br>✓ {{ $selectedLabRecord->artifact_name ?: 'Artifact name not provided' }}<br><span class="muted">{{ $selectedLabRecord->artifact_code }} · Lab Record #{{ $selectedLabRecord->id }}</span><br><button type="button" class="btn secondary" data-open-lab-modal>View Lab Record</button></div>
-                                <dialog id="validation-lab-modal" class="lab-modal" aria-labelledby="validation-lab-modal-title">
-                                    <div class="lab-modal-content">
-                                        <div class="lab-modal-header"><h2 id="validation-lab-modal-title">Validation Lab Record</h2><button type="button" class="lab-modal-close" data-close-lab-modal aria-label="Close Validation Lab Record">Close</button></div>
-                                        <div class="lab-modal-summary"><strong>{{ $selectedLabRecord->artifact_name ?: 'Artifact name not provided' }}</strong><span>{{ $selectedLabRecord->artifact_code }} · Lab Record #{{ $selectedLabRecord->id }}</span><span class="muted">Created {{ $selectedLabRecord->created_at->format('F j, Y H:i') }}</span></div>
-                                        <div class="lab-modal-columns">
-                                            <div class="lab-modal-column">
-                                                <div class="check lab-check-card"><strong>Artifact information</strong><p><strong>Artifact Name</strong><br>{{ $selectedLabRecord->artifact_name ?: 'Not provided' }}</p><p><strong>Artifact ID</strong><br>{{ $selectedLabRecord->artifact_code }}</p><p><strong>Lab Record</strong><br>#{{ $selectedLabRecord->id }}</p></div>
-                                                @foreach([['SOURCE', 'source_status', 'source_notes'], ['SCOPE', 'scope_status', 'scope_notes'], ['SPEC', 'spec_status', 'spec_notes']] as [$label, $status, $notes])<div class="check lab-check-card"><strong>{{ $label }}</strong><br><span class="lab-check-status">{{ strtoupper($selectedLabRecord->{$status} ?? 'Not provided') }}</span><br><span class="muted">Evidence / notes</span><p style="white-space:pre-line">{{ $selectedLabRecord->{$notes} ?: 'Not provided' }}</p></div>@endforeach
-                                            </div>
-                                            <div class="lab-modal-column">
-                                                @foreach([['CROSS-CHECK', 'cross_check_status', 'cross_check_notes'], ['RUN', 'run_status', 'run_notes'], ['LOG', 'log_status', 'log_notes']] as [$label, $status, $notes])<div class="check lab-check-card"><strong>{{ $label }}</strong><br><span class="lab-check-status">{{ strtoupper($selectedLabRecord->{$status} ?? 'Not provided') }}</span><br><span class="muted">Evidence / notes</span><p style="white-space:pre-line">{{ $selectedLabRecord->{$notes} ?: 'Not provided' }}</p></div>@endforeach
-                                                <div class="check lab-result-card"><strong>RESULT</strong><p><strong>Finding</strong><br><span style="white-space:pre-line">{{ $selectedLabRecord->finding ?: 'Not provided' }}</span></p><p><strong>Decision</strong><br>{{ $selectedLabRecord->decision ? strtoupper($selectedLabRecord->decision) : 'Not provided' }}</p><p><strong>Validation Evidence / Notes</strong><br><span style="white-space:pre-line">{{ $selectedLabRecord->evidence_notes ?: 'Not provided' }}</span></p></div>
-                                            </div>
-                                        </div>
+
+                            @if($isPeerInterview)
+                                <div class="{{ $sectionHeadingClasses }}">
+                                    <x-ui.eyebrow as="span">MOCK LEVEL 3 INTERVIEW</x-ui.eyebrow>
+                                    <p class="{{ $hintClasses }}">Create your own peer-practice questions, answer your partner's questions, and exchange feedback. The official assessment questionnaire is reserved for Coach/Mentor/Admin use.</p>
+                                </div>
+
+                                <section class="{{ $rowClasses }}" aria-labelledby="mock-interview-partners-title">
+                                    <h3 id="mock-interview-partners-title" class="{{ $rowTitleClasses }}">YOUR MOCK INTERVIEW PARTNERS</h3>
+                                    @if($partnerRows !== [])
+                                        <p class="{{ $hintClasses }}">Assigned by your QA Coach/Mentor. Each partner's interview content is kept separate.</p>
+                                        <ul class="m-0 grid list-none gap-3 p-0">
+                                            @foreach($partnerRows as $partnerRow)
+                                                <li class="grid gap-2">
+                                                    <div class="flex flex-wrap items-center gap-2">
+                                                        <strong class="wrap-break-word">{{ $partnerRow['partner']->name }}</strong>
+                                                        <x-ui.badge :tone="$partnerRow['week_four_unlocked'] ? 'success' : 'danger'">{{ $partnerRow['week_four_unlocked'] ? 'WEEK 4: UNLOCKED' : 'WEEK 4: LOCKED' }}</x-ui.badge>
+                                                    </div>
+                                                    <span class="text-sm wrap-anywhere text-muted">{{ $partnerRow['partner']->email }}</span>
+                                                    @if(! $partnerRow['week_four_unlocked'])
+                                                        <x-ui.alert tone="error" class="grid gap-1">
+                                                            <strong>PARTNER WEEK 4 STATUS</strong>
+                                                            <span>Your partner has not unlocked Week 4 yet. Please follow up with them to complete their remaining activities. You can continue preparing your own Week 4 work while you wait.</span>
+                                                        </x-ui.alert>
+                                                    @endif
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    @else
+                                        <x-ui.alert tone="error">Partner Assignment Pending</x-ui.alert>
+                                        <p class="{{ $hintClasses }}">Your QA Coach/Mentor has not assigned your mock interview partner yet.</p>
+                                    @endif
+                                </section>
+                                <input type="hidden" name="field_values[partner_user_id]" value="{{ $interviewPartner?->id }}">
+
+                                <details class="{{ $guidanceClasses }}">
+                                    <summary class="{{ $guidanceSummaryClasses }}">Interview Guidance</summary>
+                                    <div class="{{ $guidanceBodyClasses }}">
+                                        <p>Hi {{ $user->name ?? 'there' }}, thanks for joining. Quick context before we start:</p>
+                                        <p>We're doing this to understand where everyone at Full Scale stands with AI — not to evaluate your performance, but to figure out where to invest in the right development for the right people.</p>
+                                        <p>One thing to keep in mind throughout: don't limit your answers to just what I ask. The questions are starting points. If a question makes you think of a specific project, tool, or experience — go there. The more detail and story you give me, the better.</p>
+                                        <p>Think of it less like a quiz and more like telling a teammate what you've been working on. There are no wrong answers. If you haven't used something yet, just say so — that's useful too.</p>
                                     </div>
-                                </dialog>
+                                </details>
+
+                                <section class="{{ $rowClasses }}" aria-labelledby="peer-interview-progress-title">
+                                    <h3 id="peer-interview-progress-title" class="{{ $rowTitleClasses }}">PEER INTERVIEW PROGRESS</h3>
+                                    <ul class="m-0 grid list-none gap-2 p-0">
+                                        @foreach($peerInterviewProgress as $step)
+                                            <li class="{{ $stepClasses[$step['complete'] ? 'complete' : 'incomplete'] }}">
+                                                <span class="w-4 shrink-0" aria-hidden="true">{{ $step['complete'] ? '✓' : '○' }}</span>
+                                                {{ $step['label'] }} <span class="sr-only">({{ $step['complete'] ? 'complete' : 'incomplete' }})</span>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </section>
+
+                                <div class="grid gap-2">
+                                    <label for="about_you" class="{{ $labelClasses }}">ABOUT YOU *</label>
+                                    <p class="{{ $hintClasses }}">Briefly introduce yourself, your role, and your primary responsibilities.</p>
+                                    <textarea id="about_you" name="field_values[about_you]" rows="5" required class="{{ $textareaClasses }}">{{ old('field_values.about_you', $version?->field_values['about_you'] ?? '') }}</textarea>
+                                </div>
+
+                                <div class="{{ $sectionHeadingClasses }}">
+                                    <x-ui.eyebrow as="span">PEER MOCK INTERVIEW</x-ui.eyebrow>
+                                    <p class="{{ $hintClasses }}">Prepare your questions and answer your partner's questions. Partner questions and answers remain owned by the other participant.</p>
+                                </div>
+
+                                <section class="grid grid-cols-1 gap-3" aria-labelledby="partner-practice-questions-title">
+                                    <div class="{{ $sectionHeadingClasses }}">
+                                        <x-ui.eyebrow as="h3" id="partner-practice-questions-title" class="m-0">{{ strtoupper($interviewPartner?->name ?? 'PARTNER') }}'S PRACTICE QUESTIONS FOR ME</x-ui.eyebrow>
+                                    </div>
+                                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                        @foreach($practiceRows as $practice)
+                                            <div class="{{ $rowClasses }}">
+                                                <strong>Q{{ $practice['number'] }}</strong>
+                                                @if($practice['partner_question'])
+                                                    <p class="m-0 font-bold">Partner Question</p>
+                                                    <div class="min-w-0 rounded-xl bg-surface-sunken p-4">
+                                                        <x-formatted-text :text="$practice['partner_question']" />
+                                                    </div>
+                                                    <label for="practice-answer-{{ $practice['number'] }}" class="{{ $labelClasses }}">My Answer</label>
+                                                    <textarea id="practice-answer-{{ $practice['number'] }}" name="field_values[practice_answers][{{ $practice['number'] }}]" rows="4" maxlength="10000" class="{{ $textareaClasses }}">{{ old('field_values.practice_answers.'.$practice['number'], $practice['answer']) }}</textarea>
+                                                @else
+                                                    <p class="{{ $hintClasses }}">Waiting for your partner to prepare this question.</p>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </section>
+
+                                <section class="grid grid-cols-1 gap-3" aria-labelledby="my-practice-questions-title">
+                                    <div class="{{ $sectionHeadingClasses }}">
+                                        <x-ui.eyebrow as="h3" id="my-practice-questions-title" class="m-0">MY PRACTICE QUESTIONS FOR {{ strtoupper($interviewPartner?->name ?? 'MY PARTNER') }}</x-ui.eyebrow>
+                                        <p class="{{ $hintClasses }}">Write open-ended questions. Do not reproduce the official questionnaire.</p>
+                                    </div>
+                                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                        @foreach($practiceRows as $practice)
+                                            <div class="{{ $rowClasses }}">
+                                                <label for="practice-question-{{ $practice['number'] }}" class="{{ $labelClasses }}">Q{{ $practice['number'] }} · My Question</label>
+                                                <textarea id="practice-question-{{ $practice['number'] }}" name="field_values[practice_questions][{{ $practice['number'] }}]" rows="4" maxlength="5000" @disabled($practice['is_locked']) class="{{ $textareaClasses }}">{{ old('field_values.practice_questions.'.$practice['number'], $practice['own_question']) }}</textarea>
+                                                @if($practice['is_locked'])
+                                                    <p class="{{ $hintClasses }}">Answered by {{ $interviewPartner?->name }} — question locked.</p>
+                                                @else
+                                                    <p class="{{ $hintClasses }}">Partner Answer: Waiting for {{ $interviewPartner?->name ?? 'your partner' }} to answer.</p>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </section>
+
+                                <section class="grid grid-cols-1 gap-3" aria-labelledby="partner-answers-title">
+                                    <div class="{{ $sectionHeadingClasses }}">
+                                        <x-ui.eyebrow as="h3" id="partner-answers-title" class="m-0">PARTNER ANSWERS</x-ui.eyebrow>
+                                    </div>
+                                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                        @foreach($practiceRows as $practice)
+                                            @if($practice['is_locked'])
+                                                <div class="{{ $rowClasses }}">
+                                                    <strong>Q{{ $practice['number'] }}</strong>
+                                                    <p class="{{ $hintClasses }}">Answered by {{ $interviewPartner?->name }} — question locked.</p>
+                                                    <x-formatted-text :text="$practice['partner_answer']" />
+                                                </div>
+                                            @endif
+                                        @endforeach
+                                    </div>
+                                </section>
+
+                                <div class="{{ $sectionHeadingClasses }}">
+                                    <x-ui.eyebrow as="span">MENTOR MOCK INTERVIEW</x-ui.eyebrow>
+                                    <p class="{{ $hintClasses }}">Schedule a separate {{ $mentorInterviewDurationMinutes }}-minute mock interview with your assigned Mentor/Coach.</p>
+                                </div>
+
+                                @if($mentor)
+                                    <section class="{{ $rowClasses }} justify-items-start" aria-labelledby="mentor-title">
+                                        <h3 id="mentor-title" class="{{ $rowTitleClasses }}">YOUR MENTOR</h3>
+                                        <p class="m-0 wrap-anywhere"><strong>{{ $mentor->name }}</strong><br>{{ $mentor->email }}</p>
+                                        <p class="{{ $hintClasses }}">Timezone: {{ $mentorInterviewTimezone }} · Duration: {{ $mentorInterviewDurationMinutes }} minutes</p>
+                                        @if(! $participantCalendarEnabled)
+                                            <x-ui.alert tone="warning" class="grid w-full gap-1">
+                                                <strong>CALENDAR / GOOGLE MEET UNAVAILABLE</strong>
+                                                <span>Calendar / Google Meet scheduling is temporarily unavailable while the integration is being configured. Your existing Google Drive connection is not affected.</span>
+                                            </x-ui.alert>
+                                        @elseif($peerWaiver)
+                                            <x-ui.alert tone="success" class="w-full">✓ Peer mock interview requirement waived by Coach/Admin.</x-ui.alert>
+                                        @elseif(! $peerPrerequisiteSatisfied)
+                                            <x-ui.alert tone="error" class="grid w-full gap-1">
+                                                <strong>MENTOR SCHEDULING UNAVAILABLE</strong>
+                                                <span>Your partner mock interview is still incomplete. Complete the required peer interview steps before scheduling with your Mentor.</span>
+                                            </x-ui.alert>
+                                        @endif
+
+                                        @if($mentorSchedule?->status === 'scheduled')
+                                            <p class="{{ $stepClasses['complete'] }} m-0 w-full">
+                                                <span class="w-4 shrink-0" aria-hidden="true">✓</span>
+                                                Mentor mock interview scheduled <span class="sr-only">(complete)</span>
+                                            </p>
+                                            <p class="m-0"><strong>{{ $mentorSchedule->startsAtInTimezone()->format('F j, Y') }}</strong><br>{{ $mentorSchedule->startsAtInTimezone()->format('g:i A') }} – {{ $mentorSchedule->endsAtInTimezone()->format('g:i A') }} ({{ $mentorSchedule->timezone }})</p>
+                                            <x-ui.button variant="secondary" :href="$mentorSchedule->google_meet_url" target="_blank" rel="noopener noreferrer">Join Google Meet</x-ui.button>
+                                            <details class="{{ $guidanceClasses }} w-full">
+                                                <summary class="{{ $guidanceSummaryClasses }}">Reschedule</summary>
+                                                <form method="POST" action="{{ route('training.mentor-interview.reschedule', [$trainingWeek, $activity]) }}" class="m-0 grid justify-items-start gap-3 px-3 pb-3">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <div class="grid w-full gap-2">
+                                                        <label for="mentor-interview-reschedule-at" class="{{ $labelClasses }}">New date and time <span aria-hidden="true">*</span></label>
+                                                        <input id="mentor-interview-reschedule-at" type="datetime-local" name="scheduled_at" required min="{{ now($mentorSchedule->timezone)->format('Y-m-d\\TH:i') }}" value="{{ $mentorSchedule->startsAtInTimezone()->format('Y-m-d\\TH:i') }}" aria-describedby="mentor-interview-timezone" class="{{ $controlClasses }}">
+                                                    </div>
+                                                    <p id="mentor-interview-timezone" class="{{ $hintClasses }}">Timezone: {{ $mentorSchedule->timezone }} · Duration: {{ $mentorSchedule->duration_minutes }} minutes</p>
+                                                    <x-ui.button variant="secondary" type="submit">Update Schedule</x-ui.button>
+                                                </form>
+                                            </details>
+                                        @else
+                                            @if(! $peerPrerequisiteSatisfied)
+                                                <x-ui.button variant="secondary" disabled aria-disabled="true">Schedule Mock Interview — disabled</x-ui.button>
+                                            @endif
+                                            <p class="{{ $stepClasses['incomplete'] }} m-0 w-full">
+                                                <span class="w-4 shrink-0" aria-hidden="true">○</span>
+                                                Mentor mock interview scheduled <span class="sr-only">(incomplete)</span>
+                                            </p>
+                                            <form method="POST" action="{{ route('training.mentor-interview.schedule', [$trainingWeek, $activity]) }}" class="m-0 grid w-full justify-items-start gap-3">
+                                                @csrf
+                                                <div class="grid w-full gap-2">
+                                                    <label for="mentor-interview-at" class="{{ $labelClasses }}">Schedule <span aria-hidden="true">*</span></label>
+                                                    <input id="mentor-interview-at" type="datetime-local" name="scheduled_at" required min="{{ now($mentorInterviewTimezone)->format('Y-m-d\\TH:i') }}" aria-describedby="mentor-interview-timezone" class="{{ $controlClasses }}">
+                                                </div>
+                                                <p id="mentor-interview-timezone" class="{{ $hintClasses }}">Timezone: {{ $mentorInterviewTimezone }} · Duration: {{ $mentorInterviewDurationMinutes }} minutes</p>
+                                                <x-ui.button variant="secondary" type="submit">Schedule Mock Interview</x-ui.button>
+                                            </form>
+                                        @endif
+                                    </section>
+                                @else
+                                    <x-ui.alert tone="error" class="grid gap-1">
+                                        <strong>MENTOR MOCK INTERVIEW</strong>
+                                        <span>Waiting for Mentor Assignment</span>
+                                        <span class="opacity-80">A Mentor/Coach must be assigned before you can schedule your mock interview.</span>
+                                    </x-ui.alert>
+                                @endif
                                 <script>
                                     (() => {
-                                        const dialog = document.getElementById('validation-lab-modal');
-                                        const open = document.querySelector('[data-open-lab-modal]');
-                                        const close = document.querySelector('[data-close-lab-modal]');
-                                        if (!dialog || !open || !close) return;
-                                        let previousFocus;
-                                        open.addEventListener('click', () => { previousFocus = document.activeElement; dialog.showModal(); close.focus(); });
-                                        close.addEventListener('click', () => dialog.close());
-                                        dialog.addEventListener('close', () => previousFocus?.focus());
-                                        dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+                                        const mentorEligible = @json($peerPrerequisiteSatisfied && $participantCalendarEnabled);
+                                        if (mentorEligible) {
+                                            return;
+                                        }
+                                        document.querySelectorAll('input[name="scheduled_at"], button[type="submit"]').forEach((control) => {
+                                            if (control.closest('form[action*="mentor-interview"]')) {
+                                                control.disabled = true;
+                                                control.setAttribute('aria-disabled', 'true');
+                                            }
+                                        });
                                     })();
                                 </script>
                             @endif
-                        @elseif($key === 'artifact_type')
-                            @php($artifactTypeValue = old('field_values.'.$key, $version?->field_values[$key] ?? ''))
-                            @php($artifactTypeCustom = $artifactTypeValue !== '' && ! in_array($artifactTypeValue, config('validation_lab.artifact_types'), true))
-                            <select id="{{ $key }}" name="field_values[{{ $key }}]" data-artifact-type-select @required($field['required'] ?? false) @disabled($artifactTypeCustom)>
-                                <option value="">Select artifact type</option>
-                                @foreach(config('validation_lab.artifact_types') as $type)<option value="{{ $type }}" @selected(! $artifactTypeCustom && $artifactTypeValue === $type)>{{ $type }}</option>@endforeach
-                            </select>
-                            <div data-artifact-type-other @if(! $artifactTypeCustom) hidden @endif style="margin-top:10px"><label for="{{ $key }}-other">Other Artifact Type{{ ($field['required'] ?? false) ? ' *' : '' }}</label><input id="{{ $key }}-other" type="text" name="field_values[{{ $key }}_other]" value="{{ $artifactTypeCustom ? $artifactTypeValue : '' }}" maxlength="120" placeholder="Enter the artifact type…" @disabled(! $artifactTypeCustom) @required($artifactTypeCustom && ($field['required'] ?? false))><p class="muted">Select Other only when the artifact does not fit the configured options.</p></div>
-                            <p class="muted">Select the type of AI-generated QA artifact you are validating or using for this activity.</p>
-                            <script>
-                                (() => { const select = document.querySelector('[data-artifact-type-select]'); const wrap = document.querySelector('[data-artifact-type-other]'); const input = wrap?.querySelector('input'); if (!select || !wrap || !input) return; const sync = () => { const custom = select.value === 'Other'; wrap.hidden = !custom; select.disabled = custom; input.disabled = !custom; input.required = custom && select.required; if (!custom) input.value = ''; }; select.addEventListener('change', sync); sync(); })();
-                            </script>
-                        @elseif(($field['type'] ?? 'textarea') === 'select')
-                            <select id="{{ $key }}" name="field_values[{{ $key }}]" @required($field['required'] ?? false)>
-                                <option value="">Select an option</option>
-                                @foreach(($field['options'] ?? []) as $option)
-                                    <option value="{{ $option }}" @selected(old('field_values.'.$key, $version?->field_values[$key] ?? '') === $option)>{{ $option }}</option>
-                                @endforeach
-                            </select>
-                            @if($key === 'decision')
-                                <p class="muted">Accept — Validation passed; no changes needed.<br>Revise — An issue was found, but you can correct the artifact yourself.<br>Re-prompt AI — The AI output needs substantial changes, so use AI to generate an improved version.<br>Reject — The artifact is unreliable or unsuitable and should not be used.</p>
-                            @endif
-                        @elseif(($field['type'] ?? 'textarea') === 'url')
-                            <input id="{{ $key }}" type="url" name="field_values[{{ $key }}]" value="{{ old('field_values.'.$key, $version?->field_values[$key] ?? '') }}" maxlength="{{ $fieldMax }}" @required($field['required'] ?? false)>
-                            <span class="muted" data-char-count></span>
-                        @elseif(($field['type'] ?? 'textarea') === 'text')
-                            <input id="{{ $key }}" type="text" name="field_values[{{ $key }}]" value="{{ old('field_values.'.$key, $version?->field_values[$key] ?? '') }}" maxlength="{{ $fieldMax }}" @required($field['required'] ?? false)>
-                            <span class="muted" data-char-count></span>
-                        @elseif(\App\Support\Markdown::editorPreview($key))
-                            <div class="markdown-field">
-                                <div class="markdown-tabs" role="group" aria-label="Write or preview">
-                                    <button type="button" class="markdown-tab markdown-tab-active" data-markdown-mode="write" aria-pressed="true">Write</button>
-                                    <button type="button" class="markdown-tab" data-markdown-mode="preview" aria-pressed="false">Preview</button>
+
+                            @foreach($fieldSections as $section)
+                                <div class="{{ $sectionHeadingClasses }}">
+                                    <x-ui.eyebrow as="span">{{ $section['title'] }}</x-ui.eyebrow>
+                                    <p class="{{ $hintClasses }}">{{ $section['description'] }}</p>
                                 </div>
-                                <textarea id="{{ $key }}" name="field_values[{{ $key }}]" rows="8" maxlength="{{ $fieldMax }}" data-markdown-source data-markdown-paste @required($field['required'] ?? false)>{{ old('field_values.'.$key, $version?->field_values[$key] ?? '') }}</textarea>
-                                <div class="markdown markdown-preview" data-markdown-preview hidden></div>
-                                <span class="muted" data-char-count></span>
-                            </div>
-                        @else
-                            <textarea id="{{ $key }}" name="field_values[{{ $key }}]" rows="8" maxlength="{{ $fieldMax }}" @required($field['required'] ?? false)>{{ old('field_values.'.$key, $version?->field_values[$key] ?? '') }}</textarea>
-                            <span class="muted" data-char-count></span>
-                        @endif
-                        @if(!empty($field['help']))<p class="muted">{{ $field['help'] }}</p>@endif
-                        @if(!empty($field['guidance']))
-                            <details class="field-guidance">
-                                <summary>Field guidance</summary>
-                                <div class="field-guidance-content">
-                                    <p><strong>What to enter</strong><br>{{ $field['guidance']['what'] ?? '' }}</p>
-                                    <p><strong>Why it matters</strong><br>{{ $field['guidance']['why'] ?? '' }}</p>
-                                    @if(!empty($field['guidance']['example']))<p><strong>Good example</strong><br>{{ $field['guidance']['example'] }}</p>@endif
-                                    @if(!empty($field['guidance']['avoid']))<p><strong>Avoid</strong><br>{{ $field['guidance']['avoid'] }}</p>@endif
-                                    @if(!empty($field['guidance']['evidence']))<p><strong>Evidence</strong><br>{{ $field['guidance']['evidence'] }}</p>@endif
-                                </div>
-                            </details>
-                        @endif
-                    </div>
-                @endforeach
-                @endif
-                <div class="field"><label for="participant_note">Participant note (optional)</label><x-markdown-field id="participant_note" name="participant_note" :value="old('participant_note', $version?->participant_note)" :maxlength="\App\Support\FieldLimits::NOTE"/>
-                    <details class="field-guidance">
-                        <summary>Field guidance</summary>
-                        <div class="field-guidance-content"><p><strong>What to enter</strong><br>Add context that will help your coach understand a limitation, assumption, follow-up, or decision not captured in the activity fields.</p><p><strong>Why it matters</strong><br>Clear notes make your reasoning and next steps traceable without changing the submitted answers.</p><p><strong>Good example</strong><br>I could not run the production-like check, so I documented the staging result and the follow-up needed.</p><p><strong>Avoid</strong><br>Do not use this as a replacement for required fields or claim work that you did not perform.</p></div>
-                    </details>
-                </div>
-                <p class="muted" data-autosave-status role="status" aria-live="polite">Changes save automatically.</p>
-            </form>
-            @endif
-        @else
-            <p>This submitted version is immutable. If a coach requests revision, a new version will be created.</p>
-        @endif
-    </div>
-    @if ($version && $version->status === 'draft')
-        <div class="card" style="margin-top:18px"><h2>Evidence</h2><p class="muted">Upload the evidence that lets your coach verify the work described in this activity. Files attach automatically after upload.</p>
-            @foreach ($evidenceRequirements as $requirement)
-                <div class="check"><strong>{{ $requirement->title }}</strong><p class="muted">{{ $requirement->description }}</p>
-                    @foreach ($version->evidence->where('evidence_requirement_id', $requirement->id) as $evidence)
-                        <p><strong>{{ $evidence->title ?: 'Evidence' }}</strong> · Type: {{ filled($evidence->disk) && filled($evidence->path) && filled($evidence->original_filename) ? 'Uploaded File' : ucfirst($evidence->evidence_type) }} @if(filled($evidence->disk) && filled($evidence->path) && filled($evidence->original_filename)) · {{ $evidence->original_filename }} <x-evidence-actions :evidence="$evidence" />@elseif($evidence->url)<a href="{{ $evidence->url }}" target="_blank" rel="noopener noreferrer">Open evidence link</a>@elseif($evidence->content)<span class="muted"> · Text evidence</span>@endif</p>
-                    @endforeach
-                    @if(false)
-                        <form class="form" method="post" action="{{ route('training.evidence.store', [$trainingWeek, $activity, $version]) }}">
-                            @csrf
-                            <input type="hidden" name="evidence_requirement_id" value="{{ $requirement->id }}">
-                            <div class="field"><label for="weekly-video-title-{{ $requirement->id }}">Evidence title</label><input id="weekly-video-title-{{ $requirement->id }}" name="title" value="Weekly Video Recording"></div>
-                            <div class="field"><label for="weekly-video-file-{{ $requirement->id }}">Video File *</label><input id="weekly-video-file-{{ $requirement->id }}" name="file" type="file" required accept="video/*"><p class="muted">Upload a video file · maximum {{ round(config('training.weekly_video_max_kb', 358400) / 1024, 1) }} MB</p><p class="muted">Common video formats are supported.</p>
-                                <details class="field-guidance" open>
-                                    <summary>Video Recording guidance</summary>
-                                    <div class="field-guidance-content">
-                                        <p><strong>What to show</strong><br>Record your actual Week {{ $trainingWeek->week_number }} QA work, not a generic explanation. Show the artifact or work product, the evidence you reviewed, the important reasoning, and your final QA conclusion.</p>
-                                        @if($trainingWeek->week_number === 3)
-                                            <p><strong>Week 3 structure</strong><br>Show Activity 1 failure investigation and root-cause reasoning (0:00–2:00), Activity 2's AI-generated script and your QA corrections (2:00–4:00), Activity 3's regression priorities and coverage gaps (4:00–6:00), then your overall QA conclusion (6:00–7:00).</p>
-                                        @else
-                                            <p><strong>Recommended structure</strong><br>Introduce the task, walk through the AI-assisted work, explain how you validated it, call out risks or errors, and finish with the decision you would give a coach or team.</p>
+
+                                @foreach($section['fields'] as $field)
+                                    @php
+                                        $key = $field['key'];
+                                        $isRequired = $field['required'] ?? false;
+                                        $value = old('field_values.'.$key, $version?->field_values[$key] ?? '');
+                                        $isCustomArtifactType = $field['control'] === 'artifact_type' && $value !== '' && ! in_array($value, $artifactTypes, true);
+                                    @endphp
+                                    <div class="grid min-w-0 gap-2" data-field>
+                                        <label for="{{ $key }}" class="{{ $labelClasses }}">{{ $field['label'] }}{{ $isRequired ? ' *' : '' }}</label>
+                                        @if($field['has_length_note'])
+                                            <p class="{{ $hintClasses }}">Maximum 50,000 characters.</p>
                                         @endif
-                                        <p><strong>Acceptable</strong><br>Use a clear video recording that demonstrates your own work and matches the submitted activity evidence.</p>
-                                        <p><strong>Avoid</strong><br>Do not submit a generic tutorial, someone else's recording, an empty link, or a video that claims checks, evidence, or results you did not perform.</p>
+
+                                        @if($field['control'] === 'date')
+                                            <input id="{{ $key }}" type="date" name="field_values[{{ $key }}]" value="{{ $value }}" @required($isRequired) class="{{ $controlClasses }}">
+                                        @elseif($field['control'] === 'lab_record')
+                                            <select id="{{ $key }}" name="field_values[{{ $key }}]" class="{{ $controlClasses }}">
+                                                <option value="">No Lab record selected</option>
+                                                @foreach($labRecords as $record)
+                                                    <option value="{{ $record->id }}" @selected((string) old('field_values.'.$key, $selectedLabRecord?->id ?? $version?->field_values[$key] ?? '') === (string) $record->id)>#{{ $record->id }} · {{ $record->artifact_name ?: 'Name not provided' }} · {{ $record->artifact_code }} · {{ $record->created_at->format('Y-m-d H:i') }}</option>
+                                                @endforeach
+                                            </select>
+                                            <p class="{{ $hintClasses }}">Only your authenticated Lab records are shown.</p>
+                                            <x-ui.button variant="secondary" :href="route('lab.activity')" class="justify-self-start">+ Create New Lab Record</x-ui.button>
+                                            @if($selectedLabRecord)
+                                                <div class="{{ $rowClasses }} justify-items-start">
+                                                    <strong>QA Validation Lab Record</strong>
+                                                    <span class="wrap-anywhere">✓ {{ $selectedLabRecord->artifact_name ?: 'Artifact name not provided' }}</span>
+                                                    <span class="text-sm text-muted">{{ $selectedLabRecord->artifact_code }} · Lab Record #{{ $selectedLabRecord->id }}</span>
+                                                    <x-ui.button variant="secondary" data-open-lab-modal>View Lab Record</x-ui.button>
+                                                </div>
+                                                <dialog id="validation-lab-modal" aria-labelledby="validation-lab-modal-title" class="m-auto max-h-[min(86vh,860px)] w-[min(95vw,1400px)] max-w-none rounded-[18px] border border-line bg-surface p-0 text-slate-100 backdrop:bg-[rgb(3_5_15/0.78)] max-md:w-[calc(100vw-20px)]">
+                                                    <div class="grid max-h-[86vh] gap-5 overflow-y-auto p-6 max-md:p-4.5">
+                                                        <div class="flex items-center justify-between gap-4">
+                                                            <h2 id="validation-lab-modal-title" class="m-0 text-xl font-extrabold">Validation Lab Record</h2>
+                                                            <x-ui.button variant="secondary" data-close-lab-modal aria-label="Close Validation Lab Record">Close</x-ui.button>
+                                                        </div>
+                                                        <div class="grid gap-1">
+                                                            <strong class="wrap-anywhere">{{ $selectedLabRecord->artifact_name ?: 'Artifact name not provided' }}</strong>
+                                                            <span>{{ $selectedLabRecord->artifact_code }} · Lab Record #{{ $selectedLabRecord->id }}</span>
+                                                            <span class="text-sm text-muted">Created {{ $selectedLabRecord->created_at->format('F j, Y H:i') }}</span>
+                                                        </div>
+                                                        <div class="grid grid-cols-1 gap-4 md:grid-flow-col md:grid-cols-2 md:grid-rows-4">
+                                                            <div class="{{ $rowClasses }} content-start">
+                                                                <strong>Artifact information</strong>
+                                                                <p class="m-0 wrap-anywhere"><strong>Artifact Name</strong><br>{{ $selectedLabRecord->artifact_name ?: 'Not provided' }}</p>
+                                                                <p class="m-0"><strong>Artifact ID</strong><br>{{ $selectedLabRecord->artifact_code }}</p>
+                                                                <p class="m-0"><strong>Lab Record</strong><br>#{{ $selectedLabRecord->id }}</p>
+                                                            </div>
+                                                            @foreach($labRecordChecks as $check)
+                                                                <div class="{{ $rowClasses }} content-start">
+                                                                    <strong>{{ $check['label'] }}</strong>
+                                                                    <span class="text-xs font-black tracking-[0.08em] text-emerald-200">{{ $check['status'] }}</span>
+                                                                    <span class="text-sm text-muted">Evidence / notes</span>
+                                                                    <p class="m-0 wrap-anywhere whitespace-pre-line">{{ $check['notes'] }}</p>
+                                                                </div>
+                                                            @endforeach
+                                                            <div class="{{ $rowClasses }} content-start">
+                                                                <strong>RESULT</strong>
+                                                                <p class="m-0"><strong>Finding</strong><br><span class="wrap-anywhere whitespace-pre-line">{{ $selectedLabRecord->finding ?: 'Not provided' }}</span></p>
+                                                                <p class="m-0"><strong>Decision</strong><br>{{ $selectedLabRecord->decision ? strtoupper($selectedLabRecord->decision) : 'Not provided' }}</p>
+                                                                <p class="m-0"><strong>Validation Evidence / Notes</strong><br><span class="wrap-anywhere whitespace-pre-line">{{ $selectedLabRecord->evidence_notes ?: 'Not provided' }}</span></p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </dialog>
+                                                <script>
+                                                    (() => {
+                                                        const dialog = document.getElementById('validation-lab-modal');
+                                                        const open = document.querySelector('[data-open-lab-modal]');
+                                                        const close = document.querySelector('[data-close-lab-modal]');
+                                                        if (!dialog || !open || !close) return;
+                                                        let previousFocus;
+                                                        open.addEventListener('click', () => { previousFocus = document.activeElement; dialog.showModal(); close.focus(); });
+                                                        close.addEventListener('click', () => dialog.close());
+                                                        dialog.addEventListener('close', () => previousFocus?.focus());
+                                                        dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+                                                    })();
+                                                </script>
+                                            @endif
+                                        @elseif($field['control'] === 'artifact_type')
+                                            <select id="{{ $key }}" name="field_values[{{ $key }}]" data-artifact-type-select @required($isRequired) @disabled($isCustomArtifactType) class="{{ $controlClasses }}">
+                                                <option value="">Select artifact type</option>
+                                                @foreach($artifactTypes as $type)
+                                                    <option value="{{ $type }}" @selected(! $isCustomArtifactType && $value === $type)>{{ $type }}</option>
+                                                @endforeach
+                                            </select>
+                                            <div data-artifact-type-other @if(! $isCustomArtifactType) hidden @endif>
+                                                <div class="grid gap-2">
+                                                    <label for="{{ $key }}-other" class="{{ $labelClasses }}">Other Artifact Type{{ $isRequired ? ' *' : '' }}</label>
+                                                    <input id="{{ $key }}-other" type="text" name="field_values[{{ $key }}_other]" value="{{ $isCustomArtifactType ? $value : '' }}" maxlength="120" placeholder="Enter the artifact type…" @disabled(! $isCustomArtifactType) @required($isCustomArtifactType && $isRequired) class="{{ $controlClasses }}">
+                                                    <p class="{{ $hintClasses }}">Select Other only when the artifact does not fit the configured options.</p>
+                                                </div>
+                                            </div>
+                                            <p class="{{ $hintClasses }}">Select the type of AI-generated QA artifact you are validating or using for this activity.</p>
+                                            <script>
+                                                (() => {
+                                                    const select = document.querySelector('[data-artifact-type-select]');
+                                                    const wrap = document.querySelector('[data-artifact-type-other]');
+                                                    const input = wrap?.querySelector('input');
+                                                    if (!select || !wrap || !input) return;
+                                                    const sync = () => {
+                                                        const custom = select.value === 'Other';
+                                                        wrap.hidden = !custom;
+                                                        select.disabled = custom;
+                                                        input.disabled = !custom;
+                                                        input.required = custom && select.required;
+                                                        if (!custom) input.value = '';
+                                                    };
+                                                    select.addEventListener('change', sync);
+                                                    sync();
+                                                })();
+                                            </script>
+                                        @elseif($field['control'] === 'select')
+                                            <select id="{{ $key }}" name="field_values[{{ $key }}]" @required($isRequired) class="{{ $controlClasses }}">
+                                                <option value="">Select an option</option>
+                                                @foreach(($field['options'] ?? []) as $option)
+                                                    <option value="{{ $option }}" @selected($value === $option)>{{ $option }}</option>
+                                                @endforeach
+                                            </select>
+                                            @if($key === 'decision')
+                                                <p class="{{ $hintClasses }}">Accept — Validation passed; no changes needed.<br>Revise — An issue was found, but you can correct the artifact yourself.<br>Re-prompt AI — The AI output needs substantial changes, so use AI to generate an improved version.<br>Reject — The artifact is unreliable or unsuitable and should not be used.</p>
+                                            @endif
+                                        @elseif($field['control'] === 'url' || $field['control'] === 'text')
+                                            <input id="{{ $key }}" type="{{ $field['control'] }}" name="field_values[{{ $key }}]" value="{{ $value }}" maxlength="{{ $field['max_length'] }}" @required($isRequired) class="{{ $controlClasses }}">
+                                            <span class="text-sm text-muted" data-char-count></span>
+                                        @elseif($field['control'] === 'markdown')
+                                            <x-markdown-field :id="$key" :name="'field_values['.$key.']'" :value="$value" :maxlength="$field['max_length']" :required="$isRequired" class="{{ $textareaClasses }}" />
+                                        @else
+                                            <textarea id="{{ $key }}" name="field_values[{{ $key }}]" rows="8" maxlength="{{ $field['max_length'] }}" @required($isRequired) class="{{ $textareaClasses }}">{{ $value }}</textarea>
+                                            <span class="text-sm text-muted" data-char-count></span>
+                                        @endif
+
+                                        @if(! empty($field['help']))
+                                            <p class="{{ $hintClasses }}">{{ $field['help'] }}</p>
+                                        @endif
+                                        @if(! empty($field['guidance']))
+                                            <details class="{{ $guidanceClasses }}">
+                                                <summary class="{{ $guidanceSummaryClasses }}">Field guidance</summary>
+                                                <div class="{{ $guidanceBodyClasses }}">
+                                                    <p><strong>What to enter</strong><br>{{ $field['guidance']['what'] ?? '' }}</p>
+                                                    <p><strong>Why it matters</strong><br>{{ $field['guidance']['why'] ?? '' }}</p>
+                                                    @if(! empty($field['guidance']['example']))
+                                                        <p><strong>Good example</strong><br>{{ $field['guidance']['example'] }}</p>
+                                                    @endif
+                                                    @if(! empty($field['guidance']['avoid']))
+                                                        <p><strong>Avoid</strong><br>{{ $field['guidance']['avoid'] }}</p>
+                                                    @endif
+                                                    @if(! empty($field['guidance']['evidence']))
+                                                        <p><strong>Evidence</strong><br>{{ $field['guidance']['evidence'] }}</p>
+                                                    @endif
+                                                </div>
+                                            </details>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            @endforeach
+
+                            <div class="grid min-w-0 gap-2">
+                                <label for="participant_note" class="{{ $labelClasses }}">Participant note (optional)</label>
+                                <x-markdown-field id="participant_note" name="participant_note" :value="old('participant_note', $version?->participant_note)" :maxlength="\App\Support\FieldLimits::NOTE" class="{{ $textareaClasses }}" />
+                                <details class="{{ $guidanceClasses }}">
+                                    <summary class="{{ $guidanceSummaryClasses }}">Field guidance</summary>
+                                    <div class="{{ $guidanceBodyClasses }}">
+                                        <p><strong>What to enter</strong><br>Add context that will help your coach understand a limitation, assumption, follow-up, or decision not captured in the activity fields.</p>
+                                        <p><strong>Why it matters</strong><br>Clear notes make your reasoning and next steps traceable without changing the submitted answers.</p>
+                                        <p><strong>Good example</strong><br>I could not run the production-like check, so I documented the staging result and the follow-up needed.</p>
+                                        <p><strong>Avoid</strong><br>Do not use this as a replacement for required fields or claim work that you did not perform.</p>
                                     </div>
                                 </details>
                             </div>
-                            <button class="btn">Upload Video Recording</button>
-                        </form>
-                    @else
-                        @php($isVideoEvidence = $requirement->evidence_type === 'video')
-                        @php($isReusableAsset = $requirement->evidence_type === 'asset')
-                        @php($requirementAccept = $isVideoEvidence ? 'video/*' : $evidenceAccept)
-                        @php($requirementAccept = $isReusableAsset ? $evidencePolicy->reusableAssetAcceptAttribute() : $requirementAccept)
-                        @php($requirementMaxText = $isVideoEvidence ? 'Upload a video file · maximum '.round(config('training.weekly_video_max_kb', 358400) / 1024, 1).' MB' : 'You can select and upload multiple files. Maximum file size: 300 MB per file.')
-                        @if($isReusableAsset)<div class="check"><strong>REUSABLE AI ASSET</strong><p class="muted">Upload the actual prompt, checklist, configuration, template, documentation, spreadsheet, or archive you tested. This is separate from supporting Evidence.</p></div>@endif
-                        <form class="form" method="post" enctype="multipart/form-data" action="{{ route('training.evidence.store', [$trainingWeek, $activity, $version]) }}" data-evidence-form>
-                            @csrf
-                            <input type="hidden" name="evidence_requirement_id" value="{{ $requirement->id }}">
-                            <div class="field"><label>Evidence title</label><input name="title"></div>
-                            @if($requirement->evidence_type === 'text')
-<div class="field"><label>Evidence text</label><x-markdown-field id="evidence_text" name="content" :maxlength="\App\Support\FieldLimits::EVIDENCE_TEXT"/><label>Or upload artifact</label><input name="files[]" type="file" multiple data-evidence-file accept="{{ $requirementAccept }}"><p class="muted">{{ $requirementMaxText }}</p>@if($isVideoEvidence)<p class="muted">Common video formats are supported.</p>@endif<p class="muted" data-evidence-status role="status" aria-live="polite">Choose one or more files to attach them automatically.</p></div>
-                                <button class="btn secondary" type="submit">Save evidence text</button>
-                            @elseif(in_array($requirement->evidence_type, ['link', 'url', 'video', 'repository'], true))
-                                <div class="field"><label>URL or recording link</label><input name="url" type="url"></div><div class="field"><label>Or upload file</label><input name="files[]" type="file" multiple data-evidence-file accept="{{ $requirementAccept }}"><p class="muted">{{ $requirementMaxText }}</p>@if($isVideoEvidence)<p class="muted">Common video formats are supported.</p>@endif<p class="muted" data-evidence-status role="status" aria-live="polite">Choose one or more files to attach them automatically.</p></div>
-                                <button class="btn secondary" type="submit">Save evidence link</button>
-                            @else
-                                <div class="field"><label>File</label><input name="files[]" type="file" required multiple data-evidence-file accept="{{ $requirementAccept }}"><p class="muted">{{ $requirementMaxText }}</p>@if($isVideoEvidence)<p class="muted">Common video formats are supported.</p>@endif<p class="muted" data-evidence-status role="status" aria-live="polite">Choose one or more files to attach them automatically.</p></div>
-                            @endif
+                            <p class="m-0 text-sm text-muted data-error:text-rose-300" data-autosave-status role="status" aria-live="polite">Changes save automatically.</p>
                         </form>
                     @endif
-                </div>
-            @endforeach
-            <form method="post" action="{{ route('training.submission.submit', [$trainingWeek, $activity, $version]) }}" data-final-submit-form>@csrf<button class="btn" data-submit-button>Submit Activity</button><p class="muted" data-submit-status role="status" aria-live="polite"></p></form>
+                @else
+                    <p class="m-0 leading-relaxed">This submitted version is immutable. If a coach requests revision, a new version will be created.</p>
+                @endif
+            </x-ui.card>
+
+            @if($version?->status === 'draft')
+                <x-ui.card as="section" class="grid gap-4" aria-labelledby="submission-evidence-title">
+                    <h2 id="submission-evidence-title" class="m-0 text-xl font-extrabold">Evidence</h2>
+                    <p class="m-0 leading-relaxed text-muted">Upload the evidence that lets your coach verify the work described in this activity. Files attach automatically after upload.</p>
+                    @if($evidenceRows->isNotEmpty())
+                        <ul class="m-0 grid list-none gap-3 p-0">
+                            @foreach($evidenceRows as $evidenceRow)
+                                @php
+                                    $requirement = $evidenceRow['requirement'];
+                                @endphp
+                                <li class="{{ $rowClasses }} gap-3">
+                                    <div class="grid gap-1">
+                                        <strong>{{ $requirement->title }}</strong>
+                                        <p class="{{ $hintClasses }}">{{ $requirement->description }}</p>
+                                    </div>
+                                    @if($evidenceRow['evidence']->isNotEmpty())
+                                        <ul class="m-0 grid list-none gap-2 p-0">
+                                            @foreach($evidenceRow['evidence'] as $item)
+                                                <li class="flex flex-wrap items-center gap-2 text-sm">
+                                                    <strong>{{ $item['evidence']->title ?: 'Evidence' }}</strong>
+                                                    <span class="text-muted">· Type: {{ $item['type_label'] }}</span>
+                                                    @if($item['is_file'])
+                                                        <span class="wrap-anywhere text-muted">· {{ $item['evidence']->original_filename }}</span>
+                                                        <x-evidence-actions :evidence="$item['evidence']" />
+                                                    @elseif($item['evidence']->url)
+                                                        <a class="text-accent underline underline-offset-3" href="{{ $item['evidence']->url }}" target="_blank" rel="noopener noreferrer">Open evidence link</a>
+                                                    @elseif($item['evidence']->content)
+                                                        <span class="text-muted">· Text evidence</span>
+                                                    @endif
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    @endif
+                                    @if($evidenceRow['is_reusable_asset'])
+                                        <x-ui.alert class="grid gap-1">
+                                            <strong>REUSABLE AI ASSET</strong>
+                                            <span>Upload the actual prompt, checklist, configuration, template, documentation, spreadsheet, or archive you tested. This is separate from supporting Evidence.</span>
+                                        </x-ui.alert>
+                                    @endif
+                                    <form class="m-0 grid gap-3" method="post" enctype="multipart/form-data" action="{{ route('training.evidence.store', [$trainingWeek, $activity, $version]) }}" data-evidence-form>
+                                        @csrf
+                                        <input type="hidden" name="evidence_requirement_id" value="{{ $requirement->id }}">
+                                        <div class="grid gap-2">
+                                            <label for="evidence-title-{{ $requirement->id }}" class="{{ $labelClasses }}">Evidence title</label>
+                                            <input id="evidence-title-{{ $requirement->id }}" name="title" class="{{ $controlClasses }}">
+                                        </div>
+                                        @if($evidenceRow['input'] === 'text')
+                                            <div class="grid min-w-0 gap-2">
+                                                <label for="evidence-text-{{ $requirement->id }}" class="{{ $labelClasses }}">Evidence text</label>
+                                                <x-markdown-field :id="'evidence-text-'.$requirement->id" name="content" :maxlength="\App\Support\FieldLimits::EVIDENCE_TEXT" class="{{ $textareaClasses }}" />
+                                            </div>
+                                        @elseif($evidenceRow['input'] === 'link')
+                                            <div class="grid gap-2">
+                                                <label for="evidence-url-{{ $requirement->id }}" class="{{ $labelClasses }}">URL or recording link</label>
+                                                <input id="evidence-url-{{ $requirement->id }}" name="url" type="url" class="{{ $controlClasses }}">
+                                            </div>
+                                        @endif
+                                        <div class="grid gap-2">
+                                            <label for="evidence-files-{{ $requirement->id }}" class="{{ $labelClasses }}">{{ $evidenceRow['file_label'] }}</label>
+                                            <input id="evidence-files-{{ $requirement->id }}" name="files[]" type="file" @required($evidenceRow['input'] === 'file') multiple data-evidence-file accept="{{ $evidenceRow['accept'] }}" class="{{ $fileClasses }}">
+                                            <p class="{{ $hintClasses }}">{{ $evidenceRow['size_hint'] }}</p>
+                                            @if($evidenceRow['is_video'])
+                                                <p class="{{ $hintClasses }}">Common video formats are supported.</p>
+                                            @endif
+                                            <p class="m-0 text-sm text-muted data-error:text-rose-300" data-evidence-status role="status" aria-live="polite">Choose one or more files to attach them automatically.</p>
+                                        </div>
+                                        @if($evidenceRow['input'] === 'text')
+                                            <x-ui.button variant="secondary" type="submit" class="justify-self-start">Save evidence text</x-ui.button>
+                                        @elseif($evidenceRow['input'] === 'link')
+                                            <x-ui.button variant="secondary" type="submit" class="justify-self-start">Save evidence link</x-ui.button>
+                                        @endif
+                                    </form>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </x-ui.card>
+            @endif
+
+            @if($submission)
+                <x-ui.card as="section" class="grid gap-4" aria-labelledby="version-history-title">
+                    <h2 id="version-history-title" class="m-0 text-xl font-extrabold">Version history</h2>
+                    <p class="m-0 text-muted">Every saved version of this submission, newest first.</p>
+                    <ul class="m-0 grid list-none gap-2.5 p-0">
+                        @foreach($versionRows as $versionRow)
+                            @php
+                                $historic = $versionRow['version'];
+                            @endphp
+                            <li @class([
+                                'flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-field px-4 py-3.5',
+                                'border-accent shadow-[0_0_0_1px_rgb(34_211_238/0.2)]' => $versionRow['is_current'],
+                                'border-line' => ! $versionRow['is_current'],
+                            ]) @if($versionRow['is_current']) aria-current="true" @endif data-version-row>
+                                <div class="flex flex-wrap items-center gap-2.5">
+                                    <strong>Version {{ $historic->version_number }}</strong>
+                                    <x-ui.badge :tone="$versionRow['tone']">{{ $versionRow['status_label'] }}</x-ui.badge>
+                                    <span class="text-sm text-muted">{{ ($historic->submitted_at ?? $historic->created_at)->format('M j, Y g:i A') }}</span>
+                                </div>
+                                @if($versionRow['is_current'])
+                                    <x-ui.badge tone="accent">Viewing</x-ui.badge>
+                                @elseif($historic->status !== 'draft')
+                                    <div class="flex flex-wrap items-center gap-3">
+                                        <x-ui.button variant="secondary" :href="route('training.submission.show', [$trainingWeek, $activity, $historic])">View</x-ui.button>
+                                        <span class="text-xs text-muted">Read only</span>
+                                    </div>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </x-ui.card>
+            @endif
         </div>
-    @endif
-    @if ($submission)
-        <div class="card" style="margin-top:18px">
-            <h2>Version history</h2>
-            <p class="muted">Every saved version of this submission, newest first.</p>
-            <div class="version-history">
-                @foreach($submission->versions as $historic)
-                    @php($isCurrent = $version && $historic->is($version))
-                    <div class="version-history-row @if($isCurrent) current @endif">
-                        <div class="version-history-meta">
-                            <strong>Version {{ $historic->version_number }}</strong>
-                            <span class="pill version-status {{ $historic->status }}">{{ ucfirst(str_replace('_', ' ', $historic->status)) }}</span>
-                            <span class="muted">{{ ($historic->submitted_at ?? $historic->created_at)->format('M j, Y g:i A') }}</span>
-                        </div>
-                        @if($isCurrent)
-                            <span class="pill version-current">Viewing</span>
-                        @elseif($historic->status !== 'draft')
-                            <a class="btn secondary" href="{{ route('training.submission.show', [$trainingWeek, $activity, $historic]) }}">View</a><span class="muted version-readonly">Read only</span>
-                        @endif
-                    </div>
-                @endforeach
-            </div>
-        </div>
-    @endif
+    </div>
+
     <script>
         (() => {
             const draftForm = document.querySelector('[data-submission-form]');
@@ -359,7 +614,7 @@
             let pendingSave = Promise.resolve(true);
             let initialSave = true;
             const setSaveStatus = (text, error = false) => {
-                if (saveStatus) { saveStatus.textContent = text; saveStatus.classList.toggle('error', error); }
+                if (saveStatus) { saveStatus.textContent = text; saveStatus.toggleAttribute('data-error', error); }
             };
             const saveDraft = () => {
                 if (!draftForm || !csrf) return Promise.resolve(false);
@@ -392,7 +647,7 @@
                 });
                 window.setTimeout(saveDraft, 150);
             }
-            document.querySelectorAll('.field').forEach(field => {
+            document.querySelectorAll('[data-field]').forEach(field => {
                 const control = field.querySelector('input[maxlength], textarea[maxlength]:not([data-markdown-source])');
                 const counter = field.querySelector('[data-char-count]');
                 if (!control || !counter) return;
@@ -427,7 +682,7 @@
                     if (status) status.textContent = `Uploading ${selected.length} file(s)...`;
                     selected.reduce((chain, item) => chain.then(() => uploadOne(item).finally(() => { pendingUploads--; })), Promise.resolve())
                         .then(() => { if (status) status.textContent = `${selected.length} file(s) uploaded`; window.setTimeout(() => window.location.reload(), 250); })
-                        .catch(error => { if (status) { status.textContent = error.message || 'Upload failed. Choose the files again to retry.'; status.classList.add('error'); } file.disabled = false; });
+                        .catch(error => { if (status) { status.textContent = error.message || 'Upload failed. Choose the files again to retry.'; status.setAttribute('data-error', ''); } file.disabled = false; });
                 });
             });
             finalForm?.addEventListener('submit', event => {

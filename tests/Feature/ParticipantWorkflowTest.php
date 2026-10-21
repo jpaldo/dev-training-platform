@@ -502,10 +502,10 @@ class ParticipantWorkflowTest extends TestCase
         $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week2, $activity]))->assertOk()->getContent();
 
         $this->assertStringContainsString('Version history', $html);
-        $this->assertSame(2, substr_count($html, 'class="version-history-row'));
-        $this->assertSame(1, preg_match_all('/class="version-history-row\s*current/', $html));
-        $this->assertSame(1, substr_count($html, 'class="pill version-current"'));
-        $this->assertStringContainsString('class="pill version-status draft"', $html);
+        $this->assertSame(2, substr_count($html, 'data-version-row'));
+        $this->assertSame(1, preg_match_all('/aria-current="true"\s+data-version-row/', $html));
+        $this->assertSame(1, substr_count($html, '>Viewing</span>'));
+        $this->assertSame(1, preg_match('/<strong>Version 2<\/strong>\s*<span[^>]*>Draft<\/span>/', $html));
         $this->assertStringContainsString('Version 2', $html);
         $this->assertStringContainsString('Version 1', $html);
         $this->assertSame(1, substr_count($html, route('training.submission.show', [$week2, $activity, $submitted])));

@@ -1,11 +1,68 @@
-@php($promptRows = old('interactions', $version?->interactions?->map(fn($interaction) => ['prompt' => $interaction->prompt, 'output' => $interaction->output])->values()->all() ?: [['prompt' => '', 'output' => '']]))
-<div class="submission-section-heading"><span class="eyebrow">PROMPT / OUTPUT HISTORY</span><p class="muted">Keep each prompt paired with the AI output it produced. Follow-up prompts are optional.</p></div>
-<div data-interactions-list>
-    @foreach($promptRows as $sequence => $interaction)
-        <div class="check" data-interaction-row style="margin-top:12px"><strong>Prompt {{ $sequence + 1 }}</strong><div class="field"><label>Prompt {{ $sequence + 1 }}</label><textarea name="interactions[{{ $sequence }}][prompt]" rows="4">{{ $interaction['prompt'] ?? '' }}</textarea></div><div class="field"><label>AI Output {{ $sequence + 1 }}</label><textarea name="interactions[{{ $sequence }}][output]" rows="6">{{ $interaction['output'] ?? '' }}</textarea></div>@if($sequence > 0)<button type="button" class="btn secondary" data-remove-interaction>Remove follow-up</button>@endif</div>
+<div class="{{ $sectionHeadingClasses }}">
+    <x-ui.eyebrow as="span">PROMPT / OUTPUT HISTORY</x-ui.eyebrow>
+    <p class="{{ $hintClasses }}">Keep each prompt paired with the AI output it produced. Follow-up prompts are optional.</p>
+</div>
+<div class="grid grid-cols-1 gap-3" data-interactions-list>
+    @foreach(old('interactions', $rows) as $sequence => $interaction)
+        <div class="{{ $rowClasses }} justify-items-start gap-3" data-interaction-row>
+            <strong data-interaction-title>Prompt {{ $sequence + 1 }}</strong>
+            <div class="grid w-full gap-2">
+                <label for="interaction-{{ $sequence }}-prompt" class="{{ $labelClasses }}" data-interaction-label>Prompt {{ $sequence + 1 }}</label>
+                <textarea id="interaction-{{ $sequence }}-prompt" name="interactions[{{ $sequence }}][prompt]" rows="4" class="{{ $textareaClasses }}">{{ $interaction['prompt'] ?? '' }}</textarea>
+            </div>
+            <div class="grid w-full gap-2">
+                <label for="interaction-{{ $sequence }}-output" class="{{ $labelClasses }}" data-interaction-label>AI Output {{ $sequence + 1 }}</label>
+                <textarea id="interaction-{{ $sequence }}-output" name="interactions[{{ $sequence }}][output]" rows="6" class="{{ $textareaClasses }}">{{ $interaction['output'] ?? '' }}</textarea>
+            </div>
+            @if($sequence > 0)
+                <x-ui.button variant="secondary" data-remove-interaction>Remove follow-up</x-ui.button>
+            @endif
+        </div>
     @endforeach
 </div>
-<button type="button" class="btn secondary" data-add-interaction>+ Add Follow-Up Prompt</button>
+<template data-interaction-template>
+    <div class="{{ $rowClasses }} justify-items-start gap-3" data-interaction-row>
+        <strong data-interaction-title></strong>
+        <div class="grid w-full gap-2">
+            <label class="{{ $labelClasses }}" data-interaction-label>Follow-up prompt</label>
+            <textarea rows="4" class="{{ $textareaClasses }}"></textarea>
+        </div>
+        <div class="grid w-full gap-2">
+            <label class="{{ $labelClasses }}" data-interaction-label>AI output</label>
+            <textarea rows="6" class="{{ $textareaClasses }}"></textarea>
+        </div>
+        <x-ui.button variant="secondary" data-remove-interaction>Remove follow-up</x-ui.button>
+    </div>
+</template>
+<x-ui.button variant="secondary" class="justify-self-start" data-add-interaction>+ Add Follow-Up Prompt</x-ui.button>
 <script>
-(() => { const list = document.querySelector('[data-interactions-list]'); const add = document.querySelector('[data-add-interaction]'); if (!list || !add) return; const renumber = () => list.querySelectorAll('[data-interaction-row]').forEach((row, index) => { row.querySelector('strong').textContent = `Prompt ${index + 1}`; row.querySelectorAll('textarea').forEach((field, fieldIndex) => { field.name = `interactions[${index}][${fieldIndex === 0 ? 'prompt' : 'output'}]`; }); }); const bind = button => button.addEventListener('click', () => { const row = button.closest('[data-interaction-row]'); row?.remove(); renumber(); }); list.querySelectorAll('[data-remove-interaction]').forEach(bind); add.addEventListener('click', () => { const row = document.createElement('div'); row.className = 'check'; row.dataset.interactionRow = ''; row.style.marginTop = '12px'; row.innerHTML = '<strong></strong><div class="field"><label>Follow-up prompt</label><textarea rows="4"></textarea></div><div class="field"><label>AI output</label><textarea rows="6"></textarea></div><button type="button" class="btn secondary" data-remove-interaction>Remove follow-up</button>'; list.appendChild(row); bind(row.querySelector('[data-remove-interaction]')); renumber(); }); renumber(); })();
+    (() => {
+        const list = document.querySelector('[data-interactions-list]');
+        const add = document.querySelector('[data-add-interaction]');
+        const template = document.querySelector('[data-interaction-template]');
+        if (!list || !add || !template) return;
+        const renumber = () => list.querySelectorAll('[data-interaction-row]').forEach((row, index) => {
+            row.querySelector('[data-interaction-title]').textContent = `Prompt ${index + 1}`;
+            const labels = row.querySelectorAll('[data-interaction-label]');
+            row.querySelectorAll('textarea').forEach((field, fieldIndex) => {
+                const part = fieldIndex === 0 ? 'prompt' : 'output';
+                field.name = `interactions[${index}][${part}]`;
+                field.id = `interaction-${index}-${part}`;
+                labels[fieldIndex]?.setAttribute('for', field.id);
+            });
+        });
+        const bind = button => button.addEventListener('click', () => {
+            const row = button.closest('[data-interaction-row]');
+            row?.remove();
+            renumber();
+        });
+        list.querySelectorAll('[data-remove-interaction]').forEach(bind);
+        add.addEventListener('click', () => {
+            const row = template.content.firstElementChild.cloneNode(true);
+            list.appendChild(row);
+            bind(row.querySelector('[data-remove-interaction]'));
+            renumber();
+        });
+        renumber();
+    })();
 </script>

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\InterviewPairStatus;
 use App\Enums\MentorInterviewScheduleStatus;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
@@ -26,7 +27,7 @@ class AdminDashboardPageService
     {
         $participantCount = User::query()->where('role', 'participant')->count();
         $program = Program::query()->where('is_active', true)->first();
-        $pairedParticipantCount = WeekFourInterviewPair::query()->where('status', 'active')->count() * 2;
+        $pairedParticipantCount = WeekFourInterviewPair::query()->where('status', InterviewPairStatus::Active)->count() * 2;
 
         return [
             'systemStats' => [

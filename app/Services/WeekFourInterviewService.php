@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\InterviewPairStatus;
 use App\Enums\MentorInterviewScheduleStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
@@ -67,7 +68,7 @@ class WeekFourInterviewService
     /** @return Collection<int, WeekFourInterviewPair> */
     public function activePairs(): Collection
     {
-        return WeekFourInterviewPair::query()->where('status', 'active')->with(['participantOne.assignedCoaches', 'participantTwo.assignedCoaches'])->get();
+        return WeekFourInterviewPair::query()->where('status', InterviewPairStatus::Active)->with(['participantOne.assignedCoaches', 'participantTwo.assignedCoaches'])->get();
     }
 
     /**
@@ -152,20 +153,20 @@ class WeekFourInterviewService
         $one = min($first->id, $second->id);
         $two = max($first->id, $second->id);
 
-        return WeekFourInterviewPair::query()->updateOrCreate(['participant_one_id' => $one, 'participant_two_id' => $two], ['assigned_by_id' => $assigner->id, 'status' => 'active']);
+        return WeekFourInterviewPair::query()->updateOrCreate(['participant_one_id' => $one, 'participant_two_id' => $two], ['assigned_by_id' => $assigner->id, 'status' => InterviewPairStatus::Active]);
     }
 
     public function unpair(User $actor, WeekFourInterviewPair $pair): void
     {
         abort_unless($actor->canManageParticipant($pair->participantOne) && $actor->canManageParticipant($pair->participantTwo), 403);
         $hasHistory = $pair->feedback()->exists() || ActivitySubmission::query()->whereIn('user_id', [$pair->participant_one_id, $pair->participant_two_id])->whereHas('activity', fn (Builder $query): Builder => $query->where('position', 2)->whereHas('week', fn (Builder $week): Builder => $week->where('week_number', 4)))->whereIn('status', ['submitted', 'under_review', 'approved', 'completed'])->exists();
-        $pair->update(['status' => $hasHistory ? 'closed' : 'inactive']);
+        $pair->update(['status' => $hasHistory ? InterviewPairStatus::Closed : InterviewPairStatus::Inactive]);
     }
 
     public function saveFeedback(User $author, int $question, string $content, ?int $pairId = null): WeekFourPartnerFeedback
     {
         $pair = $pairId
-            ? WeekFourInterviewPair::query()->whereKey($pairId)->where('status', 'active')->where(fn (Builder $query): Builder => $query->where('participant_one_id', $author->id)->orWhere('participant_two_id', $author->id))->first()
+            ? WeekFourInterviewPair::query()->whereKey($pairId)->where('status', InterviewPairStatus::Active)->where(fn (Builder $query): Builder => $query->where('participant_one_id', $author->id)->orWhere('participant_two_id', $author->id))->first()
             : $this->pairFor($author);
         if (! $pair || blank(trim($content)) || $question < 1 || $question > 15) {
             throw ValidationException::withMessages(['feedback' => 'You must be paired and provide feedback for a valid interview question.']);

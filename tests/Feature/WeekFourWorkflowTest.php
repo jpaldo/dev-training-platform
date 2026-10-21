@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\InterviewPairStatus;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
 use App\Models\DailyLog;
@@ -278,7 +279,22 @@ class WeekFourWorkflowTest extends TestCase
             ->assertRedirect(route('coach.participants'))
             ->assertSessionHas('status', 'The Week 4 interview pairing was safely deactivated.');
 
-        $this->assertSame('inactive', $pair->fresh()->status);
+        $this->assertSame(InterviewPairStatus::Inactive, $pair->fresh()->status);
+        $this->assertNull(WeekFourInterviewPair::forParticipant($a->id));
+    }
+
+    public function test_unpairing_partners_who_already_exchanged_feedback_closes_the_pair(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $a = User::factory()->create(['role' => 'participant']);
+        $b = User::factory()->create(['role' => 'participant']);
+        $coach->assignedParticipants()->attach([$a->id, $b->id]);
+        $pair = WeekFourInterviewPair::create(['participant_one_id' => min($a->id, $b->id), 'participant_two_id' => max($a->id, $b->id), 'assigned_by_id' => $coach->id, 'status' => 'active']);
+        WeekFourPartnerFeedback::create(['pair_id' => $pair->id, 'author_id' => $a->id, 'recipient_id' => $b->id, 'question_number' => 1, 'content' => 'Clear answer']);
+
+        $this->actingAs($coach)->post(route('coach.week-four.pairs.unpair', $pair))->assertRedirect();
+
+        $this->assertSame(InterviewPairStatus::Closed, $pair->fresh()->status);
     }
 
     public function test_coach_cannot_unpair_participants_they_do_not_manage(): void
@@ -290,7 +306,7 @@ class WeekFourWorkflowTest extends TestCase
 
         $this->actingAs($coach)->post(route('coach.week-four.pairs.unpair', $pair))->assertForbidden();
 
-        $this->assertSame('active', $pair->fresh()->status);
+        $this->assertSame(InterviewPairStatus::Active, $pair->fresh()->status);
     }
 
     public function test_peer_waiver_is_audited_and_can_be_revoked_before_reliance(): void

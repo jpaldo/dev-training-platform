@@ -8,7 +8,7 @@ use App\Services\AiScoringProviderResolver;
 use App\Services\EmailConfigurationService;
 use App\Services\GoogleDriveConfigurationService;
 use App\Services\GoogleDriveReadinessService;
-use App\Services\ParticipantNotificationService;
+use App\Services\SidebarNavigationService;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\View\View as ViewContract;
 use Illuminate\Support\Facades\Auth;
@@ -36,8 +36,10 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('layouts.app', function (ViewContract $view): void {
             $user = Auth::user();
+            $view->with('sidebarNavigation', $user ? app(SidebarNavigationService::class)->sidebarData($user, request()) : null);
+
             if (! $user || $user->role !== 'participant') {
-                $view->with(['participantDriveHeader' => null, 'participantNotificationUnreadCount' => 0]);
+                $view->with('participantDriveHeader', null);
 
                 return;
             }
@@ -53,7 +55,7 @@ class AppServiceProvider extends ServiceProvider
                 'destination_selected' => $readiness->isReady($user),
                 'configuration_ready' => $configuration->canConnect() && filled($configuration->getPickerApiKey()) && filled($configuration->getProjectNumber()),
                 'active' => $latestSync && in_array($latestSync->status, [GoogleDriveSync::ENQUEUED, GoogleDriveSync::IN_PROGRESS], true),
-            ], 'participantNotificationUnreadCount' => app(ParticipantNotificationService::class)->unreadCount($user)]);
+            ]]);
         });
     }
 }

@@ -70,13 +70,13 @@ class HomeNavigationTest extends TestCase
         $this->seed(QaTrainingProgramSeeder::class);
         $coach = User::factory()->create(['role' => 'coach']);
 
-        $dashboard = $this->actingAs($coach)->get(route('coach.participants'))->assertOk()->getContent();
-        $this->assertStringContainsString('class="wrap app-shell"', $dashboard);
-        $this->assertStringContainsString('.wrap.app-shell{max-width:none}', $dashboard);
+        $this->actingAs($coach)->get(route('coach.participants'))->assertOk()
+            ->assertSee('<div class="px-[clamp(1rem,3vw,3rem)] py-6">', false)
+            ->assertDontSee('max-w-280', false);
 
         $this->post(route('logout'));
-        $this->get(route('login'))->assertOk()->assertSee('class="wrap guest-shell"', false)->assertSee('max-width:1120px', false);
-        $this->get(route('register'))->assertOk()->assertSee('class="wrap guest-shell"', false)->assertSee('max-width:1120px', false);
+        $this->get(route('login'))->assertOk()->assertSee('<div class="mx-auto max-w-280 px-5.5 py-6">', false);
+        $this->get(route('register'))->assertOk()->assertSee('<div class="mx-auto max-w-280 px-5.5 py-6">', false);
     }
 
     public function test_forwarded_public_host_is_preserved_for_guest_redirects(): void

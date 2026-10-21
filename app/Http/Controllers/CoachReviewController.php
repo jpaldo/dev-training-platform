@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\FilterReviewQueueRequest;
 use App\Http\Requests\StoreSubmissionReviewRequest;
 use App\Models\SubmissionVersion;
-use App\Services\CoachReportService;
+use App\Services\CoachReviewQueuePageService;
 use App\Services\SubmissionReviewService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,11 +14,9 @@ use Illuminate\View\View;
 
 class CoachReviewController extends Controller
 {
-    public function index(FilterReviewQueueRequest $request, CoachReportService $reports): View
+    public function index(FilterReviewQueueRequest $request, CoachReviewQueuePageService $page): View
     {
-        $items = $reports->reviewQueue($request->validated())->paginate(25)->withQueryString();
-
-        return view('coach.reviews', compact('items'));
+        return view('coach.reviews', $page->indexData($request->validated()));
     }
 
     public function show(Request $request, SubmissionVersion $submissionVersion, SubmissionReviewService $reviews): View

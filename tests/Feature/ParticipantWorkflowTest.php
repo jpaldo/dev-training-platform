@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\ActivityScoreStatus;
 use App\Enums\RecoveryRequestStatus;
+use App\Enums\ValidationSubmissionStatus;
 use App\Jobs\ExportActivityJob;
 use App\Jobs\SyncTrainingDataJob;
 use App\Models\Activity;
@@ -643,8 +644,8 @@ class ParticipantWorkflowTest extends TestCase
     {
         [$participant, $week2, $activity] = $this->trainingFixture();
         $other = User::factory()->create();
-        $ownLab = ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-OWN', 'status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now()]);
-        $foreignLab = ValidationSubmission::create(['user_id' => $other->id, 'trainee_name' => $other->name, 'artifact_code' => 'AI-TC-FOREIGN', 'status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now()]);
+        $ownLab = ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-OWN', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
+        $foreignLab = ValidationSubmission::create(['user_id' => $other->id, 'trainee_name' => $other->name, 'artifact_code' => 'AI-TC-FOREIGN', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now(), 'validation_submission_id' => $ownLab->id]);
 

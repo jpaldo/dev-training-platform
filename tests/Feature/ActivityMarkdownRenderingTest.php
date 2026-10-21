@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\Program;
@@ -164,7 +165,7 @@ class ActivityMarkdownRenderingTest extends TestCase
         $week = $program->weeks()->where('week_number', 2)->firstOrFail();
         $activity = $week->activities()->where('title', 'Validation Checklist')->firstOrFail();
         $participant = User::factory()->create();
-        ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-PREVIEW', 'status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now()]);
+        ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-PREVIEW', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         $this->actingAs($participant)

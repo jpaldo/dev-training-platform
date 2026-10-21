@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivityRequirement;
@@ -66,7 +67,7 @@ class TrainingActivityPageService
         $latestVersion = $submission?->versions->first();
         $labRoute = $activity->configuration['lab_route'] ?? null;
         $labRecords = $labRoute
-            ? ValidationSubmission::query()->where('user_id', $user->id)->whereIn('status', [ValidationSubmission::SUBMITTED, ValidationSubmission::COMPLETED])->latest('submitted_at')->latest('id')->get()
+            ? ValidationSubmission::query()->where('user_id', $user->id)->whereIn('status', ValidationSubmissionStatus::recorded())->latest('submitted_at')->latest('id')->get()
             : collect();
         $labPrerequisiteMet = ! ($user->hasAnyRole(['participant']) && $trainingWeek->week_number === 2 && $activity->position === 1 && $activity->title === 'Validation Checklist')
             || $labRecords->isNotEmpty();

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
@@ -147,7 +148,7 @@ class ActivitySubmissionPageService
      */
     private function submittedLabRecords(User $participant): Collection
     {
-        return ValidationSubmission::query()->where('user_id', $participant->id)->whereIn('status', [ValidationSubmission::SUBMITTED, ValidationSubmission::COMPLETED])->latest('submitted_at')->latest('id')->get();
+        return ValidationSubmission::query()->where('user_id', $participant->id)->whereIn('status', ValidationSubmissionStatus::recorded())->latest('submitted_at')->latest('id')->get();
     }
 
     /**

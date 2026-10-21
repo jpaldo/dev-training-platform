@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ValidationSubmissionStatus;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\Program;
@@ -44,7 +45,7 @@ class ParticipantFieldGuidanceTest extends TestCase
         $activity = $week->activities()->where('title', 'Validation Checklist')->firstOrFail();
         $participant = User::factory()->create();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-TEST', 'status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now()]);
+        ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-TEST', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
 
         $this->actingAs($participant)
             ->get(route('training.submission.edit', [$week, $activity]))
@@ -74,7 +75,7 @@ class ParticipantFieldGuidanceTest extends TestCase
         $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
         $participant = User::factory()->create();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-TEST', 'status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now()]);
+        ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-TEST', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
         $deprecated = ['artifact_context', 'finding_and_decision', 'detection_and_action', 'validation_outcome', 'execution_investigation', 'pr_and_requirements', 'regression_priorities'];
 
         foreach ($program->weeks()->whereIn('week_number', [2, 3, 4])->with('activities')->get() as $week) {
@@ -159,7 +160,7 @@ class ParticipantFieldGuidanceTest extends TestCase
             'user_id' => $participant->id,
             'trainee_name' => $participant->name,
             'artifact_code' => 'AI-TC-W2',
-            'status' => ValidationSubmission::SUBMITTED,
+            'status' => ValidationSubmissionStatus::Submitted,
             'submitted_at' => now(),
         ]);
 

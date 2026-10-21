@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ValidationSubmissionStatus;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\User;
@@ -31,7 +32,7 @@ class ValidationLabService
      */
     public function latestDraft(User $participant): ?ValidationSubmission
     {
-        return $participant->validationSubmissions()->where('status', ValidationSubmission::DRAFT)->latest('updated_at')->first();
+        return $participant->validationSubmissions()->where('status', ValidationSubmissionStatus::Draft)->latest('updated_at')->first();
     }
 
     /**
@@ -201,7 +202,7 @@ class ValidationLabService
                 'size_bytes' => $file->getSize(),
             ];
         }
-        $data['status'] = ValidationSubmission::SUBMITTED;
+        $data['status'] = ValidationSubmissionStatus::Submitted;
         $data['submitted_at'] = now();
 
         return ValidationSubmission::create($data);
@@ -229,7 +230,7 @@ class ValidationLabService
      */
     public function markSubmitted(ValidationSubmission $submission): void
     {
-        $submission->update(['status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now()]);
+        $submission->update(['status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
     }
 
     /**

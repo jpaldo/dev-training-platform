@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ValidationSubmissionStatus;
 use App\Models\User;
 use App\Models\ValidationSubmission;
 use App\Services\EvidenceFilePolicy;
@@ -312,7 +313,7 @@ class ValidationLabPagesTest extends TestCase
             'source_status' => 'pass',
             'source_notes' => "Line one\nLine two",
             'scope_status' => 'issue',
-            'status' => ValidationSubmission::DRAFT,
+            'status' => ValidationSubmissionStatus::Draft,
         ]);
 
         $response = $this->actingAs($participant)
@@ -363,7 +364,7 @@ class ValidationLabPagesTest extends TestCase
             'decision' => 'reprompt',
             'evidence_notes' => 'Screenshot attached.',
             'evidence_files' => [['original_filename' => 'otp.png', 'mime_type' => 'image/png'], []],
-            'status' => ValidationSubmission::SUBMITTED,
+            'status' => ValidationSubmissionStatus::Submitted,
         ]);
 
         $this->actingAs($participant)

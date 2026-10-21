@@ -86,7 +86,7 @@ class ValidationLabController extends Controller
     public function submitRecord(Request $request, ValidationSubmission $submission, ValidationLabService $lab): RedirectResponse
     {
         abort_unless((int) $submission->user_id === (int) $request->user()->id, 403);
-        abort_unless($submission->status === ValidationSubmission::DRAFT, 422);
+        abort_unless($submission->isDraft(), 422);
 
         $incompleteRecordError = $lab->incompleteRecordError($submission);
         if ($incompleteRecordError !== null) {

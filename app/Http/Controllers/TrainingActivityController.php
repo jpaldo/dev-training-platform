@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\ValidationSubmission;
 use App\Services\ExportLifecycleService;
 use App\Services\GoogleDriveReadinessService;
 use App\Services\TrainingActivityPageService;
@@ -29,7 +29,7 @@ class TrainingActivityController extends Controller
             && $trainingWeek->week_number === 2
             && $activity->position === 1
             && $activity->title === 'Validation Checklist';
-        if ($isValidationChecklist && ! $user->validationSubmissions()->whereIn('status', [ValidationSubmission::SUBMITTED, ValidationSubmission::COMPLETED])->exists()) {
+        if ($isValidationChecklist && ! $user->validationSubmissions()->whereIn('status', ValidationSubmissionStatus::recorded())->exists()) {
             return redirect()->route('lab.activity', ['continue' => 'validation-checklist'])
                 ->with('status', 'Complete and submit a QA Validation Lab record before starting the Validation Checklist.');
         }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ValidationSubmissionStatus;
 use App\Models\ActivitySubmission;
 use App\Models\Program;
 use App\Models\User;
@@ -103,7 +104,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
         $participant = User::where('email', 'test@example.com')->firstOrFail();
         $this->actingAs($participant)->get(route('dashboard'))->assertOk();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'trainee_name' => $participant->name, 'status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now()]));
+        ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'trainee_name' => $participant->name, 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]));
         $this->actingAs($participant)->get(route('training.activities.show', [Program::first()->weeks()->where('week_number', 2)->first(), Program::first()->weeks()->where('week_number', 2)->first()->activities()->where('position', 1)->first()]))->assertOk()->assertSee('Open QA Lab');
         $this->actingAs($participant)->get(route('lab.activity'))->assertOk();
         $this->actingAs($participant)->post(route('start'), ['trainee_name' => $participant->name])
@@ -409,8 +410,8 @@ class DevelopmentAccountProvisioningTest extends TestCase
         $activityOne = $week->activities()->where('position', 1)->first();
         $activityTwo = $week->activities()->where('position', 2)->first();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        $newest = ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => 'owner', 'artifact_code' => 'AI-TC-101', 'status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now()]);
-        $usedEarlier = ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => 'owner', 'artifact_code' => 'AI-TC-100', 'status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now()->subDay()]);
+        $newest = ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => 'owner', 'artifact_code' => 'AI-TC-101', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
+        $usedEarlier = ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => 'owner', 'artifact_code' => 'AI-TC-100', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()->subDay()]);
         $earlier = ActivitySubmission::create(['activity_id' => $activityOne->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
         $earlier->versions()->create(['version_number' => 1, 'status' => 'submitted', 'submitted_at' => now(), 'validation_submission_id' => $usedEarlier->id, 'field_values' => []]);
         $edit = route('training.submission.edit', [$week, $activityTwo]);

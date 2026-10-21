@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ValidationSubmissionStatus;
 use App\Jobs\ExportActivityJob;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
@@ -9,7 +10,6 @@ use App\Models\SubmissionInteraction;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\ValidationSubmission;
 use Illuminate\Validation\ValidationException;
 
 class ActivitySubmissionService
@@ -31,7 +31,7 @@ class ActivitySubmissionService
             && $trainingWeek->week_number === 2
             && $activity->position === 1
             && $activity->title === 'Validation Checklist'
-            && ! $user->validationSubmissions()->whereIn('status', [ValidationSubmission::SUBMITTED, ValidationSubmission::COMPLETED])->exists();
+            && ! $user->validationSubmissions()->whereIn('status', ValidationSubmissionStatus::recorded())->exists();
     }
 
     /**

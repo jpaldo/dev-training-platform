@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ValidationSubmissionStatus;
 use App\Models\Program;
 use App\Models\User;
 use App\Models\ValidationSubmission;
@@ -43,7 +44,7 @@ class ValidationLabPrerequisiteTest extends TestCase
     {
         [$participant, $week, $activity] = $this->context();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        $draft = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::DRAFT]));
+        $draft = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmissionStatus::Draft]));
 
         $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))
             ->assertRedirect(route('lab.activity', ['continue' => 'validation-checklist']));
@@ -55,7 +56,7 @@ class ValidationLabPrerequisiteTest extends TestCase
     {
         [$participant, $week, $activity] = $this->context();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now()]));
+        ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]));
 
         $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))
             ->assertOk()->assertSee('Start submission');
@@ -65,7 +66,7 @@ class ValidationLabPrerequisiteTest extends TestCase
     {
         [$participant, $week, $activity] = $this->context();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        $draft = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::DRAFT]));
+        $draft = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmissionStatus::Draft]));
 
         $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))->assertRedirect();
         $this->actingAs($participant)->post(route('training.submission.draft', [$week, $activity]), ['field_values' => ['validation_submission_id' => (string) $draft->id]])
@@ -76,7 +77,7 @@ class ValidationLabPrerequisiteTest extends TestCase
     {
         [$participant, $week, $activity] = $this->context();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        $record = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now(), 'artifact_code' => 'AI-TC-015']));
+        $record = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now(), 'artifact_code' => 'AI-TC-015']));
 
         $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
             ->assertOk()->assertSee('AI-TC-015')->assertSee($record->artifact_name);
@@ -86,9 +87,9 @@ class ValidationLabPrerequisiteTest extends TestCase
     {
         [$participant, $week, $activity] = $this->context();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::SUBMITTED]));
+        ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmissionStatus::Submitted]));
         $other = User::factory()->create(['role' => 'participant']);
-        $record = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $other->id, 'status' => ValidationSubmission::SUBMITTED]));
+        $record = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $other->id, 'status' => ValidationSubmissionStatus::Submitted]));
 
         $this->actingAs($participant)->post(route('training.submission.draft', [$week, $activity]), ['field_values' => ['validation_submission_id' => (string) $record->id]])
             ->assertSessionHasErrors('field_values.validation_submission_id');
@@ -97,18 +98,19 @@ class ValidationLabPrerequisiteTest extends TestCase
     public function test_explicit_submit_action_finalizes_a_complete_draft_lab_record(): void
     {
         $participant = User::factory()->create(['role' => 'participant']);
-        $record = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::DRAFT]));
+        $record = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmissionStatus::Draft]));
 
         $this->actingAs($participant)->post(route('lab.records.submit', $record))->assertRedirect(route('result', $record));
-        $this->assertDatabaseHas('validation_submissions', ['id' => $record->id, 'status' => ValidationSubmission::SUBMITTED]);
+        $this->assertDatabaseHas('validation_submissions', ['id' => $record->id, 'status' => 'submitted']);
+        $this->assertSame(ValidationSubmissionStatus::Submitted, $record->fresh()->status);
         $this->assertNotNull($record->fresh()->submitted_at);
     }
 
     public function test_explicit_submit_action_keeps_an_incomplete_draft_lab_record_as_draft(): void
     {
         $participant = User::factory()->create(['role' => 'participant']);
-        $missingCheckNotes = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::DRAFT, 'run_notes' => null]));
-        $missingEvidence = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::DRAFT, 'evidence_notes' => null]));
+        $missingCheckNotes = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmissionStatus::Draft, 'run_notes' => null]));
+        $missingEvidence = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmissionStatus::Draft, 'evidence_notes' => null]));
 
         $this->actingAs($participant)->from(route('result', $missingCheckNotes))->post(route('lab.records.submit', $missingCheckNotes))
             ->assertRedirect(route('result', $missingCheckNotes))
@@ -117,15 +119,15 @@ class ValidationLabPrerequisiteTest extends TestCase
             ->assertRedirect(route('result', $missingEvidence))
             ->assertSessionHasErrors(['submission' => 'Complete the Lab finding, decision, and evidence record before submitting.']);
 
-        $this->assertSame(ValidationSubmission::DRAFT, $missingCheckNotes->fresh()->status);
-        $this->assertSame(ValidationSubmission::DRAFT, $missingEvidence->fresh()->status);
+        $this->assertSame(ValidationSubmissionStatus::Draft, $missingCheckNotes->fresh()->status);
+        $this->assertSame(ValidationSubmissionStatus::Draft, $missingEvidence->fresh()->status);
     }
 
     public function test_lab_result_offers_activity_one_only_to_the_owner_of_a_submitted_record(): void
     {
         [$participant] = $this->context();
-        $draft = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::DRAFT]));
-        $submitted = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::SUBMITTED, 'submitted_at' => now()]));
+        $draft = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmissionStatus::Draft]));
+        $submitted = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]));
         $otherParticipant = User::factory()->create(['role' => 'participant']);
 
         $this->actingAs($participant)->get(route('result', $draft))
@@ -141,7 +143,7 @@ class ValidationLabPrerequisiteTest extends TestCase
         foreach (['manual', 'automation', 'automation_manual'] as $path) {
             [$participant, $week, $activity] = $this->context(['training_path' => $path]);
             $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-            ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmission::COMPLETED]));
+            ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmissionStatus::Completed]));
 
             $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))->assertOk();
         }

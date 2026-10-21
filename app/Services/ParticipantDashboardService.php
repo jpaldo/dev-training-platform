@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\AttendanceSession;
 use App\Models\GateCriterionEvaluation;
@@ -11,7 +12,6 @@ use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\ValidationSubmission;
 use App\Models\WeekFourInterviewPair;
 use App\Models\WeeklyVideoRecording;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -100,7 +100,7 @@ class ParticipantDashboardService
                 $activity->participant_score_max = $scoreMax;
                 $activity->week_four_partner_assigned = ! $this->requiresWeekFourPartner($week, $activity) || ($hasWeekFourPartner ??= (bool) WeekFourInterviewPair::forParticipant($user->id));
                 $activity->lab_prerequisite_met = ! $this->requiresValidationLabRecord($week, $activity)
-                    || ($hasValidationLabRecord ??= $user->validationSubmissions()->whereIn('status', [ValidationSubmission::SUBMITTED, ValidationSubmission::COMPLETED])->exists());
+                    || ($hasValidationLabRecord ??= $user->validationSubmissions()->whereIn('status', ValidationSubmissionStatus::recorded())->exists());
             }
         }
     }

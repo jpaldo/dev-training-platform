@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\MentorInterviewScheduleStatus;
+use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
@@ -49,7 +50,7 @@ class SubmissionWorkflowService
 
     public function saveDraft(User $user, Activity $activity, array $fieldValues, ?string $note, ?array $interactions = null): SubmissionVersion
     {
-        if ($user->role === 'participant' && $activity->week?->week_number === 2 && $activity->position === 1 && $activity->title === 'Validation Checklist' && ! $user->validationSubmissions()->whereIn('status', [ValidationSubmission::SUBMITTED, ValidationSubmission::COMPLETED])->exists()) {
+        if ($user->role === 'participant' && $activity->week?->week_number === 2 && $activity->position === 1 && $activity->title === 'Validation Checklist' && ! $user->validationSubmissions()->whereIn('status', ValidationSubmissionStatus::recorded())->exists()) {
             throw ValidationException::withMessages(['lab_prerequisite' => 'Submit a QA Validation Lab record before starting this activity.']);
         }
         $allowed = Arr::only($fieldValues, array_keys($this->fieldDefinitions($activity, $user)));
@@ -75,7 +76,7 @@ class SubmissionWorkflowService
             Validator::make($allowed, ['artifact_type' => ['nullable', 'string', 'max:120']])->validate();
         }
         if (array_key_exists('validation_submission_id', $allowed) && filled($allowed['validation_submission_id'])) {
-            $record = ValidationSubmission::query()->whereKey((int) $allowed['validation_submission_id'])->where('user_id', $user->id)->whereIn('status', [ValidationSubmission::SUBMITTED, ValidationSubmission::COMPLETED])->first();
+            $record = ValidationSubmission::query()->whereKey((int) $allowed['validation_submission_id'])->where('user_id', $user->id)->whereIn('status', ValidationSubmissionStatus::recorded())->first();
             if (! $record) {
                 throw ValidationException::withMessages(['field_values.validation_submission_id' => 'Select one of your own Validation Lab records.']);
             }

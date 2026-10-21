@@ -1,20 +1,144 @@
 @extends('layouts.app')
+
 @section('content')
-<style>
-.report-shell{display:grid;gap:22px}.report-nav{display:flex;gap:8px;flex-wrap:wrap}.report-nav a{padding:9px 14px;border:1px solid var(--line);border-radius:999px;color:var(--muted)}.report-nav a.active{background:#281d56;border-color:#6d50cf;color:#fff}.report-head{display:flex;justify-content:space-between;gap:18px;align-items:end;flex-wrap:wrap}.report-head h1{margin-bottom:0}.report-filters{display:grid;grid-template-columns:1.4fr 1fr 1fr auto auto;gap:12px;align-items:end}.report-filters .field{min-width:0}.stat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}.stat{padding:18px;background:#11162b;border:1px solid var(--line);border-radius:16px}.stat strong{display:block;font-size:28px;margin-top:6px}.table-wrap{overflow-x:auto}.report-table{width:100%;min-width:700px;border-collapse:separate;border-spacing:0}.report-table th,.report-table td{padding:15px 16px;text-align:left;border-bottom:1px solid #252b48;vertical-align:middle}.report-table th{color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase;background:#0d1225}.report-table th:first-child{border-radius:12px 0 0 0}.report-table th:last-child{border-radius:0 12px 0 0}.report-table tbody tr:hover{background:#151b34}.report-table .num{text-align:right;font-size:15px}.path-chip{display:inline-flex;padding:6px 9px;border-radius:999px;background:#1c2442;border:1px solid #343d68;color:#dbeafe;font-size:12px}.mentor-list{color:#c5cbea}.empty-state{padding:20px;border:1px dashed #3a426c;border-radius:14px;color:var(--muted)}@media(max-width:900px){.stat-grid{grid-template-columns:repeat(3,1fr)}.report-filters{grid-template-columns:1fr 1fr}.report-filters .wide{grid-column:span 2}}@media(max-width:560px){.stat-grid{grid-template-columns:1fr 1fr}.report-filters{grid-template-columns:1fr}.report-filters .wide{grid-column:auto}}
-</style>
-<div class="report-shell">
-    <div class="eyebrow">COACH / REPORTS</div>
-    <div class="report-head"><div><h1>Progress report</h1><p class="muted">A clear view of participant activity, gates, and current risk.</p></div><div class="actions"><a class="btn" href="{{ route('coach.reports.export', array_merge(request()->query(), ['type'=>'progress'])) }}">Export Progress CSV</a></div></div>
-    <nav class="report-nav" aria-label="Reports"><a class="active" href="{{ route('coach.reports') }}">Progress</a><a href="{{ route('coach.reports.daily-logs') }}">Daily Log Completion</a><a href="{{ route('coach.reports.daily-logs.details') }}">Daily Log Details</a><a href="{{ route('coach.reports.missing-submissions') }}">Missing Submissions</a></nav>
-    <form class="card report-filters" method="GET" action="{{ route('coach.reports') }}" aria-label="Progress filters">
-        <div class="field wide"><label for="report-search">Participant</label><input id="report-search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Name or email"></div>
-        <div class="field"><label for="report-path">Training Path</label><select id="report-path" name="path"><option value="">All paths</option>@foreach(['manual'=>'Manual','automation'=>'Automation','automation_manual'=>'Automation / Manual'] as $value=>$label)<option value="{{ $value }}" @selected(($filters['path'] ?? '')===$value)>{{ $label }}</option>@endforeach</select></div>
-        <div class="field"><label for="report-mentor">Mentor</label><select id="report-mentor" name="mentor"><option value="">All mentors</option>@foreach($mentors as $mentor)<option value="{{ $mentor->id }}" @selected((string)($filters['mentor'] ?? '')===(string)$mentor->id)>{{ $mentor->name }}</option>@endforeach</select></div>
-        <button class="btn" type="submit">Apply filters</button><a class="btn secondary" href="{{ route('coach.reports') }}">Clear</a>
-    </form>
-    <div class="stat-grid" aria-label="Progress summary"><div class="stat"><span class="muted">Total Participants</span><strong>{{ $summary['participants'] }}</strong></div><div class="stat"><span class="muted">Active Participants</span><strong>{{ $summary['active'] }}</strong></div><div class="stat"><span class="muted">Submissions</span><strong>{{ $summary['submissions'] }}</strong></div><div class="stat"><span class="muted">Gates Passed</span><strong>{{ $summary['gates'] }}</strong></div><div class="stat"><span class="muted">At Risk</span><strong>{{ $summary['at_risk'] }}</strong></div></div>
-    <section class="card"><div class="report-head"><h2>At-risk participants</h2><span class="muted">Existing readiness rules</span></div>@if($atRisk->count() === 0)<div class="empty-state">No current at-risk participants.</div>@else<div class="table-wrap"><table class="report-table"><thead><tr><th>Participant</th><th>Training Path</th><th>Reasons</th></tr></thead><tbody>@foreach($atRisk as $row)<tr><td><strong>{{ $row['participant']->name }}</strong></td><td><span class="path-chip">{{ $row['participant']->trainingPathLabel() }}</span></td><td>{{ implode(' · ', $row['reasons']) }}</td></tr>@endforeach</tbody></table></div>@if($atRisk->hasPages())<div style="margin-top:18px">{{ $atRisk->withQueryString()->links() }}</div>@endif @endif</section>
-    <section class="card"><div class="report-head"><h2>Participant progress</h2><span class="muted">{{ $items->total() }} participant(s)</span></div><div class="table-wrap"><table class="report-table"><thead><tr><th>Participant</th><th>Training Path</th><th>Mentor</th><th class="num">Submissions</th><th class="num">Gates</th></tr></thead><tbody>@forelse($items as $item)<tr><td><strong>{{ $item->name }}</strong><div class="muted">{{ $item->email }}</div></td><td><span class="path-chip">{{ $item->trainingPathLabel() }}</span></td><td class="mentor-list">{{ $item->assignedCoaches->pluck('name')->filter()->join(', ') ?: 'Not assigned' }}</td><td class="num">{{ $item->activitySubmissions->count() }}</td><td class="num">{{ $item->gateEvaluations->count() }}</td></tr>@empty<tr><td colspan="5"><div class="empty-state">No participants match the selected filters.</div></td></tr>@endforelse</tbody></table></div>@if($items->hasPages())<div style="margin-top:18px">{{ $items->withQueryString()->links() }}</div>@endif</section>
-</div>
+    @php
+        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
+        $labelClasses = 'text-sm font-extrabold';
+        $headerCellClasses = 'border-b border-line px-3.5 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase max-sm:px-2.5';
+        $cellClasses = 'border-b border-line px-3.5 py-3.5 text-left align-middle max-sm:px-2.5 max-sm:py-3';
+        $regionClasses = 'overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50';
+    @endphp
+
+    <div class="grid grid-cols-1 gap-6">
+        <header class="flex flex-wrap items-end justify-between gap-4">
+            <div class="grid min-w-0 gap-2">
+                <x-ui.eyebrow>COACH / REPORTS</x-ui.eyebrow>
+                <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Progress report</h1>
+                <p class="m-0 leading-relaxed text-muted">A clear view of participant activity, gates, and current risk.</p>
+            </div>
+            <x-ui.button variant="secondary" :href="$exportUrl">Export Progress CSV</x-ui.button>
+        </header>
+
+        <x-ui.report-nav current="progress" />
+
+        <x-ui.card as="form" method="GET" action="{{ route('coach.reports') }}" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_repeat(2,minmax(0,1fr))_auto_auto] lg:items-end" aria-label="Progress filters">
+            <div class="grid min-w-0 gap-2 md:col-span-2 lg:col-span-1">
+                <label for="report-search" class="{{ $labelClasses }}">Participant</label>
+                <input id="report-search" name="search" value="{{ $search }}" placeholder="Name or email" class="{{ $controlClasses }}">
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="report-path" class="{{ $labelClasses }}">Training Path</label>
+                <select id="report-path" name="path" class="{{ $controlClasses }}">
+                    <option value="">All paths</option>
+                    @foreach($pathOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="report-mentor" class="{{ $labelClasses }}">Mentor</label>
+                <select id="report-mentor" name="mentor" class="{{ $controlClasses }}">
+                    <option value="">All mentors</option>
+                    @foreach($mentorOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <x-ui.button variant="secondary" type="submit">Apply filters</x-ui.button>
+            <x-ui.button variant="secondary" :href="route('coach.reports')">Clear</x-ui.button>
+        </x-ui.card>
+
+        <section aria-labelledby="progress-summary-title">
+            <h2 id="progress-summary-title" class="sr-only">Progress summary</h2>
+            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                @foreach($stats as $stat)
+                    <x-ui.card class="grid content-start gap-2" padding="p-5">
+                        <dt class="text-sm text-muted">{{ $stat['label'] }}</dt>
+                        <dd class="m-0 text-3xl font-black">{{ $stat['value'] }}</dd>
+                    </x-ui.card>
+                @endforeach
+            </dl>
+        </section>
+
+        <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="at-risk-title">
+            <div class="flex flex-wrap items-end justify-between gap-2">
+                <h2 id="at-risk-title" class="m-0 text-xl font-extrabold">At-risk participants</h2>
+                <span class="text-sm text-muted">Existing readiness rules</span>
+            </div>
+            @if($atRiskRows->isEmpty())
+                <p class="m-0 rounded-xl border border-dashed border-line p-5 text-muted">No current at-risk participants.</p>
+            @else
+                <div class="{{ $regionClasses }}" role="region" aria-labelledby="at-risk-title" tabindex="0">
+                    <table class="w-full min-w-175 border-collapse text-sm">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Training Path</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Reasons</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($atRiskRows as $row)
+                                <tr data-at-risk-row>
+                                    <th scope="row" class="{{ $cellClasses }} wrap-break-word">{{ $row['participant_name'] }}</th>
+                                    <td class="{{ $cellClasses }}">
+                                        <x-ui.badge class="whitespace-nowrap">{{ $row['path'] }}</x-ui.badge>
+                                    </td>
+                                    <td class="{{ $cellClasses }} wrap-break-word">{{ $row['reasons'] }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @if($atRiskRows->hasPages())
+                    <div>{{ $atRiskRows->links() }}</div>
+                @endif
+            @endif
+        </x-ui.card>
+
+        <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="participant-progress-title">
+            <div class="flex flex-wrap items-end justify-between gap-2">
+                <h2 id="participant-progress-title" class="m-0 text-xl font-extrabold">Participant progress</h2>
+                <span class="text-sm text-muted">{{ $participantRows->total() }} participant(s)</span>
+            </div>
+            @if($participantRows->isEmpty())
+                <p class="m-0 rounded-xl border border-dashed border-line p-5 text-muted">No participants match the selected filters.</p>
+            @else
+                <div class="{{ $regionClasses }}" role="region" aria-labelledby="participant-progress-title" tabindex="0">
+                    <table class="w-full min-w-175 border-collapse text-sm">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Training Path</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Mentor</th>
+                                <th scope="col" class="{{ $headerCellClasses }} text-right">Submissions</th>
+                                <th scope="col" class="{{ $headerCellClasses }} text-right">Gates</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($participantRows as $row)
+                                <tr data-participant-row>
+                                    <th scope="row" class="{{ $cellClasses }} font-normal">
+                                        <span class="grid gap-0.5">
+                                            <strong class="wrap-break-word">{{ $row['name'] }}</strong>
+                                            <span class="wrap-anywhere text-muted">{{ $row['email'] }}</span>
+                                        </span>
+                                    </th>
+                                    <td class="{{ $cellClasses }}">
+                                        <x-ui.badge class="whitespace-nowrap">{{ $row['path'] }}</x-ui.badge>
+                                    </td>
+                                    <td class="{{ $cellClasses }} wrap-break-word">{{ $row['mentors'] }}</td>
+                                    <td class="{{ $cellClasses }} text-right tabular-nums">{{ $row['submission_count'] }}</td>
+                                    <td class="{{ $cellClasses }} text-right tabular-nums">{{ $row['gate_count'] }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+            @if($participantRows->hasPages())
+                <div>{{ $participantRows->links() }}</div>
+            @endif
+        </x-ui.card>
+    </div>
 @endsection

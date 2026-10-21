@@ -8,10 +8,9 @@ use App\Http\Requests\FilterCoachReportsRequest;
 use App\Models\User;
 use App\Services\CoachDashboardPageService;
 use App\Services\CoachGateBoardPageService;
+use App\Services\CoachProgressReportPageService;
 use App\Services\CoachReportService;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Collection;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -30,16 +29,9 @@ class CoachOperationsController extends Controller
         return view('coach.gates', $page->indexData($request->validated(), max(1, $request->integer('page', 1))));
     }
 
-    public function reports(FilterCoachReportsRequest $request, CoachReportService $reports): View
+    public function reports(FilterCoachReportsRequest $request, CoachProgressReportPageService $page): View
     {
-        $filters = $request->validated();
-        $items = $reports->participants($filters)->orderBy('name')->paginate(25)->withQueryString();
-        $atRiskRows = $reports->reportAtRiskRows($filters);
-        $atRisk = $this->paginate($atRiskRows, $request, 'risk_page');
-        $mentors = $reports->mentors();
-        $summary = $reports->reportSummary($filters, $atRiskRows);
-
-        return view('coach.reports', compact('items', 'atRisk', 'filters', 'mentors', 'summary'));
+        return view('coach.reports', $page->indexData($request->validated(), $request->query(), max(1, $request->integer('risk_page', 1))));
     }
 
     public function export(ExportCoachReportRequest $request, CoachReportService $reports): StreamedResponse
@@ -54,17 +46,5 @@ class CoachOperationsController extends Controller
             }
             fclose($out);
         }, $export['filename'], ['Content-Type' => 'text/csv']);
-    }
-
-    /**
-     * Paginate in-memory report rows, 25 per page, reading the page number from the given query parameter.
-     *
-     * @param  Collection<int, array<string, mixed>>  $rows
-     */
-    private function paginate(Collection $rows, Request $request, string $pageName): LengthAwarePaginator
-    {
-        $page = max(1, (int) $request->input($pageName, 1));
-
-        return new LengthAwarePaginator($rows->forPage($page, 25)->values(), $rows->count(), 25, $page, ['path' => $request->url(), 'query' => $request->query(), 'pageName' => $pageName]);
     }
 }

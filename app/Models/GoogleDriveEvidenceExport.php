@@ -2,26 +2,21 @@
 
 namespace App\Models;
 
+use App\Enums\GoogleDriveExportStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class GoogleDriveEvidenceExport extends Model
 {
-    public const ENQUEUED = 'enqueued';
-
-    public const IN_PROGRESS = 'in_progress';
-
-    public const RETRYING = 'retrying';
-
-    public const COMPLETED = 'completed';
-
-    public const FAILED = 'failed';
-
     protected $fillable = ['submission_evidence_id', 'drive_file_id', 'destination_folder_id', 'status', 'error', 'last_attempt_at', 'last_synced_at'];
 
     protected function casts(): array
     {
-        return ['last_attempt_at' => 'datetime', 'last_synced_at' => 'datetime'];
+        return [
+            'status' => GoogleDriveExportStatus::class,
+            'last_attempt_at' => 'datetime',
+            'last_synced_at' => 'datetime',
+        ];
     }
 
     public function evidence(): BelongsTo

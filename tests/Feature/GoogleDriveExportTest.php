@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GoogleDriveExportStatus;
 use App\Jobs\ExportActivityJob;
 use App\Jobs\ExportDailyLogsJob;
 use App\Jobs\ExportSummaryReportsJob;
@@ -283,7 +284,7 @@ class GoogleDriveExportTest extends TestCase
         $participant = User::factory()->create(['drive_link' => 'https://drive.google.com/drive/folders/inaccessible']);
         GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'account', 'google_email' => 'p@example.com', 'access_token' => 'token', 'token_expires_at' => now()->addHour(), 'connected_at' => now(), 'drive_folder_id' => 'old-folder']);
         foreach (['training_progress', 'activity_scores', 'gate_progress'] as $scope) {
-            GoogleDriveExport::create(['user_id' => $participant->id, 'export_type' => 'summary', 'scope_key' => $scope, 'status' => GoogleDriveExport::FAILED]);
+            GoogleDriveExport::create(['user_id' => $participant->id, 'export_type' => 'summary', 'scope_key' => $scope, 'status' => GoogleDriveExportStatus::Failed]);
         }
         Http::fake(['https://www.googleapis.com/*' => Http::response(['error' => ['code' => 403]], 403)]);
 
@@ -307,7 +308,7 @@ class GoogleDriveExportTest extends TestCase
             Storage::disk('local')->put($file->path, 'private-'.$file->original_filename);
         }
         GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'account', 'google_email' => 'p@example.com', 'access_token' => 'token', 'token_expires_at' => now()->addHour(), 'connected_at' => now(), 'drive_folder_id' => 'root']);
-        GoogleDriveExport::create(['user_id' => $participant->id, 'export_type' => 'activity', 'scope_key' => (string) $activity->id, 'drive_file_id' => 'old-csv', 'destination_folder_id' => 'old-root', 'status' => GoogleDriveExport::COMPLETED]);
+        GoogleDriveExport::create(['user_id' => $participant->id, 'export_type' => 'activity', 'scope_key' => (string) $activity->id, 'drive_file_id' => 'old-csv', 'destination_folder_id' => 'old-root', 'status' => GoogleDriveExportStatus::Completed]);
         $drive = Mockery::mock(GoogleDriveService::class);
         $drive->shouldReceive('participantTrainingRoot')->once()->andReturn(['root', 'training-root']);
         $drive->shouldReceive('ensureFolder')->times(3)->andReturn('week-folder', 'activity-folder', 'evidence-folder');
@@ -374,7 +375,7 @@ class GoogleDriveExportTest extends TestCase
 
         (new ExportSummaryReportsJob($participant->id))->handle($exports, $drive);
 
-        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'scope_key' => 'training_progress', 'status' => GoogleDriveExport::FAILED, 'error' => 'The Google Drive folder in your Profile could not be accessed. Check that your connected Google account has Editor/write access.']);
+        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'scope_key' => 'training_progress', 'status' => 'failed', 'error' => 'The Google Drive folder in your Profile could not be accessed. Check that your connected Google account has Editor/write access.']);
         $this->assertDatabaseCount('jobs', 0);
     }
 
@@ -470,6 +471,7 @@ class GoogleDriveExportTest extends TestCase
         $this->assertStringContainsString('"Validation Lab","Source Status",pass', $csv);
         $this->assertStringContainsString('https://example.test/report', $csv);
         $this->assertStringContainsString('drive-evidence', $csv);
+        $this->assertStringContainsString('Evidence,"Export Status",completed', $csv);
     }
 
     public function test_profile_folder_is_parsed_and_inaccessible_folder_returns_safe_error(): void

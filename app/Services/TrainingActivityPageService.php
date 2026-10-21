@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GoogleDriveExportStatus;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityRecoveryRequest;
@@ -136,19 +137,12 @@ class TrainingActivityPageService
 
         return [
             'connected' => $user->loadMissing('googleDriveConnection')->googleDriveConnection !== null,
-            'status_label' => match ($driveExport?->status) {
-                GoogleDriveExport::ENQUEUED => 'Enqueued',
-                GoogleDriveExport::IN_PROGRESS, 'exporting' => 'In Progress',
-                GoogleDriveExport::RETRYING => 'Retrying',
-                GoogleDriveExport::COMPLETED, 'synced' => 'Completed',
-                GoogleDriveExport::FAILED => 'Failed',
-                default => 'Not Exported',
-            },
+            'status_label' => $driveExport?->status?->label() ?? GoogleDriveExportStatus::Pending->label(),
             'evidence_total' => $evidenceIds->count(),
-            'evidence_synced' => $evidenceExports->whereIn('status', [GoogleDriveEvidenceExport::COMPLETED, 'synced'])->count(),
-            'evidence_failed' => $evidenceExports->where('status', GoogleDriveEvidenceExport::FAILED)->count(),
+            'evidence_synced' => $evidenceExports->whereIn('status', [GoogleDriveExportStatus::Completed, GoogleDriveExportStatus::Synced])->count(),
+            'evidence_failed' => $evidenceExports->where('status', GoogleDriveExportStatus::Failed)->count(),
             'last_synced_at' => $driveExport?->last_synced_at,
-            'error' => $driveExport?->status === GoogleDriveExport::FAILED ? $driveExport->error : null,
+            'error' => $driveExport?->status === GoogleDriveExportStatus::Failed ? $driveExport->error : null,
         ];
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\GoogleDriveExportStatus;
 use App\Models\GoogleDriveEvidenceExport;
 use App\Models\GoogleDriveExport;
 use App\Models\SubmissionVersion;
@@ -35,10 +36,10 @@ class ExportActivityJob implements ShouldQueue
         $lifecycle ??= app(ExportLifecycleService::class);
         $version = SubmissionVersion::with(['submission.participant', 'submission.activity.week', 'evidence'])->find($this->versionId);
         $record = $version?->submission ? GoogleDriveExport::firstOrCreate(['user_id' => $version->submission->user_id, 'export_type' => 'activity', 'scope_key' => (string) $version->submission->activity_id]) : null;
-        $record?->update(['status' => GoogleDriveExport::IN_PROGRESS, 'last_attempt_at' => now()]);
+        $record?->update(['status' => GoogleDriveExportStatus::InProgress, 'last_attempt_at' => now()]);
         $connection = $version?->submission?->participant?->googleDriveConnection;
         if (! $version || ! $connection) {
-            $record?->update(['status' => GoogleDriveExport::FAILED, 'error' => $version ? 'Google Drive is not connected for this participant.' : 'The activity submission could not be found.', 'last_attempt_at' => now()]);
+            $record?->update(['status' => GoogleDriveExportStatus::Failed, 'error' => $version ? 'Google Drive is not connected for this participant.' : 'The activity submission could not be found.', 'last_attempt_at' => now()]);
 
             return;
         }
@@ -50,23 +51,23 @@ class ExportActivityJob implements ShouldQueue
             $record->update(['destination_folder_id' => $destinationId]);
             $weekFolder = $drive->ensureFolder($connection, "Week {$week}", $trainingRoot);
             $activityFolder = $drive->ensureFolder($connection, 'Activity '.$activity->position.' - '.$activity->title, $weekFolder);
-            $record->update(['drive_file_id' => $drive->upsertCsv($connection, 'Activity Report.csv', $exports->activity($participant, $activity->id), $activityFolder), 'status' => GoogleDriveExport::COMPLETED, 'error' => null, 'last_synced_at' => now()]);
+            $record->update(['drive_file_id' => $drive->upsertCsv($connection, 'Activity Report.csv', $exports->activity($participant, $activity->id), $activityFolder), 'status' => GoogleDriveExportStatus::Completed, 'error' => null, 'last_synced_at' => now()]);
             $evidenceFolder = $drive->ensureFolder($connection, 'Evidence', $activityFolder);
             $evidenceFailure = null;
             foreach ($version->evidence as $evidence) {
                 $status = GoogleDriveEvidenceExport::firstOrCreate(['submission_evidence_id' => $evidence->id]);
                 $evidenceDisk = $evidence->disk ?: 'local';
                 if (! $evidence->path || ! Storage::disk($evidenceDisk)->exists($evidence->path)) {
-                    $status->update(['status' => GoogleDriveEvidenceExport::FAILED, 'error' => 'Original evidence file is unavailable.', 'last_attempt_at' => now()]);
+                    $status->update(['status' => GoogleDriveExportStatus::Failed, 'error' => 'Original evidence file is unavailable.', 'last_attempt_at' => now()]);
                     $evidenceFailure ??= new \RuntimeException('One or more evidence files could not be exported.');
 
                     continue;
                 }
                 $existingDestination = $status->destination_folder_id;
-                $status->update(['status' => GoogleDriveEvidenceExport::IN_PROGRESS, 'last_attempt_at' => now(), 'error' => null, 'destination_folder_id' => $destinationId]);
+                $status->update(['status' => GoogleDriveExportStatus::InProgress, 'last_attempt_at' => now(), 'error' => null, 'destination_folder_id' => $destinationId]);
                 try {
                     $existingId = $existingDestination === $destinationId ? $status->drive_file_id : null;
-                    $status->update(['drive_file_id' => $drive->uploadFile($connection, $evidence->original_filename ?: "evidence-{$evidence->id}", Storage::disk($evidenceDisk)->get($evidence->path), $evidenceFolder, $evidence->mime_type ?: 'application/octet-stream', $existingId), 'status' => GoogleDriveEvidenceExport::COMPLETED, 'error' => null, 'last_synced_at' => now()]);
+                    $status->update(['drive_file_id' => $drive->uploadFile($connection, $evidence->original_filename ?: "evidence-{$evidence->id}", Storage::disk($evidenceDisk)->get($evidence->path), $evidenceFolder, $evidence->mime_type ?: 'application/octet-stream', $existingId), 'status' => GoogleDriveExportStatus::Completed, 'error' => null, 'last_synced_at' => now()]);
                 } catch (Throwable $exception) {
                     if ($lifecycle->markEvidenceFailure($status, $this->job, $this->tries, $exception)) {
                         $evidenceFailure ??= $exception;
@@ -88,8 +89,8 @@ class ExportActivityJob implements ShouldQueue
     {
         $version = SubmissionVersion::with('submission')->find($this->versionId);
         if ($version?->submission) {
-            GoogleDriveExport::query()->where('user_id', $version->submission->user_id)->where('export_type', 'activity')->where('scope_key', (string) $version->submission->activity_id)->update(['status' => GoogleDriveExport::FAILED, 'error' => 'Google Drive activity export failed.', 'last_attempt_at' => now(), 'updated_at' => now()]);
-            GoogleDriveEvidenceExport::query()->whereIn('submission_evidence_id', $version->evidence()->pluck('id'))->whereIn('status', [GoogleDriveEvidenceExport::RETRYING, GoogleDriveEvidenceExport::IN_PROGRESS])->update(['status' => GoogleDriveEvidenceExport::FAILED, 'error' => 'Google Drive evidence export failed.', 'last_attempt_at' => now(), 'updated_at' => now()]);
+            GoogleDriveExport::query()->where('user_id', $version->submission->user_id)->where('export_type', 'activity')->where('scope_key', (string) $version->submission->activity_id)->update(['status' => GoogleDriveExportStatus::Failed, 'error' => 'Google Drive activity export failed.', 'last_attempt_at' => now(), 'updated_at' => now()]);
+            GoogleDriveEvidenceExport::query()->whereIn('submission_evidence_id', $version->evidence()->pluck('id'))->whereIn('status', [GoogleDriveExportStatus::Retrying, GoogleDriveExportStatus::InProgress])->update(['status' => GoogleDriveExportStatus::Failed, 'error' => 'Google Drive evidence export failed.', 'last_attempt_at' => now(), 'updated_at' => now()]);
         }
     }
 }

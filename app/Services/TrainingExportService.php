@@ -92,7 +92,7 @@ class TrainingExportService
                 $rows->push(['Evidence', 'Original Filename', $evidence->original_filename]);
                 $rows->push(['Evidence', 'URL', $evidence->url]);
                 $rows->push(['Evidence', 'Drive File ID', $evidence->googleDriveExport?->drive_file_id]);
-                $rows->push(['Evidence', 'Export Status', $evidence->googleDriveExport?->status]);
+                $rows->push(['Evidence', 'Export Status', $evidence->googleDriveExport?->status?->value]);
             }
         }
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GoogleDriveExportStatus;
 use App\Jobs\ExportSummaryReportsJob;
 use App\Jobs\SyncTrainingDataJob;
 use App\Models\Activity;
@@ -237,10 +238,11 @@ class GoogleDriveSyncTest extends TestCase
     {
         $participant = User::factory()->create(['role' => 'participant']);
         $folderA = GoogleDriveExport::forDestination($participant->id, 'weekly_workbook', '2', 'folder-a');
-        $folderA->update(['drive_file_id' => 'a-123', 'status' => GoogleDriveExport::COMPLETED]);
+        $folderA->update(['drive_file_id' => 'a-123', 'status' => GoogleDriveExportStatus::Completed]);
         $folderB = GoogleDriveExport::forDestination($participant->id, 'weekly_workbook', '2', 'folder-b');
 
         $this->assertNull($folderB->drive_file_id);
+        $this->assertSame(GoogleDriveExportStatus::Pending, $folderB->fresh()->status);
         $this->assertSame('a-123', GoogleDriveExport::forDestination($participant->id, 'weekly_workbook', '2', 'folder-a')->drive_file_id);
         $this->assertSame(2, GoogleDriveExport::query()->where('user_id', $participant->id)->count());
     }
@@ -249,7 +251,7 @@ class GoogleDriveSyncTest extends TestCase
     {
         $participant = User::factory()->create(['role' => 'participant']);
         GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'refresh_token' => 'refresh', 'drive_folder_id' => 'root', 'destination_source' => 'picker', 'connected_at' => now()]);
-        $legacy = GoogleDriveExport::create(['user_id' => $participant->id, 'export_type' => 'weekly_workbook', 'scope_key' => '2', 'destination_folder_id' => 'root', 'drive_file_id' => 'legacy-root-workbook', 'status' => GoogleDriveExport::COMPLETED]);
+        $legacy = GoogleDriveExport::create(['user_id' => $participant->id, 'export_type' => 'weekly_workbook', 'scope_key' => '2', 'destination_folder_id' => 'root', 'drive_file_id' => 'legacy-root-workbook', 'status' => GoogleDriveExportStatus::Completed]);
         $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]);
         $drive = Mockery::mock(GoogleDriveService::class);
         $drive->shouldReceive('validateDestination')->once()->andReturn('root');
@@ -441,7 +443,7 @@ class GoogleDriveSyncTest extends TestCase
         $this->assertSame('folder-'.md5('Week 3|root'), $calls[2][1]);
         $this->assertSame('folder-'.md5('Week 4|root'), $calls[3][1]);
         $this->assertSame(9, GoogleDriveExport::query()->where('user_id', $participant->id)->count());
-        $this->assertSame(9, GoogleDriveExport::query()->where('user_id', $participant->id)->where('status', GoogleDriveExport::COMPLETED)->count());
+        $this->assertSame(9, GoogleDriveExport::query()->where('user_id', $participant->id)->where('status', GoogleDriveExportStatus::Completed)->count());
         $this->assertSame(4, GoogleDriveExport::query()->where('user_id', $participant->id)->where('export_type', 'weekly_workbook_nested')->count());
         $this->assertSame(4, GoogleDriveExport::query()->where('user_id', $participant->id)->where('export_type', 'week_folder')->count());
         $this->assertSame(1, GoogleDriveExport::query()->where('user_id', $participant->id)->where('export_type', 'week_evidences_folder')->count());

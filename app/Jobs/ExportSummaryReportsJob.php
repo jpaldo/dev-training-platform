@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\GoogleDriveExportStatus;
 use App\Models\GoogleDriveExport;
 use App\Models\User;
 use App\Services\ExportLifecycleService;
@@ -44,13 +45,13 @@ class ExportSummaryReportsJob implements ShouldQueue
         $firstFailure = null;
         $records = collect(array_keys($reports))->mapWithKeys(function (string $scope): array {
             $record = GoogleDriveExport::firstOrCreate(['user_id' => $this->userId, 'export_type' => 'summary', 'scope_key' => $scope]);
-            $record->update(['status' => GoogleDriveExport::IN_PROGRESS, 'last_attempt_at' => now(), 'error' => null]);
+            $record->update(['status' => GoogleDriveExportStatus::InProgress, 'last_attempt_at' => now(), 'error' => null]);
 
             return [$scope => $record];
         });
         if (! $participant || ! $connection) {
             $records->each(fn (GoogleDriveExport $record): bool => (bool) $record->update([
-                'status' => GoogleDriveExport::FAILED,
+                'status' => GoogleDriveExportStatus::Failed,
                 'error' => 'Google Drive is not connected for this participant.',
                 'last_attempt_at' => now(),
             ]));
@@ -75,7 +76,7 @@ class ExportSummaryReportsJob implements ShouldQueue
         foreach ($reports as $scope => [$name, $content]) {
             $record = $records[$scope];
             try {
-                $record->update(['drive_file_id' => $drive->upsertCsv($connection, $name, $content(), $folder), 'status' => GoogleDriveExport::COMPLETED, 'error' => null, 'last_synced_at' => now()]);
+                $record->update(['drive_file_id' => $drive->upsertCsv($connection, $name, $content(), $folder), 'status' => GoogleDriveExportStatus::Completed, 'error' => null, 'last_synced_at' => now()]);
             } catch (Throwable $e) {
                 $retry = $lifecycle->markFailure($record, $this->job, $this->tries, $e, 'Google Drive summary export failed.');
                 if ($retry) {
@@ -93,7 +94,7 @@ class ExportSummaryReportsJob implements ShouldQueue
         GoogleDriveExport::query()
             ->where('user_id', $this->userId)
             ->where('export_type', 'summary')
-            ->whereIn('status', [GoogleDriveExport::IN_PROGRESS, GoogleDriveExport::RETRYING])
-            ->update(['status' => GoogleDriveExport::FAILED, 'error' => 'Google Drive summary export failed.', 'last_attempt_at' => now(), 'updated_at' => now()]);
+            ->whereIn('status', [GoogleDriveExportStatus::InProgress, GoogleDriveExportStatus::Retrying])
+            ->update(['status' => GoogleDriveExportStatus::Failed, 'error' => 'Google Drive summary export failed.', 'last_attempt_at' => now(), 'updated_at' => now()]);
     }
 }

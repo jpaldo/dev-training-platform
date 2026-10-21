@@ -2,28 +2,21 @@
 
 namespace App\Models;
 
+use App\Enums\GoogleDriveExportStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class GoogleDriveExport extends Model
 {
-    public const ENQUEUED = 'enqueued';
-
-    public const IN_PROGRESS = 'in_progress';
-
-    public const RETRYING = 'retrying';
-
-    public const COMPLETED = 'completed';
-
-    public const FAILED = 'failed';
-
-    public const ACTIVE_STATUSES = [self::ENQUEUED, self::IN_PROGRESS, self::RETRYING];
-
     protected $fillable = ['user_id', 'export_type', 'scope_key', 'drive_file_id', 'destination_folder_id', 'status', 'error', 'last_attempt_at', 'last_synced_at'];
 
     protected function casts(): array
     {
-        return ['last_attempt_at' => 'datetime', 'last_synced_at' => 'datetime'];
+        return [
+            'status' => GoogleDriveExportStatus::class,
+            'last_attempt_at' => 'datetime',
+            'last_synced_at' => 'datetime',
+        ];
     }
 
     public function participant(): BelongsTo

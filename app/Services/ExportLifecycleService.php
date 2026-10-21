@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GoogleDriveExportStatus;
 use App\Models\GoogleDriveExport;
 use App\Models\GoogleDriveSync;
 use Illuminate\Contracts\Queue\Job;
@@ -55,7 +56,7 @@ class ExportLifecycleService
     {
         $retry = $this->shouldRetry($job, $tries, $exception);
         $record->update([
-            'status' => $retry ? GoogleDriveExport::RETRYING : GoogleDriveExport::FAILED,
+            'status' => $retry ? GoogleDriveExportStatus::Retrying : GoogleDriveExportStatus::Failed,
             'error' => $this->failureMessage($fallback, $exception),
             'last_attempt_at' => now(),
         ]);
@@ -67,7 +68,7 @@ class ExportLifecycleService
     {
         $retry = $this->shouldRetry($job, $tries, $exception);
         $record->update([
-            'status' => $retry ? 'retrying' : 'failed',
+            'status' => $retry ? GoogleDriveExportStatus::Retrying : GoogleDriveExportStatus::Failed,
             'error' => $this->failureMessage('Google Drive evidence export failed.', $exception),
             'last_attempt_at' => now(),
         ]);
@@ -107,9 +108,9 @@ class ExportLifecycleService
             $reconciled += GoogleDriveExport::query()
                 ->where('user_id', $failedUserId)
                 ->where('export_type', 'summary')
-                ->whereIn('status', GoogleDriveExport::ACTIVE_STATUSES)
+                ->whereIn('status', GoogleDriveExportStatus::active())
                 ->update([
-                    'status' => GoogleDriveExport::FAILED,
+                    'status' => GoogleDriveExportStatus::Failed,
                     'error' => 'Export stopped before completion. Please retry the export.',
                     'updated_at' => now(),
                 ]);
@@ -117,7 +118,7 @@ class ExportLifecycleService
 
         $cutoff = now()->subMinutes(self::STALE_AFTER_MINUTES);
         $query = GoogleDriveExport::query()
-            ->whereIn('status', GoogleDriveExport::ACTIVE_STATUSES)
+            ->whereIn('status', GoogleDriveExportStatus::active())
             ->whereNotNull('last_attempt_at')
             ->where('last_attempt_at', '<', $cutoff);
         if ($userId !== null) {
@@ -125,7 +126,7 @@ class ExportLifecycleService
         }
 
         $reconciled += $query->update([
-            'status' => GoogleDriveExport::FAILED,
+            'status' => GoogleDriveExportStatus::Failed,
             'error' => 'Export stopped before completion. Please retry the export.',
             'updated_at' => now(),
         ]);

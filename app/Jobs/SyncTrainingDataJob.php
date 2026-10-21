@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\GoogleDriveExportStatus;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveEvidenceExport;
 use App\Models\GoogleDriveExport;
@@ -77,17 +78,17 @@ class SyncTrainingDataJob implements ShouldQueue
                 try {
                     $existing = $record->destination_folder_id === $destination ? $record->drive_file_id : null;
                     $fileId = $drive->uploadFile($connection, $component['name'], $component['content'], $component['parent'], $component['mime'], $existing);
-                    $record->update(['destination_folder_id' => $destination, 'drive_file_id' => $fileId, 'status' => GoogleDriveExport::COMPLETED, 'last_synced_at' => now(), 'error' => null]);
+                    $record->update(['destination_folder_id' => $destination, 'drive_file_id' => $fileId, 'status' => GoogleDriveExportStatus::Completed, 'last_synced_at' => now(), 'error' => null]);
                     $componentResults[$component['name']] = ['status' => 'completed'];
                     $sync->increment('successful_components');
                 } catch (Throwable $exception) {
                     $message = app(ExportLifecycleService::class)->failureMessage('Google Drive sync failed.', $exception);
-                    $record->update(['destination_folder_id' => $destination, 'status' => GoogleDriveExport::FAILED, 'error' => $message]);
+                    $record->update(['destination_folder_id' => $destination, 'status' => GoogleDriveExportStatus::Failed, 'error' => $message]);
                     $componentResults[$component['name']] = ['status' => 'failed', 'message' => $message];
                     $componentErrors[] = $component['name'].': '.$message;
                     $sync->increment('failed_components');
                 }
-                if ($component['type'] === 'weekly_workbook_nested' && (int) $component['scope'] >= 2 && $record->status === GoogleDriveExport::COMPLETED) {
+                if ($component['type'] === 'weekly_workbook_nested' && (int) $component['scope'] >= 2 && $record->status === GoogleDriveExportStatus::Completed) {
                     $this->syncEvidence($participant, (int) $component['scope'], $connection, $drive, $destination, $weekContexts[(int) $component['scope']]['folder'], $sync, $componentErrors, $evidenceStats);
                 }
             }
@@ -162,7 +163,7 @@ class SyncTrainingDataJob implements ShouldQueue
                 $status = GoogleDriveEvidenceExport::forDestination($evidence->id, $destination);
                 $evidenceDisk = $evidence->disk ?: 'local';
                 if (! $evidence->path || ! Storage::disk($evidenceDisk)->exists($evidence->path)) {
-                    $status->update(['status' => 'failed', 'error' => 'Original evidence file is unavailable.', 'last_attempt_at' => now()]);
+                    $status->update(['status' => GoogleDriveExportStatus::Failed, 'error' => 'Original evidence file is unavailable.', 'last_attempt_at' => now()]);
                     $sync->increment('failed_components');
                     $evidenceStats['failed']++;
                     $componentErrors[] = 'Evidences: Original evidence file is unavailable.';
@@ -171,12 +172,12 @@ class SyncTrainingDataJob implements ShouldQueue
                 }
                 try {
                     $existing = $status->destination_folder_id === $destination ? $status->drive_file_id : null;
-                    $status->update(['status' => 'in_progress', 'destination_folder_id' => $destination, 'last_attempt_at' => now(), 'error' => null]);
-                    $status->update(['drive_file_id' => $drive->uploadFile($connection, $evidence->original_filename ?: "evidence-{$evidence->id}", Storage::disk($evidenceDisk)->get($evidence->path), $evidenceActivityFolder, $evidence->mime_type ?: 'application/octet-stream', $existing), 'status' => 'completed', 'last_synced_at' => now()]);
+                    $status->update(['status' => GoogleDriveExportStatus::InProgress, 'destination_folder_id' => $destination, 'last_attempt_at' => now(), 'error' => null]);
+                    $status->update(['drive_file_id' => $drive->uploadFile($connection, $evidence->original_filename ?: "evidence-{$evidence->id}", Storage::disk($evidenceDisk)->get($evidence->path), $evidenceActivityFolder, $evidence->mime_type ?: 'application/octet-stream', $existing), 'status' => GoogleDriveExportStatus::Completed, 'last_synced_at' => now()]);
                     $sync->increment('successful_components');
                     $evidenceStats['completed']++;
                 } catch (Throwable $exception) {
-                    $status->update(['status' => 'failed', 'error' => app(ExportLifecycleService::class)->failureMessage('Google Drive evidence sync failed.', $exception), 'last_attempt_at' => now()]);
+                    $status->update(['status' => GoogleDriveExportStatus::Failed, 'error' => app(ExportLifecycleService::class)->failureMessage('Google Drive evidence sync failed.', $exception), 'last_attempt_at' => now()]);
                     $sync->increment('failed_components');
                     $evidenceStats['failed']++;
                     $componentErrors[] = 'Evidences: One evidence file could not be synchronized.';
@@ -264,7 +265,7 @@ class SyncTrainingDataJob implements ShouldQueue
         $tracking->update([
             'drive_file_id' => $folder,
             'destination_folder_id' => $destination,
-            'status' => GoogleDriveExport::COMPLETED,
+            'status' => GoogleDriveExportStatus::Completed,
             'last_synced_at' => now(),
             'error' => null,
         ]);

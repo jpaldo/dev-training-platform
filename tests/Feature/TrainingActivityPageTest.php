@@ -7,6 +7,8 @@ use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\EvidenceRequirement;
+use App\Models\GoogleDriveConnection;
+use App\Models\GoogleDriveExport;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
@@ -84,6 +86,57 @@ class TrainingActivityPageTest extends TestCase
             'draft' => ['draft', 'Continue submission →', false, 'submission'],
             'needs revision' => ['needs_revision', 'Revise submission →', true, 'submission'],
         ];
+    }
+
+    #[DataProvider('driveExportStatuses')]
+    public function test_google_drive_card_shows_the_activity_export_status_and_only_a_failed_export_error(?string $status, string $statusLabel): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'connected_at' => now()]);
+        if ($status !== null) {
+            GoogleDriveExport::create(['user_id' => $participant->id, 'export_type' => 'activity', 'scope_key' => (string) $activity->id, 'status' => $status, 'error' => 'Google Drive activity export failed.']);
+        }
+
+        $response = $this->actingAs($participant->fresh())->get(route('training.activities.show', [$week, $activity]))
+            ->assertOk()
+            ->assertSee('Sync status: '.$statusLabel);
+
+        $status === 'failed'
+            ? $response->assertSee('Google Drive activity export failed.')
+            : $response->assertDontSee('Google Drive activity export failed.');
+    }
+
+    /**
+     * @return array<string, array{?string, string}>
+     */
+    public static function driveExportStatuses(): array
+    {
+        return [
+            'not exported' => [null, 'Not Exported'],
+            'pending' => ['pending', 'Not Exported'],
+            'enqueued' => ['enqueued', 'Enqueued'],
+            'in progress' => ['in_progress', 'In Progress'],
+            'legacy exporting' => ['exporting', 'In Progress'],
+            'retrying' => ['retrying', 'Retrying'],
+            'completed' => ['completed', 'Completed'],
+            'legacy synced' => ['synced', 'Completed'],
+            'failed' => ['failed', 'Failed'],
+        ];
+    }
+
+    public function test_google_drive_card_counts_the_completed_and_failed_evidence_exports_of_the_latest_version(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'connected_at' => now()]);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
+        foreach (['completed', 'synced', 'failed', 'in_progress'] as $status) {
+            SubmissionEvidence::factory()->for($version, 'submissionVersion')->create()->googleDriveExport()->create(['status' => $status]);
+        }
+
+        $this->actingAs($participant->fresh())->get(route('training.activities.show', [$week, $activity]))
+            ->assertOk()
+            ->assertSee('Evidence: 2/4 completed · 1 failed');
     }
 
     public function test_activity_page_query_count_does_not_grow_with_requirements_and_attempts(): void

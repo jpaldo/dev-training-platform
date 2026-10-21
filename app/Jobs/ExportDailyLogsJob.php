@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\GoogleDriveExportStatus;
 use App\Models\GoogleDriveExport;
 use App\Models\User;
 use App\Services\ExportLifecycleService;
@@ -33,20 +34,20 @@ class ExportDailyLogsJob implements ShouldQueue
         $lifecycle ??= app(ExportLifecycleService::class);
         $participant = User::find($this->userId);
         $record = GoogleDriveExport::firstOrCreate(['user_id' => $this->userId, 'export_type' => 'daily_logs', 'scope_key' => (string) $this->weekNumber]);
-        $record->update(['status' => GoogleDriveExport::IN_PROGRESS, 'last_attempt_at' => now()]);
+        $record->update(['status' => GoogleDriveExportStatus::InProgress, 'last_attempt_at' => now()]);
         $connection = $participant?->googleDriveConnection;
         if (! $participant || ! $connection) {
-            $record->update(['status' => GoogleDriveExport::FAILED, 'error' => 'Google Drive is not connected for this participant.', 'last_attempt_at' => now()]);
+            $record->update(['status' => GoogleDriveExportStatus::Failed, 'error' => 'Google Drive is not connected for this participant.', 'last_attempt_at' => now()]);
 
             return;
         }
         try {
-            $record->update(['status' => GoogleDriveExport::IN_PROGRESS, 'last_attempt_at' => now(), 'error' => null]);
+            $record->update(['status' => GoogleDriveExportStatus::InProgress, 'last_attempt_at' => now(), 'error' => null]);
             [$destinationId, $trainingRoot] = $drive->participantTrainingRoot($participant, $connection);
             $record->update(['destination_folder_id' => $destinationId]);
             $folder = $drive->ensureFolder($connection, "Week {$this->weekNumber}", $trainingRoot);
             $folder = $drive->ensureFolder($connection, 'Daily Logs', $folder);
-            $record->update(['drive_file_id' => $drive->upsertCsv($connection, 'Daily Logs.csv', $exports->dailyLogs($participant, $this->weekNumber), $folder), 'status' => GoogleDriveExport::COMPLETED, 'error' => null, 'last_synced_at' => now()]);
+            $record->update(['drive_file_id' => $drive->upsertCsv($connection, 'Daily Logs.csv', $exports->dailyLogs($participant, $this->weekNumber), $folder), 'status' => GoogleDriveExportStatus::Completed, 'error' => null, 'last_synced_at' => now()]);
             ExportSummaryReportsJob::dispatch($participant->id);
         } catch (Throwable $e) {
             if ($lifecycle->markFailure($record, $this->job, $this->tries, $e, 'Google Drive Daily Log export failed.')) {
@@ -57,6 +58,6 @@ class ExportDailyLogsJob implements ShouldQueue
 
     public function failed(Throwable $exception): void
     {
-        GoogleDriveExport::query()->where('user_id', $this->userId)->where('export_type', 'daily_logs')->where('scope_key', (string) $this->weekNumber)->update(['status' => GoogleDriveExport::FAILED, 'error' => 'Google Drive Daily Log export failed.', 'last_attempt_at' => now(), 'updated_at' => now()]);
+        GoogleDriveExport::query()->where('user_id', $this->userId)->where('export_type', 'daily_logs')->where('scope_key', (string) $this->weekNumber)->update(['status' => GoogleDriveExportStatus::Failed, 'error' => 'Google Drive Daily Log export failed.', 'last_attempt_at' => now(), 'updated_at' => now()]);
     }
 }

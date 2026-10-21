@@ -56,7 +56,7 @@ class CoachOperationsControllerTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => 'coach']))
             ->get(route('coach.dashboard'))
             ->assertOk()
-            ->assertViewHas('stats', fn (array $stats): bool => $stats['participants'] === 2 && $stats['completed'] === 1);
+            ->assertViewHas('stats', fn (array $stats): bool => $stats['participants']['value'] === 2 && $stats['completed']['value'] === 1);
     }
 
     public function test_participant_detail_query_count_does_not_grow_with_gates(): void

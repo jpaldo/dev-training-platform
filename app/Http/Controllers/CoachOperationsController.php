@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ExportCoachReportRequest;
 use App\Http\Requests\FilterCoachGatesRequest;
 use App\Http\Requests\FilterCoachReportsRequest;
+use App\Models\User;
+use App\Services\CoachDashboardPageService;
 use App\Services\CoachGateOverviewService;
 use App\Services\CoachReportService;
 use Illuminate\Http\Request;
@@ -15,9 +17,12 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CoachOperationsController extends Controller
 {
-    public function dashboard(CoachReportService $reports): View
+    public function dashboard(Request $request, CoachDashboardPageService $page): View
     {
-        return view('coach.dashboard', ['stats' => $reports->dashboardStats()]);
+        /** @var User $user */
+        $user = $request->user();
+
+        return view('coach.dashboard', $page->showData($user));
     }
 
     public function gates(FilterCoachGatesRequest $request, CoachGateOverviewService $gateOverview): View

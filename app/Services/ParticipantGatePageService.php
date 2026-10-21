@@ -48,27 +48,7 @@ class ParticipantGatePageService
                 'url' => $weeklyVideo['url'],
             ],
             'uploadVideoUrl' => $weeklyVideo['url'] ? null : route('training.video-recording.edit', $week),
-            'criteria' => $gate->criteria
-                ->where('is_required', true)
-                ->map(function (GateCriterion $criterion) use ($evaluation): array {
-                    $criterionEvaluation = $evaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id);
-
-                    return [
-                        'title' => $criterion->title,
-                        'status_label' => match (true) {
-                            $criterionEvaluation?->status === 'met' => 'Met',
-                            $criterionEvaluation !== null => 'Missing',
-                            default => 'Awaiting Review',
-                        },
-                        'status_tone' => match (true) {
-                            $criterionEvaluation?->status === 'met' => 'success',
-                            $criterionEvaluation !== null => 'danger',
-                            default => 'neutral',
-                        },
-                    ];
-                })
-                ->values()
-                ->all(),
+            'criteria' => $this->criterionRows($gate, $evaluation),
             'coachFeedback' => $evaluation?->comments ?: null,
         ];
     }
@@ -93,15 +73,54 @@ class ParticipantGatePageService
     private function statusTone(?GateEvaluation $evaluation, array $readiness): string
     {
         if ($evaluation?->status) {
-            return match ($evaluation->status) {
-                'passed' => 'success',
-                'needs_revision' => 'warning',
-                'failed' => 'danger',
-                default => 'neutral',
-            };
+            return $this->evaluationStatusTone($evaluation->status);
         }
 
         return $readiness === [] ? 'accent' : 'warning';
+    }
+
+    /**
+     * The badge tone of a saved Gate evaluation status.
+     */
+    public function evaluationStatusTone(string $status): string
+    {
+        return match ($status) {
+            'passed' => 'success',
+            'needs_revision' => 'warning',
+            'failed' => 'danger',
+            default => 'neutral',
+        };
+    }
+
+    /**
+     * The Gate's required criteria with their review status: Met, Missing (evaluated but not met) or Awaiting Review.
+     * The Gate's criteria must be loaded, and the evaluation's criterion evaluations when there is one.
+     *
+     * @return list<array{title: string, status_label: string, status_tone: string}>
+     */
+    public function criterionRows(TrainingGate $gate, ?GateEvaluation $evaluation): array
+    {
+        return $gate->criteria
+            ->where('is_required', true)
+            ->map(function (GateCriterion $criterion) use ($evaluation): array {
+                $criterionEvaluation = $evaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id);
+
+                return [
+                    'title' => $criterion->title,
+                    'status_label' => match (true) {
+                        $criterionEvaluation?->status === 'met' => 'Met',
+                        $criterionEvaluation !== null => 'Missing',
+                        default => 'Awaiting Review',
+                    },
+                    'status_tone' => match (true) {
+                        $criterionEvaluation?->status === 'met' => 'success',
+                        $criterionEvaluation !== null => 'danger',
+                        default => 'neutral',
+                    },
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**

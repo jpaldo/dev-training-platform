@@ -1,0 +1,169 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Activity;
+use App\Models\GateCriterion;
+use App\Models\GateCriterionEvaluation;
+use App\Models\GateEvaluation;
+use App\Models\Program;
+use App\Models\TrainingGate;
+use App\Models\TrainingWeek;
+use App\Models\User;
+use App\Models\WeeklyVideoRecording;
+use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Tests\TestCase;
+
+class TrainingWeekPageTest extends TestCase
+{
+    use LazilyRefreshDatabase;
+
+    public function test_participant_without_a_video_sees_the_gate_activities_and_a_single_upload_main_action(): void
+    {
+        $participant = User::factory()->create();
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->weekFixture(rows: 2);
+        Activity::factory()->for($week, 'week')->create(['title' => 'Retired activity', 'is_active' => false, 'position' => 3]);
+        [$firstActivity, $secondActivity] = $activities;
+
+        $response = $this->actingAs($participant)->get(route('training.weeks.show', $week))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'WEEK 2',
+                e($week->title),
+                e($week->description),
+                'id="week-main-action"',
+                'href="'.route('training.video-recording.edit', $week).'"',
+                'Upload Video Recording →',
+                e($gate->title),
+                'Gate status:',
+                'NOT READY',
+                e($criteria[0]->title),
+                'Awaiting Review',
+                e($criteria[1]->title),
+                'Awaiting Review',
+                'Coach approval is required before the next week unlocks.',
+                'ACTIVITY 1',
+                e($firstActivity->title),
+                'href="'.route('training.activities.show', [$week, $firstActivity]).'"',
+                'View activity →',
+                'ACTIVITY 2',
+                e($secondActivity->title),
+                'href="'.route('training.activities.show', [$week, $secondActivity]).'"',
+                'View activity →',
+                'WEEKLY REQUIREMENT',
+                'Video Recording',
+                'Status:',
+                'Not uploaded',
+                'href="'.route('dashboard').'"',
+                'Back',
+            ], false)
+            ->assertDontSee('Optional stretch goal')
+            ->assertDontSee('Retired activity')
+            ->assertDontSee('Replace Video')
+            ->assertDontSee('Content coming in a later phase');
+
+        $this->assertSame(1, substr_count($response->getContent(), 'Upload Video Recording'));
+    }
+
+    public function test_participant_with_a_video_and_an_evaluated_gate_sees_the_results_and_no_main_action(): void
+    {
+        $participant = User::factory()->create();
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->weekFixture(rows: 2);
+        $recording = $this->uploadWeeklyVideo($participant, $week);
+        $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
+        GateCriterionEvaluation::factory()->create(['gate_evaluation_id' => $evaluation->id, 'gate_criterion_id' => $criteria[0]->id, 'status' => 'met']);
+        GateCriterionEvaluation::factory()->create(['gate_evaluation_id' => $evaluation->id, 'gate_criterion_id' => $criteria[1]->id, 'status' => 'not_met']);
+
+        $this->actingAs($participant)->get(route('training.weeks.show', $week))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Gate status:',
+                'NEEDS REVISION',
+                e($criteria[0]->title),
+                'Met',
+                e($criteria[1]->title),
+                'Missing',
+                'Status:',
+                'Uploaded',
+                route('training.video-recording.view', [$week, $recording]),
+                'Replace Video',
+            ], false)
+            ->assertDontSee('week-main-action')
+            ->assertDontSee('Upload Video Recording');
+    }
+
+    public function test_coach_sees_no_video_card_or_main_action_and_goes_back_to_the_profile(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 5, 'position' => 5]);
+
+        $this->actingAs($coach)->get(route('training.weeks.show', $week))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'WEEK 5',
+                'Content coming in a later phase',
+                'href="'.route('profile.show').'"',
+                'Back',
+            ], false)
+            ->assertDontSee('Gate status:')
+            ->assertDontSee('WEEKLY REQUIREMENT')
+            ->assertDontSee('week-main-action')
+            ->assertDontSee('Upload Video Recording');
+    }
+
+    public function test_week_page_query_count_does_not_grow_with_activities_and_criteria(): void
+    {
+        $this->assertSame($this->weekPageQueryCount(1), $this->weekPageQueryCount(3));
+    }
+
+    /**
+     * Give a new participant a Week 2 with the given number of activities and required criteria (each evaluated) and
+     * an uploaded video, and count the queries of the participant's page request after a warm-up request.
+     */
+    private function weekPageQueryCount(int $rows): int
+    {
+        $participant = User::factory()->create();
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->weekFixture(rows: $rows);
+        $this->uploadWeeklyVideo($participant, $week);
+        $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
+        foreach ($criteria as $criterion) {
+            GateCriterionEvaluation::factory()->create(['gate_evaluation_id' => $evaluation->id, 'gate_criterion_id' => $criterion->id, 'status' => 'met']);
+        }
+        $url = route('training.weeks.show', $week);
+
+        $this->actingAs($participant)->get($url)->assertOk();
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $response = $this->actingAs($participant)->get($url)->assertOk();
+        DB::disableQueryLog();
+        $this->assertSame($rows, substr_count($response->getContent(), 'View activity →'));
+
+        return count(DB::getQueryLog());
+    }
+
+    /**
+     * A Week 2 with one Gate (the given number of required criteria plus one optional criterion) and the given number
+     * of active activities.
+     *
+     * @return array{week: TrainingWeek, gate: TrainingGate, criteria: Collection<int, GateCriterion>, activities: Collection<int, Activity>}
+     */
+    private function weekFixture(int $rows): array
+    {
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 2]);
+        $gate = TrainingGate::factory()->for($week, 'week')->create();
+        $criteria = collect(range(1, $rows))
+            ->map(fn (int $position): GateCriterion => GateCriterion::factory()->for($gate, 'gate')->create(['position' => $position]));
+        GateCriterion::factory()->for($gate, 'gate')->create(['title' => 'Optional stretch goal', 'is_required' => false, 'position' => 10]);
+        $activities = collect(range(1, $rows))
+            ->map(fn (int $position): Activity => Activity::factory()->for($week, 'week')->create(['position' => $position]));
+
+        return ['week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities];
+    }
+
+    private function uploadWeeklyVideo(User $participant, TrainingWeek $week): WeeklyVideoRecording
+    {
+        return WeeklyVideoRecording::create(['user_id' => $participant->id, 'training_week_id' => $week->id, 'path' => "videos/{$participant->id}.mp4", 'original_filename' => 'week-2.mp4', 'mime_type' => 'video/mp4', 'size_bytes' => 1048576, 'uploaded_at' => now()]);
+    }
+}

@@ -1,43 +1,93 @@
-<div>
-    <!-- People find pleasure in different ways. I find it in keeping my mind clear. - Marcus Aurelius -->
-</div>
 @extends('layouts.app')
 
 @section('content')
-    <div class="eyebrow">WEEK {{ $trainingWeek->week_number }}</div>
-    <h1>{{ $trainingWeek->title }}</h1>
-    <p class="muted">{{ $trainingWeek->description }}</p>
-    @if ($trainingWeek->gates->isNotEmpty())
-        <div class="card"><h2>{{ $trainingWeek->gates->first()->title }}</h2><p class="muted">Gate status: <strong>{{ $gateEvaluation?->status ?? 'not_ready' }}</strong></p>@foreach($trainingWeek->gates->first()->criteria->where('is_required', true) as $criterion) @php($criterionEval = $gateEvaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id))<p>{{ $criterion->title }}: <strong>{{ $criterionEval?->status === 'met' ? 'Met' : ($criterionEval ? 'Missing' : 'Awaiting Review') }}</strong></p>@endforeach<p class="muted">Coach approval is required before the next week unlocks.</p></div>
-    @endif
-    <div class="grid">
-        @forelse ($trainingWeek->activities as $activity)
-            <div class="card">
-                <div class="num">ACTIVITY {{ $activity->position }}</div>
-                <h2>{{ $activity->title }}</h2>
-                <p class="muted">{{ $activity->description }}</p>
-                <a class="btn" href="{{ route('training.activities.show', [$trainingWeek, $activity]) }}">View activity →</a>
+    @php
+        $sectionTitleClasses = 'm-0 text-xl font-extrabold';
+    @endphp
+
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <header class="grid min-w-0 gap-2">
+            <x-ui.eyebrow>WEEK {{ $trainingWeek->week_number }}</x-ui.eyebrow>
+            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">{{ $trainingWeek->title }}</h1>
+            @if($trainingWeek->description)
+                <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $trainingWeek->description }}</p>
+            @endif
+        </header>
+
+        @if($uploadVideoUrl)
+            {{-- The single main action stays in view: in the page header on desktop, pinned to the bottom of the screen on mobile. --}}
+            <div id="week-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
+                <x-ui.button :href="$uploadVideoUrl">Upload Video Recording →</x-ui.button>
             </div>
-        @empty
-            <div class="card"><h2>Content coming in a later phase</h2><p class="muted">This week is represented for sequential progression. Its official activities will be implemented in its designated phase.</p></div>
-        @endforelse
-    </div>
-    @if($user->role === 'participant')
-        <div class="card" style="margin-top:18px">
-            <div class="num">WEEKLY REQUIREMENT</div>
-            <h2>Video Recording</h2>
-            <p class="muted">Upload a video walkthrough demonstrating your actual QA work for this week.</p>
-            <p><strong>{{ $videoRecording ? 'Uploaded' : 'Not uploaded' }}</strong></p>
-            <div class="actions">
-                @if($videoRecording)
-                    <x-weekly-video-actions :recording="$videoRecording" :week="$trainingWeek" />
-                    <a class="btn secondary" href="{{ route('training.video-recording.edit', $trainingWeek) }}">Replace Video</a>
-                @else
-                    <a class="btn" href="{{ route('training.video-recording.edit', $trainingWeek) }}">Upload Video Recording</a>
-                @endif
+        @endif
+
+        <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
+            @if($gate)
+                <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="week-gate-title">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <h2 id="week-gate-title" class="{{ $sectionTitleClasses }} min-w-0 wrap-break-word">{{ $gate['title'] }}</h2>
+                        <p class="m-0 flex flex-wrap items-center gap-2 text-sm text-muted">
+                            Gate status:
+                            <x-ui.badge :tone="$gate['status_tone']">{{ $gate['status_label'] }}</x-ui.badge>
+                        </p>
+                    </div>
+                    @if($gate['criteria'] !== [])
+                        <ul class="m-0 grid list-none grid-cols-1 gap-3 p-0">
+                            @foreach($gate['criteria'] as $criterion)
+                                <li class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-field px-4 py-3.5">
+                                    <strong class="min-w-0 wrap-break-word">{{ $criterion['title'] }}</strong>
+                                    <x-ui.badge :tone="$criterion['status_tone']">{{ $criterion['status_label'] }}</x-ui.badge>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                    <p class="m-0 text-sm/relaxed text-muted">Coach approval is required before the next week unlocks.</p>
+                </x-ui.card>
+            @endif
+
+            @if($activities !== [])
+                <ol class="m-0 grid list-none grid-cols-1 gap-6 p-0 md:grid-cols-2 xl:grid-cols-3" aria-label="Week {{ $trainingWeek->week_number }} activities">
+                    @foreach($activities as $activity)
+                        <li class="min-w-0">
+                            <x-ui.card class="flex h-full flex-col items-start gap-3">
+                                <x-ui.eyebrow>ACTIVITY {{ $activity['position'] }}</x-ui.eyebrow>
+                                <h2 class="{{ $sectionTitleClasses }} wrap-break-word">{{ $activity['title'] }}</h2>
+                                @if($activity['description'])
+                                    <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $activity['description'] }}</p>
+                                @endif
+                                <x-ui.button variant="secondary" :href="$activity['url']" class="mt-auto">View activity →</x-ui.button>
+                            </x-ui.card>
+                        </li>
+                    @endforeach
+                </ol>
+            @else
+                <x-ui.card as="section" class="grid grid-cols-1 gap-3" aria-labelledby="week-coming-title">
+                    <h2 id="week-coming-title" class="{{ $sectionTitleClasses }}">Content coming in a later phase</h2>
+                    <p class="m-0 leading-relaxed text-muted">This week is represented for sequential progression. Its official activities will be implemented in its designated phase.</p>
+                </x-ui.card>
+            @endif
+
+            @if($showsWeeklyVideo)
+                <x-ui.card as="section" class="grid grid-cols-1 justify-items-start gap-3" aria-labelledby="week-video-title">
+                    <x-ui.eyebrow>WEEKLY REQUIREMENT</x-ui.eyebrow>
+                    <h2 id="week-video-title" class="{{ $sectionTitleClasses }}">Video Recording</h2>
+                    <p class="m-0 leading-relaxed text-muted">Upload a video walkthrough demonstrating your actual QA work for this week.</p>
+                    <p class="m-0 flex flex-wrap items-center gap-2">
+                        <strong>Status:</strong>
+                        <x-ui.badge :tone="$videoRecording ? 'success' : 'neutral'">{{ $videoRecording ? 'Uploaded' : 'Not uploaded' }}</x-ui.badge>
+                    </p>
+                    @if($videoRecording)
+                        <div class="flex flex-wrap items-center gap-2.5">
+                            <x-weekly-video-actions :recording="$videoRecording" :week="$trainingWeek" />
+                            <x-ui.button variant="secondary" :href="$replaceVideoUrl">Replace Video</x-ui.button>
+                        </div>
+                    @endif
+                </x-ui.card>
+            @endif
+
+            <div>
+                <x-ui.button variant="secondary" :href="$backUrl">Back</x-ui.button>
             </div>
         </div>
-    @endif
-
-    <div class="actions"><a class="btn secondary" href="{{ auth()->user()->role === 'participant' ? route('dashboard') : route('profile.show') }}">Back</a></div>
+    </div>
 @endsection

@@ -111,7 +111,16 @@
                         body: new FormData(form),
                         headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
                     });
-                    setStatus(response.ok ? 'Workspace saved.' : 'Workspace could not be saved.', !response.ok);
+                    if (response.ok) {
+                        setStatus('Workspace saved.');
+                        return;
+                    }
+                    let message = 'Workspace could not be saved.';
+                    if (response.status === 422) {
+                        const payload = await response.json().catch(() => null);
+                        message = Object.values(payload?.errors ?? {}).flat()[0] ?? message;
+                    }
+                    setStatus(message, true);
                 } catch {
                     setStatus('Workspace could not be saved.', true);
                 }

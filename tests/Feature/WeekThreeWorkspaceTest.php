@@ -7,7 +7,9 @@ use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Models\WeekThreeFinding;
 use App\Services\WeekThreeWorkspaceService;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -124,5 +126,58 @@ class WeekThreeWorkspaceTest extends TestCase
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity1)->create(['status' => 'submitted']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
         $this->actingAs($participant)->get(route('training.submission.edit', [$week3, $activity2]))->assertOk();
+    }
+
+    public function test_workspace_autosave_returns_json_and_saves_the_workspace(): void
+    {
+        [$participant, $week] = $this->workspaceFixture();
+
+        $this->actingAs($participant)
+            ->postJson(route('training.week-three.workspace.update', $week), ['findings' => [['title' => 'Autosaved finding']]])
+            ->assertOk()
+            ->assertExactJson(['saved' => true, 'status' => 'Workspace saved.'])
+            ->assertSessionMissing('status');
+
+        $this->assertSame(['Autosaved finding'], WeekThreeFinding::query()->pluck('title')->all());
+    }
+
+    public function test_workspace_autosave_returns_validation_errors_as_json(): void
+    {
+        [$participant, $week] = $this->workspaceFixture();
+
+        $this->actingAs($participant)
+            ->postJson(route('training.week-three.workspace.update', $week), ['findings' => [['title' => 'Unsaved finding', 'human_validation' => 'not-an-assessment']]])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('findings.0.human_validation');
+
+        $this->assertSame(0, WeekThreeFinding::query()->count());
+    }
+
+    public function test_workspace_form_post_redirects_back_with_the_saved_status(): void
+    {
+        [$participant, $week] = $this->workspaceFixture();
+        $previousUrl = route('training.weeks.show', $week);
+
+        $this->actingAs($participant)
+            ->from($previousUrl)
+            ->post(route('training.week-three.workspace.update', $week), ['findings' => [['title' => 'Submitted finding']]])
+            ->assertRedirect($previousUrl)
+            ->assertSessionHas('status', 'Week 3 workspace saved.');
+
+        $this->assertSame(['Submitted finding'], WeekThreeFinding::query()->pluck('title')->all());
+    }
+
+    /**
+     * Create a checked-in manual-path participant and a Week 3 training week.
+     *
+     * @return array{0: User, 1: TrainingWeek}
+     */
+    private function workspaceFixture(): array
+    {
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 3]);
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+
+        return [$participant, $week];
     }
 }

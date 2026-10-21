@@ -177,11 +177,15 @@ class CoachOperationsTest extends TestCase
         $this->actingAs($coach)->get(route('coach.participants.daily-logs', [$participant, 'week' => $week3->week_number, 'date' => now()->toDateString()]))
             ->assertOk()->assertSee('name="date" value="'.now()->toDateString().'"', false);
 
-        for ($i = 0; $i < 20; $i++) {
+        for ($i = 0; $i < 25; $i++) {
             DailyLog::create(['user_id' => $participant->id, 'activity_id' => $week2Activity->id, 'logged_on' => now()->subDays($i + 2)->toDateString(), 'content' => "Additional log {$i}"]);
         }
         $this->actingAs($coach)->get(route('coach.participants.daily-logs', [$participant, 'page' => 2]))
-            ->assertOk()->assertSee('21')->assertSee('22 Daily Logs');
+            ->assertOk()
+            ->assertSee('Showing 26–27 of 27 Daily Logs')
+            ->assertSeeInOrder(['Additional log 23', 'Additional log 24'])
+            ->assertDontSee('Additional log 22')
+            ->assertDontSee('Newest week three log');
     }
 
     public function test_coach_daily_log_history_for_non_participant_is_not_found_even_with_invalid_filters(): void

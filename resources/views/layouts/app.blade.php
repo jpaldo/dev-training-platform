@@ -8,25 +8,6 @@
     @isset($metaDescription)
         <meta name="description" content="{{ $metaDescription }}">
     @endisset
-    {{-- Pre-Tailwind layout styles sit in the `legacy` layer so Tailwind utilities override them on converted views. --}}
-    <style>
-        @layer legacy {
-        :root{--line:#293052;--muted:#9da7c6;--p:#8b5cf6;--c:#22d3ee}
-        *{box-sizing:border-box}
-        a{color:inherit;text-decoration:none}
-        .eyebrow{color:var(--c);font-weight:900;letter-spacing:.1em;font-size:13px}
-        h1{font-size:clamp(42px,7vw,76px);line-height:.95;margin:14px 0;background:linear-gradient(90deg,#fff,#a78bfa,#22d3ee);-webkit-background-clip:text;color:transparent}
-        .muted{color:var(--muted);line-height:1.6}
-        .card{background:#11162b;border:1px solid var(--line);border-radius:22px;padding:26px}
-        .form{display:grid;gap:18px}
-        .field label{display:block;font-weight:800;margin-bottom:8px}
-        .field input,.field select,.field textarea,.field input[type=file]{width:100%;background:#0a0f21;color:#fff;border:1px solid var(--line);border-radius:12px;padding:13px;font:inherit;min-height:46px}
-        .field textarea{min-height:110px}
-        .field input:focus,.field select:focus,.field textarea:focus{outline:3px solid #22d3ee55;border-color:var(--c)}
-        input[type=checkbox]{accent-color:var(--p);width:18px;height:18px}
-        .btn{display:inline-block;border:0;border-radius:12px;padding:13px 18px;font-weight:900;cursor:pointer;background:linear-gradient(90deg,var(--p),#4f46e5);color:#fff}
-        }
-    </style>
 </head>
 <body class="m-0 min-h-screen bg-canvas font-sans leading-[normal] text-slate-100 antialiased">
     @auth

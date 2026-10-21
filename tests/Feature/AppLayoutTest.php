@@ -32,6 +32,7 @@ class AppLayoutTest extends TestCase
             ], false)
             ->assertDontSee('id="app-sidebar"', false)
             ->assertDontSee('data-sidebar-toggle', false)
+            ->assertDontSee('<style', false)
             ->assertDontSee('style="', false);
     }
 

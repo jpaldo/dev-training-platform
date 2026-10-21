@@ -1,10 +1,3 @@
-/*
- * The layer order is declared before the Tailwind import so the remaining hand-written layout styles in the
- * `legacy` layer sit between Preflight (`base`) and the utilities: they still override Preflight, and utilities
- * still override them.
- */
-@layer theme, base, legacy, components, utilities;
-
 @import 'tailwindcss';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
@@ -32,7 +25,7 @@
 /*
  * Rendered Markdown (`x-markdown`, `x-formatted-text` and the `x-markdown-field` preview). `Markdown::toHtml()`
  * output carries no classes, so its prose styles live here in the components layer: they style every element
- * without relying on browser defaults or the legacy layer, and caller utilities (padding, background) still win.
+ * without relying on browser defaults, and caller utilities (padding, background) still win.
  */
 @layer components {
     .markdown {
@@ -116,6 +109,11 @@
 
         & img {
             @apply inline h-auto max-w-full align-baseline;
+        }
+
+        /* GitHub Flavored Markdown task lists (`- [x] …`) render disabled checkboxes. */
+        & input[type='checkbox'] {
+            @apply size-4.5 accent-brand;
         }
     }
 

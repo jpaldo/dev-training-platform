@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Enums\RecoveryRequestStatus;
 use App\Jobs\ExportActivityJob;
 use App\Jobs\SyncTrainingDataJob;
 use App\Models\Activity;
+use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivityRequirement;
 use App\Models\ActivityScore;
 use App\Models\ActivityScoreDimension;
@@ -549,6 +551,32 @@ class ParticipantWorkflowTest extends TestCase
             ->assertSee('Request Review')
             ->assertDontSee('Coach feedback')
             ->assertDontSee('No coach feedback was provided.');
+    }
+
+    public function test_failed_attempt_with_a_pending_review_request_waits_for_the_coach_instead_of_offering_another_request(): void
+    {
+        [$participant, $week2, $activity] = $this->trainingFixture();
+        $failed = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['attempt_number' => 1, 'status' => 'failed']);
+        ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'status' => RecoveryRequestStatus::Pending, 'requested_at' => now()]);
+
+        $this->actingAs($participant)->get(route('training.activities.show', [$week2, $activity]))
+            ->assertOk()
+            ->assertSee('Review requested. Waiting for coach response.')
+            ->assertDontSee('Request Review')
+            ->assertDontSee('Review request declined');
+    }
+
+    public function test_failed_attempt_with_a_declined_review_request_shows_the_coach_response_instead_of_offering_another_request(): void
+    {
+        [$participant, $week2, $activity] = $this->trainingFixture();
+        $failed = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['attempt_number' => 1, 'status' => 'failed']);
+        ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'status' => RecoveryRequestStatus::Declined, 'coach_response' => 'The evidence does not cover the failed step.', 'requested_at' => now()]);
+
+        $this->actingAs($participant)->get(route('training.activities.show', [$week2, $activity]))
+            ->assertOk()
+            ->assertSee('Review request declined: The evidence does not cover the failed step.')
+            ->assertDontSee('Request Review')
+            ->assertDontSee('Waiting for coach response.');
     }
 
     public function test_invalid_evidence_files_are_rejected_and_other_participants_cannot_download_evidence(): void

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\RecoveryRequestStatus;
 use App\Models\ActivityRecoveryRequest;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -14,18 +15,25 @@ class CoachRecoveryRequestPageService
      * that approves a retry or keeps the attempt failed. The page has no single main action, so every button is
      * secondary.
      *
-     * @return array{items: LengthAwarePaginator<int, array{week_number: int, activity_title: string, participant_name: string, attempt_number: int, message: string, decide_url: string}>}
+     * @return array{items: LengthAwarePaginator<int, array{week_number: int, activity_title: string, participant_name: string, attempt_number: int, message: string, decide_url: string}>, decisions: list<array{value: string, label: string}>}
      */
     public function indexData(): array
     {
         return [
             'items' => ActivityRecoveryRequest::query()
                 ->with(['participant', 'submission.activity.week'])
-                ->where('status', 'pending')
+                ->where('status', RecoveryRequestStatus::Pending)
                 ->latest()
                 ->paginate(self::REQUESTS_PER_PAGE)
                 ->withQueryString()
                 ->through(fn (ActivityRecoveryRequest $recoveryRequest): array => $this->requestRow($recoveryRequest)),
+            'decisions' => array_map(fn (RecoveryRequestStatus $decision): array => [
+                'value' => $decision->value,
+                'label' => match ($decision) {
+                    RecoveryRequestStatus::Approved => 'Approve Retry',
+                    RecoveryRequestStatus::Declined => 'Keep Failed',
+                },
+            ], RecoveryRequestStatus::decisions()),
         ];
     }
 

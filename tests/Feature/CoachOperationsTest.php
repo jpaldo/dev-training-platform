@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\RecoveryRequestStatus;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
@@ -412,7 +413,45 @@ class CoachOperationsTest extends TestCase
         $this->assertSame('failed', $failed->fresh()->status);
         $this->assertSame(2, $activity->submissions()->where('user_id', $participant->id)->count());
         $this->assertDatabaseHas('activity_recovery_requests', ['id' => $request->id, 'status' => 'approved']);
+        $this->assertSame(RecoveryRequestStatus::Approved, $request->fresh()->status);
         $this->assertSame('original', $version->fresh()->field_values['answer']);
+    }
+
+    public function test_coach_can_keep_recovery_request_failed_without_opening_a_retry(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create();
+        $coach->assignedParticipants()->attach($participant->id);
+        $failed = ActivitySubmission::factory()->create(['user_id' => $participant->id, 'status' => 'failed']);
+        $request = ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'requested_at' => now()]);
+
+        $this->actingAs($coach)->post(route('coach.recovery.decide', $request), ['decision' => 'declined', 'coach_response' => 'The evidence does not cover the failed step.'])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', 'Recovery request updated.');
+
+        $request->refresh();
+        $this->assertSame(RecoveryRequestStatus::Declined, $request->status);
+        $this->assertSame('The evidence does not cover the failed step.', $request->coach_response);
+        $this->assertSame($coach->id, $request->reviewed_by);
+        $this->assertSame(1, ActivitySubmission::where('user_id', $participant->id)->count());
+    }
+
+    public function test_coach_cannot_decide_recovery_request_as_pending(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create();
+        $coach->assignedParticipants()->attach($participant->id);
+        $failed = ActivitySubmission::factory()->create(['user_id' => $participant->id, 'status' => 'failed']);
+        $request = ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'requested_at' => now()]);
+
+        $this->actingAs($coach)->post(route('coach.recovery.decide', $request), ['decision' => 'pending'])
+            ->assertRedirect()
+            ->assertSessionHasErrors(['decision' => 'The selected decision is invalid.']);
+
+        $request->refresh();
+        $this->assertSame(RecoveryRequestStatus::Pending, $request->status);
+        $this->assertNull($request->reviewed_by);
     }
 
     public function test_participant_cannot_request_recovery_for_another_participants_submission_even_with_invalid_message(): void

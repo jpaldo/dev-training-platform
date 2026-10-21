@@ -176,9 +176,9 @@
                                             @endif
                                             @if($attempt['has_later_attempt'])
                                                 <p class="m-0 text-muted">A newer attempt is available below. Continue that attempt to move forward.</p>
-                                            @elseif($attempt['recovery_request']?->status === 'pending')
+                                            @elseif($attempt['recovery_request']?->isPending())
                                                 <p class="m-0 text-muted">Review requested. Waiting for coach response.</p>
-                                            @elseif($attempt['recovery_request']?->status === 'declined')
+                                            @elseif($attempt['recovery_request']?->isDeclined())
                                                 <x-ui.alert tone="error" class="w-full">Review request declined{{ $attempt['recovery_request']->coach_response ? ': '.$attempt['recovery_request']->coach_response : '.' }}</x-ui.alert>
                                             @else
                                                 <p class="m-0 text-muted">If you believe this attempt should be reconsidered, you may ask your coach to review it again.</p>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RecoveryRequestStatus;
 use App\Http\Requests\DecideRecoveryRequestRequest;
 use App\Http\Requests\StoreRecoveryRequestRequest;
 use App\Models\ActivityRecoveryRequest;
@@ -30,15 +31,17 @@ class RecoveryRequestController extends Controller
 
     public function decide(DecideRecoveryRequestRequest $request, ActivityRecoveryRequest $recoveryRequest): RedirectResponse
     {
-        $data = $request->validated();
-        DB::transaction(function () use ($recoveryRequest, $data, $request): void {
+        $decision = $request->enum('decision', RecoveryRequestStatus::class);
+        $coachResponse = $request->validated('coach_response');
+        DB::transaction(function () use ($recoveryRequest, $decision, $coachResponse, $request): void {
             $retry = null;
-            if ($data['decision'] === 'approved') {
+            if ($decision === RecoveryRequestStatus::Approved) {
                 $submission = $recoveryRequest->submission;
                 $attempt = ActivitySubmission::where('activity_id', $submission->activity_id)->where('user_id', $submission->user_id)->max('attempt_number') + 1;
                 $retry = ActivitySubmission::create(['activity_id' => $submission->activity_id, 'user_id' => $submission->user_id, 'attempt_number' => $attempt, 'status' => 'draft']);
                 $retry->versions()->create(['version_number' => 1, 'status' => 'draft', 'field_values' => []]);
-            } $recoveryRequest->update(['status' => $data['decision'], 'coach_response' => $data['coach_response'] ?? null, 'reviewed_by' => $request->user()->id, 'reviewed_at' => now()]);
+            }
+            $recoveryRequest->update(['status' => $decision, 'coach_response' => $coachResponse, 'reviewed_by' => $request->user()->id, 'reviewed_at' => now()]);
         });
 
         return back()->with('status', 'Recovery request updated.');

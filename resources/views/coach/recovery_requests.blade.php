@@ -28,8 +28,9 @@
                                 class="w-full min-w-0 resize-y rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm leading-relaxed text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50"
                             ></textarea>
                             <div class="flex flex-wrap items-center gap-3">
-                                <x-ui.button variant="secondary" type="submit" name="decision" value="approved">Approve Retry</x-ui.button>
-                                <x-ui.button variant="secondary" type="submit" name="decision" value="declined">Keep Failed</x-ui.button>
+                                @foreach($decisions as $decision)
+                                    <x-ui.button variant="secondary" type="submit" name="decision" :value="$decision['value']">{{ $decision['label'] }}</x-ui.button>
+                                @endforeach
                             </div>
                         </form>
                     </x-ui.card>

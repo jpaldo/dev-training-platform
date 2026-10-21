@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\RecoveryRequestStatus;
 use App\Models\ActivityRecoveryRequest;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class DecideRecoveryRequestRequest extends FormRequest
 {
@@ -14,7 +16,7 @@ class DecideRecoveryRequestRequest extends FormRequest
     public function authorize(): bool
     {
         $recoveryRequest = $this->route('recoveryRequest');
-        abort_unless($recoveryRequest instanceof ActivityRecoveryRequest && $recoveryRequest->status === 'pending', 422);
+        abort_unless($recoveryRequest instanceof ActivityRecoveryRequest && $recoveryRequest->isPending(), 422);
 
         return $this->user()?->canManageParticipant($recoveryRequest->participant) === true;
     }
@@ -27,7 +29,7 @@ class DecideRecoveryRequestRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'decision' => ['required', 'in:approved,declined'],
+            'decision' => ['required', Rule::enum(RecoveryRequestStatus::class)->only(RecoveryRequestStatus::decisions())],
             'coach_response' => ['nullable', 'string', 'max:2000'],
         ];
     }

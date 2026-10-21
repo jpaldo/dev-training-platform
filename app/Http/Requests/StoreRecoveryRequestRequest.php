@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\RecoveryRequestStatus;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivitySubmission;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -45,6 +46,6 @@ class StoreRecoveryRequestRequest extends FormRequest
      */
     public function hasPendingRecoveryRequest(): bool
     {
-        return $this->hasPendingRecoveryRequest ??= ActivityRecoveryRequest::where('activity_submission_id', $this->route('activitySubmission')->id)->where('status', 'pending')->exists();
+        return $this->hasPendingRecoveryRequest ??= ActivityRecoveryRequest::where('activity_submission_id', $this->route('activitySubmission')->id)->where('status', RecoveryRequestStatus::Pending)->exists();
     }
 }

@@ -46,7 +46,7 @@ class ActivitySubmissionPageService
     /**
      * Data for the submission form: the latest attempt and version, the main action, the coach feedback, the field
      * sections and evidence rows, the participant's Lab records with the one to preselect, the version history, the
-     * Week 3 workspace and the Week 4 mock interview context.
+     * Week 3 workspace, and for Week 4 the activity guide and the mock interview context.
      *
      * @return array<string, mixed>
      */
@@ -63,6 +63,7 @@ class ActivitySubmissionPageService
         $showInteractions = collect($fields)->keys()->intersect(['prompt', 'exact_prompt', 'ai_output', 'exact_ai_output'])->isNotEmpty();
         /** @var ?SubmissionReview $coachFeedback */
         $coachFeedback = $submission?->versions->flatMap->reviews->sortByDesc('reviewed_at')->firstWhere('decision', 'needs_revision');
+        $weekFourInterview = $this->weekFourInterviewData($participant, $trainingWeek, $activity, $version);
 
         return [
             'user' => $participant,
@@ -89,7 +90,8 @@ class ActivitySubmissionPageService
             'versionRows' => $this->versionRows($submission, $version),
             'weekThreeWorkspace' => $trainingWeek->week_number === 3 ? $this->weekThree->workspace($participant, $trainingWeek)->load(['findings.tests.fixValidation']) : null,
             'weekThreePaths' => $this->weekThree->requiredPaths($participant),
-            ...$this->weekFourInterviewData($participant, $trainingWeek, $activity, $version),
+            ...$weekFourInterview,
+            'weekFourGuide' => $trainingWeek->week_number === 4 ? $this->weekFourGuide($activity, $version, $weekFourInterview['partnerFeedback']) : null,
             'participantCalendarEnabled' => $this->googleConfiguration->participantCalendarEnabled(),
         ];
     }
@@ -158,8 +160,9 @@ class ActivitySubmissionPageService
     }
 
     /**
-     * The Week 4 Activity 2 mock interview context: the partners with their Week 4 access, feedback, the practice state
-     * and question rows, the peer interview progress, the mentor and open schedule, and the peer interview waiver.
+     * The Week 4 Activity 2 mock interview context: the partners with their Week 4 access, the partner feedback counts
+     * and rows, the practice question rows, the peer interview progress, the mentor and open schedule, and the peer
+     * interview waiver.
      *
      * @return array<string, mixed>
      */
@@ -174,10 +177,7 @@ class ActivitySubmissionPageService
             return [
                 'interviewPartner' => null,
                 'partnerRows' => [],
-                'feedbackGiven' => collect(),
-                'feedbackReceived' => collect(),
-                'weekFourPracticeState' => null,
-                'weekFourPracticeSlots' => $this->interviews->practiceSlots(),
+                'partnerFeedback' => null,
                 'practiceRows' => [],
                 'peerInterviewProgress' => [],
                 'mentor' => null,
@@ -203,10 +203,7 @@ class ActivitySubmissionPageService
                 'partner' => $partner,
                 'week_four_unlocked' => $this->weekFourStatus($partner, $weekFour) === 'unlocked',
             ])->all(),
-            'feedbackGiven' => $feedbackGiven,
-            'feedbackReceived' => $feedbackReceived,
-            'weekFourPracticeState' => $practiceState,
-            'weekFourPracticeSlots' => $this->interviews->practiceSlots(),
+            'partnerFeedback' => $this->partnerFeedback($practiceState, $feedbackGiven, $feedbackReceived),
             'practiceRows' => $this->practiceRows($practiceState),
             'peerInterviewProgress' => $this->peerInterviewProgress($interviewPartner, $version, $practiceState, $feedbackGiven, $feedbackReceived),
             'mentor' => $this->mentorScheduling->assignedMentor($participant),
@@ -214,6 +211,86 @@ class ActivitySubmissionPageService
             ...$mentorInterview,
             'peerWaiver' => $this->interviews->waiverFor($participant, $activity),
             'peerPrerequisiteSatisfied' => $this->interviews->peerPrerequisiteSatisfied($participant, $activity),
+        ];
+    }
+
+    /**
+     * The Week 4 activity guide: the activity heading and its progress checklist, read from the version's answers (and,
+     * on Activity 2, the partner feedback counts). The evidence and "Ready to submit" steps are never shown as complete.
+     *
+     * @param  ?array{given_count: int, received_count: int}  $partnerFeedback
+     * @return array{title: string, progress: list<array{label: string, complete: bool}>}
+     */
+    private function weekFourGuide(Activity $activity, ?SubmissionVersion $version, ?array $partnerFeedback): array
+    {
+        $values = $version?->field_values ?? [];
+        $isAnswered = fn (string $key): bool => filled($values[$key] ?? null);
+        $filledCount = fn (string $key): int => collect($values[$key] ?? [])->filter(fn (mixed $value): bool => filled($value))->count();
+
+        [$title, $steps] = match ($activity->position) {
+            1 => ['Build & Validate a Reusable AI Asset', [
+                'Asset' => $isAnswered('asset_name'),
+                'Original use' => $isAnswered('original_task'),
+                'Second task' => $isAnswered('second_task'),
+                'Reflection' => $isAnswered('reusability_learning'),
+                'Evidence' => false,
+            ]],
+            2 => ['Mock Level 3 Interview', [
+                'Partner selected' => $isAnswered('partner_user_id'),
+                'About You' => $isAnswered('about_you'),
+                'Practice questions prepared' => $filledCount('practice_questions') >= 15,
+                'Partner questions answered' => $filledCount('practice_answers') >= 15,
+                'Partner feedback (2 required)' => ($partnerFeedback['given_count'] ?? 0) >= 2 && ($partnerFeedback['received_count'] ?? 0) >= 2,
+                'Ready to submit' => false,
+            ]],
+            default => ['Strict-mode Leveling Assessment', [
+                'Transcript' => $isAnswered('strict_interview_transcript'),
+                'Tracker result' => $isAnswered('assessment_tracker_result'),
+                'Level' => $isAnswered('assessment_level'),
+                'Confidence' => $isAnswered('assessment_confidence'),
+                'Evidence' => false,
+            ]],
+        };
+
+        return [
+            'title' => $title,
+            'progress' => array_map(fn (string $label, bool $complete): array => ['label' => $label, 'complete' => $complete], array_keys($steps), array_values($steps)),
+        ];
+    }
+
+    /**
+     * The partner feedback of the Week 4 Activity 2 guide: how many pieces of feedback were given and received, one row
+     * per own question the partner has answered (with my saved feedback), and one row per question the partner has
+     * prepared for me (with the partner's feedback on my answer). Without a partner both lists are empty.
+     *
+     * @param  array<string, mixed>  $practiceState
+     * @param  Collection<int, WeekFourPartnerFeedback>  $feedbackGiven
+     * @param  Collection<int, WeekFourPartnerFeedback>  $feedbackReceived
+     * @return array{given_count: int, received_count: int, given_rows: list<array{number: int, question: mixed, answer: mixed, feedback: ?string}>, received_rows: list<array{number: int, question: mixed, feedback: ?string}>}
+     */
+    private function partnerFeedback(array $practiceState, Collection $feedbackGiven, Collection $feedbackReceived): array
+    {
+        $givenRows = [];
+        $receivedRows = [];
+
+        foreach ($this->interviews->practiceSlots() as $number) {
+            $question = $practiceState['own_questions'][$number] ?? '';
+            $answer = $practiceState['partner_answers'][$number] ?? '';
+            if (filled($question) && filled($answer)) {
+                $givenRows[] = ['number' => $number, 'question' => $question, 'answer' => $answer, 'feedback' => $feedbackGiven->get($number)?->content];
+            }
+
+            $partnerQuestion = $practiceState['partner_questions'][$number] ?? '';
+            if (filled($partnerQuestion)) {
+                $receivedRows[] = ['number' => $number, 'question' => $partnerQuestion, 'feedback' => $feedbackReceived->get($number)?->content];
+            }
+        }
+
+        return [
+            'given_count' => $feedbackGiven->count(),
+            'received_count' => $feedbackReceived->count(),
+            'given_rows' => $givenRows,
+            'received_rows' => $receivedRows,
         ];
     }
 

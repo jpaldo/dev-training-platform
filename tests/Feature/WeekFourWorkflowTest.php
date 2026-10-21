@@ -105,8 +105,8 @@ class WeekFourWorkflowTest extends TestCase
         $activity = $week4->activities()->where('position', 2)->firstOrFail();
         $this->actingAs($participant)->get(route('training.submission.edit', [$week4, $activity]))
             ->assertOk()
-            ->assertSee('Participant B')
-            ->assertDontSee('Your Mock Interview Partner</strong><p><strong>Participant A', false);
+            ->assertSeeInOrder(['YOUR MOCK INTERVIEW PARTNER</h3>', '<strong>Participant B</strong>'], false)
+            ->assertDontSee('<strong>Participant A</strong>', false);
 
         $base = [
             'field_values' => [

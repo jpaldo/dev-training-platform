@@ -13,6 +13,7 @@ use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeekFourInterviewPair;
+use App\Models\WeekFourPartnerFeedback;
 use App\Support\FieldLimits;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -131,6 +132,108 @@ class SubmissionFormPageTest extends TestCase
             ], false);
     }
 
+    /**
+     * @param  array<string, string>  $fieldValues
+     * @param  list<string>  $expectedSteps
+     */
+    #[DataProvider('weekFourGuides')]
+    public function test_week_four_guide_progress_reflects_the_saved_answers(int $position, array $fieldValues, string $title, array $expectedSteps): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: $position);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
+        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft', 'field_values' => $fieldValues]);
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+            ->assertOk()
+            ->assertSeeInOrder(['WEEK 4 · REUSABLE &amp; SUSTAINED LEVEL 3 PRACTICE', $title, 'PROGRESS', ...$expectedSteps], false);
+    }
+
+    /**
+     * @return array<string, array{int, array<string, string>, string, list<string>}>
+     */
+    public static function weekFourGuides(): array
+    {
+        return [
+            'reusable asset' => [1, ['asset_name' => 'Test case generator', 'second_task' => 'Checkout regression'], 'Build &amp; Validate a Reusable AI Asset', [
+                'Asset <span class="sr-only">(complete)</span>',
+                'Original use <span class="sr-only">(incomplete)</span>',
+                'Second task <span class="sr-only">(complete)</span>',
+                'Reflection <span class="sr-only">(incomplete)</span>',
+                'Evidence <span class="sr-only">(incomplete)</span>',
+            ]],
+            'leveling assessment' => [3, ['strict_interview_transcript' => 'Transcript', 'assessment_level' => 'Level 3'], 'Strict-mode Leveling Assessment', [
+                'Transcript <span class="sr-only">(complete)</span>',
+                'Tracker result <span class="sr-only">(incomplete)</span>',
+                'Level <span class="sr-only">(complete)</span>',
+                'Confidence <span class="sr-only">(incomplete)</span>',
+                'Evidence <span class="sr-only">(incomplete)</span>',
+            ]],
+        ];
+    }
+
+    public function test_peer_interview_guide_lists_feedback_for_answered_and_received_questions(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: 2);
+        [$partner, $pair] = $this->interviewPartner($participant);
+        $this->peerInterviewDraft($participant, $activity, ['practice_questions' => [1 => 'My first question', 2 => 'My second question', 5 => 'My unanswered question']]);
+        $this->peerInterviewDraft($partner, $activity, [
+            'practice_answers' => [1 => 'Partner answer one', 2 => 'Partner answer two'],
+            'practice_questions' => [3 => 'Partner question three', 4 => 'Partner question four', 6 => 'Partner question six'],
+        ]);
+        foreach ([1 => 'Saved feedback one', 2 => 'Saved feedback two'] as $number => $content) {
+            WeekFourPartnerFeedback::create(['pair_id' => $pair->id, 'author_id' => $participant->id, 'recipient_id' => $partner->id, 'question_number' => $number, 'content' => $content]);
+        }
+        foreach ([3 => 'Feedback on my answer three', 4 => 'Feedback on my answer four'] as $number => $content) {
+            WeekFourPartnerFeedback::create(['pair_id' => $pair->id, 'author_id' => $partner->id, 'recipient_id' => $participant->id, 'question_number' => $number, 'content' => $content]);
+        }
+
+        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Partner feedback (2 required) <span class="sr-only">(complete)</span>',
+                'Feedback given: 2 / 2 required',
+                'Feedback received: 2 / 2 required',
+                'FEEDBACK I GAVE TO PEER PARTNER',
+                'Q1 · Your question', 'My first question', 'Partner answer one', 'Saved feedback one</textarea>',
+                'Q2 · Your question', 'My second question', 'Partner answer two', 'Saved feedback two</textarea>',
+                'FEEDBACK I RECEIVED FROM PEER PARTNER',
+                'Q3 · Peer Partner&#039;s question', 'Partner question three', 'Feedback on my answer three',
+                'Q4 · Peer Partner&#039;s question', 'Partner question four', 'Feedback on my answer four',
+                'Q6 · Peer Partner&#039;s question', 'Partner question six', 'Not provided yet',
+            ], false)
+            ->assertDontSee('Q5 · Your question')
+            ->getContent();
+
+        $this->assertSame(2, substr_count($html, 'action="'.route('training.week-four.partner-feedback').'"'));
+    }
+
+    public function test_peer_interview_guide_waits_for_the_partner_before_listing_feedback(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: 2);
+        $this->interviewPartner($participant);
+        $this->peerInterviewDraft($participant, $activity, ['practice_questions' => [1 => 'My first question']]);
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Partner feedback (2 required) <span class="sr-only">(incomplete)</span>',
+                'Feedback given: 0 / 2 required',
+                'Waiting for Peer Partner to answer your practice questions.',
+                'Waiting for Peer Partner to prepare practice questions.',
+            ], false)
+            ->assertDontSee(route('training.week-four.partner-feedback'));
+    }
+
+    public function test_peer_interview_guide_without_a_partner_shows_the_pending_assignment(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: 2);
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+            ->assertOk()
+            ->assertSeeInOrder(['Mock Level 3 Interview', 'Partner Assignment Pending', 'PROGRESS', 'Partner selected <span class="sr-only">(incomplete)</span>'], false)
+            ->assertDontSee('PARTNER FEEDBACK');
+    }
+
     public function test_submission_form_query_count_does_not_grow_with_fields_evidence_and_versions(): void
     {
         $this->assertSame($this->submissionFormQueryCount(1), $this->submissionFormQueryCount(3));
@@ -177,15 +280,40 @@ class SubmissionFormPageTest extends TestCase
     }
 
     /**
-     * A checked-in manual participant and a Week 2 activity that is not the Validation Checklist.
+     * Assign a mock interview partner named "Peer Partner" to the participant.
+     *
+     * @return array{User, WeekFourInterviewPair}
+     */
+    private function interviewPartner(User $participant): array
+    {
+        $partner = User::factory()->create(['name' => 'Peer Partner']);
+        $pair = WeekFourInterviewPair::create(['participant_one_id' => min($participant->id, $partner->id), 'participant_two_id' => max($participant->id, $partner->id), 'assigned_by_id' => User::factory()->create(['role' => 'admin'])->id, 'status' => 'active']);
+
+        return [$partner, $pair];
+    }
+
+    /**
+     * Give the participant a draft of the peer interview activity with the given answers.
+     *
+     * @param  array<string, mixed>  $fieldValues
+     */
+    private function peerInterviewDraft(User $participant, Activity $activity, array $fieldValues): void
+    {
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
+        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft', 'field_values' => $fieldValues]);
+    }
+
+    /**
+     * A checked-in manual participant and an activity in the given week; by default a Week 2 activity that is not the
+     * Validation Checklist.
      *
      * @return array{User, TrainingWeek, Activity}
      */
-    private function activityFixture(): array
+    private function activityFixture(int $weekNumber = 2, int $position = 2): array
     {
         $participant = User::factory()->create(['training_path' => 'manual']);
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
-        $activity = Activity::factory()->for($week, 'week')->create(['position' => 2]);
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => $weekNumber, 'position' => 1]);
+        $activity = Activity::factory()->for($week, 'week')->create(['position' => $position]);
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         return [$participant, $week, $activity];

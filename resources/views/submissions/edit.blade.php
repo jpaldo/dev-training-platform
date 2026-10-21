@@ -60,8 +60,22 @@
                 </section>
             @endif
 
-            @if($trainingWeek->week_number === 4)
-                @include('submissions.week-four-guidance', ['activity' => $activity, 'version' => $version])
+            @if($weekFourGuide !== null)
+                @include('submissions.week-four-guidance', [
+                    'activity' => $activity,
+                    'guide' => $weekFourGuide,
+                    'interviewPartner' => $interviewPartner,
+                    'partnerFeedback' => $partnerFeedback,
+                    'rowClasses' => $rowClasses,
+                    'rowTitleClasses' => $rowTitleClasses,
+                    'labelClasses' => $labelClasses,
+                    'textareaClasses' => $textareaClasses,
+                    'hintClasses' => $hintClasses,
+                    'guidanceClasses' => $guidanceClasses,
+                    'guidanceSummaryClasses' => $guidanceSummaryClasses,
+                    'guidanceBodyClasses' => $guidanceBodyClasses,
+                    'stepClasses' => $stepClasses,
+                ])
             @endif
 
             <x-ui.card as="section" class="grid grid-cols-1 gap-5" aria-label="Submission form">

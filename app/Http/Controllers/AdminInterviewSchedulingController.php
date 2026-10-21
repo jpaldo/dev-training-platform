@@ -6,7 +6,7 @@ use App\Http\Requests\SaveInterviewSchedulerRequest;
 use App\Http\Requests\UpdateInterviewPagePublicTitleRequest;
 use App\Http\Requests\UploadInterviewPageLogoRequest;
 use App\Models\InterviewScheduler;
-use App\Models\User;
+use App\Services\AdminSettingsPageService;
 use App\Services\InterviewBookingLinkService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,16 +14,9 @@ use Illuminate\View\View;
 
 class AdminInterviewSchedulingController extends Controller
 {
-    public function index(InterviewBookingLinkService $links): View
+    public function index(AdminSettingsPageService $page): View
     {
-        return view('admin.settings.interview-scheduling', [
-            'mockInterviewers' => InterviewScheduler::query()->whereIn('interview_type', [InterviewScheduler::MOCK, InterviewScheduler::BOTH])->where('approval_status', InterviewScheduler::APPROVED)->orderBy('display_order')->orderBy('full_name')->get(),
-            'finalInterviewers' => InterviewScheduler::query()->whereIn('interview_type', [InterviewScheduler::FINAL_REASSESSMENT, InterviewScheduler::BOTH])->where('approval_status', InterviewScheduler::APPROVED)->orderBy('display_order')->orderBy('full_name')->get(),
-            'pendingInterviewers' => InterviewScheduler::query()->where('approval_status', InterviewScheduler::PENDING)->latest('created_at')->get(),
-            'users' => User::query()->whereIn('role', ['coach', 'admin'])->orderBy('name')->get(['id', 'name', 'email']),
-            'logoConfigured' => filled($links->logoPath()),
-            'publicTitle' => $links->publicTitle(),
-        ]);
+        return view('admin.settings.interview-scheduling', $page->interviewSchedulingData());
     }
 
     public function store(SaveInterviewSchedulerRequest $request): RedirectResponse

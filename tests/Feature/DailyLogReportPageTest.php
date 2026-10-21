@@ -20,8 +20,8 @@ class DailyLogReportPageTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Coach Avery']);
         $admin = User::factory()->create(['role' => 'admin', 'name' => 'Admin Blake']);
         $week = TrainingWeek::factory()->create(['week_number' => 2]);
-        $activity = Activity::factory()->for($week, 'week')->create(['title' => 'Explore checkout']);
-        Activity::factory()->for($week, 'week')->create(['title' => 'Retired drill', 'is_active' => false]);
+        $activity = Activity::factory()->for($week, 'week')->create(['title' => 'Explore checkout', 'position' => 1]);
+        Activity::factory()->for($week, 'week')->create(['title' => 'Retired drill', 'is_active' => false, 'position' => 2]);
 
         $ada = User::factory()->create(['name' => 'Ada Alpha', 'email' => 'ada@example.test', 'training_path' => 'automation_manual']);
         $ada->assignedCoaches()->attach([$admin->id, $coach->id]);

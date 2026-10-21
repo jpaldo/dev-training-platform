@@ -2,13 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Models\ApplicationSetting;
 use App\Models\GoogleDriveConnection;
+use App\Models\InterviewScheduler;
 use App\Models\User;
 use App\Services\AdminSettingsStatusService;
 use App\Services\AiProviderConfigurationService;
 use App\Services\EmailConfigurationService;
 use App\Services\GoogleCalendarService;
 use App\Services\GoogleDriveConfigurationService;
+use App\Services\InterviewBookingLinkService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 
@@ -398,6 +401,170 @@ class AdminSettingsPageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder(['Google Drive Integration', 'role="status"', 'Google Drive configuration saved.', 'STATUS', 'Configured'], false)
             ->assertDontSee('saved-secret');
+    }
+
+    public function test_interview_scheduling_page_shows_the_public_page_settings_and_the_add_interviewer_form(): void
+    {
+        ApplicationSetting::query()->create(['key' => InterviewBookingLinkService::TITLE_KEY, 'value' => 'Full Scale Interviews', 'is_encrypted' => false]);
+        ApplicationSetting::query()->create(['key' => InterviewBookingLinkService::LOGO_KEY, 'value' => 'public-interview/logo.png', 'is_encrypted' => false]);
+        $admin = $this->admin();
+        $coach = User::factory()->create(['role' => 'coach', 'name' => 'Casey Coach', 'email' => 'casey@example.com']);
+        User::factory()->create(['role' => 'participant', 'name' => 'Pat Participant']);
+
+        $this->actingAs($admin)->get(route('admin.settings.interview-scheduling'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'INTERVIEW SCHEDULING',
+                'Interview Scheduling',
+                'Store public booking pages managed by interviewers through external scheduling services.',
+                'Public Interview Page',
+                'action="'.route('admin.settings.interview-scheduling.title.update').'"',
+                'id="public_title" name="public_title" value="Full Scale Interviews" maxlength="100" placeholder="Developer Training Platform"',
+                'bg-raised', 'Save Public Page Title',
+                'A public logo is configured.',
+                'href="'.route('interviews.index').'" target="_blank" rel="noopener noreferrer"', 'View Public Interview Page',
+                'action="'.route('admin.settings.interview-scheduling.logo.destroy').'"', 'name="_method" value="DELETE"', 'Remove Logo',
+                'action="'.route('admin.settings.interview-scheduling.logo.store').'" enctype="multipart/form-data"',
+                'id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/webp" required', 'Upload / Replace Logo',
+                'Add Interviewer',
+                'action="'.route('admin.settings.interview-scheduling.store').'" id="admin-interviewer-form" data-interviewer-type-form',
+                'id="admin_interview_type" name="interview_type" required',
+                '<option value="mock">Mock Interview</option>', '<option value="final_reassessment">Final Re-assessment Interview</option>', '<option value="both">Both</option>',
+                'name="full_name" required', 'name="email" type="email"',
+                'name="user_id"', '<option value="">External interviewer</option>',
+                '<option value="'.$coach->id.'">Casey Coach (casey@example.com)</option>',
+                'name="mock_booking_url" type="url" placeholder="https://booking.example.com/mock"',
+                'data-final-booking-field hidden', 'name="final_booking_url" type="url" placeholder="https://booking.example.com/final"',
+                'Add Interviewer',
+            ], false)
+            ->assertSee('<option value="'.$admin->id.'">'.e($admin->name).' ('.e($admin->email).')</option>', false)
+            ->assertDontSee('Pat Participant')
+            ->assertDontSee('Pending Interviewer Requests')
+            ->assertDontSee('from-brand');
+    }
+
+    public function test_interview_scheduling_page_shows_the_title_fallback_and_empty_interviewer_sections(): void
+    {
+        $this->actingAs($this->admin())->get(route('admin.settings.interview-scheduling'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="public_title" name="public_title" value="Developer Training Platform"',
+                'No logo configured; the public page uses the configured title as its branding fallback.',
+                'View Public Interview Page',
+                'Mock Interview', 'No mock interview interviewers configured.',
+                'Final Re-assessment Interview', 'No final re-assessment interview interviewers configured.',
+            ], false)
+            ->assertDontSee('Remove Logo')
+            ->assertDontSee('Pending Interviewer Requests');
+    }
+
+    public function test_interview_scheduling_page_lists_pending_requests_newest_first_with_their_booking_links(): void
+    {
+        $this->travelTo(now()->setDate(2026, 10, 1)->setTime(9, 30));
+        $older = InterviewScheduler::create([
+            'interview_type' => InterviewScheduler::MOCK, 'full_name' => 'Older Request', 'booking_url' => 'https://booking.example.com/older',
+            'approval_status' => InterviewScheduler::PENDING, 'submitted_publicly' => true, 'is_active' => false,
+        ]);
+        $this->travelTo(now()->setDate(2026, 10, 2)->setTime(14, 5));
+        $newer = InterviewScheduler::create([
+            'interview_type' => InterviewScheduler::BOTH, 'full_name' => 'Newer Request', 'booking_url' => 'https://booking.example.com/legacy',
+            'final_booking_url' => 'https://booking.example.com/newer-final',
+            'approval_status' => InterviewScheduler::PENDING, 'submitted_publicly' => true, 'is_active' => false,
+        ]);
+        InterviewScheduler::create([
+            'interview_type' => InterviewScheduler::MOCK, 'full_name' => 'Rejected Request', 'booking_url' => 'https://booking.example.com/rejected',
+            'approval_status' => InterviewScheduler::REJECTED, 'is_active' => false,
+        ]);
+
+        $this->actingAs($this->admin())->get(route('admin.settings.interview-scheduling'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Pending Interviewer Requests',
+                'Public submissions remain hidden until an Admin approves them.',
+                'aria-label="Newer Request"',
+                'action="'.route('admin.settings.interview-scheduling.update', $newer).'"', 'name="_method" value="PATCH"',
+                '<input type="hidden" name="is_active" value="0">',
+                'name="full_name" value="Newer Request" required',
+                '<option value="both" selected>Both</option>',
+                'name="mock_booking_url" type="url" value="https://booking.example.com/legacy"',
+                'name="final_booking_url" type="url" value="https://booking.example.com/newer-final"',
+                'Save Changes',
+                'Submitted October 2, 2026 2:05 PM',
+                'href="https://booking.example.com/legacy" target="_blank" rel="noopener noreferrer"', 'View Mock Booking Page',
+                'href="https://booking.example.com/newer-final" target="_blank" rel="noopener noreferrer"', 'View Final Booking Page',
+                'action="'.route('admin.settings.interview-scheduling.approve', $newer).'"', 'Approve',
+                'action="'.route('admin.settings.interview-scheduling.reject', $newer).'"', 'Reject',
+                'aria-label="Older Request"',
+                '<option value="mock" selected>Mock Interview</option>',
+                'name="mock_booking_url" type="url" value="https://booking.example.com/older"',
+                'name="final_booking_url" type="url" value=""',
+                'Submitted October 1, 2026 9:30 AM',
+                'View Mock Booking Page',
+                'action="'.route('admin.settings.interview-scheduling.approve', $older).'"',
+                'No mock interview interviewers configured.',
+            ], false)
+            ->assertDontSee('https://booking.example.com/older" target="_blank" rel="noopener noreferrer">View Final Booking Page', false)
+            ->assertDontSee('Rejected Request');
+    }
+
+    public function test_interview_scheduling_page_lists_approved_interviewers_in_each_of_their_sections(): void
+    {
+        $mentor = User::factory()->create(['role' => 'coach']);
+        $both = InterviewScheduler::create([
+            'interview_type' => InterviewScheduler::BOTH, 'full_name' => 'Dual Interviewer', 'email' => 'dual@example.com', 'user_id' => $mentor->id,
+            'booking_url' => 'https://booking.example.com/dual', 'final_booking_url' => 'https://booking.example.com/dual-final', 'display_order' => 1, 'is_active' => true,
+        ]);
+        $mock = InterviewScheduler::create([
+            'interview_type' => InterviewScheduler::MOCK, 'full_name' => 'Mock Only', 'mock_booking_url' => 'https://booking.example.com/mock-only',
+            'booking_url' => 'https://booking.example.com/mock-legacy', 'display_order' => 0, 'is_active' => false,
+        ]);
+        $final = InterviewScheduler::create([
+            'interview_type' => InterviewScheduler::FINAL_REASSESSMENT, 'full_name' => 'Final Only', 'booking_url' => 'https://booking.example.com/final-legacy',
+            'display_order' => 5, 'is_active' => true,
+        ]);
+
+        $this->actingAs($this->admin())->get(route('admin.settings.interview-scheduling'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="mock-interviewers-title"', 'Mock Interview',
+                'aria-label="Mock Only"',
+                'action="'.route('admin.settings.interview-scheduling.update', $mock).'"', 'name="_method" value="PATCH"',
+                '<input type="hidden" name="interview_type" value="mock">',
+                'name="full_name" value="Mock Only" required', 'name="email" type="email" value=""',
+                'name="mock_booking_url" type="url" value="https://booking.example.com/mock-only"',
+                'name="final_booking_url" type="url" value=""',
+                'name="display_order" type="number" min="0" value="0"',
+                'Save Changes',
+                'External interviewer · Inactive',
+                'action="'.route('admin.settings.interview-scheduling.toggle', $mock).'"', 'Activate',
+                'action="'.route('admin.settings.interview-scheduling.destroy', $mock).'"', 'name="_method" value="DELETE"', 'Remove',
+                'aria-label="Dual Interviewer"',
+                '<input type="hidden" name="interview_type" value="both">',
+                'name="email" type="email" value="dual@example.com"',
+                'name="mock_booking_url" type="url" value="https://booking.example.com/dual"',
+                'name="final_booking_url" type="url" value="https://booking.example.com/dual-final"',
+                'name="display_order" type="number" min="0" value="1"',
+                'Registered platform user · Active',
+                'action="'.route('admin.settings.interview-scheduling.toggle', $both).'"', 'Deactivate',
+                'id="final_reassessment-interviewers-title"', 'Final Re-assessment Interview',
+                'aria-label="Dual Interviewer"',
+                'aria-label="Final Only"',
+                '<input type="hidden" name="interview_type" value="final_reassessment">',
+                'name="mock_booking_url" type="url" value=""',
+                'name="final_booking_url" type="url" value="https://booking.example.com/final-legacy"',
+                'External interviewer · Active',
+                'action="'.route('admin.settings.interview-scheduling.toggle', $final).'"', 'Deactivate',
+            ], false)
+            ->assertDontSee('No mock interview interviewers configured.')
+            ->assertDontSee('No final re-assessment interview interviewers configured.')
+            ->assertDontSee('Pending Interviewer Requests');
+    }
+
+    public function test_interview_scheduling_page_is_only_for_admins(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'coach']))
+            ->get(route('admin.settings.interview-scheduling'))
+            ->assertForbidden();
     }
 
     private function admin(): User

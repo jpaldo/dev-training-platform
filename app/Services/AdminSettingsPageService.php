@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\GoogleDriveConnection;
+use App\Models\InterviewScheduler;
+use App\Models\User;
 
 class AdminSettingsPageService
 {
@@ -22,9 +24,21 @@ class AdminSettingsPageService
 
     private const MASKED_SECRET_PLACEHOLDER = '••••••••••••';
 
+    /**
+     * The interview type options of the interviewer forms, in display order.
+     *
+     * @var array<string, string>
+     */
+    private const INTERVIEW_TYPE_LABELS = [
+        InterviewScheduler::MOCK => 'Mock Interview',
+        InterviewScheduler::FINAL_REASSESSMENT => 'Final Re-assessment Interview',
+        InterviewScheduler::BOTH => 'Both',
+    ];
+
     public function __construct(
         private readonly AdminSettingsStatusService $status,
         private readonly GoogleDriveConfigurationService $googleDrive,
+        private readonly InterviewBookingLinkService $interviewBookingLinks,
     ) {}
 
     /**
@@ -260,6 +274,58 @@ class AdminSettingsPageService
     }
 
     /**
+     * The interview scheduling page: the public page title and logo status, the interview type and platform user
+     * options of the Add Interviewer form, the pending public requests (newest first) and the approved Mock Interview
+     * and Final Re-assessment interviewers (an interviewer of both types is listed in both sections).
+     *
+     * @return array{publicTitle: string, logoConfigured: bool, logoStatus: string, interviewTypes: list<array{value: string, label: string}>, users: list<array{id: int, label: string}>, pendingInterviewers: list<array{id: int, fullName: string, interviewType: string, mockBookingUrl: string, finalBookingUrl: string, submittedAt: ?string, updateUrl: string, approveUrl: string, rejectUrl: string}>, sections: list<array{key: string, title: string, emptyMessage: string, interviewers: list<array{id: int, fullName: string, email: ?string, interviewType: string, mockBookingUrl: string, finalBookingUrl: string, displayOrder: int, summary: string, toggleLabel: string, updateUrl: string, toggleUrl: string, destroyUrl: string}>}>}
+     */
+    public function interviewSchedulingData(): array
+    {
+        $logoConfigured = filled($this->interviewBookingLinks->logoPath());
+        $interviewTypes = [];
+
+        foreach (self::INTERVIEW_TYPE_LABELS as $value => $label) {
+            $interviewTypes[] = ['value' => $value, 'label' => $label];
+        }
+
+        return [
+            'publicTitle' => $this->interviewBookingLinks->publicTitle(),
+            'logoConfigured' => $logoConfigured,
+            'logoStatus' => $logoConfigured
+                ? 'A public logo is configured.'
+                : 'No logo configured; the public page uses the configured title as its branding fallback.',
+            'interviewTypes' => $interviewTypes,
+            'users' => User::query()
+                ->whereIn('role', ['coach', 'admin'])
+                ->orderBy('name')
+                ->get(['id', 'name', 'email'])
+                ->map(fn (User $user): array => ['id' => $user->id, 'label' => $user->name.' ('.$user->email.')'])
+                ->all(),
+            'pendingInterviewers' => InterviewScheduler::query()
+                ->where('approval_status', InterviewScheduler::PENDING)
+                ->latest('created_at')
+                ->get()
+                ->map($this->pendingInterviewer(...))
+                ->all(),
+            'sections' => [
+                [
+                    'key' => InterviewScheduler::MOCK,
+                    'title' => 'Mock Interview',
+                    'emptyMessage' => 'No mock interview interviewers configured.',
+                    'interviewers' => $this->approvedInterviewers(InterviewScheduler::MOCK),
+                ],
+                [
+                    'key' => InterviewScheduler::FINAL_REASSESSMENT,
+                    'title' => 'Final Re-assessment Interview',
+                    'emptyMessage' => 'No final re-assessment interview interviewers configured.',
+                    'interviewers' => $this->approvedInterviewers(InterviewScheduler::FINAL_REASSESSMENT),
+                ],
+            ],
+        ];
+    }
+
+    /**
      * @return array{label: string, value: string, tone: string}
      */
     private function configurationStatus(string $label, bool $isConfigured): array
@@ -281,6 +347,72 @@ class AdminSettingsPageService
         }
 
         return $isConfigured ? 'Configured' : 'Not configured';
+    }
+
+    /**
+     * The approved interviewers of one interview type, including those of both types, by display order then name.
+     *
+     * @return list<array{id: int, fullName: string, email: ?string, interviewType: string, mockBookingUrl: string, finalBookingUrl: string, displayOrder: int, summary: string, toggleLabel: string, updateUrl: string, toggleUrl: string, destroyUrl: string}>
+     */
+    private function approvedInterviewers(string $interviewType): array
+    {
+        return InterviewScheduler::query()
+            ->whereIn('interview_type', [$interviewType, InterviewScheduler::BOTH])
+            ->where('approval_status', InterviewScheduler::APPROVED)
+            ->orderBy('display_order')
+            ->orderBy('full_name')
+            ->get()
+            ->map(fn (InterviewScheduler $interviewer): array => [
+                'id' => $interviewer->id,
+                'fullName' => $interviewer->full_name,
+                'email' => $interviewer->email,
+                'interviewType' => $interviewer->interview_type,
+                'mockBookingUrl' => $this->mockBookingUrl($interviewer),
+                'finalBookingUrl' => $this->finalBookingUrl($interviewer),
+                'displayOrder' => $interviewer->display_order,
+                'summary' => ($interviewer->user_id ? 'Registered platform user' : 'External interviewer').' · '.($interviewer->is_active ? 'Active' : 'Inactive'),
+                'toggleLabel' => $interviewer->is_active ? 'Deactivate' : 'Activate',
+                'updateUrl' => route('admin.settings.interview-scheduling.update', $interviewer),
+                'toggleUrl' => route('admin.settings.interview-scheduling.toggle', $interviewer),
+                'destroyUrl' => route('admin.settings.interview-scheduling.destroy', $interviewer),
+            ])
+            ->all();
+    }
+
+    /**
+     * @return array{id: int, fullName: string, interviewType: string, mockBookingUrl: string, finalBookingUrl: string, submittedAt: ?string, updateUrl: string, approveUrl: string, rejectUrl: string}
+     */
+    private function pendingInterviewer(InterviewScheduler $interviewer): array
+    {
+        return [
+            'id' => $interviewer->id,
+            'fullName' => $interviewer->full_name,
+            'interviewType' => $interviewer->interview_type,
+            'mockBookingUrl' => $this->mockBookingUrl($interviewer),
+            'finalBookingUrl' => $this->finalBookingUrl($interviewer),
+            'submittedAt' => $interviewer->created_at?->format('F j, Y g:i A'),
+            'updateUrl' => route('admin.settings.interview-scheduling.update', $interviewer),
+            'approveUrl' => route('admin.settings.interview-scheduling.approve', $interviewer),
+            'rejectUrl' => route('admin.settings.interview-scheduling.reject', $interviewer),
+        ];
+    }
+
+    /**
+     * The Mock Interview link, falling back to the legacy single link unless the interviewer is Final Re-assessment only.
+     */
+    private function mockBookingUrl(InterviewScheduler $interviewer): string
+    {
+        return (string) ($interviewer->mock_booking_url
+            ?: ($interviewer->interview_type !== InterviewScheduler::FINAL_REASSESSMENT ? $interviewer->booking_url : ''));
+    }
+
+    /**
+     * The Final Re-assessment link, falling back to the legacy single link unless the interviewer is Mock Interview only.
+     */
+    private function finalBookingUrl(InterviewScheduler $interviewer): string
+    {
+        return (string) ($interviewer->final_booking_url
+            ?: ($interviewer->interview_type !== InterviewScheduler::MOCK ? $interviewer->booking_url : ''));
     }
 
     private function megabytes(int $bytes): string

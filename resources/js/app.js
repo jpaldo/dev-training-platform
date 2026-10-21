@@ -220,6 +220,33 @@ const initializeAiProviderSettings = () => {
     });
 };
 
+/**
+ * On the interview scheduling settings page, show the Final Re-assessment booking link field
+ * (`[data-final-booking-field]`) of the `[data-interviewer-type-form]` form, and require it, only while the selected
+ * interview type is not Mock Interview.
+ */
+const initializeInterviewerTypeFields = () => {
+    const form = document.querySelector('[data-interviewer-type-form]');
+
+    if (!form) {
+        return;
+    }
+
+    const type = form.elements.interview_type;
+    const finalField = form.querySelector('[data-final-booking-field]');
+    const finalInput = form.elements.final_booking_url;
+
+    const sync = () => {
+        const isFinalBookingShown = type.value !== 'mock';
+
+        finalField.hidden = !isFinalBookingShown;
+        finalInput.required = isFinalBookingShown;
+    };
+
+    type.addEventListener('change', sync);
+    sync();
+};
+
 const initializePage = () => {
     initializeMentorDateTimePickers();
     initializeSidebarDrawer();
@@ -227,6 +254,7 @@ const initializePage = () => {
     initializeDatePickers();
     initializeMarkdownFlushOnSubmit();
     initializeAiProviderSettings();
+    initializeInterviewerTypeFields();
 };
 
 if (document.readyState === 'loading') {

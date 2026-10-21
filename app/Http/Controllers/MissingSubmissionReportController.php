@@ -3,33 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\FilterMissingSubmissionsRequest;
-use App\Models\User;
+use App\Services\MissingSubmissionReportPageService;
 use App\Services\MissingSubmissionReportService;
-use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Collection;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MissingSubmissionReportController extends Controller
 {
-    public function index(FilterMissingSubmissionsRequest $request, MissingSubmissionReportService $report): View
+    public function index(FilterMissingSubmissionsRequest $request, MissingSubmissionReportPageService $page): View
     {
-        $filters = $request->validated();
-        $rows = $report->rows($filters);
-        $actionable = $rows->reject(fn (array $row): bool => $row['status'] === 'Expectation Not Configured');
-        $paginator = $this->paginate($rows, $request);
-        $summary = [
-            'participants' => $actionable->pluck('participant_name')->unique()->count(),
-            'activities' => $actionable->where('category', 'Activities')->count(),
-            'daily_logs' => $actionable->whereIn('category', ['Daily Logs', 'General Training'])->count(),
-            'general' => $actionable->where('category', 'General Training')->count(),
-            'video' => $actionable->where('category', 'Video Recording')->count(),
-        ];
-        $participants = User::query()->where('role', 'participant')->orderBy('name')->get(['id', 'name']);
-        $mentors = User::query()->whereIn('role', ['coach', 'admin'])->orderBy('name')->get(['id', 'name']);
-
-        return view('coach.missing-submissions', compact('paginator', 'filters', 'summary', 'participants', 'mentors', 'report'));
+        return view('coach.missing-submissions', $page->indexData($request->validated(), $request->query(), max(1, $request->integer('page', 1))));
     }
 
     public function export(FilterMissingSubmissionsRequest $request, MissingSubmissionReportService $report): StreamedResponse
@@ -44,13 +27,5 @@ class MissingSubmissionReportController extends Controller
             }
             fclose($out);
         }, 'missing-submissions.csv', ['Content-Type' => 'text/csv']);
-    }
-
-    private function paginate(Collection $rows, Request $request): LengthAwarePaginator
-    {
-        $page = LengthAwarePaginator::resolveCurrentPage();
-        $perPage = 25;
-
-        return new LengthAwarePaginator($rows->forPage($page, $perPage)->values(), $rows->count(), $perPage, $page, ['path' => $request->url(), 'query' => $request->query()]);
     }
 }

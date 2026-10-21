@@ -144,7 +144,7 @@ class CoachReportsTest extends TestCase
             ->assertOk()
             ->assertSee('Missing submissions')
             ->assertSee('Back to Reports')
-            ->assertSee('class="report-icon" width="18" height="18"', false);
+            ->assertSee('width="18" height="18" viewBox="0 0 20 20"', false);
         $this->actingAs($participant)->get(route('coach.reports.missing-submissions'))->assertForbidden();
     }
 
@@ -181,7 +181,7 @@ class CoachReportsTest extends TestCase
         $response = $this->actingAs($admin)->get(route('coach.reports.missing-submissions'));
 
         $response->assertOk()
-            ->assertSee('report-pagination', false)
+            ->assertSee('aria-label="Pagination Navigation"', false)
             ->assertSee('width="18" height="18"', false)
             ->assertDontSee('class="w-5 h-5"', false);
     }

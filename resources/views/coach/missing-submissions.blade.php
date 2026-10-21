@@ -1,26 +1,173 @@
 @extends('layouts.app')
 
 @section('content')
-<style>
-.missing-shell{display:grid;gap:22px}.report-nav{display:flex;gap:8px;flex-wrap:wrap}.report-nav a{padding:9px 14px;border:1px solid var(--line);border-radius:999px;color:var(--muted)}.report-nav a.active{background:#281d56;border-color:#6d50cf;color:#fff}.report-head{display:flex;justify-content:space-between;gap:18px;align-items:end;flex-wrap:wrap}.report-head h1{margin-bottom:0}.report-back{display:inline-flex;align-items:center;gap:8px}.report-icon{width:18px;height:18px;display:block;flex:0 0 18px}.missing-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end}.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stat{padding:18px;background:#11162b;border:1px solid var(--line);border-radius:16px}.stat strong{display:block;font-size:28px;margin-top:6px}.table-wrap{overflow-x:auto}.report-table{width:100%;min-width:1100px;border-collapse:separate;border-spacing:0}.report-table th,.report-table td{padding:14px 15px;text-align:left;border-bottom:1px solid #252b48;vertical-align:middle}.report-table th{color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase;background:#0d1225}.status{display:inline-flex;padding:5px 8px;border-radius:999px;border:1px solid #7f1d1d;color:#fecaca;background:#3b0d19;font-size:12px;font-weight:800;white-space:nowrap}.status.partial{border-color:#854d0e;color:#fde68a;background:#422006}.path-chip{display:inline-flex;padding:6px 9px;border-radius:999px;background:#1c2442;border:1px solid #343d68;color:#dbeafe;font-size:12px}.empty-state{padding:20px;border:1px dashed #3a426c;border-radius:14px;color:var(--muted)}.report-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;flex-wrap:wrap}.report-pagination a,.report-pagination span{display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-size:13px}.report-pagination a:hover{border-color:var(--p);color:#fff}.report-pagination .pages{display:flex;align-items:center;gap:6px}.report-pagination .current{background:#281d56;border-color:#6d50cf;color:#fff;font-weight:800}.report-pagination .disabled{opacity:.5}.report-pagination svg{width:18px;height:18px;display:block;flex:0 0 18px}@media(max-width:900px){.missing-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.stat-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:560px){.missing-filters{grid-template-columns:1fr}.stat-grid{grid-template-columns:1fr}.report-pagination{align-items:stretch}.report-pagination>a,.report-pagination>span{flex:1;justify-content:center}}
-</style>
-<div class="missing-shell">
-    <div class="eyebrow">COACH / REPORTS</div>
-    <div class="report-head"><div><a class="btn secondary report-back" href="{{ route('coach.reports') }}"><svg class="report-icon" width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12.707 15.293a1 1 0 01-1.414 0L6.586 10l4.707-5.293a1 1 0 011.414 1.414L8.914 10l3.793 3.879a1 1 0 010 1.414z" clip-rule="evenodd"/></svg><span>Back to Reports</span></a><h1>Missing submissions</h1><p class="muted">Actionable training requirements that participants are expected to submit but have not completed.</p></div><div class="actions"><a class="btn" href="{{ route('coach.reports.missing-submissions.export', request()->query()) }}">Export Missing Submissions CSV</a></div></div>
-    <nav class="report-nav" aria-label="Reports"><a href="{{ route('coach.reports') }}">Progress</a><a href="{{ route('coach.reports.daily-logs') }}">Daily Log Completion</a><a href="{{ route('coach.reports.daily-logs.details') }}">Daily Log Details</a><a class="active" href="{{ route('coach.reports.missing-submissions') }}">Missing Submissions</a></nav>
-    <form class="card missing-filters" method="GET" action="{{ route('coach.reports.missing-submissions') }}" aria-label="Missing submission filters">
-        <div class="field"><label for="missing-participant">Participant</label><select id="missing-participant" name="participant"><option value="">All participants</option>@foreach($participants as $participant)<option value="{{ $participant->id }}" @selected(($filters['participant'] ?? '') == $participant->id)>{{ $participant->name }}</option>@endforeach</select></div>
-        <div class="field"><label for="missing-path">QA Path</label><select id="missing-path" name="path"><option value="">All paths</option>@foreach(\App\Models\User::trainingPathOptions() as $key => $label)<option value="{{ $key }}" @selected(($filters['path'] ?? '') === $key)>{{ $label }}</option>@endforeach</select></div>
-        <div class="field"><label for="missing-mentor">Mentor</label><select id="missing-mentor" name="mentor"><option value="">All mentors</option>@foreach($mentors as $mentor)<option value="{{ $mentor->id }}" @selected(($filters['mentor'] ?? '') == $mentor->id)>{{ $mentor->name }}</option>@endforeach</select></div>
-        <div class="field"><label for="missing-category">Category</label><select id="missing-category" name="category"><option value="">All categories</option><option value="general_training" @selected(($filters['category'] ?? '') === 'general_training')>General Training</option><option value="daily_logs" @selected(($filters['category'] ?? '') === 'daily_logs')>Daily Logs</option><option value="activities" @selected(($filters['category'] ?? '') === 'activities')>Activities</option><option value="video_recording" @selected(($filters['category'] ?? '') === 'video_recording')>Video Recording</option></select></div>
-        <div class="field"><label for="missing-week">Week</label><select id="missing-week" name="week"><option value="">All weeks</option><option value="general" @selected(($filters['week'] ?? '') === 'general')>General Training</option>@foreach([2,3,4] as $week)<option value="{{ $week }}" @selected(($filters['week'] ?? '') == $week)>Week {{ $week }}</option>@endforeach</select></div>
-        <div class="field"><label for="missing-status">Status</label><select id="missing-status" name="status"><option value="">All missing</option><option value="not_submitted" @selected(($filters['status'] ?? '') === 'not_submitted')>Not Submitted</option><option value="partial" @selected(($filters['status'] ?? '') === 'partial')>Partially Submitted</option></select></div>
-        <div class="field"><label for="missing-requirement">Requirement</label><input id="missing-requirement" name="requirement" value="{{ $filters['requirement'] ?? '' }}" placeholder="Activity or log requirement"></div>
-        <div class="field"><label for="missing-from">Log date from</label><input id="missing-from" type="date" name="from" value="{{ $filters['from'] ?? '' }}"></div>
-        <div class="field"><label for="missing-to">Log date to</label><input id="missing-to" type="date" name="to" value="{{ $filters['to'] ?? '' }}"></div>
-        <div class="actions"><button class="btn" type="submit">Apply Filters</button><a class="btn secondary" href="{{ route('coach.reports.missing-submissions') }}">Clear</a></div>
-    </form>
-    <div class="stat-grid" aria-label="Missing submission summary"><div class="stat"><span class="muted">Participants With Missing Requirements</span><strong>{{ $summary['participants'] }}</strong></div><div class="stat"><span class="muted">Missing Activities</span><strong>{{ $summary['activities'] }}</strong></div><div class="stat"><span class="muted">Missing Daily Logs</span><strong>{{ $summary['daily_logs'] }}</strong></div><div class="stat"><span class="muted">Missing General Training Logs</span><strong>{{ $summary['general'] }}</strong></div><div class="stat"><span class="muted">Missing Video Recordings</span><strong>{{ $summary['video'] }}</strong></div></div>
-    <section class="card"><div class="report-head"><h2>Actionable missing requirements</h2><span class="muted">{{ $paginator->total() }} row(s)</span></div><div class="table-wrap"><table class="report-table"><thead><tr><th>Participant</th><th>QA Path</th><th>Mentor</th><th>Category</th><th>Week</th><th>Requirement</th><th>Expected</th><th>Submitted</th><th>Missing</th><th>Evidences</th><th>Status</th><th>Last Submission / Log Date</th></tr></thead><tbody>@forelse($paginator as $row)<tr><td><strong><a href="{{ route('coach.participants.show', $row['participant']) }}">{{ $row['participant_name'] }}</a></strong><div class="muted">{{ $row['email'] }}</div></td><td><span class="path-chip">{{ $row['path'] }}</span></td><td>{{ $row['mentor'] }}</td><td>{{ $row['category'] }}</td><td>{{ $row['week'] }}</td><td><strong>{{ $row['requirement'] }}</strong></td><td>{{ $row['expected'] ?? '—' }}</td><td>{{ $row['submitted'] }}</td><td>{{ $row['missing'] ?? '—' }}</td><td>{{ $row['evidences'] ?? '—' }}</td><td><span class="status {{ $row['status'] === 'Partially Submitted' ? 'partial' : '' }}">{{ $row['status'] }}</span></td><td>{{ $row['last_date']?->format('M j, Y') ?? '—' }}</td></tr>@empty<tr><td colspan="12"><div class="empty-state">No missing submissions found for the selected filters.</div></td></tr>@endforelse</tbody></table></div>{{ $paginator->links('pagination.missing-submissions') }}</section>
-</div>
+    @php
+        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
+        $labelClasses = 'text-sm font-extrabold';
+        $headerCellClasses = 'border-b border-line px-3.5 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase max-sm:px-2.5';
+        $cellClasses = 'border-b border-line px-3.5 py-3.5 text-left align-middle max-sm:px-2.5 max-sm:py-3';
+    @endphp
+
+    <div class="grid grid-cols-1 gap-6">
+        <header class="flex flex-wrap items-end justify-between gap-4">
+            <div class="grid min-w-0 justify-items-start gap-2">
+                <x-ui.eyebrow>COACH / REPORTS</x-ui.eyebrow>
+                <x-ui.button variant="secondary" :href="route('coach.reports')">
+                    <svg class="size-4.5 shrink-0" width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12.707 15.293a1 1 0 01-1.414 0L6.586 10l4.707-5.293a1 1 0 011.414 1.414L8.914 10l3.793 3.879a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
+                    <span>Back to Reports</span>
+                </x-ui.button>
+                <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Missing submissions</h1>
+                <p class="m-0 leading-relaxed text-muted">Actionable training requirements that participants are expected to submit but have not completed.</p>
+            </div>
+            <x-ui.button variant="secondary" :href="$exportUrl">Export Missing Submissions CSV</x-ui.button>
+        </header>
+
+        <x-ui.report-nav current="missing-submissions" />
+
+        <x-ui.card as="form" method="GET" action="{{ route('coach.reports.missing-submissions') }}" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end" aria-label="Missing submission filters">
+            <div class="grid min-w-0 gap-2">
+                <label for="missing-participant" class="{{ $labelClasses }}">Participant</label>
+                <select id="missing-participant" name="participant" class="{{ $controlClasses }}">
+                    <option value="">All participants</option>
+                    @foreach($participantOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="missing-path" class="{{ $labelClasses }}">QA Path</label>
+                <select id="missing-path" name="path" class="{{ $controlClasses }}">
+                    <option value="">All paths</option>
+                    @foreach($pathOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="missing-mentor" class="{{ $labelClasses }}">Mentor</label>
+                <select id="missing-mentor" name="mentor" class="{{ $controlClasses }}">
+                    <option value="">All mentors</option>
+                    @foreach($mentorOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="missing-category" class="{{ $labelClasses }}">Category</label>
+                <select id="missing-category" name="category" class="{{ $controlClasses }}">
+                    <option value="">All categories</option>
+                    @foreach($categoryOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="missing-week" class="{{ $labelClasses }}">Week</label>
+                <select id="missing-week" name="week" class="{{ $controlClasses }}">
+                    <option value="">All weeks</option>
+                    @foreach($weekOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="missing-status" class="{{ $labelClasses }}">Status</label>
+                <select id="missing-status" name="status" class="{{ $controlClasses }}">
+                    <option value="">All missing</option>
+                    @foreach($statusOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="missing-requirement" class="{{ $labelClasses }}">Requirement</label>
+                <input id="missing-requirement" name="requirement" value="{{ $requirement }}" placeholder="Activity or log requirement" class="{{ $controlClasses }}">
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="missing-from" class="{{ $labelClasses }}">Log date from</label>
+                <input id="missing-from" type="date" name="from" value="{{ $from }}" class="{{ $controlClasses }}">
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="missing-to" class="{{ $labelClasses }}">Log date to</label>
+                <input id="missing-to" type="date" name="to" value="{{ $to }}" class="{{ $controlClasses }}">
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <x-ui.button variant="secondary" type="submit">Apply Filters</x-ui.button>
+                <x-ui.button variant="secondary" :href="route('coach.reports.missing-submissions')">Clear</x-ui.button>
+            </div>
+        </x-ui.card>
+
+        <section aria-labelledby="missing-summary-title">
+            <h2 id="missing-summary-title" class="sr-only">Missing submission summary</h2>
+            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                @foreach($stats as $stat)
+                    <x-ui.card class="grid content-start gap-2" padding="p-5">
+                        <dt class="text-sm text-muted">{{ $stat['label'] }}</dt>
+                        <dd class="m-0 text-3xl font-black">{{ $stat['value'] }}</dd>
+                    </x-ui.card>
+                @endforeach
+            </dl>
+        </section>
+
+        <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="missing-requirements-title">
+            <div class="flex flex-wrap items-end justify-between gap-2">
+                <h2 id="missing-requirements-title" class="m-0 text-xl font-extrabold">Actionable missing requirements</h2>
+                <span class="text-sm text-muted">{{ $rowCount }} row(s)</span>
+            </div>
+            @if($missingRows->isEmpty())
+                <p class="m-0 rounded-xl border border-dashed border-line p-5 text-muted">No missing submissions found for the selected filters.</p>
+            @else
+                <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="missing-requirements-title" tabindex="0">
+                    <table class="w-full min-w-275 border-collapse text-sm">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">QA Path</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Mentor</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Category</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Week</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Requirement</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Expected</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Submitted</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Missing</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Evidences</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Status</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Last Submission / Log Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($missingRows as $row)
+                                <tr data-missing-row>
+                                    <th scope="row" class="{{ $cellClasses }} font-normal">
+                                        <span class="grid gap-0.5">
+                                            <strong class="wrap-break-word"><a href="{{ $row['participant_url'] }}" class="text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">{{ $row['participant_name'] }}</a></strong>
+                                            <span class="wrap-anywhere text-muted">{{ $row['participant_email'] }}</span>
+                                        </span>
+                                    </th>
+                                    <td class="{{ $cellClasses }}">
+                                        <x-ui.badge class="whitespace-nowrap">{{ $row['path'] }}</x-ui.badge>
+                                    </td>
+                                    <td class="{{ $cellClasses }} wrap-break-word">{{ $row['mentor'] }}</td>
+                                    <td class="{{ $cellClasses }}">{{ $row['category'] }}</td>
+                                    <td class="{{ $cellClasses }} whitespace-nowrap">{{ $row['week'] }}</td>
+                                    <td class="{{ $cellClasses }} wrap-break-word"><strong>{{ $row['requirement'] }}</strong></td>
+                                    <td class="{{ $cellClasses }} tabular-nums">{{ $row['expected'] }}</td>
+                                    <td class="{{ $cellClasses }} tabular-nums">{{ $row['submitted'] }}</td>
+                                    <td class="{{ $cellClasses }} tabular-nums">{{ $row['missing'] }}</td>
+                                    <td class="{{ $cellClasses }} tabular-nums">{{ $row['evidences'] }}</td>
+                                    <td class="{{ $cellClasses }}">
+                                        <x-ui.badge :tone="$row['status_tone']" class="whitespace-nowrap">{{ $row['status'] }}</x-ui.badge>
+                                    </td>
+                                    <td class="{{ $cellClasses }} whitespace-nowrap">{{ $row['last_date'] }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+            @if($missingRows->hasPages())
+                <div>{{ $missingRows->links('pagination.missing-submissions') }}</div>
+            @endif
+        </x-ui.card>
+    </div>
 @endsection

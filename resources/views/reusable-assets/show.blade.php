@@ -1,30 +1,69 @@
 @extends('layouts.app')
 
 @section('content')
-@php($filename = $asset->original_filename ?: 'Reusable AI Asset')
-@php($extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION)))
-<div class="eyebrow">REUSABLE AI ASSET</div>
-<h1>{{ $values['asset_name'] ?? 'Reusable AI Asset' }}</h1>
-<div class="card" style="margin-top:20px">
-    <p><strong>Owner</strong><br>{{ $submission->participant->name }}</p>
-    <p><strong>Asset Type</strong><br>{{ $values['asset_type'] ?? 'Reusable QA Asset' }}</p>
-    <p><strong>Purpose</strong><br>{{ $values['asset_purpose'] ?? 'Not provided' }}</p>
-</div>
-<div class="card" style="margin-top:18px">
-    <h2>About this asset</h2>
-    @foreach(['asset_content' => 'Asset Content', 'original_task' => 'Original Task', 'original_use' => 'How It Was Used', 'second_task' => 'Second Real Task', 'reuse_method' => 'How It Was Reused', 'reuse_result' => 'Reuse Result', 'reuse_changes' => 'Changes Made', 'reusability_learning' => 'What Was Learned', 'reusability_improvement' => 'What Could Improve'] as $key => $label)
-        @if(filled($values[$key] ?? null))<div class="check"><strong>{{ $label }}</strong><x-formatted-text :text="is_scalar($values[$key]) ? $values[$key] : json_encode($values[$key], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)" /></div>@endif
-    @endforeach
-</div>
-<div class="card" style="margin-top:18px">
-    <h2>Reusable AI Asset</h2>
-    <p><strong>{{ $filename }}</strong></p>
-    @if(in_array($extension, ['doc', 'xls', 'zip', 'tar'], true))
-        <p class="muted">Preview unavailable for this archive file type.</p>
-        <a class="btn" href="{{ route('training.reusable-assets.download', $version) }}">Download</a>
-    @else
-        <x-evidence-actions :evidence="$asset" :view-url="route('training.reusable-assets.view', $version)" :download-url="route('training.reusable-assets.download', $version)" :preview-url="route('training.reusable-assets.preview', $version)" :modal-id="'reusable-asset-detail-preview-'.$version->id" />
-    @endif
-</div>
-<div class="actions"><a class="btn secondary" href="{{ route('training.reusable-assets.index') }}">Back to Library</a></div>
+    @php
+        $sectionTitleClasses = 'm-0 text-xl font-extrabold';
+        $termClasses = 'text-xs font-bold tracking-[0.08em] text-subtle uppercase';
+    @endphp
+
+    <div class="grid grid-cols-1 gap-6">
+        <header class="grid min-w-0 gap-2">
+            <x-ui.eyebrow>REUSABLE AI ASSET</x-ui.eyebrow>
+            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">{{ $assetName }}</h1>
+        </header>
+
+        <x-ui.card as="section" aria-label="Asset summary">
+            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div class="grid min-w-0 content-start gap-1">
+                    <dt class="{{ $termClasses }}">Owner</dt>
+                    <dd class="m-0 font-bold wrap-anywhere">{{ $owner }}</dd>
+                </div>
+                <div class="grid min-w-0 content-start gap-1">
+                    <dt class="{{ $termClasses }}">Asset Type</dt>
+                    <dd class="m-0 font-bold wrap-anywhere">{{ $assetType }}</dd>
+                </div>
+                <div class="grid min-w-0 content-start gap-1 sm:col-span-2">
+                    <dt class="{{ $termClasses }}">Purpose</dt>
+                    <dd class="m-0 leading-relaxed wrap-break-word">{{ $purpose }}</dd>
+                </div>
+            </dl>
+        </x-ui.card>
+
+        <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="asset-details-title">
+            <h2 id="asset-details-title" class="{{ $sectionTitleClasses }}">About this asset</h2>
+            @if($detailRows !== [])
+                <ul class="m-0 grid list-none grid-cols-1 gap-3 p-0">
+                    @foreach($detailRows as $detailRow)
+                        <li class="grid min-w-0 grid-cols-1 gap-2 rounded-xl border border-line bg-field px-4 py-3.5" data-asset-detail>
+                            <strong>{{ $detailRow['label'] }}</strong>
+                            <div class="min-w-0 rounded-xl bg-surface-sunken p-4">
+                                <x-formatted-text :text="$detailRow['text']" />
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
+            @else
+                <p class="m-0 text-sm/relaxed text-muted">No asset details were provided.</p>
+            @endif
+        </x-ui.card>
+
+        <x-ui.card as="section" class="grid grid-cols-1 gap-3" aria-labelledby="asset-file-title">
+            <h2 id="asset-file-title" class="{{ $sectionTitleClasses }}">Reusable AI Asset</h2>
+            <p class="m-0 wrap-anywhere"><strong>{{ $filename }}</strong></p>
+            @if($isPreviewUnavailable)
+                <p class="m-0 text-sm/relaxed text-muted">Preview unavailable for this archive file type.</p>
+                <div class="flex flex-wrap items-center gap-3">
+                    <x-ui.button variant="secondary" :href="$downloadUrl">Download</x-ui.button>
+                </div>
+            @else
+                <div class="flex flex-wrap items-center gap-3">
+                    <x-evidence-actions :evidence="$asset" :view-url="$viewUrl" :download-url="$downloadUrl" :preview-url="$previewUrl" :modal-id="$modalId" />
+                </div>
+            @endif
+        </x-ui.card>
+
+        <div class="flex flex-wrap gap-3">
+            <x-ui.button variant="secondary" :href="$libraryUrl">Back to Library</x-ui.button>
+        </div>
+    </div>
 @endsection

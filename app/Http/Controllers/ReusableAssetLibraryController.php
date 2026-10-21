@@ -3,13 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\FilterReusableAssetsRequest;
-use App\Models\ActivityRequirement;
-use App\Models\ActivitySubmission;
 use App\Models\SubmissionVersion;
 use App\Models\User;
+use App\Services\ReusableAssetLibraryPageService;
 use App\Services\ReusableAssetLibraryService;
 use App\Services\SubmissionEvidenceFileService;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -19,40 +17,16 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReusableAssetLibraryController extends Controller
 {
-    public function index(FilterReusableAssetsRequest $request, ReusableAssetLibraryService $library): View
+    public function index(FilterReusableAssetsRequest $request, ReusableAssetLibraryPageService $pages): View
     {
-        $filters = $request->validated();
-        $items = $library->approvedSubmissions($filters)->paginate(12)->withQueryString();
-        $items->setCollection($items->getCollection()->map(function (ActivitySubmission $submission) use ($library): array {
-            $published = $library->assetForSubmission($submission);
-
-            return ['submission' => $submission, 'version' => $published['version'], 'asset' => $published['asset']];
-        }));
-
-        $assetTypes = ActivityRequirement::query()
-            ->whereHas('activity', fn (Builder $activity): Builder => $activity->where('position', 1)->whereHas('week', fn (Builder $week): Builder => $week->where('week_number', 4)))
-            ->get()
-            ->flatMap(fn (ActivityRequirement $requirement): array => $requirement->configuration['options'] ?? [])
-            ->filter()
-            ->unique()
-            ->sort()
-            ->values();
-
-        return view('reusable-assets.index', compact('items', 'assetTypes', 'filters'));
+        return view('reusable-assets.index', $pages->indexData($request->validated()));
     }
 
-    public function show(Request $request, SubmissionVersion $submissionVersion, ReusableAssetLibraryService $library): View
+    public function show(Request $request, SubmissionVersion $submissionVersion, ReusableAssetLibraryPageService $pages): View
     {
         $this->authorizeTrainingUser($request);
-        $asset = $library->assetForVersion($submissionVersion);
-        $submissionVersion->loadMissing('submission.participant', 'submission.activity', 'evidence.evidenceRequirement');
 
-        return view('reusable-assets.show', [
-            'version' => $submissionVersion,
-            'submission' => $submissionVersion->submission,
-            'asset' => $asset,
-            'values' => $submissionVersion->field_values ?? [],
-        ]);
+        return view('reusable-assets.show', $pages->showData($submissionVersion));
     }
 
     public function preview(Request $request, SubmissionVersion $submissionVersion, ReusableAssetLibraryService $library, SubmissionEvidenceFileService $evidenceFiles): JsonResponse

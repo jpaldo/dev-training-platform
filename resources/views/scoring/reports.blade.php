@@ -1,8 +1,97 @@
 @extends('layouts.app')
+
 @section('content')
-<div class="eyebrow">COACH · SCORING REPORTS</div><h1>Scoring reports</h1><p class="muted">Scoring completion is separate from activity completion. Filters apply to the dashboard and CSV exports.</p>
-<div class="actions"><a class="btn" href="{{ route('coach.reports.scores', request()->query()) }}">Activity Scores CSV</a><a class="btn secondary" href="{{ route('coach.reports.participant-summary', request()->query()) }}">Participant Summary CSV</a></div>
-<form class="card" method="GET" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0"><div class="field"><label for="report-path">QA Path</label><select id="report-path" name="path"><option value="">All</option><option value="manual" @selected(($filters['path']??'')==='manual')>Manual QA</option><option value="automation" @selected(($filters['path']??'')==='automation')>Automation QA</option></select></div><div class="field"><label for="report-week">Week</label><select id="report-week" name="week"><option value="">All</option>@foreach([2,3,4] as $week)<option value="{{ $week }}" @selected(($filters['week']??'')==$week)>Week {{ $week }}</option>@endforeach</select></div><div class="field"><label for="report-status">Score status</label><select id="report-status" name="score_status"><option value="">All</option><option value="scored" @selected(($filters['score_status']??'')==='scored')>Scored</option><option value="unscored" @selected(($filters['score_status']??'')==='unscored')>Unscored</option></select></div><div class="field"><label for="report-band">Performance band</label><select id="report-band" name="band"><option value="">All</option>@foreach(['Exemplary','Proficient','Developing','Beginning','Minimal'] as $band)<option value="{{ $band }}" @selected(($filters['band']??'')===$band)>{{ $band }}</option>@endforeach</select></div><button class="btn secondary" type="submit">Apply filters</button></form>
-<div class="grid"><div class="card"><div class="num">COMPLETED ACTIVITIES</div><h2>{{ $completed }}</h2></div><div class="card"><div class="num">SCORED ACTIVITIES</div><h2>{{ $scored }}</h2></div><div class="card"><div class="num">SCORING COMPLETION</div><h2>{{ $completed ? round($scored / $completed * 100) : 0 }}%</h2></div></div>
-<div class="card" style="margin-top:18px"><h2>Score-band distribution</h2><table style="width:100%;border-collapse:collapse"><tbody>@foreach(['Exemplary','Proficient','Developing','Beginning','Minimal','Not Scored'] as $band)<tr><td style="padding:10px;border-top:1px solid var(--line)">{{ $band }}</td><td style="padding:10px;border-top:1px solid var(--line)">{{ $bands[$band] ?? 0 }}</td></tr>@endforeach</tbody></table></div>
+    @php
+        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
+        $labelClasses = 'text-sm font-extrabold';
+        $cellClasses = 'border-b border-line px-3.5 py-3 text-left align-middle max-sm:px-2.5';
+    @endphp
+
+    <div class="grid grid-cols-1 gap-6">
+        <header class="flex flex-wrap items-end justify-between gap-4">
+            <div class="grid min-w-0 gap-2">
+                <x-ui.eyebrow>COACH · SCORING REPORTS</x-ui.eyebrow>
+                <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Scoring reports</h1>
+                <p class="m-0 leading-relaxed text-muted">Scoring completion is separate from activity completion. Filters apply to the dashboard and CSV exports.</p>
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <x-ui.button variant="secondary" :href="$scoresExportUrl">Activity Scores CSV</x-ui.button>
+                <x-ui.button variant="secondary" :href="$participantSummaryExportUrl">Participant Summary CSV</x-ui.button>
+            </div>
+        </header>
+
+        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]" aria-label="Scoring report filters">
+            <div class="grid min-w-0 gap-2">
+                <label for="report-path" class="{{ $labelClasses }}">QA Path</label>
+                <select id="report-path" name="path" class="{{ $controlClasses }}">
+                    <option value="">All</option>
+                    @foreach($pathOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="report-week" class="{{ $labelClasses }}">Week</label>
+                <select id="report-week" name="week" class="{{ $controlClasses }}">
+                    <option value="">All</option>
+                    @foreach($weekOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="report-status" class="{{ $labelClasses }}">Score status</label>
+                <select id="report-status" name="score_status" class="{{ $controlClasses }}">
+                    <option value="">All</option>
+                    @foreach($scoreStatusOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="report-band" class="{{ $labelClasses }}">Performance band</label>
+                <select id="report-band" name="band" class="{{ $controlClasses }}">
+                    <option value="">All</option>
+                    @foreach($bandOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <x-ui.button variant="secondary" type="submit">Apply filters</x-ui.button>
+        </x-ui.card>
+
+        <section aria-labelledby="scoring-summary-title">
+            <h2 id="scoring-summary-title" class="sr-only">Scoring summary</h2>
+            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                @foreach($stats as $stat)
+                    <x-ui.card class="grid content-start gap-2" padding="p-5">
+                        <dt class="text-xs font-black tracking-[0.12em] text-muted">{{ $stat['label'] }}</dt>
+                        <dd class="m-0 text-3xl font-black tabular-nums">{{ $stat['value'] }}</dd>
+                    </x-ui.card>
+                @endforeach
+            </dl>
+        </section>
+
+        <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="score-band-distribution-title">
+            <h2 id="score-band-distribution-title" class="m-0 text-xl font-extrabold">Score-band distribution</h2>
+            <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="score-band-distribution-title" tabindex="0">
+                <table class="w-full border-collapse text-sm">
+                    <thead class="sr-only">
+                        <tr>
+                            <th scope="col">Performance band</th>
+                            <th scope="col">Activities</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($bandRows as $row)
+                            <tr data-band-row>
+                                <th scope="row" class="{{ $cellClasses }} font-normal">{{ $row['band'] }}</th>
+                                <td class="{{ $cellClasses }} text-right tabular-nums">{{ $row['count'] }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </x-ui.card>
+    </div>
 @endsection

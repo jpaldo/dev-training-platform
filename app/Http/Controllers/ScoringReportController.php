@@ -8,6 +8,7 @@ use App\Models\ActivityScore;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\User;
+use App\Services\ScoringPageService;
 use App\Services\ScoringReportService;
 use App\Services\ScoringService;
 use Carbon\CarbonInterface;
@@ -17,15 +18,15 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ScoringReportController extends Controller
 {
-    public function index(FilterScoringReportRequest $request, ScoringReportService $reports, ScoringService $scoring): View
+    public function index(FilterScoringReportRequest $request, ScoringPageService $page, ScoringReportService $reports): View
     {
         $filters = $request->validated();
-        $versions = $reports->versions($filters)->get();
-        $bands = $versions->groupBy(fn (SubmissionVersion $v): string => $v->activityScore?->performance_band ?? 'Not Scored')->map->count();
-        $completed = $versions->count();
-        $scored = $versions->filter(fn (SubmissionVersion $v): bool => $v->activityScore?->status === 'published')->count();
 
-        return view('scoring.reports', ['filters' => $filters, 'bands' => $bands, 'completed' => $completed, 'scored' => $scored, 'participants' => $reports->participants($filters), 'coaches' => User::query()->where('role', 'coach')->where('is_active', true)->orderBy('name')->get()]);
+        return view('scoring.reports', [
+            ...$page->reportsData($filters, $request->query()),
+            'participants' => $reports->participants($filters),
+            'coaches' => User::query()->where('role', 'coach')->where('is_active', true)->orderBy('name')->get(),
+        ]);
     }
 
     public function scores(FilterScoringReportRequest $request, ScoringReportService $reports): StreamedResponse
@@ -56,13 +57,9 @@ class ScoringReportController extends Controller
         }));
     }
 
-    public function completion(FilterScoringReportRequest $request, ScoringReportService $reports): View
+    public function completion(FilterScoringReportRequest $request, ScoringPageService $page): View
     {
-        $versions = $reports->versions($request->validated())->get();
-        $completed = $versions->count();
-        $scored = $versions->filter(fn (SubmissionVersion $v): bool => $v->activityScore?->status === 'published')->count();
-
-        return view('scoring.completion', compact('completed', 'scored'));
+        return view('scoring.completion', $page->completionData($request->validated()));
     }
 
     private function csv(string $filename, array $header, iterable $rows): StreamedResponse

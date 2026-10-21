@@ -28,6 +28,9 @@ class ScoringPageService
 
     private const BAND_OPTIONS = ['Exemplary' => 'Exemplary', 'Proficient' => 'Proficient', 'Developing' => 'Developing', 'Beginning' => 'Beginning', 'Minimal' => 'Minimal'];
 
+    /** The band a submitted version without a score is counted under in the scoring reports' band distribution. */
+    private const NOT_SCORED_BAND = 'Not Scored';
+
     /** The points range of each performance band per rubric dimension, shown on the scoring criteria page. */
     private const DIMENSION_BAND_RANGES = [
         'D1' => ['Exemplary' => '27–30', 'Proficient' => '24–26', 'Developing' => '18–23', 'Beginning' => '11–17', 'Minimal' => '1–10'],
@@ -41,6 +44,7 @@ class ScoringPageService
         private readonly ScoringService $scoring,
         private readonly SubmissionAnswerPresenter $answers,
         private readonly AiProviderConfigurationService $configuration,
+        private readonly ScoringReportService $reports,
     ) {}
 
     /**
@@ -107,13 +111,7 @@ class ScoringPageService
             'reportsUrl' => route('coach.scoring.reports'),
             'search' => (string) ($filters['search'] ?? ''),
             'pathOptions' => $this->options(self::PATH_OPTIONS, $filters['path'] ?? null),
-            'weekOptions' => collect(self::SCORED_WEEKS)
-                ->map(fn (int $weekNumber): array => [
-                    'value' => (string) $weekNumber,
-                    'label' => "Week {$weekNumber}",
-                    'is_selected' => isset($filters['week']) && (int) $filters['week'] === $weekNumber,
-                ])
-                ->all(),
+            'weekOptions' => $this->weekOptions($filters['week'] ?? null),
             'scoreStatusOptions' => $this->options(self::SCORE_STATUS_OPTIONS, $filters['score_status'] ?? null),
             'bandOptions' => $this->options(self::BAND_OPTIONS, $filters['band'] ?? null),
             'isAssignedToMe' => (bool) ($filters['assigned_to_me'] ?? false),
@@ -186,6 +184,45 @@ class ScoringPageService
                 ->values()
                 ->all(),
         ];
+    }
+
+    /**
+     * Everything the scoring reports page renders: the two CSV export links (keeping the current query), the filter
+     * options, the scoring completion counts of the submitted versions matching the filters and their score-band
+     * distribution. The page has no single main action, so every button is secondary.
+     *
+     * @param  array{participant?: int|string|null, path?: ?string, week?: int|string|null, activity?: int|string|null, assigned_coach?: int|string|null, score_status?: ?string, band?: ?string, from?: ?string, to?: ?string}  $filters
+     * @param  array<array-key, mixed>  $query
+     * @return array{scoresExportUrl: string, participantSummaryExportUrl: string, pathOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, scoreStatusOptions: list<array{value: string, label: string, is_selected: bool}>, bandOptions: list<array{value: string, label: string, is_selected: bool}>, stats: list<array{label: string, value: string}>, bandRows: list<array{band: string, count: int}>}
+     */
+    public function reportsData(array $filters, array $query): array
+    {
+        $versions = $this->reports->versions($filters)->get();
+        $bandCounts = $versions->countBy(fn (SubmissionVersion $version): string => $version->activityScore?->performance_band ?? self::NOT_SCORED_BAND);
+
+        return [
+            'scoresExportUrl' => route('coach.reports.scores', $query),
+            'participantSummaryExportUrl' => route('coach.reports.participant-summary', $query),
+            'pathOptions' => $this->options(self::PATH_OPTIONS, $filters['path'] ?? null),
+            'weekOptions' => $this->weekOptions($filters['week'] ?? null),
+            'scoreStatusOptions' => $this->options(self::SCORE_STATUS_OPTIONS, $filters['score_status'] ?? null),
+            'bandOptions' => $this->options(self::BAND_OPTIONS, $filters['band'] ?? null),
+            'stats' => $this->scoringCompletionStats($versions),
+            'bandRows' => collect([...array_keys(self::BAND_OPTIONS), self::NOT_SCORED_BAND])
+                ->map(fn (string $band): array => ['band' => $band, 'count' => $bandCounts->get($band, 0)])
+                ->all(),
+        ];
+    }
+
+    /**
+     * The scoring completion page: the completion counts of the submitted versions matching the filters.
+     *
+     * @param  array{participant?: int|string|null, path?: ?string, week?: int|string|null, activity?: int|string|null, assigned_coach?: int|string|null, score_status?: ?string, band?: ?string, from?: ?string, to?: ?string}  $filters
+     * @return array{stats: list<array{label: string, value: string}>}
+     */
+    public function completionData(array $filters): array
+    {
+        return ['stats' => $this->scoringCompletionStats($this->reports->versions($filters)->get())];
     }
 
     private function activeProgram(): Program
@@ -285,6 +322,41 @@ class ScoringPageService
     private function completionPercent(int $completed, int $total): int
     {
         return $total ? (int) round($completed / $total * 100) : 0;
+    }
+
+    /**
+     * The submitted versions, those with a published score and the share scored. Scoring completion is separate
+     * from activity completion.
+     *
+     * @param  Collection<int, SubmissionVersion>  $versions
+     * @return list<array{label: string, value: string}>
+     */
+    private function scoringCompletionStats(Collection $versions): array
+    {
+        $completed = $versions->count();
+        $scored = $versions->filter(fn (SubmissionVersion $version): bool => $version->activityScore?->status === 'published')->count();
+
+        return [
+            ['label' => 'COMPLETED ACTIVITIES', 'value' => (string) $completed],
+            ['label' => 'SCORED ACTIVITIES', 'value' => (string) $scored],
+            ['label' => 'SCORING COMPLETION', 'value' => $this->completionPercent($scored, $completed).'%'],
+        ];
+    }
+
+    /**
+     * The scored weeks as select options, marking the week that matches the current filter value.
+     *
+     * @return list<array{value: string, label: string, is_selected: bool}>
+     */
+    private function weekOptions(int|string|null $selectedWeek): array
+    {
+        return collect(self::SCORED_WEEKS)
+            ->map(fn (int $weekNumber): array => [
+                'value' => (string) $weekNumber,
+                'label' => "Week {$weekNumber}",
+                'is_selected' => $selectedWeek !== null && (int) $selectedWeek === $weekNumber,
+            ])
+            ->all();
     }
 
     /**

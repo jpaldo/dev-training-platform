@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Requests\FilterCoachParticipantsRequest;
 use App\Http\Requests\FilterParticipantDailyLogsRequest;
 use App\Models\User;
+use App\Services\CoachParticipantDailyLogPageService;
 use App\Services\CoachParticipantListPageService;
 use App\Services\CoachParticipantPageService;
-use App\Services\CoachReportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
@@ -27,14 +27,8 @@ class CoachParticipantController extends Controller
         return view('coach.participant', $page->showData($request->user(), $participant));
     }
 
-    public function dailyLogs(FilterParticipantDailyLogsRequest $request, User $participant, CoachReportService $reports): View
+    public function dailyLogs(FilterParticipantDailyLogsRequest $request, User $participant, CoachParticipantDailyLogPageService $page): View
     {
-        $validated = $request->validated();
-        $weeks = $reports->activeWeeks();
-        $selectedWeek = $weeks->firstWhere('week_number', (int) ($validated['week'] ?? 0));
-        $logs = $reports->participantDailyLogs($participant, $selectedWeek, $validated['date'] ?? null)->paginate(25)->withQueryString();
-        $participant->loadCount('dailyLogs');
-
-        return view('coach.participant-daily-logs', compact('participant', 'logs', 'weeks', 'selectedWeek'));
+        return view('coach.participant-daily-logs', $page->indexData($participant, $request->validated()));
     }
 }

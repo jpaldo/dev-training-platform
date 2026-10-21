@@ -1,92 +1,93 @@
 @extends('layouts.app')
 
 @section('content')
-<style>
-    .daily-log-header { display:flex; justify-content:space-between; gap:20px; align-items:flex-end; flex-wrap:wrap; margin-bottom:20px; }
-    .daily-log-header h1 { font-size:clamp(28px,3vw,36px); margin:8px 0 10px; }
-    .participant-meta { display:flex; gap:10px; flex-wrap:wrap; color:var(--muted); }
-    .daily-log-filter { display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin:0; }
-    .daily-log-filter .field { min-width:170px; }
-    .daily-log-table { width:100%; border-collapse:collapse; min-width:860px; }
-    .daily-log-table th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; text-align:left; border-bottom:1px solid var(--line); padding:12px 14px; }
-    .daily-log-table td { border-bottom:1px solid #202746; padding:15px 14px; vertical-align:top; line-height:1.5; }
-    .daily-log-table tbody tr:last-child td { border-bottom:0; }
-    .daily-log-table .activity { font-weight:800; color:#f5f7ff; min-width:190px; }
-    .daily-log-table .content { white-space:pre-wrap; overflow-wrap:anywhere; min-width:260px; color:#d8def4; }
-    .week-badge { display:inline-flex; border:1px solid var(--line); border-radius:999px; padding:5px 9px; color:#b8c2e2; font-size:12px; white-space:nowrap; }
-    .table-meta { display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
-    .filter-clear { color:var(--muted); font-size:13px; text-decoration:underline; text-underline-offset:3px; }
-</style>
+    @php
+        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
+        $labelClasses = 'text-sm font-extrabold';
+        $headerCellClasses = 'border-b border-line px-3.5 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase max-sm:px-2.5';
+        $cellClasses = 'border-b border-line px-3.5 py-3.5 text-left align-top max-sm:px-2.5 max-sm:py-3';
+    @endphp
 
-<div class="daily-log-header">
-    <div>
-        <div class="eyebrow">COACH · DAILY LOGS</div>
-        <h1>Daily Logs</h1>
-        <div class="participant-meta">
-            <strong>{{ $participant->name }}</strong>
-            <span>{{ $participant->email }}</span>
-            <span>{{ $participant->trainingPathLabel() }} QA</span>
-            <span>{{ $participant->daily_logs_count }} total logs</span>
-        </div>
-    </div>
-    <a class="btn secondary" href="{{ route('coach.participants') }}">← Back to Participants</a>
-</div>
+    <div class="grid grid-cols-1 gap-6">
+        <header class="flex flex-wrap items-end justify-between gap-4">
+            <div class="grid min-w-0 gap-2">
+                <x-ui.eyebrow>COACH · DAILY LOGS</x-ui.eyebrow>
+                <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Daily Logs</h1>
+                <p class="m-0 flex flex-wrap gap-x-2.5 gap-y-1 leading-relaxed text-muted">
+                    <strong class="wrap-break-word text-white">{{ $participantName }}</strong>
+                    <span class="wrap-anywhere">{{ $participantEmail }}</span>
+                    <span>{{ $participantPath }}</span>
+                    <span>{{ $logCount }} total logs</span>
+                </p>
+            </div>
+            <x-ui.button variant="secondary" :href="$backUrl">← Back to Participants</x-ui.button>
+        </header>
 
-<div class="card" style="padding:18px 20px; margin-bottom:18px">
-    <form class="daily-log-filter" method="GET">
-        <div class="field">
-            <label for="daily-log-week">Training Week</label>
-            <select id="daily-log-week" name="week">
-                <option value="">All Weeks</option>
-                @foreach($weeks as $week)
-                    <option value="{{ $week->week_number }}" @selected($selectedWeek?->is($week))>Week {{ $week->week_number }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="field">
-            <label for="daily-log-date">Date</label>
-            <input id="daily-log-date" type="date" name="date" value="{{ request('date') }}" max="{{ now(config('app.timezone', 'Asia/Manila'))->toDateString() }}">
-        </div>
-        <button class="btn secondary" type="submit">Filter</button>
-        @if(request()->filled('week') || request()->filled('date'))
-            <a class="filter-clear" href="{{ route('coach.participants.daily-logs', $participant) }}">Clear</a>
-        @endif
-    </form>
-</div>
+        <x-ui.card as="form" method="GET" action="{{ $filterUrl }}" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(2,minmax(0,16rem))_auto] lg:items-end" aria-label="Daily Log filters">
+            <div class="grid min-w-0 gap-2">
+                <label for="daily-log-week" class="{{ $labelClasses }}">Training Week</label>
+                <select id="daily-log-week" name="week" class="{{ $controlClasses }}">
+                    <option value="">All Weeks</option>
+                    @foreach($weekOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="daily-log-date" class="{{ $labelClasses }}">Date</label>
+                <input id="daily-log-date" type="date" name="date" value="{{ $dateValue }}" max="{{ $maxDate }}" class="{{ $controlClasses }}">
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <x-ui.button variant="secondary" type="submit">Filter</x-ui.button>
+                @if($isFiltered)
+                    <x-ui.button variant="secondary" :href="$filterUrl">Clear</x-ui.button>
+                @endif
+            </div>
+        </x-ui.card>
 
-<div class="card" style="overflow-x:auto">
-    <div class="table-meta">
-        <div><strong>Daily Logs</strong> <span class="muted">· {{ $logs->total() }} total</span></div>
-        <div class="muted">
-            @if($logs->total() > 0)
-                Showing {{ $logs->firstItem() }}–{{ $logs->lastItem() }} of {{ $logs->total() }} Daily Logs
+        <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="participant-daily-logs-title">
+            <div class="flex flex-wrap items-end justify-between gap-2">
+                <div class="flex flex-wrap items-baseline gap-2">
+                    <h2 id="participant-daily-logs-title" class="m-0 text-xl font-extrabold">Daily Logs</h2>
+                    <span class="text-sm text-muted">· {{ $logs->total() }} total</span>
+                </div>
+                @if($logs->total() > 0)
+                    <span class="text-sm text-muted">Showing {{ $logs->firstItem() }}–{{ $logs->lastItem() }} of {{ $logs->total() }} Daily Logs</span>
+                @endif
+            </div>
+            @if($logs->isEmpty())
+                <p class="m-0 rounded-xl border border-dashed border-line p-5 text-muted">No Daily Logs have been submitted by this participant yet.</p>
+            @else
+                <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="participant-daily-logs-title" tabindex="0">
+                    <table class="w-full min-w-215 border-collapse text-sm">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="{{ $headerCellClasses }}">Date</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Week</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Work / Activity</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Daily Log</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($logs as $log)
+                                <tr data-log-row>
+                                    <th scope="row" class="{{ $cellClasses }} font-normal whitespace-nowrap">{{ $log['logged_on'] }}</th>
+                                    <td class="{{ $cellClasses }}">
+                                        <x-ui.badge class="whitespace-nowrap">{{ $log['week'] }}</x-ui.badge>
+                                    </td>
+                                    <td class="{{ $cellClasses }} min-w-48 font-extrabold wrap-break-word">{{ $log['activity'] }}</td>
+                                    <td class="{{ $cellClasses }} min-w-65 leading-relaxed whitespace-pre-wrap text-slate-200 wrap-anywhere">{{ $log['content'] }}</td>
+                                    <td class="{{ $cellClasses }} text-muted">{{ $log['created_at'] }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @if($logs->hasPages())
+                    <div>{{ $logs->links() }}</div>
+                @endif
             @endif
-        </div>
+        </x-ui.card>
     </div>
-
-    @if($logs->isEmpty())
-        <p class="muted">No Daily Logs have been submitted by this participant yet.</p>
-    @else
-        <table class="daily-log-table">
-            <thead>
-                <tr><th>Date</th><th>Week</th><th>Work / Activity</th><th>Daily Log</th><th>Created</th></tr>
-            </thead>
-            <tbody>
-                @foreach($logs as $log)
-                    <tr>
-                        <td>{{ $log->logged_on?->format('M j, Y') }}</td>
-                        <td><span class="week-badge">{{ $log->activity?->week?->week_number ? 'Week '.$log->activity->week->week_number : 'General' }}</span></td>
-                        <td class="activity">{{ $log->activity?->title ?? 'General training' }}</td>
-                        <td class="content">{{ $log->content }}</td>
-                        <td class="muted">{{ $log->created_at?->format('M j, Y · g:i A') }}</td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-
-        @if($logs->hasPages())
-            <div style="margin-top:18px">{{ $logs->withQueryString()->links() }}</div>
-        @endif
-    @endif
-</div>
 @endsection

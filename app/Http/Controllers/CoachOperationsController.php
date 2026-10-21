@@ -7,7 +7,7 @@ use App\Http\Requests\FilterCoachGatesRequest;
 use App\Http\Requests\FilterCoachReportsRequest;
 use App\Models\User;
 use App\Services\CoachDashboardPageService;
-use App\Services\CoachGateOverviewService;
+use App\Services\CoachGateBoardPageService;
 use App\Services\CoachReportService;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -25,13 +25,9 @@ class CoachOperationsController extends Controller
         return view('coach.dashboard', $page->showData($user));
     }
 
-    public function gates(FilterCoachGatesRequest $request, CoachGateOverviewService $gateOverview): View
+    public function gates(FilterCoachGatesRequest $request, CoachGateBoardPageService $page): View
     {
-        $filters = $request->validated();
-        ['gates' => $gates, 'rows' => $rows, 'summary' => $summary] = $gateOverview->board($filters);
-        $gateRows = $this->paginate($rows, $request, 'page');
-
-        return view('coach.gates', compact('gates', 'gateRows', 'summary', 'filters'));
+        return view('coach.gates', $page->indexData($request->validated(), max(1, $request->integer('page', 1))));
     }
 
     public function reports(FilterCoachReportsRequest $request, CoachReportService $reports): View

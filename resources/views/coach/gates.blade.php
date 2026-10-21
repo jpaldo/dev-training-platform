@@ -1,11 +1,144 @@
 @extends('layouts.app')
+
 @section('content')
-<style>
-    .gate-filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:12px;align-items:end;margin:18px 0}.gate-filters input,.gate-filters select{width:100%;background:#0a0f21;color:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit}.gate-table-wrap{overflow-x:auto}.gate-table{width:100%;border-collapse:collapse;min-width:1120px}.gate-table th,.gate-table td{padding:13px 11px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}.gate-table th{color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase}.gate-table .name{font-weight:800}.subtle{color:var(--muted);font-size:13px}.status{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:5px 9px;font-size:11px;font-weight:900;white-space:nowrap}.status.passed{color:#a7f3d0;border-color:#047857}.status.ready_for_review,.status.awaiting_review{color:#a5f3fc;border-color:#155e75}.status.not_ready,.status.failed{color:#fecdd3;border-color:#7f1d2d}.status.needs_revision{color:#fde68a;border-color:#92400e}.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}.summary .card{padding:17px}.summary .num{font-size:11px}.summary h2{margin:6px 0 0}@media(max-width:800px){.gate-filters{grid-template-columns:1fr}.summary{grid-template-columns:repeat(2,1fr)}}
-</style>
-<div class="eyebrow">COACH · GATES</div><h1>Gate management</h1>
-<div class="summary"><div class="card"><div class="num">TOTAL GATES</div><h2>{{ $summary['total'] }}</h2></div><div class="card"><div class="num">READY FOR REVIEW</div><h2>{{ $summary['ready'] }}</h2></div><div class="card"><div class="num">AWAITING REVIEW</div><h2>{{ $summary['awaiting'] }}</h2></div><div class="card"><div class="num">PASSED</div><h2>{{ $summary['passed'] }}</h2></div><div class="card"><div class="num">NOT READY</div><h2>{{ $summary['not_ready'] }}</h2></div></div>
-<form class="card gate-filters" method="GET"><div class="field"><label for="gate-search">Search participant</label><input id="gate-search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Name or email…"></div><div class="field"><label for="gate-week">Week</label><select id="gate-week" name="week"><option value="">All weeks</option>@foreach([2,3,4] as $week)<option value="{{ $week }}" @selected(($filters['week'] ?? '') == $week)>Week {{ $week }}</option>@endforeach</select></div><div class="field"><label for="gate-path">QA Path</label><select id="gate-path" name="path"><option value="">All paths</option><option value="manual" @selected(($filters['path'] ?? '') === 'manual')>Manual QA</option><option value="automation" @selected(($filters['path'] ?? '') === 'automation')>Automation QA</option></select></div><div class="field"><label for="gate-status">Status</label><select id="gate-status" name="status"><option value="">All statuses</option>@foreach(['not_ready'=>'Not Ready','ready_for_review'=>'Ready for Review','awaiting_review'=>'Awaiting Review','passed'=>'Passed','failed'=>'Failed','needs_revision'=>'Needs Revision'] as $value=>$label)<option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>@endforeach</select></div><button class="btn secondary" type="submit">Filter</button></form>
-<div class="card gate-table-wrap"><table class="gate-table"><caption class="muted" style="text-align:left;padding-bottom:12px">One row per participant and training Gate</caption><thead><tr><th scope="col">Gate</th><th scope="col">Participant</th><th scope="col">QA Path</th><th scope="col">Status</th><th scope="col">Daily Logs</th><th scope="col">Criteria</th><th scope="col">Video</th><th scope="col">Blockers</th><th scope="col">Action</th></tr></thead><tbody>@forelse($gateRows as $row)<tr><td><strong>Week {{ $row['gate']->week->week_number }}</strong><br><span class="subtle">{{ $row['gate']->title }}</span></td><td><a class="name" href="{{ route('coach.participants.show', $row['participant']) }}">{{ $row['participant']->name }}</a><br><span class="subtle">{{ $row['participant']->email }}</span></td><td>{{ $row['participant']->trainingPathLabel() }}</td><td><span class="status {{ $row['status'] }}">{{ strtoupper(str_replace('_', ' ', $row['status'])) }}</span></td><td>{{ $row['daily_log_count'] }} / 5<br><span class="subtle">@if($row['daily_log_count'] < 5){{ 5 - $row['daily_log_count'] }} remaining @else Complete @endif</span></td><td>{{ $row['criteria_met'] }} / {{ $row['criteria_total'] }}<br><span class="subtle">criteria met</span></td><td>@if($row['loom']['url'])<a href="{{ $row['loom']['url'] }}">{{ $row['loom']['status'] === 'met' ? '✓ Uploaded' : 'Awaiting Review' }}</a>@else<span class="subtle">Missing</span>@endif</td><td>@if($row['readiness'])<strong>{{ count($row['readiness']) }} blocker{{ count($row['readiness']) === 1 ? '' : 's' }}</strong>@else<span class="subtle">—</span>@endif</td><td><a class="btn secondary" href="{{ route('training.coach.gates.show', [$row['gate']->week, $row['participant'], $row['gate']]) }}">{{ $row['status'] === 'passed' ? 'View Gate' : 'Review Gate' }}</a></td></tr>@empty<tr><td colspan="9" class="muted">No Gate rows match these filters.</td></tr>@endforelse</tbody></table></div>
-@if($gateRows->hasPages())<div style="margin-top:18px">{{ $gateRows->withQueryString()->links() }}</div>@endif
+    @php
+        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
+        $labelClasses = 'text-sm font-extrabold';
+        $linkClasses = 'font-bold text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50';
+        $headerCellClasses = 'border-b border-line px-3 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase max-sm:px-2.5';
+        $cellClasses = 'border-b border-line px-3 py-3.5 text-left align-middle max-sm:px-2.5 max-sm:py-3';
+    @endphp
+
+    <div class="grid grid-cols-1 gap-6">
+        <header class="grid min-w-0 gap-2">
+            <x-ui.eyebrow>COACH · GATES</x-ui.eyebrow>
+            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Gate management</h1>
+        </header>
+
+        <section aria-labelledby="gate-summary-title">
+            <h2 id="gate-summary-title" class="sr-only">Gate summary</h2>
+            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                @foreach($stats as $stat)
+                    <x-ui.card class="grid content-start gap-2" padding="p-5">
+                        <dt class="text-xs font-black tracking-[0.12em] text-muted">{{ $stat['label'] }}</dt>
+                        <dd class="m-0 text-3xl font-black">{{ $stat['value'] }}</dd>
+                    </x-ui.card>
+                @endforeach
+            </dl>
+        </section>
+
+        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto] lg:items-end" aria-label="Filter Gates">
+            <div class="grid min-w-0 gap-2">
+                <label for="gate-search" class="{{ $labelClasses }}">Search participant</label>
+                <input id="gate-search" name="search" value="{{ $search }}" placeholder="Name or email…" class="{{ $controlClasses }}">
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="gate-week" class="{{ $labelClasses }}">Week</label>
+                <select id="gate-week" name="week" class="{{ $controlClasses }}">
+                    <option value="">All weeks</option>
+                    @foreach($weekOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="gate-path" class="{{ $labelClasses }}">QA Path</label>
+                <select id="gate-path" name="path" class="{{ $controlClasses }}">
+                    <option value="">All paths</option>
+                    @foreach($pathOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="gate-status" class="{{ $labelClasses }}">Status</label>
+                <select id="gate-status" name="status" class="{{ $controlClasses }}">
+                    <option value="">All statuses</option>
+                    @foreach($statusOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <x-ui.button variant="secondary" type="submit">Filter</x-ui.button>
+        </x-ui.card>
+
+        <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="gate-board-caption">
+            <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="gate-board-caption" tabindex="0">
+                <table class="w-full min-w-280 border-collapse text-sm">
+                    <caption id="gate-board-caption" class="pb-3 text-left text-muted">One row per participant and training Gate</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col" class="{{ $headerCellClasses }}">Gate</th>
+                            <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
+                            <th scope="col" class="{{ $headerCellClasses }}">QA Path</th>
+                            <th scope="col" class="{{ $headerCellClasses }}">Status</th>
+                            <th scope="col" class="{{ $headerCellClasses }}">Daily Logs</th>
+                            <th scope="col" class="{{ $headerCellClasses }}">Criteria</th>
+                            <th scope="col" class="{{ $headerCellClasses }}">Video</th>
+                            <th scope="col" class="{{ $headerCellClasses }}">Blockers</th>
+                            <th scope="col" class="{{ $headerCellClasses }}">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($gateRows as $row)
+                            <tr data-gate-row>
+                                <td class="{{ $cellClasses }}">
+                                    <span class="grid gap-0.5">
+                                        <strong>{{ $row['week_label'] }}</strong>
+                                        <span class="wrap-break-word text-muted">{{ $row['gate_title'] }}</span>
+                                    </span>
+                                </td>
+                                <td class="{{ $cellClasses }}">
+                                    <span class="grid justify-items-start gap-0.5">
+                                        <a href="{{ $row['participant_url'] }}" class="{{ $linkClasses }} wrap-break-word">{{ $row['participant_name'] }}</a>
+                                        <span class="wrap-anywhere text-muted">{{ $row['participant_email'] }}</span>
+                                    </span>
+                                </td>
+                                <td class="{{ $cellClasses }} whitespace-nowrap">{{ $row['path'] }}</td>
+                                <td class="{{ $cellClasses }}">
+                                    <x-ui.badge :tone="$row['status_tone']" class="whitespace-nowrap">{{ $row['status_label'] }}</x-ui.badge>
+                                </td>
+                                <td class="{{ $cellClasses }}">
+                                    <span class="grid gap-0.5">
+                                        <span class="whitespace-nowrap">{{ $row['daily_log_progress'] }}</span>
+                                        <span class="whitespace-nowrap text-muted">{{ $row['daily_log_note'] }}</span>
+                                    </span>
+                                </td>
+                                <td class="{{ $cellClasses }}">
+                                    <span class="grid gap-0.5">
+                                        <span class="whitespace-nowrap">{{ $row['criteria_met'] }} / {{ $row['criteria_total'] }}</span>
+                                        <span class="whitespace-nowrap text-muted">criteria met</span>
+                                    </span>
+                                </td>
+                                <td class="{{ $cellClasses }} whitespace-nowrap">
+                                    @if($row['video'])
+                                        <a href="{{ $row['video']['url'] }}" class="{{ $linkClasses }}">{{ $row['video']['label'] }}</a>
+                                    @else
+                                        <span class="text-muted">Missing</span>
+                                    @endif
+                                </td>
+                                <td class="{{ $cellClasses }} whitespace-nowrap">
+                                    @if($row['blocker_label'])
+                                        <strong>{{ $row['blocker_label'] }}</strong>
+                                    @else
+                                        <span class="text-muted">—</span>
+                                    @endif
+                                </td>
+                                <td class="{{ $cellClasses }}">
+                                    <x-ui.button variant="secondary" :href="$row['action_url']" class="whitespace-nowrap">{{ $row['action_label'] }}</x-ui.button>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="9" class="{{ $cellClasses }} text-muted">No Gate rows match these filters.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            @if($gateRows->hasPages())
+                <div>{{ $gateRows->links() }}</div>
+            @endif
+        </x-ui.card>
+    </div>
 @endsection

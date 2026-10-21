@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\GoogleDriveConnection;
 use App\Models\User;
 use App\Services\AdminSettingsStatusService;
+use App\Services\AiProviderConfigurationService;
 use App\Services\EmailConfigurationService;
 use App\Services\GoogleCalendarService;
 use App\Services\GoogleDriveConfigurationService;
@@ -237,9 +238,196 @@ class AdminSettingsPageTest extends TestCase
             ]);
     }
 
+    public function test_ai_page_shows_the_saved_provider_settings_without_the_api_key(): void
+    {
+        $this->configureAiEnvironment();
+        app(AiProviderConfigurationService::class)->save(['enabled' => true, 'provider' => 'openai', 'model' => 'gpt-4o-mini', 'api_key' => 'sk-openai-secret']);
+
+        $this->actingAs($this->admin())->get(route('admin.settings.ai'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'ADMIN SETTINGS',
+                'AI Scoring',
+                'Configure the provider used for mentor scoring suggestions. Manual scoring is always available.',
+                'id="ai-settings-main-action"', 'form="ai-settings-form"', 'Save AI Settings',
+                'id="ai-settings-form" method="POST" action="'.route('admin.settings.ai.update').'"', 'name="_method" value="PUT"',
+                'name="enabled" value="0"', 'name="enabled" value="1" checked', 'Enable AI-assisted scoring',
+                '<option value="openrouter" data-model-label="OpenRouter model" data-model-help="Enter the OpenRouter model slug." data-api-key-configured="false"', '>OpenRouter</option>',
+                '<option value="openai" data-model-label="OpenAI model ID" data-model-help="Enter the OpenAI model ID." data-api-key-configured="true" selected>OpenAI</option>',
+                '<option value="anthropic" data-model-label="Anthropic model ID" data-model-help="Enter the Anthropic model ID." data-api-key-configured="false"', '>Anthropic</option>',
+                '<option value="gemini" data-model-label="Gemini model ID" data-model-help="Enter the Gemini model ID." data-api-key-configured="false"', '>Google Gemini</option>',
+                'id="model-label" for="model"', 'id="model" name="model" value="gpt-4o-mini" required',
+                'id="api_key" name="api_key" type="password" autocomplete="new-password" placeholder="Configured — enter a new key to replace it"',
+                'Configured for this provider. Leave blank to retain it.',
+                'id="ai-status"', 'Status: Configured · Provider: OpenAI · Model: gpt-4o-mini · Configuration source: Admin · API key: Configured',
+                'id="ai-test-form" method="POST" action="'.route('admin.settings.ai.test').'"', 'name="_token"',
+                '<input type="hidden" name="provider">', '<input type="hidden" name="model">', '<input type="hidden" name="api_key">',
+                'bg-raised', 'Test Configuration',
+            ], false)
+            ->assertDontSee('sk-openai-secret');
+    }
+
+    public function test_ai_page_falls_back_to_the_unconfigured_environment(): void
+    {
+        $this->configureAiEnvironment();
+
+        $this->actingAs($this->admin())->get(route('admin.settings.ai'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '<option value="openrouter"', 'selected>OpenRouter</option>',
+                'id="model" name="model" value="" required',
+                'placeholder="Enter API key"',
+                'Stored encrypted. It is never returned to the browser.',
+                'Status: Disabled · Provider: OpenRouter · Model: Not configured · Configuration source: Environment · API key: Not configured',
+            ], false)
+            ->assertDontSee('name="enabled" value="1" checked', false);
+    }
+
+    public function test_ai_page_shows_the_saved_status_and_a_rejected_save_with_the_old_input(): void
+    {
+        $this->configureAiEnvironment();
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->followingRedirects()
+            ->put(route('admin.settings.ai.update'), ['enabled' => '1', 'provider' => 'gemini', 'model' => 'gemini-2.0-flash', 'api_key' => 'gemini-secret'])
+            ->assertOk()
+            ->assertSeeInOrder(['AI Scoring', 'role="status"', 'AI scoring settings saved.', 'id="ai-settings-form"'], false)
+            ->assertDontSee('gemini-secret');
+
+        $this->actingAs($admin)
+            ->from(route('admin.settings.ai'))
+            ->followingRedirects()
+            ->put(route('admin.settings.ai.update'), ['enabled' => '0', 'provider' => 'anthropic', 'model' => 'bad model!', 'api_key' => 'rejected-key'])
+            ->assertOk()
+            ->assertSeeInOrder([
+                'role="alert"', 'The model field format is invalid.',
+                'data-api-key-configured="false" selected>Anthropic</option>',
+                'value="bad model!"', 'The model field format is invalid.',
+            ], false)
+            ->assertDontSee('name="enabled" value="1" checked', false)
+            ->assertDontSee('rejected-key');
+    }
+
+    public function test_google_drive_page_shows_the_saved_configuration_without_secrets(): void
+    {
+        $this->configureGoogleDriveEnvironment(pickerApiKey: 'environment-picker-key');
+        app(GoogleDriveConfigurationService::class)->save([
+            'client_id' => 'drive-client-id.apps.googleusercontent.com', 'client_secret' => 'drive-client-secret',
+            'redirect_uri' => 'https://example.test/profile/google-drive/callback', 'enabled' => true, 'automatic_export' => false,
+            'project_number' => '1068406488956',
+        ]);
+        foreach (User::factory()->count(2)->create(['role' => 'participant']) as $participant) {
+            GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'account-'.$participant->id, 'access_token' => 'participant-access-token', 'connected_at' => now()]);
+        }
+
+        $this->actingAs($this->admin())->get(route('admin.settings.google-drive'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'ADMIN SETTINGS',
+                'Google Drive Integration',
+                'Configure the OAuth foundation for future participant training exports.',
+                'id="google-drive-settings-main-action"', 'form="google-drive-settings-form"', 'Save Google Configuration',
+                'STATUS', 'border-emerald-400', 'Configured',
+                'OAUTH', 'border-emerald-400', 'Configured',
+                'PARTICIPANT CONNECTIONS', '2 connected',
+                'id="google-drive-settings-form" method="POST" action="'.route('admin.settings.google-drive.update').'"', 'name="_method" value="PUT"',
+                'id="client_id" name="client_id" value="drive-client-id.apps.googleusercontent.com" required',
+                'id="client_secret" name="client_secret" type="password" autocomplete="new-password" placeholder="••••••••••••"',
+                'id="picker_api_key" name="picker_api_key" type="password" autocomplete="new-password" placeholder="••••••••••••"',
+                'Status: Configured via environment',
+                'id="project_number" name="project_number" inputmode="numeric" pattern="[0-9]+" value="1068406488956"',
+                'Status: Configured',
+                'id="redirect_uri" name="redirect_uri" type="url" value="https://example.test/profile/google-drive/callback" required',
+                'Participant-selected destinations',
+                'name="enabled" value="0"', 'name="enabled" value="1" checked', 'Google Drive integration enabled',
+                'name="automatic_export" value="0"', 'name="automatic_export" value="1"', 'Automatic Training Export enabled',
+                'Configured scope', 'openid, email, profile, https://www.googleapis.com/auth/drive.file',
+                'method="POST" action="'.route('admin.settings.google-drive.test').'"', 'name="_token"', 'bg-raised', 'Test Google Configuration',
+            ], false)
+            ->assertDontSee('name="automatic_export" value="1" checked', false)
+            ->assertDontSee('drive-client-secret')
+            ->assertDontSee('environment-picker-key')
+            ->assertDontSee('participant-access-token');
+    }
+
+    public function test_google_drive_page_shows_what_an_unconfigured_integration_is_missing(): void
+    {
+        $this->configureGoogleDriveEnvironment();
+
+        $this->actingAs($this->admin())->get(route('admin.settings.google-drive'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'STATUS', 'border-danger', 'Not Configured',
+                'OAUTH', 'border-danger', 'Missing',
+                'PARTICIPANT CONNECTIONS', '0 connected',
+                'id="client_id" name="client_id" value="" required',
+                'placeholder="Enter client secret"',
+                'placeholder="Enter Picker API key"', 'Status: Not configured',
+                'name="project_number"', 'Status: Not configured',
+            ], false)
+            ->assertDontSee('name="enabled" value="1" checked', false);
+    }
+
+    public function test_google_drive_page_shows_the_configuration_test_error_and_a_rejected_save_with_the_old_input(): void
+    {
+        $this->configureGoogleDriveEnvironment();
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->followingRedirects()
+            ->post(route('admin.settings.google-drive.test'))
+            ->assertOk()
+            ->assertSeeInOrder(['Google Drive Integration', 'role="alert"', 'Google configuration is incomplete: client_id, client_secret, redirect_uri.', 'PARTICIPANT CONNECTIONS'], false);
+
+        $this->actingAs($admin)
+            ->from(route('admin.settings.google-drive'))
+            ->followingRedirects()
+            ->put(route('admin.settings.google-drive.update'), ['client_id' => 'typed-client-id', 'client_secret' => 'rejected-secret', 'redirect_uri' => 'not-a-url', 'enabled' => '1', 'automatic_export' => '0'])
+            ->assertOk()
+            ->assertSeeInOrder([
+                'value="typed-client-id"',
+                'id="redirect_uri" name="redirect_uri" type="url" value="not-a-url"', 'role="alert"', 'The redirect uri field must be a valid URL.',
+                'name="enabled" value="1" checked',
+            ], false)
+            ->assertDontSee('rejected-secret');
+
+        $this->actingAs($admin)
+            ->followingRedirects()
+            ->put(route('admin.settings.google-drive.update'), ['client_id' => 'saved-client-id', 'client_secret' => 'saved-secret', 'redirect_uri' => 'https://example.test/profile/google-drive/callback', 'enabled' => '1', 'automatic_export' => '0'])
+            ->assertOk()
+            ->assertSeeInOrder(['Google Drive Integration', 'role="status"', 'Google Drive configuration saved.', 'STATUS', 'Configured'], false)
+            ->assertDontSee('saved-secret');
+    }
+
     private function admin(): User
     {
         return User::factory()->create(['role' => 'admin', 'training_path' => null]);
+    }
+
+    private function configureAiEnvironment(): void
+    {
+        config([
+            'services.ai_scoring.enabled' => false,
+            'services.ai_scoring.provider' => 'openrouter',
+            'services.ai_scoring.model' => null,
+            'services.ai_scoring.api_key' => null,
+            'services.ai_scoring.openai_api_key' => null,
+            'services.ai_scoring.anthropic_api_key' => null,
+            'services.ai_scoring.gemini_api_key' => null,
+        ]);
+    }
+
+    private function configureGoogleDriveEnvironment(?string $pickerApiKey = null): void
+    {
+        config([
+            'services.google_drive.client_id' => null,
+            'services.google_drive.client_secret' => null,
+            'services.google_drive.redirect_uri' => null,
+            'services.google_drive.picker_api_key' => $pickerApiKey,
+            'services.google_drive.project_number' => null,
+            'services.google_drive.enabled' => false,
+        ]);
     }
 
     private function configureGoogle(?string $clientId): void

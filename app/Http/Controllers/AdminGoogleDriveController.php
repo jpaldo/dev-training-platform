@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateGoogleDriveSettingsRequest;
 use App\Models\AdminAuditLog;
-use App\Models\GoogleDriveConnection;
+use App\Services\AdminSettingsPageService;
 use App\Services\GoogleDriveConfigurationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,13 +12,9 @@ use Illuminate\View\View;
 
 class AdminGoogleDriveController extends Controller
 {
-    public function edit(GoogleDriveConfigurationService $configuration): View
+    public function edit(AdminSettingsPageService $page): View
     {
-        return view('admin.settings.google-drive', [
-            'settings' => $configuration->adminValues(),
-            'connectionCount' => GoogleDriveConnection::query()->count(),
-            'configurationStatus' => $configuration->validateConfiguration(),
-        ]);
+        return view('admin.settings.google-drive', $page->googleDriveData());
     }
 
     public function update(UpdateGoogleDriveSettingsRequest $request, GoogleDriveConfigurationService $configuration): RedirectResponse

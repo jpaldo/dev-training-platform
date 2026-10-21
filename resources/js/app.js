@@ -181,12 +181,52 @@ const initializeMarkdownFlushOnSubmit = () => {
     });
 };
 
+/**
+ * On the AI scoring settings page, show the selected provider's model label and hint (from the option's data
+ * attributes), update the "API key:" part of the status summary to whether that provider has a stored key, and copy
+ * the current provider, model and API key into the `[data-ai-test-form]` before it submits.
+ */
+const initializeAiProviderSettings = () => {
+    const settingsForm = document.querySelector('[data-ai-settings-form]');
+
+    if (!settingsForm) {
+        return;
+    }
+
+    const provider = settingsForm.elements.provider;
+    const model = settingsForm.elements.model;
+    const apiKey = settingsForm.elements.api_key;
+    const modelLabel = document.getElementById('model-label');
+    const modelHelp = document.getElementById('model-help');
+    const status = document.getElementById('ai-status');
+    const testForm = document.querySelector('[data-ai-test-form]');
+
+    const sync = () => {
+        const option = provider.options[provider.selectedIndex] ?? provider.options[0];
+        const apiKeyStatus = option.dataset.apiKeyConfigured === 'true' ? 'Configured' : 'Not configured';
+
+        modelLabel.textContent = option.dataset.modelLabel;
+        modelHelp.textContent = option.dataset.modelHelp;
+        status.textContent = status.textContent.replace(/API key: (Configured|Not configured)/, `API key: ${apiKeyStatus}`);
+    };
+
+    provider.addEventListener('change', sync);
+    sync();
+
+    testForm?.addEventListener('submit', () => {
+        testForm.elements.provider.value = provider.value;
+        testForm.elements.model.value = model.value;
+        testForm.elements.api_key.value = apiKey.value;
+    });
+};
+
 const initializePage = () => {
     initializeMentorDateTimePickers();
     initializeSidebarDrawer();
     initializePageTabs();
     initializeDatePickers();
     initializeMarkdownFlushOnSubmit();
+    initializeAiProviderSettings();
 };
 
 if (document.readyState === 'loading') {

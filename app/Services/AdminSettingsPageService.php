@@ -2,11 +2,30 @@
 
 namespace App\Services;
 
+use App\Models\GoogleDriveConnection;
+
 class AdminSettingsPageService
 {
     private const BYTES_PER_MEGABYTE = 1048576;
 
-    public function __construct(private readonly AdminSettingsStatusService $status) {}
+    /**
+     * The model field label and hint for each AI provider, shown when the provider is selected.
+     *
+     * @var array<string, array{label: string, help: string}>
+     */
+    private const AI_MODEL_FIELDS = [
+        'openrouter' => ['label' => 'OpenRouter model', 'help' => 'Enter the OpenRouter model slug.'],
+        'openai' => ['label' => 'OpenAI model ID', 'help' => 'Enter the OpenAI model ID.'],
+        'anthropic' => ['label' => 'Anthropic model ID', 'help' => 'Enter the Anthropic model ID.'],
+        'gemini' => ['label' => 'Gemini model ID', 'help' => 'Enter the Gemini model ID.'],
+    ];
+
+    private const MASKED_SECRET_PLACEHOLDER = '••••••••••••';
+
+    public function __construct(
+        private readonly AdminSettingsStatusService $status,
+        private readonly GoogleDriveConfigurationService $googleDrive,
+    ) {}
 
     /**
      * The settings overview: one section per settings area with its current status and the link to manage it.
@@ -139,6 +158,81 @@ class AdminSettingsPageService
     }
 
     /**
+     * The AI scoring settings page: the saved form values, each provider with its model field copy and whether it
+     * has a stored API key and model, the API key placeholder and hint, and the status summary. The API key itself
+     * is never returned.
+     *
+     * @return array{settings: array{enabled: bool, provider: string, model: string}, providers: list<array{value: string, label: string, modelLabel: string, modelHelp: string, hasStoredApiKey: bool}>, apiKeyPlaceholder: string, apiKeyHint: string, statusSummary: string}
+     */
+    public function aiData(): array
+    {
+        $ai = $this->status->ai();
+        $providers = [];
+
+        foreach (AiProviderConfigurationService::PROVIDERS as $provider => $label) {
+            $providers[] = [
+                'value' => $provider,
+                'label' => $label,
+                'modelLabel' => self::AI_MODEL_FIELDS[$provider]['label'],
+                'modelHelp' => self::AI_MODEL_FIELDS[$provider]['help'],
+                'hasStoredApiKey' => (bool) $ai['configured_providers'][$provider],
+            ];
+        }
+
+        return [
+            'settings' => [
+                'enabled' => (bool) $ai['enabled'],
+                'provider' => (string) $ai['provider'],
+                'model' => (string) $ai['model'],
+            ],
+            'providers' => $providers,
+            'apiKeyPlaceholder' => $ai['has_api_key'] ? 'Configured — enter a new key to replace it' : 'Enter API key',
+            'apiKeyHint' => $ai['has_api_key'] ? 'Configured for this provider. Leave blank to retain it.' : 'Stored encrypted. It is never returned to the browser.',
+            'statusSummary' => implode(' · ', [
+                'Status: '.$ai['status'],
+                'Provider: '.$ai['provider_label'],
+                'Model: '.($ai['model'] ?: 'Not configured'),
+                'Configuration source: '.ucfirst((string) $ai['source']),
+                'API key: '.($ai['has_api_key'] ? 'Configured' : 'Not configured'),
+            ]),
+        ];
+    }
+
+    /**
+     * The Google Drive integration page: the configuration, OAuth and participant connection statuses, the saved
+     * form values, the secret placeholders (secrets only as configured / not configured), the Picker key and
+     * project number sources and the configured scopes.
+     *
+     * @return array{statuses: list<array{label: string, value: string, tone: ?string}>, settings: array{client_id: ?string, project_number: ?string, redirect_uri: ?string, enabled: bool, automatic_export: bool}, clientSecretPlaceholder: string, pickerApiKeyPlaceholder: string, pickerApiKeyStatus: string, projectNumberStatus: string, scopes: string}
+     */
+    public function googleDriveData(): array
+    {
+        $settings = $this->googleDrive->adminValues();
+        $isConfigurationValid = $this->googleDrive->validateConfiguration()['valid'];
+        $isOAuthComplete = $settings['client_id'] && $settings['has_client_secret'] && $settings['redirect_uri'];
+
+        return [
+            'statuses' => [
+                ['label' => 'STATUS', 'value' => $isConfigurationValid ? 'Configured' : 'Not Configured', 'tone' => $isConfigurationValid ? 'success' : 'danger'],
+                ['label' => 'OAUTH', 'value' => $isOAuthComplete ? 'Configured' : 'Missing', 'tone' => $isOAuthComplete ? 'success' : 'danger'],
+                ['label' => 'PARTICIPANT CONNECTIONS', 'value' => GoogleDriveConnection::query()->count().' connected', 'tone' => null],
+            ],
+            'settings' => [
+                'client_id' => $settings['client_id'],
+                'project_number' => $settings['project_number'],
+                'redirect_uri' => $settings['redirect_uri'],
+                'enabled' => $settings['enabled'],
+                'automatic_export' => $settings['automatic_export'],
+            ],
+            'clientSecretPlaceholder' => $settings['has_client_secret'] ? self::MASKED_SECRET_PLACEHOLDER : 'Enter client secret',
+            'pickerApiKeyPlaceholder' => $settings['has_picker_api_key'] ? self::MASKED_SECRET_PLACEHOLDER : 'Enter Picker API key',
+            'pickerApiKeyStatus' => $this->sourceStatus($settings['picker_api_key_source'], $settings['has_picker_api_key']),
+            'projectNumberStatus' => $this->sourceStatus($settings['project_number_source'], (bool) $settings['project_number']),
+            'scopes' => implode(', ', $settings['scopes']),
+        ];
+    }
+
+    /**
      * The read-only training settings: the timezone, Mentor interview duration and PHP upload limit, then the
      * application and effective upload limits in whole megabytes.
      *
@@ -175,6 +269,18 @@ class AdminSettingsPageService
             'value' => $isConfigured ? 'Configured' : 'Needs Configuration',
             'tone' => $isConfigured ? 'success' : 'danger',
         ];
+    }
+
+    /**
+     * "Configured via environment" when the value comes only from the environment, otherwise whether it is set.
+     */
+    private function sourceStatus(?string $source, bool $isConfigured): string
+    {
+        if ($source === 'environment') {
+            return 'Configured via environment';
+        }
+
+        return $isConfigured ? 'Configured' : 'Not configured';
     }
 
     private function megabytes(int $bytes): string

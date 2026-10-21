@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\TestAiSettingsRequest;
 use App\Http\Requests\UpdateAiSettingsRequest;
 use App\Models\AdminAuditLog;
+use App\Services\AdminSettingsPageService;
 use App\Services\AiProviderConfigurationService;
 use App\Services\AiScoringProviderResolver;
 use Illuminate\Http\RedirectResponse;
@@ -12,9 +13,9 @@ use Illuminate\View\View;
 
 class AdminAiSettingsController extends Controller
 {
-    public function edit(AiProviderConfigurationService $configuration): View
+    public function edit(AdminSettingsPageService $page): View
     {
-        return view('admin.settings.ai', ['settings' => $configuration->adminValues()]);
+        return view('admin.settings.ai', $page->aiData());
     }
 
     public function update(UpdateAiSettingsRequest $request, AiProviderConfigurationService $configuration): RedirectResponse

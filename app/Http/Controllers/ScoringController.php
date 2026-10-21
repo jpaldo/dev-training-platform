@@ -11,10 +11,9 @@ use App\Models\ActivityScore;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\User;
-use App\Services\AiProviderConfigurationService;
+use App\Services\ScoringPageService;
 use App\Services\ScoringService;
 use App\Services\ScoringSuggestionService;
-use App\Services\SubmissionAnswerPresenter;
 use App\Services\TrainingSyncCoordinator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -45,15 +44,13 @@ class ScoringController extends Controller
         return view('scoring.participant', ['participant' => $participant, 'summary' => $scoring->summary($participant, $program)]);
     }
 
-    public function edit(SubmissionVersion $submissionVersion, ScoringService $scoring, SubmissionAnswerPresenter $answers, AiProviderConfigurationService $configuration): View
+    public function edit(Request $request, SubmissionVersion $submissionVersion, ScoringPageService $page): View
     {
-        $submissionVersion->load(['submission.participant', 'submission.activity.week', 'evidence', 'activityScore.dimensions', 'scoreSuggestion', 'interactions']);
-        $draft = session()->pull('scoring_draft');
+        $submissionVersion->load('submission.participant');
+        $draft = $request->session()->pull('scoring_draft');
         abort_unless($submissionVersion->status !== 'draft' && $submissionVersion->submission->participant->role === 'participant', 404);
 
-        $weekThreeSnapshot = $submissionVersion->submission->activity->week->week_number === 3 ? ($submissionVersion->field_values['week_three_snapshot'] ?? null) : null;
-
-        return view('scoring.edit', ['version' => $submissionVersion, 'answers' => $answers->fields($submissionVersion), 'weekThreeSnapshot' => $weekThreeSnapshot, 'dimensions' => ScoringService::DIMENSIONS, 'score' => $submissionVersion->activityScore, 'suggestion' => $submissionVersion->scoreSuggestion, 'aiStatus' => $configuration->adminValues()['status'], 'previousAverage' => $scoring->runningAverage($submissionVersion->submission->participant, $submissionVersion->id), 'canManage' => request()->user()->canManageParticipant($submissionVersion->submission->participant), 'readers' => User::query()->whereIn('role', ['coach', 'admin'])->where('is_active', true)->orderBy('name')->get(), 'draft' => is_array($draft) ? $draft : null]);
+        return view('scoring.edit', $page->editData($submissionVersion, $request->user(), is_array($draft) ? $draft : null));
     }
 
     public function generateSuggestion(Request $request, SubmissionVersion $submissionVersion, ScoringSuggestionService $suggestions): RedirectResponse

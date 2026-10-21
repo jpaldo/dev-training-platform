@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\InterviewerApprovalStatus;
 use App\Models\InterviewScheduler;
 use Illuminate\Support\Collection;
 
@@ -32,7 +33,7 @@ class PublicInterviewPageService
     {
         $interviewers = InterviewScheduler::query()
             ->where('is_active', true)
-            ->where('approval_status', InterviewScheduler::APPROVED)
+            ->where('approval_status', InterviewerApprovalStatus::Approved)
             ->whereIn('interview_type', [InterviewScheduler::MOCK, InterviewScheduler::FINAL_REASSESSMENT, InterviewScheduler::BOTH])
             ->orderBy('display_order')
             ->orderBy('full_name')

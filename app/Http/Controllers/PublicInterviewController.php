@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\InterviewerApprovalStatus;
 use App\Http\Requests\StoreInterviewerRegistrationRequest;
 use App\Models\InterviewScheduler;
 use App\Services\InterviewBookingLinkService;
@@ -34,7 +35,7 @@ class PublicInterviewController extends Controller
         $name = trim($data['full_name']);
         $mockUrl = isset($data['mock_booking_url']) ? $this->normalizeBookingUrl((string) $data['mock_booking_url']) : null;
         $finalUrl = isset($data['final_booking_url']) ? $this->normalizeBookingUrl((string) $data['final_booking_url']) : null;
-        $duplicate = InterviewScheduler::query()->whereIn('approval_status', [InterviewScheduler::PENDING, InterviewScheduler::APPROVED])->whereRaw('LOWER(full_name) = ?', [mb_strtolower($name)])->where(function (Builder $query) use ($mockUrl, $finalUrl): void {
+        $duplicate = InterviewScheduler::query()->whereIn('approval_status', [InterviewerApprovalStatus::Pending, InterviewerApprovalStatus::Approved])->whereRaw('LOWER(full_name) = ?', [mb_strtolower($name)])->where(function (Builder $query) use ($mockUrl, $finalUrl): void {
             $query->where(function (Builder $query) use ($mockUrl, $finalUrl): void {
                 $query->where('mock_booking_url', $mockUrl)->where('final_booking_url', $finalUrl);
             })->orWhere(function (Builder $query) use ($mockUrl, $finalUrl): void {
@@ -45,7 +46,7 @@ class PublicInterviewController extends Controller
             return redirect()->route('interviews.register')->with('status', 'Thank you. This interviewer information is already pending review or approved.');
         }
 
-        InterviewScheduler::create(['interview_type' => $data['interview_type'], 'full_name' => $name, 'booking_url' => $mockUrl ?: $finalUrl, 'mock_booking_url' => $mockUrl, 'final_booking_url' => $finalUrl, 'is_active' => false, 'display_order' => 0, 'approval_status' => InterviewScheduler::PENDING, 'submitted_publicly' => true]);
+        InterviewScheduler::create(['interview_type' => $data['interview_type'], 'full_name' => $name, 'booking_url' => $mockUrl ?: $finalUrl, 'mock_booking_url' => $mockUrl, 'final_booking_url' => $finalUrl, 'is_active' => false, 'display_order' => 0, 'approval_status' => InterviewerApprovalStatus::Pending, 'submitted_publicly' => true]);
 
         return redirect()->route('interviews.register')->with('status', 'Thank you. Your interviewer information has been submitted for review.');
     }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\InterviewerApprovalStatus;
 use App\Http\Requests\SaveInterviewSchedulerRequest;
 use App\Http\Requests\UpdateInterviewPagePublicTitleRequest;
 use App\Http\Requests\UploadInterviewPageLogoRequest;
@@ -42,14 +43,14 @@ class AdminInterviewSchedulingController extends Controller
 
     public function approve(Request $request, InterviewScheduler $interviewer): RedirectResponse
     {
-        $interviewer->update(['approval_status' => InterviewScheduler::APPROVED, 'is_active' => true, 'approved_by' => $request->user()->id, 'approved_at' => now(), 'rejected_at' => null]);
+        $interviewer->update(['approval_status' => InterviewerApprovalStatus::Approved, 'is_active' => true, 'approved_by' => $request->user()->id, 'approved_at' => now(), 'rejected_at' => null]);
 
         return back()->with('status', 'Interviewer request approved.');
     }
 
     public function reject(InterviewScheduler $interviewer): RedirectResponse
     {
-        $interviewer->update(['approval_status' => InterviewScheduler::REJECTED, 'is_active' => false, 'rejected_at' => now()]);
+        $interviewer->update(['approval_status' => InterviewerApprovalStatus::Rejected, 'is_active' => false, 'rejected_at' => now()]);
 
         return back()->with('status', 'Interviewer request rejected.');
     }

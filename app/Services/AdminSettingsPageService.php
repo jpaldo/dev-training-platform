@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\InterviewerApprovalStatus;
 use App\Models\GoogleDriveConnection;
 use App\Models\InterviewScheduler;
 use App\Models\User;
@@ -303,7 +304,7 @@ class AdminSettingsPageService
                 ->map(fn (User $user): array => ['id' => $user->id, 'label' => $user->name.' ('.$user->email.')'])
                 ->all(),
             'pendingInterviewers' => InterviewScheduler::query()
-                ->where('approval_status', InterviewScheduler::PENDING)
+                ->where('approval_status', InterviewerApprovalStatus::Pending)
                 ->latest('created_at')
                 ->get()
                 ->map($this->pendingInterviewer(...))
@@ -358,7 +359,7 @@ class AdminSettingsPageService
     {
         return InterviewScheduler::query()
             ->whereIn('interview_type', [$interviewType, InterviewScheduler::BOTH])
-            ->where('approval_status', InterviewScheduler::APPROVED)
+            ->where('approval_status', InterviewerApprovalStatus::Approved)
             ->orderBy('display_order')
             ->orderBy('full_name')
             ->get()

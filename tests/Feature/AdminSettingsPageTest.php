@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\InterviewerApprovalStatus;
 use App\Models\ApplicationSetting;
 use App\Models\GoogleDriveConnection;
 use App\Models\InterviewScheduler;
@@ -463,17 +464,17 @@ class AdminSettingsPageTest extends TestCase
         $this->travelTo(now()->setDate(2026, 10, 1)->setTime(9, 30));
         $older = InterviewScheduler::create([
             'interview_type' => InterviewScheduler::MOCK, 'full_name' => 'Older Request', 'booking_url' => 'https://booking.example.com/older',
-            'approval_status' => InterviewScheduler::PENDING, 'submitted_publicly' => true, 'is_active' => false,
+            'approval_status' => InterviewerApprovalStatus::Pending, 'submitted_publicly' => true, 'is_active' => false,
         ]);
         $this->travelTo(now()->setDate(2026, 10, 2)->setTime(14, 5));
         $newer = InterviewScheduler::create([
             'interview_type' => InterviewScheduler::BOTH, 'full_name' => 'Newer Request', 'booking_url' => 'https://booking.example.com/legacy',
             'final_booking_url' => 'https://booking.example.com/newer-final',
-            'approval_status' => InterviewScheduler::PENDING, 'submitted_publicly' => true, 'is_active' => false,
+            'approval_status' => InterviewerApprovalStatus::Pending, 'submitted_publicly' => true, 'is_active' => false,
         ]);
         InterviewScheduler::create([
             'interview_type' => InterviewScheduler::MOCK, 'full_name' => 'Rejected Request', 'booking_url' => 'https://booking.example.com/rejected',
-            'approval_status' => InterviewScheduler::REJECTED, 'is_active' => false,
+            'approval_status' => InterviewerApprovalStatus::Rejected, 'is_active' => false,
         ]);
 
         $this->actingAs($this->admin())->get(route('admin.settings.interview-scheduling'))

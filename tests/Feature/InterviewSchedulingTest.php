@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\InterviewerApprovalStatus;
 use App\Models\InterviewScheduler;
 use App\Models\User;
 use App\Rules\ExternalBookingUrl;
@@ -84,9 +85,9 @@ class InterviewSchedulingTest extends TestCase
         }
 
         $this->assertSame($beforeUsers, User::query()->count());
-        $this->assertDatabaseHas('interview_schedulers', ['full_name' => 'Mock Reviewer', 'interview_type' => 'mock', 'approval_status' => InterviewScheduler::PENDING]);
-        $this->assertDatabaseHas('interview_schedulers', ['full_name' => 'Final Reviewer', 'interview_type' => 'final_reassessment', 'approval_status' => InterviewScheduler::PENDING]);
-        $this->assertDatabaseHas('interview_schedulers', ['full_name' => 'Both Reviewer', 'interview_type' => 'both', 'approval_status' => InterviewScheduler::PENDING]);
+        $this->assertDatabaseHas('interview_schedulers', ['full_name' => 'Mock Reviewer', 'interview_type' => 'mock', 'approval_status' => 'pending']);
+        $this->assertDatabaseHas('interview_schedulers', ['full_name' => 'Final Reviewer', 'interview_type' => 'final_reassessment', 'approval_status' => 'pending']);
+        $this->assertDatabaseHas('interview_schedulers', ['full_name' => 'Both Reviewer', 'interview_type' => 'both', 'approval_status' => 'pending']);
     }
 
     public function test_public_registration_requires_the_url_for_each_selected_type(): void
@@ -170,8 +171,34 @@ class InterviewSchedulingTest extends TestCase
 
         $admin = User::factory()->create(['role' => 'admin']);
         $request = InterviewScheduler::query()->where('full_name', 'External Reviewer')->firstOrFail();
+        $this->assertSame(InterviewerApprovalStatus::Pending, $request->approval_status);
         $this->actingAs($admin)->patch(route('admin.settings.interview-scheduling.approve', $request))->assertRedirect();
         $this->get(route('interviews.index'))->assertSee('External Reviewer');
+
+        $request->refresh();
+        $this->assertSame(InterviewerApprovalStatus::Approved, $request->approval_status);
+        $this->assertTrue($request->is_active);
+        $this->assertSame($admin->id, $request->approved_by);
+    }
+
+    public function test_rejected_public_registration_stays_hidden_and_can_be_submitted_again(): void
+    {
+        $payload = ['full_name' => 'Rejected Reviewer', 'mock_booking_url' => 'https://calendar.app.google/rejected', 'interview_type' => 'mock'];
+        $this->post(route('interviews.register.store'), $payload);
+        $request = InterviewScheduler::query()->where('full_name', 'Rejected Reviewer')->firstOrFail();
+
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin)->patch(route('admin.settings.interview-scheduling.reject', $request))->assertRedirect();
+
+        $request->refresh();
+        $this->assertSame(InterviewerApprovalStatus::Rejected, $request->approval_status);
+        $this->assertFalse($request->is_active);
+        $this->assertNotNull($request->rejected_at);
+        $this->get(route('admin.settings.interview-scheduling'))->assertOk()->assertDontSee('Rejected Reviewer');
+        $this->get(route('interviews.index'))->assertDontSee('Rejected Reviewer');
+
+        $this->post(route('interviews.register.store'), $payload)->assertSessionHas('status', 'Thank you. Your interviewer information has been submitted for review.');
+        $this->assertSame(2, InterviewScheduler::query()->where('full_name', 'Rejected Reviewer')->count());
     }
 
     public function test_public_registration_rejects_unsafe_urls_and_does_not_create_user(): void
@@ -199,7 +226,7 @@ class InterviewSchedulingTest extends TestCase
             'booking_url' => 'https://calendar.app.google/pending',
             'mock_booking_url' => 'https://calendar.app.google/pending',
             'interview_type' => 'mock',
-            'approval_status' => InterviewScheduler::PENDING,
+            'approval_status' => InterviewerApprovalStatus::Pending,
             'submitted_publicly' => true,
             'is_active' => false,
         ]);
@@ -217,7 +244,7 @@ class InterviewSchedulingTest extends TestCase
             'full_name' => 'Reviewed Interviewer',
             'booking_url' => 'https://calendar.app.google/reviewed',
             'interview_type' => 'both',
-            'approval_status' => InterviewScheduler::PENDING,
+            'approval_status' => 'pending',
             'is_active' => false,
         ]);
     }

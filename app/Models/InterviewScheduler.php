@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\InterviewerApprovalStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -12,12 +13,6 @@ class InterviewScheduler extends Model
     public const FINAL_REASSESSMENT = 'final_reassessment';
 
     public const BOTH = 'both';
-
-    public const PENDING = 'pending';
-
-    public const APPROVED = 'approved';
-
-    public const REJECTED = 'rejected';
 
     protected $fillable = [
         'interview_type',
@@ -36,9 +31,21 @@ class InterviewScheduler extends Model
         'rejected_at',
     ];
 
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
-        return ['is_active' => 'boolean', 'display_order' => 'integer', 'submitted_publicly' => 'boolean', 'approved_at' => 'datetime', 'rejected_at' => 'datetime'];
+        return [
+            'is_active' => 'boolean',
+            'display_order' => 'integer',
+            'approval_status' => InterviewerApprovalStatus::class,
+            'submitted_publicly' => 'boolean',
+            'approved_at' => 'datetime',
+            'rejected_at' => 'datetime',
+        ];
     }
 
     public function user(): BelongsTo

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\InterviewerApprovalStatus;
 use App\Models\ApplicationSetting;
 use App\Models\InterviewScheduler;
 use App\Services\InterviewBookingLinkService;
@@ -20,7 +21,7 @@ class PublicInterviewPagesTest extends TestCase
         $this->interviewer('Zed Mentor', InterviewScheduler::MOCK, displayOrder: 1, mockUrl: 'https://calendar.app.google/zed-mock');
         $this->interviewer('Amy Mentor', InterviewScheduler::MOCK, displayOrder: 1, mockUrl: 'https://calendar.app.google/amy-mock');
         $this->interviewer('Bea Both', InterviewScheduler::BOTH, displayOrder: 0, finalUrl: 'https://calendar.app.google/bea-final', sharedUrl: 'https://calendar.app.google/bea-shared');
-        $this->interviewer('Pending Person', InterviewScheduler::MOCK, approvalStatus: InterviewScheduler::PENDING);
+        $this->interviewer('Pending Person', InterviewScheduler::MOCK, approvalStatus: InterviewerApprovalStatus::Pending);
         $this->interviewer('Inactive Person', InterviewScheduler::FINAL_REASSESSMENT, isActive: false);
 
         $response = $this->get(route('interviews.index'))
@@ -226,7 +227,7 @@ class PublicInterviewPagesTest extends TestCase
         ?string $mockUrl = null,
         ?string $finalUrl = null,
         ?string $sharedUrl = null,
-        string $approvalStatus = InterviewScheduler::APPROVED,
+        InterviewerApprovalStatus $approvalStatus = InterviewerApprovalStatus::Approved,
         bool $isActive = true,
     ): InterviewScheduler {
         return InterviewScheduler::query()->create([

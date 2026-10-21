@@ -6,8 +6,8 @@ use App\Http\Requests\StoreWeeklyVideoRecordingRequest;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
+use App\Services\WeeklyVideoRecordingPageService;
 use App\Services\WeekProgressionService;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -17,15 +17,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WeeklyVideoRecordingController extends Controller
 {
-    public function edit(Request $request, TrainingWeek $trainingWeek, WeekProgressionService $progression): View
+    public function edit(Request $request, TrainingWeek $trainingWeek, WeekProgressionService $progression, WeeklyVideoRecordingPageService $page): View
     {
         /** @var User $user */
         $user = $request->user();
         $progression->ensureCanAccessWeek($user, $trainingWeek);
-        $recording = WeeklyVideoRecording::query()->where('user_id', $user->id)->where('training_week_id', $trainingWeek->id)->first();
-        $gatePassed = $trainingWeek->gates()->where('is_active', true)->whereHas('evaluations', fn (Builder $query): Builder => $query->where('user_id', $user->id)->where('status', 'passed'))->exists();
 
-        return view('training.video-recording', compact('trainingWeek', 'recording', 'gatePassed'));
+        return view('training.video-recording', $page->editData($trainingWeek, $user));
     }
 
     public function store(StoreWeeklyVideoRecordingRequest $request, TrainingWeek $trainingWeek): RedirectResponse

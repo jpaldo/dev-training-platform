@@ -700,6 +700,36 @@ const initializeWeeklyVideoPreviews = () => {
     });
 };
 
+/**
+ * On each `[data-weekly-video-form]`, check the chosen `[data-weekly-video-input]` file against the form's
+ * `data-max-bytes` before upload: show `[data-weekly-video-size-error]`, mark the input invalid and block the submit
+ * while the file is too large.
+ */
+const initializeWeeklyVideoSizeLimit = () => {
+    document.querySelectorAll('[data-weekly-video-form]').forEach((form) => {
+        const input = form.querySelector('[data-weekly-video-input]');
+        const error = form.querySelector('[data-weekly-video-size-error]');
+        const maxBytes = Number(form.dataset.maxBytes || 0);
+        const validate = () => {
+            const tooLarge = Boolean(input?.files?.[0] && input.files[0].size > maxBytes);
+
+            if (error) {
+                error.hidden = !tooLarge;
+            }
+            input?.setCustomValidity(tooLarge ? 'The video must not exceed 350 MB.' : '');
+
+            return !tooLarge;
+        };
+
+        input?.addEventListener('change', validate);
+        form.addEventListener('submit', (event) => {
+            if (!validate()) {
+                event.preventDefault();
+            }
+        });
+    });
+};
+
 const initializePage = () => {
     initializeMentorDateTimePickers();
     initializeSidebarDrawer();
@@ -714,6 +744,7 @@ const initializePage = () => {
     initializeGoogleDriveSyncStatus();
     initializeEvidencePreviews();
     initializeWeeklyVideoPreviews();
+    initializeWeeklyVideoSizeLimit();
 };
 
 if (document.readyState === 'loading') {

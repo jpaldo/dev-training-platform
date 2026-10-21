@@ -505,6 +505,201 @@ const initializeGoogleDriveSyncStatus = () => {
     window.setTimeout(poll, 1500);
 };
 
+/**
+ * Open the evidence preview `<dialog>` of each `[data-evidence-preview-open]` button (`data-evidence-preview-dialog`
+ * is the dialog id) and load the file the way its `data-evidence-preview-kind` says: an image, a PDF frame (with a
+ * fallback message), a video, or the `structured` text / table JSON fetched from the `<pre>`'s `data-preview-src`.
+ * Every opening starts from the loading state. Closing (a close button, Escape or a click on the backdrop) returns
+ * focus to the button.
+ */
+const initializeEvidencePreviews = () => {
+    const cellClasses = 'border border-line px-2.5 py-2 text-left align-top whitespace-pre-wrap';
+
+    document.querySelectorAll('[data-evidence-preview-open]').forEach((open) => {
+        const dialog = document.getElementById(open.dataset.evidencePreviewDialog);
+
+        if (!dialog) {
+            return;
+        }
+
+        const loading = dialog.querySelector('[data-evidence-preview-loading]');
+        const error = dialog.querySelector('[data-evidence-preview-error]');
+        const image = dialog.querySelector('[data-evidence-preview-image]');
+        const frame = dialog.querySelector('[data-evidence-preview-frame]');
+        const fallback = dialog.querySelector('[data-evidence-preview-fallback]');
+        const video = dialog.querySelector('[data-evidence-preview-video]');
+        const text = dialog.querySelector('[data-evidence-preview-text]');
+        const tableWrap = dialog.querySelector('[data-evidence-preview-table-wrap]');
+        const table = dialog.querySelector('[data-evidence-preview-table]');
+
+        const reset = () => {
+            loading.hidden = false;
+            error.hidden = true;
+            [image, frame, video, text, tableWrap, fallback].filter(Boolean).forEach((element) => {
+                element.hidden = true;
+            });
+
+            if (text) {
+                text.textContent = '';
+            }
+
+            table?.replaceChildren();
+            dialog.querySelectorAll('[data-evidence-preview-note]').forEach((note) => note.remove());
+        };
+
+        const showError = (message = 'Unable to preview this evidence.') => {
+            loading.hidden = true;
+            error.textContent = message;
+            error.hidden = false;
+        };
+
+        const close = () => {
+            dialog.close();
+            open.focus();
+        };
+
+        const addCell = (row, value, heading = false) => {
+            const cell = document.createElement(heading ? 'th' : 'td');
+            cell.className = heading ? `${cellClasses} sticky top-0 bg-raised` : cellClasses;
+            cell.textContent = value ?? '';
+            row.appendChild(cell);
+        };
+
+        const showStructured = async () => {
+            const response = await fetch(text.dataset.previewSrc, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+
+            if (!response.ok) {
+                throw new Error('preview request failed');
+            }
+
+            const data = await response.json();
+
+            if (data.kind === 'table' || data.kind === 'workbook') {
+                const head = document.createElement('thead');
+                const headRow = document.createElement('tr');
+                (data.headers || []).forEach((value) => addCell(headRow, value, true));
+                head.appendChild(headRow);
+                table.appendChild(head);
+
+                const body = document.createElement('tbody');
+                (data.rows || []).forEach((values) => {
+                    const row = document.createElement('tr');
+                    values.forEach((value) => addCell(row, value));
+                    body.appendChild(row);
+                });
+                table.appendChild(body);
+                tableWrap.hidden = false;
+            } else {
+                text.textContent = data.content || 'No preview content available.';
+                text.hidden = false;
+            }
+
+            loading.hidden = true;
+
+            if (data.truncated) {
+                const note = document.createElement('p');
+                note.className = 'm-0 text-sm text-muted';
+                note.dataset.evidencePreviewNote = 'true';
+                note.textContent = data.truncated;
+                tableWrap.parentElement.appendChild(note);
+            }
+        };
+
+        const loaders = {
+            image: () => {
+                image.onload = () => {
+                    loading.hidden = true;
+                    image.hidden = false;
+                };
+                image.onerror = () => showError();
+                image.src = image.dataset.previewSrc;
+            },
+            pdf: () => {
+                frame.onload = () => {
+                    loading.hidden = true;
+                    frame.hidden = false;
+                };
+                frame.onerror = () => {
+                    loading.hidden = true;
+                    fallback.hidden = false;
+                };
+                frame.src = frame.dataset.previewSrc;
+            },
+            video: () => {
+                video.onloadedmetadata = () => {
+                    loading.hidden = true;
+                    video.hidden = false;
+                };
+                video.onerror = () => showError();
+                video.querySelector('source').src = video.dataset.previewSrc;
+                video.load();
+            },
+            structured: showStructured,
+        };
+
+        open.addEventListener('click', async () => {
+            reset();
+            dialog.showModal();
+            dialog.querySelector('[data-evidence-preview-close]')?.focus();
+
+            try {
+                await loaders[dialog.dataset.evidencePreviewKind]();
+            } catch {
+                showError();
+            }
+        });
+        dialog.querySelectorAll('[data-evidence-preview-close]').forEach((button) => button.addEventListener('click', close));
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) {
+                close();
+            }
+        });
+        dialog.addEventListener('cancel', (event) => {
+            event.preventDefault();
+            close();
+        });
+    });
+};
+
+/**
+ * In each `[data-weekly-video-actions]` group, open the weekly video preview `<dialog>` from the
+ * `[data-weekly-video-preview]` button: load its `data-video-url` into the player and focus the close button. Closing
+ * (the close button, Escape or a click on the backdrop) stops and unloads the video and returns focus to where it was.
+ */
+const initializeWeeklyVideoPreviews = () => {
+    document.querySelectorAll('[data-weekly-video-actions]').forEach((root) => {
+        const open = root.querySelector('[data-weekly-video-preview]');
+        const dialog = root.querySelector('[data-weekly-video-dialog]');
+        const close = root.querySelector('[data-weekly-video-close]');
+        const player = root.querySelector('[data-weekly-video-player]');
+
+        if (!open || !dialog || !close || !player) {
+            return;
+        }
+
+        let previousFocus;
+
+        open.addEventListener('click', () => {
+            previousFocus = document.activeElement;
+            player.src = open.dataset.videoUrl;
+            dialog.showModal();
+            close.focus();
+        });
+        close.addEventListener('click', () => dialog.close());
+        dialog.addEventListener('close', () => {
+            player.pause();
+            player.removeAttribute('src');
+            player.load();
+            previousFocus?.focus();
+        });
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) {
+                dialog.close();
+            }
+        });
+    });
+};
+
 const initializePage = () => {
     initializeMentorDateTimePickers();
     initializeSidebarDrawer();
@@ -517,6 +712,8 @@ const initializePage = () => {
     initializeOtherSelectFields();
     initializeGoogleDrivePicker();
     initializeGoogleDriveSyncStatus();
+    initializeEvidencePreviews();
+    initializeWeeklyVideoPreviews();
 };
 
 if (document.readyState === 'loading') {

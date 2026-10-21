@@ -9,10 +9,10 @@ use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\CoachGateReviewPageService;
+use App\Services\ParticipantGatePageService;
 use App\Services\TrainingExportCoordinator;
 use App\Services\TrainingSyncCoordinator;
 use App\Services\WeekTwoGateService;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -21,15 +21,11 @@ use Illuminate\View\View;
 
 class GateReviewController extends Controller
 {
-    public function participant(TrainingWeek $trainingWeek, TrainingGate $trainingGate, WeekTwoGateService $service): View
+    public function participant(TrainingWeek $trainingWeek, TrainingGate $trainingGate, ParticipantGatePageService $page): View
     {
         abort_unless($trainingGate->training_week_id === $trainingWeek->id && $trainingWeek->is_active, 404);
-        $participant = request()->user();
-        $evaluation = $trainingGate->evaluations()->where('user_id', $participant->id)->with('criterionEvaluations')->first();
 
-        $readiness = $service->readiness($participant, $trainingGate);
-
-        return view('participant.gate', ['trainingWeek' => $trainingWeek, 'gate' => $trainingGate->load('criteria'), 'evaluation' => $evaluation, 'readiness' => $readiness, 'weeklyLoom' => $service->weeklyVideo($participant, $trainingGate), 'readinessSummary' => $this->readinessSummary($participant, $trainingGate, $readiness)]);
+        return view('participant.gate', $page->showData($trainingWeek, request()->user(), $trainingGate));
     }
 
     public function show(TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, CoachGateReviewPageService $page): View
@@ -75,27 +71,5 @@ class GateReviewController extends Controller
     private function guard(TrainingWeek $week, User $participant, TrainingGate $gate): void
     {
         abort_unless($week->id === $gate->training_week_id && in_array($week->week_number, [2, 3, 4], true) && $participant->role === 'participant', 404);
-    }
-
-    private function readinessSummary(User $participant, TrainingGate $gate, array $readiness): array
-    {
-        $week = $gate->week;
-        $logs = $participant->dailyLogs()->whereHas('activity', fn (Builder $q): Builder => $q->where('training_week_id', $week->id))->count();
-        $minimum = 5;
-        $summary = [];
-        if (array_key_exists('daily_logs', $readiness)) {
-            $remaining = max(0, $minimum - $logs);
-            $summary[] = ['label' => 'Daily logs', 'progress' => "{$logs} of {$minimum} completed", 'message' => $remaining === 1 ? "One more Week {$week->week_number} daily log is required before this Gate can be passed." : "{$remaining} more Week {$week->week_number} daily logs are required before this Gate can be passed."];
-        }
-        if (array_key_exists('weekly_video', $readiness) || array_key_exists('weekly_loom', $readiness)) {
-            $summary[] = ['label' => 'Weekly Video Recording', 'progress' => 'Missing', 'message' => 'Upload the required weekly video recording before this Gate can be passed.'];
-        }
-        foreach ($readiness as $key => $reason) {
-            if ($key !== 'daily_logs') {
-                $summary[] = ['label' => 'Requirements', 'progress' => 'Incomplete', 'message' => 'Complete the outstanding activity and evidence requirements before this Gate can be passed.'];
-            }
-        }
-
-        return $summary;
     }
 }

@@ -13,8 +13,8 @@
     <title>{{ $publicTitle }} | Become an Interviewer</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-{{-- Standalone public page (no app layout or legacy styles): `**:box-border` stands in for Preflight's box-sizing reset. --}}
-<body class="m-0 min-h-screen bg-canvas font-sans text-slate-100 antialiased **:box-border">
+{{-- Standalone public page: no app layout or legacy styles. --}}
+<body class="m-0 min-h-screen bg-canvas font-sans leading-[normal] text-slate-100 antialiased">
     <main class="mx-auto w-full max-w-2xl px-5 py-12">
         <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-6" aria-labelledby="interviewer-registration-title">
             <header class="grid min-w-0 gap-2">

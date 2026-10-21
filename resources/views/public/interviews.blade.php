@@ -6,8 +6,8 @@
     <title>{{ $publicTitle }} | Interview Scheduling</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-{{-- Standalone public page (no app layout or legacy styles): `**:box-border` stands in for Preflight's box-sizing reset. --}}
-<body class="m-0 min-h-screen bg-canvas font-sans text-slate-100 antialiased **:box-border">
+{{-- Standalone public page: no app layout or legacy styles. --}}
+<body class="m-0 min-h-screen bg-canvas font-sans leading-[normal] text-slate-100 antialiased">
     <div class="mx-auto grid w-full max-w-262.5 grid-cols-1 gap-8 px-5 pt-9.5 pb-16">
         <header class="flex justify-center">
             @if($logoUrl)

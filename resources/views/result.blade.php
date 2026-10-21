@@ -68,7 +68,7 @@
             <p class="m-0 whitespace-pre-wrap wrap-break-word">{{ $submission->evidence_notes ?: 'Not provided' }}</p>
             @if(filled($submission->evidence_files))
                 <h2 class="{{ $sectionTitleClasses }} mt-3">Uploaded Evidence</h2>
-                <ul class="m-0 grid gap-1 pl-5">
+                <ul class="m-0 grid list-disc gap-1 pl-5">
                     @foreach($submission->evidence_files as $evidence)
                         <li class="wrap-anywhere">{{ $evidence['original_filename'] ?? 'Evidence file' }} <span class="text-muted">({{ $evidence['mime_type'] ?? 'file' }})</span></li>
                     @endforeach

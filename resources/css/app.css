@@ -1,11 +1,11 @@
 /*
- * Preflight is intentionally omitted while views migrate to Tailwind: unconverted pages still rely on
- * browser defaults and the hand-written layout styles, which live in the `legacy` layer so utilities win.
+ * The layer order is declared before the Tailwind import so the remaining hand-written layout styles in the
+ * `legacy` layer sit between Preflight (`base`) and the utilities: they still override Preflight, and utilities
+ * still override them.
  */
 @layer theme, base, legacy, components, utilities;
 
-@import 'tailwindcss/theme.css' layer(theme);
-@import 'tailwindcss/utilities.css' layer(utilities);
+@import 'tailwindcss';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -115,7 +115,7 @@
         }
 
         & img {
-            @apply h-auto max-w-full;
+            @apply inline h-auto max-w-full align-baseline;
         }
     }
 

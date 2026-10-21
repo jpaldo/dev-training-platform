@@ -86,7 +86,7 @@
                     @if($sync['failed_components'] !== null)
                         <x-ui.alert tone="error" class="grid gap-2">
                             <strong>Failed components:</strong>
-                            <ul class="m-0 grid gap-1 pl-5">
+                            <ul class="m-0 grid list-disc gap-1 pl-5">
                                 @foreach($sync['failed_components'] as $component)
                                     <li>{{ $component['name'] }}@if($component['message']) — {{ $component['message'] }}@endif</li>
                                 @endforeach

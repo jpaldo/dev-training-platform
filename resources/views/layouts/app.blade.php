@@ -28,7 +28,7 @@
         }
     </style>
 </head>
-<body class="m-0 min-h-screen bg-canvas font-sans text-slate-100 antialiased">
+<body class="m-0 min-h-screen bg-canvas font-sans leading-[normal] text-slate-100 antialiased">
     @auth
         <div class="flex min-h-screen">
             @include('layouts.navigation')

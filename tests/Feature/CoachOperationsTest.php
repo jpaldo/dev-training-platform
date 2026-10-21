@@ -108,7 +108,7 @@ class CoachOperationsTest extends TestCase
 
         $response = $this->actingAs($coach)->get(route('coach.participants'));
         $response->assertOk()->assertSee('<table', false)->assertSee('Manual QA')->assertSee('Automation QA')->assertSee('Open Drive')->assertSee('target="_blank"', false)->assertSee('rel="noopener noreferrer"', false)->assertSee('CHECKED IN')->assertSee('CHECKED OUT')->assertSee('Not provided')->assertSee('Inspect');
-        $this->actingAs($coach)->get(route('coach.participants', ['search' => 'Manual Tester']))->assertOk()->assertSee('Manual Tester')->assertDontSee('<td class="name">Automation Tester</td>', false);
+        $this->actingAs($coach)->get(route('coach.participants', ['search' => 'Manual Tester']))->assertOk()->assertSee('<strong class="wrap-break-word">Manual Tester</strong>', false)->assertDontSee('<strong class="wrap-break-word">Automation Tester</strong>', false);
         $this->actingAs($coach)->get(route('coach.participants', ['search' => 'automation@example.test']))->assertOk()->assertSee('Automation Tester');
         $this->actingAs($coach)->get(route('coach.participants', ['path' => 'manual']))->assertOk()->assertSee('Manual Tester');
     }

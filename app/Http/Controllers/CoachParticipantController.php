@@ -5,22 +5,18 @@ namespace App\Http\Controllers;
 use App\Http\Requests\FilterCoachParticipantsRequest;
 use App\Http\Requests\FilterParticipantDailyLogsRequest;
 use App\Models\User;
+use App\Services\CoachParticipantListPageService;
 use App\Services\CoachParticipantPageService;
 use App\Services\CoachReportService;
-use App\Services\WeekFourInterviewService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class CoachParticipantController extends Controller
 {
-    public function index(FilterCoachParticipantsRequest $request, CoachReportService $reports, WeekFourInterviewService $interviews): View
+    public function index(FilterCoachParticipantsRequest $request, CoachParticipantListPageService $page): View
     {
-        $items = $reports->participants($request->validated())->paginate(25)->withQueryString();
-        $pairs = $interviews->activePairs();
-        $pairParticipants = $interviews->pairingCandidates();
-
-        return view('coach.participants', compact('items', 'pairs', 'pairParticipants'));
+        return view('coach.participants', $page->indexData($request->user(), $request->validated()));
     }
 
     public function show(Request $request, User $participant, CoachParticipantPageService $page): View

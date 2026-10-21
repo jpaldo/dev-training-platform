@@ -6,8 +6,8 @@ use App\Http\Requests\CheckInAttendanceRequest;
 use App\Http\Requests\FilterAttendanceSessionsRequest;
 use App\Models\AttendanceSession;
 use App\Models\User;
+use App\Services\AttendancePageService;
 use App\Services\TrainingExportCoordinator;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,13 +17,12 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AttendanceController extends Controller
 {
-    public function participant(Request $request): View
+    public function participant(Request $request, AttendancePageService $page): View
     {
         /** @var User $user */
         $user = $request->user();
-        $sessions = $user->attendanceSessions()->latest('check_in_at')->paginate(25);
 
-        return view('attendance.index', ['sessions' => $sessions, 'activeSession' => $user->attendanceSessions()->whereNull('check_out_at')->latest('check_in_at')->first()]);
+        return view('attendance.index', $page->participantData($user));
     }
 
     public function checkIn(CheckInAttendanceRequest $request, TrainingExportCoordinator $exports): RedirectResponse
@@ -66,18 +65,14 @@ class AttendanceController extends Controller
         return back()->with('status', 'Training session checked out.');
     }
 
-    public function manage(FilterAttendanceSessionsRequest $request): View
+    public function manage(FilterAttendanceSessionsRequest $request, AttendancePageService $page): View
     {
-        $filters = $request->validated();
-        $sessions = $this->filtered($filters)->latest('check_in_at')->paginate(25)->withQueryString();
-
-        return view('attendance.manage', ['sessions' => $sessions, 'participants' => User::query()->where('role', 'participant')->orderBy('name')->get(), 'filters' => $filters]);
+        return view('attendance.manage', $page->manageData($request->validated(), $request->query(), $request->routeIs('admin.*')));
     }
 
-    public function export(FilterAttendanceSessionsRequest $request): StreamedResponse
+    public function export(FilterAttendanceSessionsRequest $request, AttendancePageService $page): StreamedResponse
     {
-        $filters = $request->validated();
-        $sessions = $this->filtered($filters)->latest('check_in_at')->get();
+        $sessions = $page->filteredSessions($request->validated())->latest('check_in_at')->get();
 
         return response()->streamDownload(function () use ($sessions): void {
             $out = fopen('php://output', 'w');
@@ -87,24 +82,6 @@ class AttendanceController extends Controller
             }
             fclose($out);
         }, 'attendance.csv', ['Content-Type' => 'text/csv']);
-    }
-
-    /**
-     * @param  array{date_from?: ?string, date_to?: ?string, participant?: int|string|null, path?: ?string, status?: ?string}  $filters
-     * @return Builder<AttendanceSession>
-     */
-    private function filtered(array $filters): Builder
-    {
-        return AttendanceSession::query()
-            ->with('participant')
-            ->whereHas('participant', function (Builder $query) use ($filters): void {
-                $query->where('role', 'participant')->when($filters['path'] ?? null, fn (Builder $q, string $path): Builder => $q->where('training_path', $path));
-            })
-            ->when($filters['date_from'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('check_in_at', '>=', $date))
-            ->when($filters['date_to'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('check_in_at', '<=', $date))
-            ->when($filters['participant'] ?? null, fn (Builder $query, int|string $id): Builder => $query->where('user_id', $id))
-            ->when(($filters['status'] ?? null) === 'active', fn (Builder $query): Builder => $query->whereNull('check_out_at'))
-            ->when(($filters['status'] ?? null) === 'completed', fn (Builder $query): Builder => $query->whereNotNull('check_out_at'));
     }
 
     private function isSafeInternalUrl(string $url, Request $request): bool

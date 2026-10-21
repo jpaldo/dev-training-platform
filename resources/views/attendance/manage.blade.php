@@ -1,17 +1,111 @@
 @extends('layouts.app')
+
 @section('content')
-<style>@media(max-width:850px){.attendance-filters{grid-template-columns:1fr!important}}</style>
-<div class="eyebrow">{{ request()->routeIs('admin.*') ? 'ADMIN' : 'COACH' }} · ATTENDANCE</div>
-<h1>Participant Attendance</h1>
-<p class="muted">Use attendance to monitor participant training sessions and total training hours.</p>
-<form class="card attendance-filters" method="GET" style="display:grid;grid-template-columns:repeat(5,1fr) auto;gap:12px;align-items:end">
-    <div class="field"><label for="attendance-date-from">From</label><input id="attendance-date-from" type="date" name="date_from" value="{{ $filters['date_from'] ?? '' }}"></div>
-    <div class="field"><label for="attendance-date-to">To</label><input id="attendance-date-to" type="date" name="date_to" value="{{ $filters['date_to'] ?? '' }}"></div>
-    <div class="field"><label for="attendance-participant">Participant</label><select id="attendance-participant" name="participant"><option value="">All participants</option>@foreach($participants as $participant)<option value="{{ $participant->id }}" @selected(($filters['participant'] ?? '') == $participant->id)>{{ $participant->name }}</option>@endforeach</select></div>
-    <div class="field"><label for="attendance-path">QA Path</label><select id="attendance-path" name="path"><option value="">All paths</option><option value="manual" @selected(($filters['path'] ?? '') === 'manual')>QA Manual</option><option value="automation" @selected(($filters['path'] ?? '') === 'automation')>QA Automation</option></select></div>
-    <div class="field"><label for="attendance-status">Status</label><select id="attendance-status" name="status"><option value="">All</option><option value="active" @selected(($filters['status'] ?? '') === 'active')>Checked in</option><option value="completed" @selected(($filters['status'] ?? '') === 'completed')>Checked out</option></select></div>
-    <button class="btn secondary" type="submit">Filter</button>
-</form>
-<div class="actions"><a class="btn secondary" href="{{ request()->routeIs('admin.*') ? route('admin.attendance.export', request()->query()) : route('coach.attendance.export', request()->query()) }}">Export CSV</a></div>
-<div class="card" style="margin-top:18px;overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:10px">Participant</th><th style="text-align:left;padding:10px">QA Path</th><th style="text-align:left;padding:10px">Check in</th><th style="text-align:left;padding:10px">Check out</th><th style="text-align:left;padding:10px">Total hours</th><th style="text-align:left;padding:10px">Status</th></tr></thead><tbody>@forelse($sessions as $session)<tr><td style="padding:10px;border-top:1px solid var(--line)">{{ $session->participant->name }}<br><span class="muted">{{ $session->participant->email }}</span></td><td style="padding:10px;border-top:1px solid var(--line)">{{ $session->participant->training_path === 'automation' ? 'QA Automation' : 'QA Manual' }}</td><td style="padding:10px;border-top:1px solid var(--line)">{{ $session->check_in_at->format('M j, Y · g:i A') }}</td><td style="padding:10px;border-top:1px solid var(--line)">{{ $session->check_out_at?->format('M j, Y · g:i A') ?? '—' }}</td><td style="padding:10px;border-top:1px solid var(--line)">{{ number_format($session->totalHours(), 2) }}</td><td style="padding:10px;border-top:1px solid var(--line)">{{ $session->isOpen() ? 'CHECKED IN' : 'CHECKED OUT' }}</td></tr>@empty<tr><td colspan="6" class="muted" style="padding:16px">No attendance sessions match these filters.</td></tr>@endforelse</tbody></table>{{ $sessions->links() }}</div>
+    @php
+        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
+        $labelClasses = 'text-sm font-extrabold';
+        $headerCellClasses = 'border-b border-line px-3.5 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase max-sm:px-2.5';
+        $cellClasses = 'border-b border-line px-3.5 py-3.5 text-left align-top max-sm:px-2.5 max-sm:py-3';
+    @endphp
+
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <header class="grid min-w-0 gap-2">
+            <x-ui.eyebrow>{{ $areaLabel }} · ATTENDANCE</x-ui.eyebrow>
+            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Participant Attendance</h1>
+            <p class="m-0 leading-relaxed text-muted">Use attendance to monitor participant training sessions and total training hours.</p>
+        </header>
+
+        {{-- The single main action stays in view: in the page header on desktop, pinned to the bottom of the screen on mobile. --}}
+        <div id="attendance-manage-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
+            <x-ui.button :href="$exportUrl">Export CSV</x-ui.button>
+        </div>
+
+        <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
+            <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto] xl:items-end" aria-label="Filter attendance">
+                <div class="grid min-w-0 gap-2">
+                    <label for="attendance-date-from" class="{{ $labelClasses }}">From</label>
+                    <input id="attendance-date-from" type="date" name="date_from" value="{{ $dateFrom }}" class="{{ $controlClasses }}">
+                </div>
+                <div class="grid min-w-0 gap-2">
+                    <label for="attendance-date-to" class="{{ $labelClasses }}">To</label>
+                    <input id="attendance-date-to" type="date" name="date_to" value="{{ $dateTo }}" class="{{ $controlClasses }}">
+                </div>
+                <div class="grid min-w-0 gap-2">
+                    <label for="attendance-participant" class="{{ $labelClasses }}">Participant</label>
+                    <select id="attendance-participant" name="participant" class="{{ $controlClasses }}">
+                        <option value="">All participants</option>
+                        @foreach($participantOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="grid min-w-0 gap-2">
+                    <label for="attendance-path" class="{{ $labelClasses }}">QA Path</label>
+                    <select id="attendance-path" name="path" class="{{ $controlClasses }}">
+                        <option value="">All paths</option>
+                        @foreach($pathOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="grid min-w-0 gap-2">
+                    <label for="attendance-status" class="{{ $labelClasses }}">Status</label>
+                    <select id="attendance-status" name="status" class="{{ $controlClasses }}">
+                        <option value="">All</option>
+                        @foreach($statusOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="flex items-end">
+                    <x-ui.button variant="secondary" type="submit" class="w-full xl:w-auto">Filter</x-ui.button>
+                </div>
+            </x-ui.card>
+
+            <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="attendance-sessions-title">
+                <h2 id="attendance-sessions-title" class="m-0 text-xl font-extrabold">Attendance sessions</h2>
+                @if($sessions->isNotEmpty())
+                    <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="attendance-sessions-title" tabindex="0">
+                        <table class="w-full min-w-190 border-collapse text-sm">
+                            <caption class="pb-3 text-left text-sm text-muted">Participant training sessions, newest first</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">QA Path</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Check in</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Check out</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Total hours</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($sessions as $session)
+                                    <tr data-attendance-row>
+                                        <td class="{{ $cellClasses }}">
+                                            <span class="grid gap-0.5">
+                                                <strong class="wrap-break-word">{{ $session['participant_name'] }}</strong>
+                                                <span class="wrap-anywhere text-muted">{{ $session['participant_email'] }}</span>
+                                            </span>
+                                        </td>
+                                        <td class="{{ $cellClasses }} whitespace-nowrap">{{ $session['path'] }}</td>
+                                        <td class="{{ $cellClasses }} whitespace-nowrap">{{ $session['check_in'] }}</td>
+                                        <td class="{{ $cellClasses }} whitespace-nowrap">{{ $session['check_out'] }}</td>
+                                        <td class="{{ $cellClasses }} whitespace-nowrap">{{ $session['total_hours'] }}</td>
+                                        <td class="{{ $cellClasses }} whitespace-nowrap">
+                                            <x-ui.badge :tone="$session['is_open'] ? 'accent' : 'neutral'">{{ $session['status'] }}</x-ui.badge>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @if($sessions->hasPages())
+                        <div>{{ $sessions->links() }}</div>
+                    @endif
+                @else
+                    <p class="m-0 text-muted">No attendance sessions match these filters.</p>
+                @endif
+            </x-ui.card>
+        </div>
+    </div>
 @endsection

@@ -1,36 +1,184 @@
 @extends('layouts.app')
+
 @section('content')
-<div class="card" style="margin:18px 0"><h2>Assigned Coaches</h2>
-    @if($participant->assignedCoaches->isNotEmpty())<p class="muted">{{ $participant->assignedCoaches->pluck('name')->join(', ') }}</p>@else<p class="muted">No Coaches assigned.</p>@endif
-    @if(auth()->user()->role === 'admin')<p class="success">Admins have full access.</p>@elseif($canManage)<p class="success">Assigned to you — outcome-changing actions are available.</p>@else<p class="error">Not assigned to you — read only. You can view this participant but cannot change training outcomes.</p>@endif
-</div>
-<div class="card" style="margin:18px 0"><h2>Training Drive</h2>@if($participant->drive_link)<p class="muted">Shared training workspace</p><a class="btn" href="{{ $participant->drive_link }}" target="_blank" rel="noopener noreferrer">Open Training Drive ↗</a>@else<p class="muted">Not provided</p>@endif</div>
-<div class="eyebrow">PARTICIPANT DETAIL</div><h1>{{ $participant->name }}</h1><p class="muted">{{ $participant->email }} · {{ ucfirst($participant->training_path) }}</p>
-<div class="grid">
-<div class="card"><h2>Submissions</h2>
-    @foreach($participant->activitySubmissions as $s)
-        <div class="check"><strong>Week {{ $s->activity->week->week_number }} · {{ $s->activity->title }}</strong><p>Attempt {{ $s->attempt_number }} · <strong>{{ strtoupper(str_replace('_',' ', $s->status)) }}</strong> · {{ $s->versions->count() }} version(s)</p>
-            @if($s->versions->sortByDesc('version_number')->first())<a class="btn secondary" href="{{ route('coach.reviews.show',$s->versions->sortByDesc('version_number')->first()) }}">View attempt</a>@endif
-            @if($s->status === 'failed')
-                @if($canManage)<p class="muted">This attempt is closed. Create a separate retry if appropriate.</p><form method="post" action="{{ route('coach.reviews.retry',$s->versions->sortByDesc('version_number')->first()) }}">@csrf<button class="btn" type="submit">Create Retry Attempt</button></form>@else<p class="muted">Read only — this participant is not assigned to you.</p>@endif
+    <div class="grid grid-cols-1 gap-6">
+        <header class="grid min-w-0 gap-2">
+            <x-ui.eyebrow>PARTICIPANT DETAIL</x-ui.eyebrow>
+            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">{{ $participant->name }}</h1>
+            <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $participant->email }} · {{ ucfirst($participant->training_path) }}</p>
+        </header>
+
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <x-ui.card as="section" class="grid content-start gap-3" aria-labelledby="participant-coaches-title">
+                <h2 id="participant-coaches-title" class="m-0 text-xl font-extrabold">Assigned Coaches</h2>
+                @if($participant->assignedCoaches->isNotEmpty())
+                    <p class="m-0 leading-relaxed text-muted">{{ $participant->assignedCoaches->pluck('name')->join(', ') }}</p>
+                @else
+                    <p class="m-0 leading-relaxed text-muted">No Coaches assigned.</p>
+                @endif
+                @if($access === 'admin')
+                    <x-ui.alert tone="success">Admins have full access.</x-ui.alert>
+                @elseif($access === 'manage')
+                    <x-ui.alert tone="success">Assigned to you — outcome-changing actions are available.</x-ui.alert>
+                @else
+                    <x-ui.alert tone="error">Not assigned to you — read only. You can view this participant but cannot change training outcomes.</x-ui.alert>
+                @endif
+            </x-ui.card>
+
+            <x-ui.card as="section" class="grid content-start justify-items-start gap-3" aria-labelledby="participant-drive-title">
+                <h2 id="participant-drive-title" class="m-0 text-xl font-extrabold">Training Drive</h2>
+                @if($participant->drive_link)
+                    <p class="m-0 leading-relaxed text-muted">Shared training workspace</p>
+                    <x-ui.button variant="secondary" :href="$participant->drive_link" target="_blank" rel="noopener noreferrer">Open Training Drive ↗</x-ui.button>
+                @else
+                    <p class="m-0 leading-relaxed text-muted">Not provided</p>
+                @endif
+            </x-ui.card>
+        </div>
+
+        <div class="min-w-0" data-page-tabs>
+            <x-ui.tab-list :tabs="$tabs" :selected="$selectedTab" id-prefix="participant" label="Participant sections" />
+
+            <x-ui.tab-panel name="submissions" :selected="$selectedTab" id-prefix="participant">
+                <div class="grid grid-cols-1 gap-6">
+                    <x-ui.card as="section" class="grid gap-4" aria-labelledby="participant-submissions-title">
+                        <h2 id="participant-submissions-title" class="m-0 text-xl font-extrabold">Submissions</h2>
+                        @if($submissions->isNotEmpty())
+                            <ul class="m-0 grid list-none gap-3 p-0">
+                                @foreach($submissions as $row)
+                                    @php
+                                        $submission = $row['submission'];
+                                    @endphp
+                                    <li class="grid justify-items-start gap-2 rounded-xl border border-line bg-field px-4 py-3.5">
+                                        <div class="flex w-full flex-wrap items-center justify-between gap-3">
+                                            <strong class="min-w-0 wrap-break-word">Week {{ $submission->activity->week->week_number }} · {{ $submission->activity->title }}</strong>
+                                            <x-ui.badge :tone="$row['tone']">{{ $row['status_label'] }}</x-ui.badge>
+                                        </div>
+                                        <p class="m-0 text-sm text-muted">Attempt {{ $submission->attempt_number }} · {{ $row['version_count'] }} version(s)</p>
+                                        @if($submission->status === 'failed')
+                                            @if($canManage)
+                                                <p class="m-0 text-sm/relaxed text-muted">This attempt is closed. Create a separate retry if appropriate.</p>
+                                            @else
+                                                <p class="m-0 text-sm/relaxed text-muted">Read only — this participant is not assigned to you.</p>
+                                            @endif
+                                        @endif
+                                        @if($row['latest_version'])
+                                            <div class="flex flex-wrap items-center gap-3">
+                                                <x-ui.button variant="secondary" :href="route('coach.reviews.show', $row['latest_version'])">View attempt</x-ui.button>
+                                                @if($submission->status === 'failed' && $canManage)
+                                                    <form method="post" action="{{ route('coach.reviews.retry', $row['latest_version']) }}" class="m-0">
+                                                        @csrf
+                                                        <x-ui.button variant="secondary" type="submit">Create Retry Attempt</x-ui.button>
+                                                    </form>
+                                                @endif
+                                            </div>
+                                        @endif
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @else
+                            <p class="m-0 text-muted">No submissions yet.</p>
+                        @endif
+                    </x-ui.card>
+
+                    @if($canManage)
+                        <x-ui.card as="section" class="grid gap-4" aria-labelledby="participant-videos-title">
+                            <h2 id="participant-videos-title" class="m-0 text-xl font-extrabold">Weekly Video Recording</h2>
+                            @if($videoRecordings->isNotEmpty())
+                                <ul class="m-0 grid list-none gap-3 p-0">
+                                    @foreach($videoRecordings as $recording)
+                                        <li class="grid justify-items-start gap-2 rounded-xl border border-line bg-field px-4 py-3.5">
+                                            <strong class="min-w-0 wrap-anywhere">Week {{ $recording->week->week_number }} · {{ $recording->original_filename }}</strong>
+                                            <p class="m-0 text-sm text-muted">{{ number_format($recording->size_bytes / 1048576, 1) }} MB · {{ $recording->uploaded_at?->format('M j, Y g:i A') }}</p>
+                                            <x-weekly-video-actions :recording="$recording" :week="$recording->week" />
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @else
+                                <p class="m-0 text-muted">No weekly video recording submitted.</p>
+                            @endif
+                        </x-ui.card>
+                    @endif
+                </div>
+            </x-ui.tab-panel>
+
+            <x-ui.tab-panel name="gates" :selected="$selectedTab" id-prefix="participant">
+                <x-ui.card as="section" class="grid gap-4" aria-labelledby="participant-gates-title">
+                    <h2 id="participant-gates-title" class="m-0 text-xl font-extrabold">Gates</h2>
+                    @if($gates->isNotEmpty())
+                        <ul class="m-0 grid list-none gap-3 p-0">
+                            @foreach($gates as $row)
+                                <li class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-field px-4 py-3.5">
+                                    <div class="grid min-w-0 justify-items-start gap-1.5">
+                                        <strong class="wrap-break-word">Week {{ $row['gate']->week->week_number }} · {{ $row['gate']->title }}</strong>
+                                        <div class="flex flex-wrap items-center gap-2 text-sm">
+                                            <x-ui.badge :tone="$row['tone']">{{ $row['status_label'] }}</x-ui.badge>
+                                            @if($row['blocker_count'] > 0)
+                                                <span class="text-muted">({{ $row['blocker_count'] }} blocker(s))</span>
+                                            @endif
+                                        </div>
+                                        <span class="text-sm text-muted">Daily logs: {{ $row['daily_log_count'] }} / 5</span>
+                                    </div>
+                                    <x-ui.button variant="secondary" :href="route('training.coach.gates.show', [$row['gate']->week, $participant, $row['gate']])">Review Gate</x-ui.button>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @else
+                        <p class="m-0 text-muted">No Gates yet.</p>
+                    @endif
+                </x-ui.card>
+            </x-ui.tab-panel>
+
+            <x-ui.tab-panel name="logs-attendance" :selected="$selectedTab" id-prefix="participant">
+                <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <x-ui.card as="section" class="grid content-start justify-items-start gap-3" aria-labelledby="participant-logs-title">
+                        <h2 id="participant-logs-title" class="m-0 text-xl font-extrabold">Daily logs</h2>
+                        <p class="m-0">{{ $participant->daily_logs_count }} total log(s)</p>
+                        @if($participant->daily_logs_count > 0)
+                            <x-ui.button variant="secondary" :href="route('coach.participants.daily-logs', $participant)">View Daily Logs →</x-ui.button>
+                        @endif
+                    </x-ui.card>
+
+                    <x-ui.card as="section" class="grid content-start justify-items-start gap-3" aria-labelledby="participant-attendance-title">
+                        <h2 id="participant-attendance-title" class="m-0 text-xl font-extrabold">Attendance summary</h2>
+                        <p class="m-0 leading-relaxed text-muted">{{ $attendance['completed_sessions'] }} completed session(s) · {{ number_format($attendance['total_hours'], 2) }} total hours</p>
+                        @if($attendance['active_session'])
+                            <x-ui.alert tone="success" class="w-full">Checked in since {{ $attendance['active_session']->check_in_at->format('M j, Y · g:i A') }} · {{ $attendance['active_session']->durationLabel() }} elapsed</x-ui.alert>
+                        @endif
+                        <x-ui.button variant="secondary" :href="route('coach.attendance.index', ['participant' => $participant->id])">View attendance</x-ui.button>
+                    </x-ui.card>
+                </div>
+            </x-ui.tab-panel>
+
+            @if($weekFourActivity)
+                <x-ui.tab-panel name="week-four" :selected="$selectedTab" id-prefix="participant">
+                    <x-ui.card as="section" class="grid justify-items-start gap-3" aria-labelledby="participant-week-four-title">
+                        <h2 id="participant-week-four-title" class="m-0 text-xl font-extrabold">Peer Mock Interview Requirement</h2>
+                        @if($peerWaiver)
+                            <x-ui.alert tone="success" class="w-full">Peer Mock Interview: Skipped</x-ui.alert>
+                            <p class="m-0 text-sm text-muted">Authorized by {{ $peerWaiver->authorizedBy?->name ?? 'Coach/Admin' }} · {{ $peerWaiver->waived_at?->format('M j, Y g:i A') }}</p>
+                            @if($canManage)
+                                <form method="POST" action="{{ route('coach.week-four.peer-waiver.revoke', $participant) }}" class="m-0" onsubmit="return confirm('Revoke this peer mock interview waiver?');">
+                                    @csrf
+                                    <x-ui.button variant="secondary" type="submit">Revoke Waiver</x-ui.button>
+                                </form>
+                            @endif
+                        @else
+                            <p class="m-0 text-muted">Peer mock interview prerequisite is active.</p>
+                            @if($canManage)
+                                <form method="POST" action="{{ route('coach.week-four.peer-waiver.store', $participant) }}" class="m-0 grid w-full justify-items-start gap-3" onsubmit="return confirm('Allow this participant to skip the peer mock interview requirement?');">
+                                    @csrf
+                                    <div class="grid w-full gap-2">
+                                        <label for="waiver-reason" class="text-sm font-extrabold">Reason (optional)</label>
+                                        <textarea id="waiver-reason" name="reason" rows="3" class="w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50"></textarea>
+                                    </div>
+                                    <x-ui.button variant="secondary" type="submit">Allow Skip Peer Mock Interview</x-ui.button>
+                                </form>
+                            @endif
+                        @endif
+                    </x-ui.card>
+                </x-ui.tab-panel>
             @endif
         </div>
-    @endforeach
-    @if($canManage)
-        <h3>Weekly Video Recording</h3>
-        @forelse($participant->weeklyVideoRecordings->sortByDesc('uploaded_at') as $recording)
-            <div class="check">
-                <strong>Week {{ $recording->week->week_number }} · {{ $recording->original_filename }}</strong>
-                <p class="muted">{{ number_format($recording->size_bytes / 1048576, 1) }} MB · {{ $recording->uploaded_at?->format('M j, Y g:i A') }}</p>
-                <x-weekly-video-actions :recording="$recording" :week="$recording->week" />
-            </div>
-        @empty
-            <p class="muted">No weekly video recording submitted.</p>
-        @endforelse
-    @endif
-</div>
-<div class="card"><h2>Gates</h2>@foreach($gateRows as $row)@php($status = $row['evaluation']?->status ? ucfirst(str_replace('_',' ', $row['evaluation']->status)) : ($row['readiness'] === [] ? 'Ready for review' : 'Not ready'))<div class="check"><strong>Week {{ $row['gate']->week->week_number }} · {{ $row['gate']->title }}</strong><br>Daily logs: {{ $weeklyLogCounts[$row['gate']->week->id] ?? 0 }} / 5<br>{{ $status }} @if($row['readiness'])<span class="muted">({{ count($row['readiness']) }} blocker(s))</span>@endif<br><a class="btn secondary" href="{{ route('training.coach.gates.show',[$row['gate']->week,$participant,$row['gate']]) }}">Review Gate</a></div>@endforeach</div>
-<div class="card"><h2>Daily logs</h2><p>{{ $participant->dailyLogs->count() }} total log(s)</p>@if($participant->dailyLogs->isNotEmpty())<a class="btn secondary" href="{{ route('coach.participants.daily-logs', $participant) }}">View Daily Logs →</a>@endif</div></div>
-<div class="card" style="margin-top:18px"><h2>Attendance summary</h2>@php($active = $participant->attendanceSessions->firstWhere('check_out_at', null))<p class="muted">{{ $participant->attendanceSessions->whereNotNull('check_out_at')->count() }} completed session(s) · {{ number_format($participant->attendanceSessions->whereNotNull('check_out_at')->sum(fn ($session) => $session->totalHours()), 2) }} total hours</p>@if($active)<p class="success">Checked in since {{ $active->check_in_at->format('M j, Y · g:i A') }} · {{ $active->durationLabel() }} elapsed</p>@endif<a class="btn secondary" href="{{ route('coach.attendance.index', ['participant' => $participant->id]) }}">View attendance</a></div>
-@if($weekFourActivity)<div class="card" style="margin-top:18px"><h2>Peer Mock Interview Requirement</h2>@if($peerWaiver)<p class="success">Peer Mock Interview: Skipped</p><p class="muted">Authorized by {{ $peerWaiver->authorizedBy?->name ?? 'Coach/Admin' }} · {{ $peerWaiver->waived_at?->format('M j, Y g:i A') }}</p>@if($canManage)<form method="POST" action="{{ route('coach.week-four.peer-waiver.revoke', $participant) }}" onsubmit="return confirm('Revoke this peer mock interview waiver?');">@csrf<button class="btn secondary" type="submit">Revoke Waiver</button></form>@endif @else<p class="muted">Peer mock interview prerequisite is active.</p>@if($canManage)<form method="POST" action="{{ route('coach.week-four.peer-waiver.store', $participant) }}" onsubmit="return confirm('Allow this participant to skip the peer mock interview requirement?');">@csrf<div class="field"><label for="waiver-reason">Reason (optional)</label><textarea id="waiver-reason" name="reason" rows="3"></textarea></div><button class="btn" type="submit">Allow Skip Peer Mock Interview</button></form>@endif @endif</div>@endif
+    </div>
 @endsection

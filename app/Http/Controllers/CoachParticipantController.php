@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\FilterCoachParticipantsRequest;
 use App\Http\Requests\FilterParticipantDailyLogsRequest;
 use App\Models\User;
-use App\Services\CoachGateOverviewService;
+use App\Services\CoachParticipantPageService;
 use App\Services\CoachReportService;
 use App\Services\WeekFourInterviewService;
 use Illuminate\Http\Request;
@@ -23,17 +23,12 @@ class CoachParticipantController extends Controller
         return view('coach.participants', compact('items', 'pairs', 'pairParticipants'));
     }
 
-    public function show(Request $request, User $participant, CoachGateOverviewService $gateOverview, WeekFourInterviewService $interviews): View
+    public function show(Request $request, User $participant, CoachParticipantPageService $page): View
     {
-        abort_unless($participant->role === 'participant', 404);
+        abort_unless($participant->hasAnyRole(['participant']), 404);
         Gate::authorize('view', $participant);
-        $participant->load(['activitySubmissions.activity.week', 'activitySubmissions.versions.evidence', 'activitySubmissions.versions.reviews', 'weeklyVideoRecordings.week', 'dailyLogs.activity', 'gateEvaluations.gate.criteria', 'attendanceSessions', 'assignedCoaches']);
-        ['gateRows' => $gateRows, 'weeklyLogCounts' => $weeklyLogCounts] = $gateOverview->participantOverview($participant);
-        $canManage = $request->user()->canManageParticipant($participant);
-        $weekFourActivity = $interviews->peerInterviewActivity();
-        $peerWaiver = $weekFourActivity ? $interviews->waiverFor($participant, $weekFourActivity) : null;
 
-        return view('coach.participant', compact('participant', 'gateRows', 'weeklyLogCounts', 'canManage', 'weekFourActivity', 'peerWaiver'));
+        return view('coach.participant', $page->showData($request->user(), $participant));
     }
 
     public function dailyLogs(FilterParticipantDailyLogsRequest $request, User $participant, CoachReportService $reports): View

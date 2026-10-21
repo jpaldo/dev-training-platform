@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreInterviewerRegistrationRequest;
 use App\Models\InterviewScheduler;
 use App\Services\InterviewBookingLinkService;
+use App\Services\PublicInterviewPageService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
@@ -13,21 +14,14 @@ use Symfony\Component\HttpFoundation\Response;
 
 class PublicInterviewController extends Controller
 {
-    public function index(InterviewBookingLinkService $links): View
+    public function index(PublicInterviewPageService $page): View
     {
-        $interviewers = InterviewScheduler::query()->where('is_active', true)->where('approval_status', InterviewScheduler::APPROVED)->whereIn('interview_type', [InterviewScheduler::MOCK, InterviewScheduler::FINAL_REASSESSMENT, InterviewScheduler::BOTH])->orderBy('display_order')->orderBy('full_name')->get();
-
-        return view('public.interviews', [
-            'mockInterviewers' => $interviewers->filter(fn (InterviewScheduler $interviewer): bool => in_array($interviewer->interview_type, [InterviewScheduler::MOCK, InterviewScheduler::BOTH], true))->values(),
-            'finalInterviewers' => $interviewers->filter(fn (InterviewScheduler $interviewer): bool => in_array($interviewer->interview_type, [InterviewScheduler::FINAL_REASSESSMENT, InterviewScheduler::BOTH], true))->values(),
-            'logoConfigured' => filled($links->logoPath()),
-            'publicTitle' => $links->publicTitle(),
-        ]);
+        return view('public.interviews', $page->indexData());
     }
 
-    public function register(InterviewBookingLinkService $links): View
+    public function register(PublicInterviewPageService $page): View
     {
-        return view('public.interview-register', ['publicTitle' => $links->publicTitle()]);
+        return view('public.interview-register', $page->registerData());
     }
 
     public function storeRegistration(StoreInterviewerRegistrationRequest $request): RedirectResponse

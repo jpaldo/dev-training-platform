@@ -270,6 +270,38 @@ const initializeInterviewerTypeFields = () => {
 };
 
 /**
+ * On the public interviewer registration page, show the Mock Interview and Final Re-assessment booking link fields
+ * (`[data-mock-booking-field]`, `[data-final-booking-field]`) of the `[data-interview-registration-form]` form, and
+ * require their inputs, only for the selected interview type (Both shows and requires both).
+ */
+const initializeInterviewRegistrationFields = () => {
+    const form = document.querySelector('[data-interview-registration-form]');
+
+    if (!form) {
+        return;
+    }
+
+    const type = form.elements.interview_type;
+    const mockField = form.querySelector('[data-mock-booking-field]');
+    const finalField = form.querySelector('[data-final-booking-field]');
+    const mockInput = form.elements.mock_booking_url;
+    const finalInput = form.elements.final_booking_url;
+
+    const sync = () => {
+        const isMockBookingShown = type.value === 'mock' || type.value === 'both';
+        const isFinalBookingShown = type.value === 'final_reassessment' || type.value === 'both';
+
+        mockField.hidden = !isMockBookingShown;
+        finalField.hidden = !isFinalBookingShown;
+        mockInput.required = isMockBookingShown;
+        finalInput.required = isFinalBookingShown;
+    };
+
+    type.addEventListener('change', sync);
+    sync();
+};
+
+/**
  * On the QA Validation Lab activity form, show the `#other_{key}_wrap` field of each `[data-other-select="{key}"]`
  * select, and require its `#other_{key}` input, only while "Other" is selected; any other choice clears the typed value.
  */
@@ -739,6 +771,7 @@ const initializePage = () => {
     initializeCharacterCounters();
     initializeAiProviderSettings();
     initializeInterviewerTypeFields();
+    initializeInterviewRegistrationFields();
     initializeOtherSelectFields();
     initializeGoogleDrivePicker();
     initializeGoogleDriveSyncStatus();

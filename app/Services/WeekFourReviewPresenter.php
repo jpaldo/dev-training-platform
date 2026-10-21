@@ -20,13 +20,43 @@ class WeekFourReviewPresenter
                 ['title' => 'Second Real-Task Validation', 'fields' => $this->fields($values, ['second_task' => 'Task / Scenario', 'reuse_method' => 'How It Was Reused', 'reuse_result' => 'Result', 'reuse_modified' => 'Changes Made', 'reuse_changes' => 'What Changed and Why'])],
                 ['title' => 'Reflection', 'fields' => $this->fields($values, ['reusability_learning' => 'What Made It Reusable', 'reusability_improvement' => 'What I Would Improve'])],
             ]],
-            2 => ['type' => 'interview', 'partner' => $values['partner_snapshot']['display_name'] ?? $values['partner_name'] ?? 'Partner recorded in submission', 'partner_email' => $values['partner_snapshot']['email'] ?? null, 'partner_path' => $values['partner_snapshot']['training_path'] ?? null, 'date' => $values['interview_date'] ?? null, 'mentor_schedule' => $values['practice_interview_snapshot']['mentor_schedule'] ?? null, 'questions' => $this->questions($values, $includeOfficialQuestionnaire), 'official_questions' => $includeOfficialQuestionnaire ? config('training.week_four_interview_questions', []) : []],
+            2 => $this->interview($values, $includeOfficialQuestionnaire),
             3 => ['type' => 'assessment', 'sections' => [
                 ['title' => 'Strict-mode Interview', 'fields' => $this->fields($values, ['strict_interview_transcript' => 'Transcript'])],
                 ['title' => 'Assessment Tracker', 'fields' => $this->fields($values, ['assessment_tracker_result' => 'Tracker Result', 'assessment_level' => 'Level', 'assessment_confidence' => 'Confidence', 'updated_level_confidence' => 'Legacy Level / Confidence Notes'])],
             ]],
             default => null,
         };
+    }
+
+    /**
+     * The Week 4 Activity 2 mock interview: the partner (name, email and training path label), the interview date, the
+     * mentor mock interview snapshot and the question groups. A peer practice snapshot gives two groups (questions asked
+     * by the participant, then by the partner); older submissions give one group of historical responses.
+     *
+     * @param  array<string, mixed>  $values
+     * @return array{type: string, partner: mixed, partner_email: mixed, partner_path_label: ?string, date: mixed, mentor_schedule: mixed, question_groups: list<array{label: string, answer_label: string, feedback_label: string, questions: array<int|string, mixed>}>, official_questions: mixed}
+     */
+    private function interview(array $values, bool $includeOfficialQuestionnaire): array
+    {
+        $partnerPath = $values['partner_snapshot']['training_path'] ?? null;
+        $questions = $this->questions($values, $includeOfficialQuestionnaire);
+
+        return [
+            'type' => 'interview',
+            'partner' => $values['partner_snapshot']['display_name'] ?? $values['partner_name'] ?? 'Partner recorded in submission',
+            'partner_email' => $values['partner_snapshot']['email'] ?? null,
+            'partner_path_label' => $partnerPath ? ucfirst(str_replace('_', ' / ', (string) $partnerPath)) : null,
+            'date' => $values['interview_date'] ?? null,
+            'mentor_schedule' => $values['practice_interview_snapshot']['mentor_schedule'] ?? null,
+            'question_groups' => isset($questions['forward']) ? [
+                ['label' => 'Questions Asked by Participant', 'answer_label' => 'Partner Answer', 'feedback_label' => 'Participant Feedback', 'questions' => $questions['forward']],
+                ['label' => 'Questions Asked by Partner', 'answer_label' => 'Participant Answer', 'feedback_label' => 'Partner Feedback', 'questions' => $questions['reverse']],
+            ] : [
+                ['label' => 'Historical Interview Responses', 'answer_label' => 'Participant Answer', 'feedback_label' => 'Partner Feedback', 'questions' => $questions],
+            ],
+            'official_questions' => $includeOfficialQuestionnaire ? config('training.week_four_interview_questions', []) : [],
+        ];
     }
 
     /** @param array<string, mixed> $values @param array<string, string> $labels @return array<int, array{label:string,value:mixed}> */

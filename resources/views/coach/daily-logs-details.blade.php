@@ -85,7 +85,7 @@
             @if($logRows->isEmpty())
                 <p class="m-0 rounded-xl border border-dashed border-line p-5 text-muted">No Daily Logs match the selected filters.</p>
             @else
-                <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="submitted-entries-title" tabindex="0">
+                <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="submitted-entries-title" tabindex="0">
                     <table class="w-full min-w-240 border-collapse text-sm">
                         <thead>
                             <tr>
@@ -104,7 +104,7 @@
                                     <th scope="row" class="{{ $cellClasses }} font-normal">
                                         <span class="grid gap-0.5">
                                             <strong class="wrap-break-word">{{ $row['participant_name'] }}</strong>
-                                            <span class="wrap-anywhere text-muted">{{ $row['participant_email'] }}</span>
+                                            <span class="wrap-break-word text-muted">{{ $row['participant_email'] }}</span>
                                         </span>
                                     </th>
                                     <td class="{{ $cellClasses }}">

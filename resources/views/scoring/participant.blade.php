@@ -37,7 +37,7 @@
                 </div>
 
                 @if($week['rows'] !== [])
-                    <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-label="Week {{ $week['number'] }} activities" tabindex="0">
+                    <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-label="Week {{ $week['number'] }} activities" tabindex="0">
                         <table class="w-full min-w-160 border-collapse text-sm">
                             <thead>
                                 <tr>

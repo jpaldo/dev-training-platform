@@ -23,6 +23,16 @@
 }
 
 /*
+ * The UI is dark-only: native control parts (checkboxes, date and time picker icons, select popups, scrollbars)
+ * render in their dark variants on every page that loads this stylesheet, including the standalone public pages.
+ */
+@layer base {
+    :root {
+        color-scheme: dark;
+    }
+}
+
+/*
  * Rendered Markdown (`x-markdown`, `x-formatted-text` and the `x-markdown-field` preview). `Markdown::toHtml()`
  * output carries no classes, so its prose styles live here in the components layer: they style every element
  * without relying on browser defaults, and caller utilities (padding, background) still win.

@@ -50,7 +50,7 @@
             <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="daily-log-list-title">
                 <h2 id="daily-log-list-title" class="{{ $sectionTitleClasses }}">Daily Logs</h2>
                 @if($logs->isNotEmpty())
-                    <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="daily-log-list-title" tabindex="0">
+                    <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="daily-log-list-title" tabindex="0">
                         <table class="w-full min-w-190 border-collapse text-sm">
                             <caption class="pb-3 text-left text-sm text-muted">Your daily logs, newest first</caption>
                             <thead>

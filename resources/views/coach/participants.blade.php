@@ -5,8 +5,8 @@
         $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
         $labelClasses = 'text-sm font-extrabold';
         $linkClasses = 'font-bold text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50';
-        $headerCellClasses = 'border-b border-line px-3.5 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase max-sm:px-2.5';
-        $cellClasses = 'border-b border-line px-3.5 py-3.5 text-left align-top max-sm:px-2.5 max-sm:py-3';
+        $headerCellClasses = 'border-b border-line px-3 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase max-sm:px-2.5';
+        $cellClasses = 'border-b border-line px-3 py-3.5 text-left align-top max-sm:px-2.5 max-sm:py-3';
     @endphp
 
     <div class="grid grid-cols-1 gap-6">
@@ -88,8 +88,8 @@
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="participant-list-title">
             <h2 id="participant-list-title" class="m-0 text-xl font-extrabold">Participant training overview</h2>
             @if($participants->isNotEmpty())
-                <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="participant-list-title" tabindex="0">
-                    <table class="w-full min-w-280 border-collapse text-sm" aria-labelledby="participant-list-title">
+                <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="participant-list-title" tabindex="0">
+                    <table class="w-full min-w-250 border-collapse text-sm" aria-labelledby="participant-list-title">
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
@@ -110,10 +110,10 @@
                                     <th scope="row" class="{{ $cellClasses }} font-normal">
                                         <span class="grid gap-0.5">
                                             <strong class="wrap-break-word">{{ $participant['name'] }}</strong>
-                                            <span class="wrap-anywhere text-muted">{{ $participant['email'] }}</span>
+                                            <span class="wrap-break-word text-muted">{{ $participant['email'] }}</span>
                                         </span>
                                     </th>
-                                    <td class="{{ $cellClasses }} whitespace-nowrap">{{ $participant['path'] }}</td>
+                                    <td class="{{ $cellClasses }}">{{ $participant['path'] }}</td>
                                     <td class="{{ $cellClasses }}">
                                         <span class="grid justify-items-start gap-1">
                                             @if($participant['access_label'])
@@ -137,7 +137,7 @@
                                         @if($participant['google_drive_account'])
                                             <span class="grid justify-items-start gap-1">
                                                 <x-ui.badge tone="success">Connected</x-ui.badge>
-                                                <span class="wrap-anywhere text-muted">{{ $participant['google_drive_account'] }}</span>
+                                                <span class="wrap-break-word text-muted">{{ $participant['google_drive_account'] }}</span>
                                             </span>
                                         @else
                                             <span class="text-muted">Not Connected</span>

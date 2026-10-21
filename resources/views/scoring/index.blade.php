@@ -4,8 +4,8 @@
     @php
         $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
         $labelClasses = 'text-sm font-extrabold';
-        $headerCellClasses = 'border-b border-line px-3.5 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase max-sm:px-2.5';
-        $cellClasses = 'border-b border-line px-3.5 py-3.5 text-left align-top max-sm:px-2.5 max-sm:py-3';
+        $headerCellClasses = 'border-b border-line px-2.5 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase';
+        $cellClasses = 'border-b border-line px-2.5 py-3.5 text-left align-top max-sm:py-3';
     @endphp
 
     <div class="grid grid-cols-1 gap-6">
@@ -72,8 +72,8 @@
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="scoring-participants-title">
             <h2 id="scoring-participants-title" class="m-0 text-xl font-extrabold">Participant scores</h2>
             @if($participants->isNotEmpty())
-                <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="scoring-participants-title" tabindex="0">
-                    <table class="w-full min-w-275 border-collapse text-sm" aria-labelledby="scoring-participants-title">
+                <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="scoring-participants-title" tabindex="0">
+                    <table class="w-full min-w-250 border-collapse text-sm" aria-labelledby="scoring-participants-title">
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
@@ -94,10 +94,10 @@
                                     <th scope="row" class="{{ $cellClasses }} font-normal">
                                         <span class="grid gap-0.5">
                                             <strong class="wrap-break-word">{{ $participant['name'] }}</strong>
-                                            <span class="wrap-anywhere text-muted">{{ $participant['email'] }}</span>
+                                            <span class="wrap-break-word text-muted">{{ $participant['email'] }}</span>
                                         </span>
                                     </th>
-                                    <td class="{{ $cellClasses }} whitespace-nowrap">{{ $participant['path'] }}</td>
+                                    <td class="{{ $cellClasses }}">{{ $participant['path'] }}</td>
                                     @foreach($participant['weeks'] as $week)
                                         <td class="{{ $cellClasses }}">
                                             @if($week['average'] !== null)

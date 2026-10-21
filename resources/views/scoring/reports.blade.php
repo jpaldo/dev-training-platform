@@ -74,7 +74,7 @@
 
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="score-band-distribution-title">
             <h2 id="score-band-distribution-title" class="m-0 text-xl font-extrabold">Score-band distribution</h2>
-            <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="score-band-distribution-title" tabindex="0">
+            <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="score-band-distribution-title" tabindex="0">
                 <table class="w-full border-collapse text-sm">
                     <thead class="sr-only">
                         <tr>

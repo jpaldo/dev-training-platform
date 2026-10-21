@@ -65,7 +65,7 @@
             <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="attendance-sessions-title">
                 <h2 id="attendance-sessions-title" class="m-0 text-xl font-extrabold">Attendance sessions</h2>
                 @if($sessions->isNotEmpty())
-                    <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="attendance-sessions-title" tabindex="0">
+                    <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="attendance-sessions-title" tabindex="0">
                         <table class="w-full min-w-190 border-collapse text-sm">
                             <caption class="pb-3 text-left text-sm text-muted">Participant training sessions, newest first</caption>
                             <thead>
@@ -84,7 +84,7 @@
                                         <td class="{{ $cellClasses }}">
                                             <span class="grid gap-0.5">
                                                 <strong class="wrap-break-word">{{ $session['participant_name'] }}</strong>
-                                                <span class="wrap-anywhere text-muted">{{ $session['participant_email'] }}</span>
+                                                <span class="wrap-break-word text-muted">{{ $session['participant_email'] }}</span>
                                             </span>
                                         </td>
                                         <td class="{{ $cellClasses }} whitespace-nowrap">{{ $session['path'] }}</td>

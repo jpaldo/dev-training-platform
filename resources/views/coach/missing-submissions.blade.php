@@ -117,8 +117,8 @@
             @if($missingRows->isEmpty())
                 <p class="m-0 rounded-xl border border-dashed border-line p-5 text-muted">No missing submissions found for the selected filters.</p>
             @else
-                <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="missing-requirements-title" tabindex="0">
-                    <table class="w-full min-w-275 border-collapse text-sm">
+                <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="missing-requirements-title" tabindex="0">
+                    <table class="w-full min-w-260 border-collapse text-sm">
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
@@ -141,7 +141,7 @@
                                     <th scope="row" class="{{ $cellClasses }} font-normal">
                                         <span class="grid gap-0.5">
                                             <strong class="wrap-break-word"><a href="{{ $row['participant_url'] }}" class="text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">{{ $row['participant_name'] }}</a></strong>
-                                            <span class="wrap-anywhere text-muted">{{ $row['participant_email'] }}</span>
+                                            <span class="wrap-break-word text-muted">{{ $row['participant_email'] }}</span>
                                         </span>
                                     </th>
                                     <td class="{{ $cellClasses }}">

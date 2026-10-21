@@ -63,8 +63,8 @@
         </x-ui.card>
 
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="gate-board-caption">
-            <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="gate-board-caption" tabindex="0">
-                <table class="w-full min-w-280 border-collapse text-sm">
+            <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="gate-board-caption" tabindex="0">
+                <table class="w-full min-w-240 border-collapse text-sm">
                     <caption id="gate-board-caption" class="pb-3 text-left text-muted">One row per participant and training Gate</caption>
                     <thead>
                         <tr>
@@ -91,7 +91,7 @@
                                 <td class="{{ $cellClasses }}">
                                     <span class="grid justify-items-start gap-0.5">
                                         <a href="{{ $row['participant_url'] }}" class="{{ $linkClasses }} wrap-break-word">{{ $row['participant_name'] }}</a>
-                                        <span class="wrap-anywhere text-muted">{{ $row['participant_email'] }}</span>
+                                        <span class="wrap-break-word text-muted">{{ $row['participant_email'] }}</span>
                                     </span>
                                 </td>
                                 <td class="{{ $cellClasses }} whitespace-nowrap">{{ $row['path'] }}</td>

@@ -58,7 +58,7 @@
             <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="attendance-history-title">
                 <h2 id="attendance-history-title" class="{{ $sectionTitleClasses }}">Session history</h2>
                 @if($sessions->isNotEmpty())
-                    <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="attendance-history-title" tabindex="0">
+                    <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="attendance-history-title" tabindex="0">
                         <table class="w-full min-w-120 border-collapse text-sm">
                             <caption class="pb-3 text-left text-sm text-muted">Your training sessions, newest first</caption>
                             <thead>

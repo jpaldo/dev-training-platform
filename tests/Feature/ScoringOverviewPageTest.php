@@ -116,6 +116,20 @@ class ScoringOverviewPageTest extends TestCase
             ->assertDontSee('<table', false);
     }
 
+    public function test_the_table_scrolls_inside_a_positioned_region_so_its_screen_reader_only_header_cannot_widen_the_page(): void
+    {
+        $this->program();
+        User::factory()->create(['name' => 'Manual Person', 'training_path' => 'manual']);
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))
+            ->get(route('coach.scoring.index'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '<div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="scoring-participants-title" tabindex="0">',
+                '<span class="sr-only">Action</span>',
+            ], false);
+    }
+
     public function test_without_an_active_program_the_overview_is_not_found(): void
     {
         Program::factory()->create(['is_active' => false]);

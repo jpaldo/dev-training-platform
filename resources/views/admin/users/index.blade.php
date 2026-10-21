@@ -84,7 +84,7 @@
             <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="user-list-title">
                 <h2 id="user-list-title" class="m-0 text-xl font-extrabold">Users</h2>
                 @if($users->isNotEmpty())
-                    <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="user-list-title" tabindex="0">
+                    <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="user-list-title" tabindex="0">
                         <table class="w-full min-w-220 border-collapse text-sm" aria-labelledby="user-list-title">
                             <thead>
                                 <tr>
@@ -101,7 +101,7 @@
                                 @foreach($users as $user)
                                     <tr data-user-row>
                                         <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">{{ $user['name'] }}</th>
-                                        <td class="{{ $cellClasses }} wrap-anywhere text-muted">{{ $user['email'] }}</td>
+                                        <td class="{{ $cellClasses }} wrap-break-word text-muted">{{ $user['email'] }}</td>
                                         <td class="{{ $cellClasses }} whitespace-nowrap">{{ $user['access_type'] }}</td>
                                         <td class="{{ $cellClasses }} whitespace-nowrap">{{ $user['path'] }}</td>
                                         <td class="{{ $cellClasses }}">

@@ -5,7 +5,7 @@
     $stateLabels = ['passed' => 'Passed', 'current' => 'Current week', 'locked' => 'Locked'];
 @endphp
 
-<div {{ $attributes->class(['mb-6 flex gap-1 overflow-x-auto border-b border-line [scrollbar-width:none]']) }} role="tablist" aria-label="{{ $label }}">
+<div {{ $attributes->class(['mb-6 flex flex-wrap gap-1 border-b border-line']) }} role="tablist" aria-label="{{ $label }}">
     @foreach($tabs as $tab)
         @php($isSelected = $tab['key'] === $selected)
         <button type="button" role="tab" id="{{ $idPrefix }}-tab-{{ $tab['key'] }}" aria-controls="{{ $idPrefix }}-panel-{{ $tab['key'] }}" aria-selected="{{ $isSelected ? 'true' : 'false' }}" tabindex="{{ $isSelected ? '0' : '-1' }}" data-tab-key="{{ $tab['key'] }}"

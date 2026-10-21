@@ -58,7 +58,7 @@
             @if($logs->isEmpty())
                 <p class="m-0 rounded-xl border border-dashed border-line p-5 text-muted">No Daily Logs have been submitted by this participant yet.</p>
             @else
-                <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="participant-daily-logs-title" tabindex="0">
+                <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="participant-daily-logs-title" tabindex="0">
                     <table class="w-full min-w-215 border-collapse text-sm">
                         <thead>
                             <tr>

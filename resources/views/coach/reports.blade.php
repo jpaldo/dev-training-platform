@@ -6,7 +6,7 @@
         $labelClasses = 'text-sm font-extrabold';
         $headerCellClasses = 'border-b border-line px-3.5 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase max-sm:px-2.5';
         $cellClasses = 'border-b border-line px-3.5 py-3.5 text-left align-middle max-sm:px-2.5 max-sm:py-3';
-        $regionClasses = 'overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50';
+        $regionClasses = 'relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50';
     @endphp
 
     <div class="grid grid-cols-1 gap-6">
@@ -121,7 +121,7 @@
                                     <th scope="row" class="{{ $cellClasses }} font-normal">
                                         <span class="grid gap-0.5">
                                             <strong class="wrap-break-word">{{ $row['name'] }}</strong>
-                                            <span class="wrap-anywhere text-muted">{{ $row['email'] }}</span>
+                                            <span class="wrap-break-word text-muted">{{ $row['email'] }}</span>
                                         </span>
                                     </th>
                                     <td class="{{ $cellClasses }}">

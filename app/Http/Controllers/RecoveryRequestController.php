@@ -6,6 +6,7 @@ use App\Http\Requests\DecideRecoveryRequestRequest;
 use App\Http\Requests\StoreRecoveryRequestRequest;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivitySubmission;
+use App\Services\CoachRecoveryRequestPageService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -22,11 +23,9 @@ class RecoveryRequestController extends Controller
         return back()->with('status', 'Review requested. Waiting for coach response.');
     }
 
-    public function index(): View
+    public function index(CoachRecoveryRequestPageService $page): View
     {
-        $requests = ActivityRecoveryRequest::with(['participant', 'submission.activity', 'submission.versions'])->where('status', 'pending')->latest()->paginate(25)->withQueryString();
-
-        return view('coach.recovery_requests', compact('requests'));
+        return view('coach.recovery_requests', $page->indexData());
     }
 
     public function decide(DecideRecoveryRequestRequest $request, ActivityRecoveryRequest $recoveryRequest): RedirectResponse

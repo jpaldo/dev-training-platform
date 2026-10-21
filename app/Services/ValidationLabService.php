@@ -11,11 +11,20 @@ use Illuminate\Http\UploadedFile;
 
 class ValidationLabService
 {
-    /** @var list<string> The six checks a Lab record must complete, by column prefix. */
-    private const REQUIRED_CHECKS = ['source', 'scope', 'spec', 'cross_check', 'run', 'log'];
+    /** @var array<string, array{label: string, question: string}> The six checks a Lab record must complete, in order, keyed by column prefix. */
+    private const CHECKS = [
+        'source' => ['label' => 'SOURCE', 'question' => 'Where did the AI get this from?'],
+        'scope' => ['label' => 'SCOPE', 'question' => 'Does it match the actual feature/build?'],
+        'spec' => ['label' => 'SPEC', 'question' => 'Does it match requirements and acceptance criteria?'],
+        'cross_check' => ['label' => 'CROSS-CHECK', 'question' => 'Can another source/evidence confirm it?'],
+        'run' => ['label' => 'RUN', 'question' => 'Did you execute the important steps yourself?'],
+        'log' => ['label' => 'LOG', 'question' => 'Did you record what happened at the time?'],
+    ];
 
     /** @var list<string> Artifact fields copied from the started artifact onto the submitted record. */
     private const ARTIFACT_FIELDS = ['feature_area', 'artifact_type', 'ai_tool', 'artifact_content', 'prompt'];
+
+    public function __construct(private readonly EvidenceFilePolicy $evidenceFiles) {}
 
     /**
      * The participant's most recently updated draft Lab record.
@@ -42,6 +51,48 @@ class ValidationLabService
             'defaultAiTool' => config('validation_lab.default_ai_tool'),
             'textareaMaxLength' => FieldLimits::EXACT_PROMPT_OUTPUT,
         ];
+    }
+
+    /**
+     * The six-check form's checks (field prefix, number, label and question), its field limits and the
+     * evidence upload's accepted file types.
+     *
+     * @return array{checks: list<array{key: string, number: int, label: string, question: string}>, checkNotesMaxLength: int, findingMaxLength: int, evidenceMaxLength: int, evidenceAccept: string}
+     */
+    public function checklistFormData(): array
+    {
+        $checks = [];
+        foreach (array_keys(self::CHECKS) as $index => $key) {
+            $checks[] = ['key' => $key, 'number' => $index + 1, ...self::CHECKS[$key]];
+        }
+
+        return [
+            'checks' => $checks,
+            'checkNotesMaxLength' => FieldLimits::CHECK_NOTES,
+            'findingMaxLength' => FieldLimits::FINDING,
+            'evidenceMaxLength' => FieldLimits::EVIDENCE,
+            'evidenceAccept' => $this->evidenceFiles->acceptAttribute(),
+        ];
+    }
+
+    /**
+     * A Lab record's six check results in order: the check label, whether it passed (any other status, including
+     * none, shows as an issue found) and the participant's notes.
+     *
+     * @return list<array{label: string, isPassed: bool, notes: ?string}>
+     */
+    public function resultChecks(ValidationSubmission $submission): array
+    {
+        $checks = [];
+        foreach (self::CHECKS as $key => $check) {
+            $checks[] = [
+                'label' => $check['label'],
+                'isPassed' => $submission->{$key.'_status'} === 'pass',
+                'notes' => $submission->{$key.'_notes'},
+            ];
+        }
+
+        return $checks;
     }
 
     /**
@@ -161,7 +212,7 @@ class ValidationLabService
      */
     public function incompleteRecordError(ValidationSubmission $submission): ?string
     {
-        foreach (self::REQUIRED_CHECKS as $check) {
+        foreach (array_keys(self::CHECKS) as $check) {
             if (blank($submission->{$check.'_status'}) || blank($submission->{$check.'_notes'})) {
                 return 'Complete every six-check result and its notes before submitting the Lab record.';
             }

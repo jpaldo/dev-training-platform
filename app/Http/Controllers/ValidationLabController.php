@@ -66,6 +66,7 @@ class ValidationLabController extends Controller
         return view('checklist', [
             'trainee' => session('trainee_name'),
             'artifact' => session('validation_artifact', $lab->historicalArtifact($request->query('artifact', 'AI-TC-014'))),
+            ...$lab->checklistFormData(),
         ]);
     }
 
@@ -98,9 +99,11 @@ class ValidationLabController extends Controller
 
     public function result(Request $request, ValidationSubmission $submission, ValidationLabService $lab): View
     {
-        $activityOneUrl = $lab->activityOneUrl($submission, $request->user());
-
-        return view('result', compact('submission', 'activityOneUrl'));
+        return view('result', [
+            'submission' => $submission,
+            'checks' => $lab->resultChecks($submission),
+            'activityOneUrl' => $lab->activityOneUrl($submission, $request->user()),
+        ]);
     }
 
     public function ownedRecord(Request $request, ValidationSubmission $submission, ValidationLabService $lab): View
@@ -110,7 +113,11 @@ class ValidationLabController extends Controller
         $isAuthorizedCoachLink = $user->isCoachOrAdmin() && $lab->isLinkedToParticipantSubmission($submission, $request->integer('submission_version'));
         abort_unless($isOwner || $isAuthorizedCoachLink, 403);
 
-        return view('result', compact('submission'));
+        return view('result', [
+            'submission' => $submission,
+            'checks' => $lab->resultChecks($submission),
+            'activityOneUrl' => null,
+        ]);
     }
 
     public function appLogin(): View

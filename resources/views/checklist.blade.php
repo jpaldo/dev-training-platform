@@ -1,43 +1,102 @@
 @extends('layouts.app')
+
 @section('content')
-@php($evidenceAccept = app(\App\Services\EvidenceFilePolicy::class)->acceptAttribute())
-<div class="eyebrow">ACTIVITY 1 · SIX-CHECK VALIDATION</div><h1>Prove it.</h1>
-<p class="muted">Artifact ID: <strong>{{ $artifact['artifact_code'] }}</strong> · Trainee: <strong>{{ $trainee }}</strong></p>
-@if($errors->any())<div class="error" role="alert">{{ $errors->first() }}</div>@endif
-<form class="form" method="post" action="{{ route('checklist.submit') }}" enctype="multipart/form-data" data-markdown-flush-on-submit>@csrf
-<input type="hidden" name="artifact_code" value="{{ $artifact['artifact_code'] }}">
-<input type="hidden" name="feature_area" value="{{ $artifact['feature_area'] ?? '' }}">
-<input type="hidden" name="artifact_type" value="{{ $artifact['artifact_type'] ?? '' }}">
-<input type="hidden" name="ai_tool" value="{{ $artifact['ai_tool'] ?? '' }}">
-<textarea name="artifact_content" hidden>{{ $artifact['artifact_content'] ?? '' }}</textarea>
-<textarea name="prompt" hidden>{{ $artifact['prompt'] ?? '' }}</textarea>
-<div class="card"><p class="eyebrow">SELECTED AI ARTIFACT</p><h2>{{ $artifact['artifact_name'] }}</h2><p class="muted"><strong>Feature / Area:</strong> {{ $artifact['feature_area'] ?? 'Not specified' }} · <strong>Type:</strong> {{ $artifact['artifact_type'] ?? 'Not specified' }} · <strong>AI Tool:</strong> {{ $artifact['ai_tool'] ?? 'Not specified' }}</p><x-markdown class="ai" :text="$artifact['artifact_content'] ?? null">Historical artifact content is retained with this record.</x-markdown></div>
-<div class="field"><label for="artifact_name">Artifact Name</label><input id="artifact_name" name="artifact_name" type="text" value="{{ old('artifact_name', $artifact['artifact_name'] ?? '') }}" maxlength="160" required placeholder="e.g. OTP validation response — 5-minute validity claim"><p class="muted">Give this AI-generated artifact a short, descriptive name so you and your coach can easily identify this validation record later.</p></div>
-@php($checks=[['source','1','SOURCE','Where did the AI get this from?'],['scope','2','SCOPE','Does it match the actual feature/build?'],['spec','3','SPEC','Does it match requirements and acceptance criteria?'],['cross_check','4','CROSS-CHECK','Can another source/evidence confirm it?'],['run','5','RUN','Did you execute the important steps yourself?'],['log','6','LOG','Did you record what happened at the time?']])
-@foreach($checks as [$key,$num,$label,$question])<div class="check"><div class="check-head"><div class="check-num">{{ $num }}</div><div><strong>{{ $label }}</strong><div>{{ $question }}</div></div></div><div class="field" style="margin-top:14px"><label>Status</label><select name="{{ $key }}_status" required><option value="">Select</option><option value="pass" @selected(old($key.'_status') === 'pass')>Confirmed / Pass</option><option value="issue" @selected(old($key.'_status') === 'issue')>Issue / Gap Found</option></select></div><div class="field" style="margin-top:12px"><label>Evidence / notes</label><textarea name="{{ $key }}_notes" maxlength="{{ \App\Support\FieldLimits::CHECK_NOTES }}" required>{{ old($key.'_notes') }}</textarea><span class="muted" data-char-count>0 / {{ number_format(\App\Support\FieldLimits::CHECK_NOTES) }} characters</span></div></div>@endforeach
-<div class="card"><div class="field"><label>What did the validation catch?</label><x-markdown-field id="finding" name="finding" :value="old('finding')" required :maxlength="\App\Support\FieldLimits::FINDING"/></div><div class="field"><label>Decision</label><select name="decision" required><option value="">Select</option><option value="accept" @selected(old('decision') === 'accept')>Accept</option><option value="revise" @selected(old('decision') === 'revise')>Revise</option><option value="reject" @selected(old('decision') === 'reject')>Reject</option><option value="reprompt" @selected(old('decision') === 'reprompt')>Re-prompt AI</option></select></div><div class="field"><label>Evidence record</label><x-markdown-field id="evidence_notes" name="evidence_notes" :value="old('evidence_notes')" required :maxlength="\App\Support\FieldLimits::EVIDENCE"/></div><div class="field"><label for="evidence_files">Upload evidence</label><input id="evidence_files" name="evidence_files[]" type="file" accept="{{ $evidenceAccept }}" multiple><p class="muted">Attach screenshots or files supporting your six-check findings.</p></div><button class="btn">Submit Validation Record</button></div></form>
-@vite('resources/js/markdown-preview.js')
-<script>
-(() => {
-    const form = document.querySelector('[data-markdown-flush-on-submit]');
-    if (!form) return;
-    form.addEventListener('submit', () => {
-        form.querySelectorAll('[data-markdown-source]').forEach(textarea => {
-            textarea.hidden = false;
-            const panel = textarea.closest('.markdown-field')?.querySelector('[data-markdown-preview]');
-            if (panel) panel.hidden = true;
-        });
-    });
-})();
-(() => {
-    document.querySelectorAll('.field').forEach(field => {
-        const control = field.querySelector('input[maxlength], textarea[maxlength]:not([data-markdown-source])');
-        const counter = field.querySelector('[data-char-count]');
-        if (!control || !counter) return;
-        const update = () => { counter.textContent = control.value.length.toLocaleString('en-US') + ' / ' + control.maxLength.toLocaleString('en-US') + ' characters'; };
-        control.addEventListener('input', update);
-        update();
-    });
-})();
-</script>
+    @php
+        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
+        $textareaClasses = $controlClasses.' min-h-28 resize-y leading-relaxed';
+        $fileClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-raised file:px-3 file:py-1.5 file:font-sans file:font-bold file:text-white focus-visible:outline-3 focus-visible:outline-accent/50';
+        $labelClasses = 'text-sm font-extrabold';
+        $hintClasses = 'm-0 text-sm/relaxed text-muted';
+    @endphp
+
+    <div class="grid grid-cols-1 gap-6">
+        <header class="grid min-w-0 gap-2">
+            <x-ui.eyebrow>ACTIVITY 1 · SIX-CHECK VALIDATION</x-ui.eyebrow>
+            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Prove it.</h1>
+            <p class="m-0 leading-relaxed wrap-anywhere text-muted">Artifact ID: <strong class="text-slate-100">{{ $artifact['artifact_code'] }}</strong> · Trainee: <strong class="text-slate-100">{{ $trainee }}</strong></p>
+        </header>
+
+        @if($errors->any())
+            <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
+        @endif
+
+        <form class="m-0 grid grid-cols-1 gap-6" method="post" action="{{ route('checklist.submit') }}" enctype="multipart/form-data" data-markdown-flush-on-submit>
+            @csrf
+            <input type="hidden" name="artifact_code" value="{{ $artifact['artifact_code'] }}">
+            <input type="hidden" name="feature_area" value="{{ $artifact['feature_area'] ?? '' }}">
+            <input type="hidden" name="artifact_type" value="{{ $artifact['artifact_type'] ?? '' }}">
+            <input type="hidden" name="ai_tool" value="{{ $artifact['ai_tool'] ?? '' }}">
+            <textarea name="artifact_content" hidden>{{ $artifact['artifact_content'] ?? '' }}</textarea>
+            <textarea name="prompt" hidden>{{ $artifact['prompt'] ?? '' }}</textarea>
+
+            <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-3" aria-labelledby="selected-artifact-name">
+                <x-ui.eyebrow as="p" class="m-0">SELECTED AI ARTIFACT</x-ui.eyebrow>
+                <h2 id="selected-artifact-name" class="m-0 text-2xl font-extrabold wrap-break-word">{{ $artifact['artifact_name'] }}</h2>
+                <p class="m-0 text-sm/relaxed text-muted"><strong class="text-slate-100">Feature / Area:</strong> {{ $artifact['feature_area'] ?? 'Not specified' }} · <strong class="text-slate-100">Type:</strong> {{ $artifact['artifact_type'] ?? 'Not specified' }} · <strong class="text-slate-100">AI Tool:</strong> {{ $artifact['ai_tool'] ?? 'Not specified' }}</p>
+                <x-markdown :text="$artifact['artifact_content'] ?? null" class="min-w-0 rounded-xl bg-surface-sunken p-4 wrap-break-word">Historical artifact content is retained with this record.</x-markdown>
+            </x-ui.card>
+
+            <div class="grid min-w-0 gap-2">
+                <label for="artifact_name" class="{{ $labelClasses }}">Artifact Name</label>
+                <input id="artifact_name" name="artifact_name" type="text" value="{{ old('artifact_name', $artifact['artifact_name'] ?? '') }}" maxlength="160" required placeholder="e.g. OTP validation response — 5-minute validity claim" class="{{ $controlClasses }}">
+                <p class="{{ $hintClasses }}">Give this AI-generated artifact a short, descriptive name so you and your coach can easily identify this validation record later.</p>
+            </div>
+
+            <ol class="m-0 grid list-none grid-cols-1 gap-4 p-0">
+                @foreach($checks as $check)
+                    <li class="grid min-w-0 grid-cols-1 gap-4 rounded-2xl border border-line bg-surface p-5">
+                        <div class="flex items-start gap-3">
+                            <span class="grid size-9 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-black text-violet-200">{{ $check['number'] }}</span>
+                            <div class="grid min-w-0 gap-0.5">
+                                <strong class="tracking-[0.08em]">{{ $check['label'] }}</strong>
+                                <div class="text-sm/relaxed text-muted">{{ $check['question'] }}</div>
+                            </div>
+                        </div>
+                        <div class="grid min-w-0 gap-2">
+                            <label class="{{ $labelClasses }}">Status</label>
+                            <select name="{{ $check['key'] }}_status" required class="{{ $controlClasses }}">
+                                <option value="">Select</option>
+                                <option value="pass" @selected(old($check['key'].'_status') === 'pass')>Confirmed / Pass</option>
+                                <option value="issue" @selected(old($check['key'].'_status') === 'issue')>Issue / Gap Found</option>
+                            </select>
+                        </div>
+                        <div class="grid min-w-0 gap-2" data-character-counter>
+                            <label class="{{ $labelClasses }}">Evidence / notes</label>
+                            <textarea name="{{ $check['key'] }}_notes" maxlength="{{ $checkNotesMaxLength }}" required class="{{ $textareaClasses }}">{{ old($check['key'].'_notes') }}</textarea>
+                            <span class="text-sm text-muted" data-char-count>0 / {{ number_format($checkNotesMaxLength) }} characters</span>
+                        </div>
+                    </li>
+                @endforeach
+            </ol>
+
+            <x-ui.card class="grid min-w-0 grid-cols-1 gap-5">
+                <div class="grid min-w-0 gap-2">
+                    <label class="{{ $labelClasses }}">What did the validation catch?</label>
+                    <x-markdown-field id="finding" name="finding" :value="old('finding')" required :maxlength="$findingMaxLength" class="{{ $textareaClasses }}" />
+                </div>
+                <div class="grid min-w-0 gap-2">
+                    <label class="{{ $labelClasses }}">Decision</label>
+                    <select name="decision" required class="{{ $controlClasses }}">
+                        <option value="">Select</option>
+                        <option value="accept" @selected(old('decision') === 'accept')>Accept</option>
+                        <option value="revise" @selected(old('decision') === 'revise')>Revise</option>
+                        <option value="reject" @selected(old('decision') === 'reject')>Reject</option>
+                        <option value="reprompt" @selected(old('decision') === 'reprompt')>Re-prompt AI</option>
+                    </select>
+                </div>
+                <div class="grid min-w-0 gap-2">
+                    <label class="{{ $labelClasses }}">Evidence record</label>
+                    <x-markdown-field id="evidence_notes" name="evidence_notes" :value="old('evidence_notes')" required :maxlength="$evidenceMaxLength" class="{{ $textareaClasses }}" />
+                </div>
+                <div class="grid min-w-0 gap-2">
+                    <label for="evidence_files" class="{{ $labelClasses }}">Upload evidence</label>
+                    <input id="evidence_files" name="evidence_files[]" type="file" accept="{{ $evidenceAccept }}" multiple class="{{ $fileClasses }}">
+                    <p class="{{ $hintClasses }}">Attach screenshots or files supporting your six-check findings.</p>
+                </div>
+                <x-ui.button type="submit" class="w-full sm:w-auto sm:justify-self-start">Submit Validation Record</x-ui.button>
+            </x-ui.card>
+        </form>
+    </div>
+
+    @vite('resources/js/markdown-preview.js')
 @endsection

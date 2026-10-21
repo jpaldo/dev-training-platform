@@ -182,6 +182,28 @@ const initializeMarkdownFlushOnSubmit = () => {
 };
 
 /**
+ * Keep the `[data-char-count]` text of each `[data-character-counter]` field at "N / max characters" for its
+ * `maxlength` input or plain textarea. Markdown fields count their own characters in `markdown-preview.js`.
+ */
+const initializeCharacterCounters = () => {
+    document.querySelectorAll('[data-character-counter]').forEach((field) => {
+        const control = field.querySelector('input[maxlength], textarea[maxlength]:not([data-markdown-source])');
+        const counter = field.querySelector('[data-char-count]');
+
+        if (!control || !counter) {
+            return;
+        }
+
+        const update = () => {
+            counter.textContent = `${control.value.length.toLocaleString('en-US')} / ${control.maxLength.toLocaleString('en-US')} characters`;
+        };
+
+        control.addEventListener('input', update);
+        update();
+    });
+};
+
+/**
  * On the AI scoring settings page, show the selected provider's model label and hint (from the option's data
  * attributes), update the "API key:" part of the status summary to whether that provider has a stored key, and copy
  * the current provider, model and API key into the `[data-ai-test-form]` before it submits.
@@ -489,6 +511,7 @@ const initializePage = () => {
     initializePageTabs();
     initializeDatePickers();
     initializeMarkdownFlushOnSubmit();
+    initializeCharacterCounters();
     initializeAiProviderSettings();
     initializeInterviewerTypeFields();
     initializeOtherSelectFields();

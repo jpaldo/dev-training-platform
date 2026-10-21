@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Models\ValidationSubmission;
+use App\Services\EvidenceFilePolicy;
 use App\Support\FieldLimits;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
@@ -186,6 +188,201 @@ class ValidationLabPagesTest extends TestCase
         $this->get(route('lab.success'))
             ->assertOk()
             ->assertSee('>Authenticated</h1>', false);
+    }
+
+    public function test_started_artifact_preview_shows_the_artifact_and_links_to_the_checklist(): void
+    {
+        $response = $this->post(route('start'), [
+            'trainee_name' => 'QA Participant',
+            'feature_area' => 'Registration',
+            'artifact_type' => 'Test Plan',
+            'ai_tool' => 'ChatGPT',
+            'artifact_name' => 'Registration plan',
+            'artifact_content' => 'Plan **content**.',
+        ])
+            ->assertOk()
+            ->assertSeeInOrder([
+                'ACTIVITY 1 · STEP 1',
+                '>Review your selected artifact</h1>',
+                'Trainee: <strong class="text-slate-100">QA Participant</strong>',
+                'AI GENERATED · QA VALIDATION · AI-TC-015',
+                'Test Plan',
+                '>Registration plan</h2>',
+                'Feature / Area:</strong> Registration · <strong class="text-slate-100">AI Tool:</strong> ChatGPT',
+                'Plan <strong>content</strong>.',
+                '<strong>Your job:</strong> Do not assume the AI output is correct. Use the application, requirements, and evidence.',
+                'href="'.route('checklist').'"',
+                '>Run 6-Check Validation →</a>',
+            ], false);
+
+        $this->assertStringNotContainsString('<script>', $response->getContent());
+    }
+
+    public function test_checklist_requires_a_started_lab_session(): void
+    {
+        $this->get(route('checklist'))->assertForbidden();
+    }
+
+    public function test_checklist_shows_the_started_artifact_and_the_six_check_form_in_order(): void
+    {
+        $this->post(route('start'), [
+            'trainee_name' => 'QA Participant',
+            'feature_area' => 'Registration',
+            'artifact_type' => 'Test Plan',
+            'ai_tool' => 'ChatGPT',
+            'prompt' => 'Write a registration plan.',
+            'artifact_name' => 'Registration plan',
+            'artifact_content' => 'Plan content.',
+        ])->assertOk();
+
+        $response = $this->get(route('checklist'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'ACTIVITY 1 · SIX-CHECK VALIDATION',
+                '>Prove it.</h1>',
+                'Artifact ID: <strong class="text-slate-100">AI-TC-015</strong> · Trainee: <strong class="text-slate-100">QA Participant</strong>',
+                'method="post" action="'.route('checklist.submit').'" enctype="multipart/form-data" data-markdown-flush-on-submit',
+                'name="_token"',
+                '<input type="hidden" name="artifact_code" value="AI-TC-015">',
+                '<input type="hidden" name="feature_area" value="Registration">',
+                '<input type="hidden" name="artifact_type" value="Test Plan">',
+                '<input type="hidden" name="ai_tool" value="ChatGPT">',
+                '<textarea name="artifact_content" hidden>Plan content.</textarea>',
+                '<textarea name="prompt" hidden>Write a registration plan.</textarea>',
+                'SELECTED AI ARTIFACT',
+                '>Registration plan</h2>',
+                'Feature / Area:</strong> Registration · <strong class="text-slate-100">Type:</strong> Test Plan · <strong class="text-slate-100">AI Tool:</strong> ChatGPT',
+                '<label for="artifact_name"',
+                'id="artifact_name" name="artifact_name" type="text" value="Registration plan" maxlength="160" required placeholder="e.g. OTP validation response — 5-minute validity claim"',
+                '>1</span>', '>SOURCE</strong>', 'Where did the AI get this from?', 'name="source_status" required', 'name="source_notes" maxlength="'.FieldLimits::CHECK_NOTES.'" required',
+                '>2</span>', '>SCOPE</strong>', 'Does it match the actual feature/build?', 'name="scope_status"', 'name="scope_notes"',
+                '>3</span>', '>SPEC</strong>', 'Does it match requirements and acceptance criteria?', 'name="spec_status"', 'name="spec_notes"',
+                '>4</span>', '>CROSS-CHECK</strong>', 'Can another source/evidence confirm it?', 'name="cross_check_status"', 'name="cross_check_notes"',
+                '>5</span>', '>RUN</strong>', 'Did you execute the important steps yourself?', 'name="run_status"', 'name="run_notes"',
+                '>6</span>', '>LOG</strong>', 'Did you record what happened at the time?', 'name="log_status"', 'name="log_notes"',
+                '0 / 2,000 characters',
+                '>What did the validation catch?</label>',
+                'id="finding" name="finding"',
+                '>Decision</label>',
+                '<select name="decision" required',
+                '<option value="">Select</option>',
+                '<option value="accept" >Accept</option>',
+                '<option value="revise" >Revise</option>',
+                '<option value="reject" >Reject</option>',
+                '<option value="reprompt" >Re-prompt AI</option>',
+                '>Evidence record</label>',
+                'id="evidence_notes" name="evidence_notes"',
+                '<label for="evidence_files"',
+                'id="evidence_files" name="evidence_files[]" type="file" accept="'.app(EvidenceFilePolicy::class)->acceptAttribute().'" multiple',
+                'Attach screenshots or files supporting your six-check findings.',
+                'type="submit"',
+                '>Submit Validation Record</button>',
+                '</form>',
+            ], false);
+
+        $content = $response->getContent();
+        $this->assertSame(1, substr_count($content, 'type="submit"'));
+        $this->assertSame(6, substr_count($content, 'data-character-counter'));
+        $this->assertStringNotContainsString('<script>', $content);
+    }
+
+    public function test_checklist_without_a_started_artifact_shows_the_requested_historical_artifact(): void
+    {
+        $this->withSession(['trainee_name' => 'QA Participant'])
+            ->get(route('checklist', ['artifact' => 'AI-TC-020']))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Artifact ID: <strong class="text-slate-100">AI-TC-020</strong>',
+                '<input type="hidden" name="artifact_code" value="AI-TC-020">',
+                '<textarea name="prompt" hidden></textarea>',
+                '>Verify OTP expiration</h2>',
+                'Historical artifact preview.',
+                'value="Verify OTP expiration"',
+            ], false);
+    }
+
+    public function test_draft_lab_record_shows_its_checks_and_the_submit_lab_record_form(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        $draft = ValidationSubmission::create([
+            'user_id' => $participant->id,
+            'trainee_name' => 'Draft Owner',
+            'artifact_code' => 'AI-TC-050',
+            'artifact_name' => 'Draft artifact',
+            'source_status' => 'pass',
+            'source_notes' => "Line one\nLine two",
+            'scope_status' => 'issue',
+            'status' => ValidationSubmission::DRAFT,
+        ]);
+
+        $response = $this->actingAs($participant)
+            ->withSession(['status' => 'Continue your saved QA Validation Lab record, then submit it to unlock the Validation Checklist.'])
+            ->get(route('result', $draft))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'role="status"',
+                'Continue your saved QA Validation Lab record, then submit it to unlock the Validation Checklist.',
+                'ACTIVITY 1 · RESULT',
+                '>Validation recorded.</h1>',
+                '<strong>Artifact ID:</strong> AI-TC-050',
+                '<strong>Artifact Name:</strong> Draft artifact',
+                'Draft Owner',
+                'SOURCE', '✓ PASS', '<strong>Result:</strong> PASS', "Line one\nLine two",
+                'SCOPE', '⚠ ISSUE FOUND', '<strong>Result:</strong> ISSUE FOUND', 'No additional details recorded.',
+                'SPEC', '⚠ ISSUE FOUND',
+                'CROSS-CHECK', '⚠ ISSUE FOUND',
+                'RUN', '⚠ ISSUE FOUND',
+                'LOG', '⚠ ISSUE FOUND',
+                '>Finding</h2>',
+                'Not provided',
+                'Decision: Not provided',
+                'Lab record saved as a draft.',
+                'Activity 1 remains locked until you explicitly submit this Lab record.',
+                'method="post" action="'.route('lab.records.submit', $draft).'"',
+                '>Submit Lab Record</button>',
+            ], false)
+            ->assertDontSee('Validation record submitted for coach review.')
+            ->assertDontSee('Uploaded Evidence')
+            ->assertDontSee('Proceed to Activity 1 Submission');
+
+        $this->assertSame(6, substr_count($response->getContent(), '>View Details</summary>'));
+    }
+
+    public function test_submitted_lab_record_shows_its_decision_and_uploaded_evidence(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        $record = ValidationSubmission::create([
+            'user_id' => $participant->id,
+            'trainee_name' => 'Record Owner',
+            'artifact_code' => 'AI-TC-051',
+            'artifact_name' => 'Submitted artifact',
+            'feature_area' => 'Registration',
+            'artifact_type' => 'Test Plan',
+            'ai_tool' => 'ChatGPT',
+            'finding' => 'The expiry claim is wrong.',
+            'decision' => 'reprompt',
+            'evidence_notes' => 'Screenshot attached.',
+            'evidence_files' => [['original_filename' => 'otp.png', 'mime_type' => 'image/png'], []],
+            'status' => ValidationSubmission::SUBMITTED,
+        ]);
+
+        $this->actingAs($participant)
+            ->get(route('lab.records.show', $record))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '<strong>Feature / Area:</strong> Registration',
+                '<strong>Artifact Type:</strong> Test Plan',
+                '<strong>AI Tool:</strong> ChatGPT',
+                'The expiry claim is wrong.',
+                'Decision: REPROMPT',
+                'Screenshot attached.',
+                'Uploaded Evidence',
+                'otp.png <span class="text-muted">(image/png)</span>',
+                'Evidence file <span class="text-muted">(file)</span>',
+                'Validation record submitted for coach review.',
+            ], false)
+            ->assertDontSee('Lab record saved as a draft.')
+            ->assertDontSee('Proceed to Activity 1 Submission');
     }
 
     /**

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\GoogleDriveSync;
+use App\Enums\GoogleDriveSyncStatus;
 use App\Services\GoogleDriveConnectionService;
 use App\Services\GoogleDriveReadinessService;
 use App\Services\TrainingSyncCoordinator;
@@ -36,12 +36,12 @@ class TrainingSyncController extends Controller
     {
         $sync = $request->user()->googleDriveSyncs()->latest('id')->first();
 
-        if ($sync && in_array($sync->status, [GoogleDriveSync::ENQUEUED, GoogleDriveSync::IN_PROGRESS], true)) {
+        if ($sync?->isActive()) {
             $staleAfter = (int) config('training.google_drive_sync_stale_after_seconds', 600);
             $lastActivity = $sync->updated_at ?? $sync->created_at;
             if ($lastActivity && $lastActivity->lt(now()->subSeconds($staleAfter))) {
                 $sync->update([
-                    'status' => GoogleDriveSync::FAILED,
+                    'status' => GoogleDriveSyncStatus::Failed,
                     'error' => 'The synchronization worker did not complete this run. Please retry the sync.',
                     'completed_at' => now(),
                 ]);

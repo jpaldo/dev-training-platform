@@ -54,7 +54,7 @@ class AppServiceProvider extends ServiceProvider
                 'connected' => (bool) $connection,
                 'destination_selected' => $readiness->isReady($user),
                 'configuration_ready' => $configuration->canConnect() && filled($configuration->getPickerApiKey()) && filled($configuration->getProjectNumber()),
-                'active' => $latestSync && in_array($latestSync->status, [GoogleDriveSync::ENQUEUED, GoogleDriveSync::IN_PROGRESS], true),
+                'active' => $latestSync?->isActive() === true,
             ]]);
         });
     }

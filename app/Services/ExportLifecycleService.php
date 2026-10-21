@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GoogleDriveExportStatus;
+use App\Enums\GoogleDriveSyncStatus;
 use App\Models\GoogleDriveExport;
 use App\Models\GoogleDriveSync;
 use Illuminate\Contracts\Queue\Job;
@@ -132,11 +133,11 @@ class ExportLifecycleService
         ]);
 
         $reconciled += GoogleDriveSync::query()
-            ->whereIn('status', [GoogleDriveSync::ENQUEUED, GoogleDriveSync::IN_PROGRESS])
+            ->whereIn('status', GoogleDriveSyncStatus::active())
             ->where('updated_at', '<', $cutoff)
             ->when($userId !== null, fn (Builder $q): Builder => $q->where('user_id', $userId))
             ->update([
-                'status' => GoogleDriveSync::FAILED,
+                'status' => GoogleDriveSyncStatus::Failed,
                 'error' => 'Synchronization stopped before completion. Please retry the sync.',
                 'completed_at' => now(),
                 'updated_at' => now(),

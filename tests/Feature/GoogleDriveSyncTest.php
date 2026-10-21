@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\GoogleDriveExportStatus;
+use App\Enums\GoogleDriveSyncStatus;
 use App\Jobs\ExportSummaryReportsJob;
 use App\Jobs\SyncTrainingDataJob;
 use App\Models\Activity;
@@ -26,11 +27,13 @@ use App\Services\TrainingExportService;
 use App\Services\TrainingSyncCoordinator;
 use App\Services\TrainingWorkbookService;
 use Database\Seeders\QaTrainingProgramSeeder;
+use Illuminate\Contracts\Queue\Job;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
+use RuntimeException;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -215,7 +218,7 @@ class GoogleDriveSyncTest extends TestCase
         $this->actingAs($participant)->post(route('google-drive.sync'))->assertRedirect()->assertSessionHas('status', 'Sync queued.');
         Queue::assertPushed(SyncTrainingDataJob::class);
         Queue::assertNotPushed(ExportSummaryReportsJob::class);
-        $this->assertDatabaseHas('google_drive_syncs', ['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => GoogleDriveSync::ENQUEUED]);
+        $this->assertDatabaseHas('google_drive_syncs', ['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => 'enqueued']);
         $this->actingAs($participant)->post(route('google-drive.sync'))->assertRedirect()->assertSessionHas('status', 'Google Drive sync is already in progress.');
         $this->assertDatabaseCount('google_drive_syncs', 1);
     }
@@ -225,13 +228,42 @@ class GoogleDriveSyncTest extends TestCase
         $this->configureDrive();
         $participant = User::factory()->create(['role' => 'participant']);
         GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'refresh_token' => 'refresh', 'drive_folder_id' => 'folder', 'destination_source' => 'picker', 'connected_at' => now()]);
-        $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => GoogleDriveSync::IN_PROGRESS]);
+        $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => GoogleDriveSyncStatus::InProgress]);
         DB::table('google_drive_syncs')->where('id', $sync->id)->update(['updated_at' => now()->subSeconds(601)]);
 
         $response = $this->actingAs($participant)->getJson(route('google-drive.sync.status'));
 
-        $response->assertOk()->assertJsonPath('status', GoogleDriveSync::FAILED);
-        $this->assertDatabaseHas('google_drive_syncs', ['id' => $sync->id, 'status' => GoogleDriveSync::FAILED]);
+        $response->assertOk()->assertJsonPath('status', 'failed');
+        $this->assertDatabaseHas('google_drive_syncs', ['id' => $sync->id, 'status' => 'failed']);
+    }
+
+    public function test_failed_sync_is_retrying_while_laravel_has_another_attempt_and_failed_after_the_last(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'refresh_token' => 'refresh', 'drive_folder_id' => 'root', 'destination_source' => 'picker', 'connected_at' => now()]);
+        $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSyncStatus::Enqueued]);
+        $drive = Mockery::mock(GoogleDriveService::class);
+        $drive->shouldReceive('validateDestination')->twice()->andThrow(new RuntimeException('temporary network timeout'));
+        $queueJob = Mockery::mock(Job::class);
+        $queueJob->shouldReceive('attempts')->andReturnValues([1, 3]);
+        $job = new SyncTrainingDataJob($sync->id);
+        $job->setJob($queueJob);
+        $runJob = fn (): mixed => $job->handle(app(GoogleDriveConnectionService::class), $drive, Mockery::mock(TrainingExportService::class), Mockery::mock(TrainingWorkbookService::class), app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
+
+        try {
+            $runJob();
+            $this->fail('A retried sync must rethrow so Laravel runs the next attempt.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('temporary network timeout', $exception->getMessage());
+        }
+        $this->assertSame(GoogleDriveSyncStatus::Retrying, $sync->fresh()->status);
+        $this->assertNull($sync->fresh()->completed_at);
+
+        $runJob();
+
+        $this->assertSame(GoogleDriveSyncStatus::Failed, $sync->fresh()->status);
+        $this->assertSame('Google Drive sync failed.', $sync->fresh()->error);
+        $this->assertNotNull($sync->fresh()->completed_at);
     }
 
     public function test_export_tracking_is_isolated_by_destination(): void
@@ -252,7 +284,7 @@ class GoogleDriveSyncTest extends TestCase
         $participant = User::factory()->create(['role' => 'participant']);
         GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'refresh_token' => 'refresh', 'drive_folder_id' => 'root', 'destination_source' => 'picker', 'connected_at' => now()]);
         $legacy = GoogleDriveExport::create(['user_id' => $participant->id, 'export_type' => 'weekly_workbook', 'scope_key' => '2', 'destination_folder_id' => 'root', 'drive_file_id' => 'legacy-root-workbook', 'status' => GoogleDriveExportStatus::Completed]);
-        $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]);
+        $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSyncStatus::Enqueued]);
         $drive = Mockery::mock(GoogleDriveService::class);
         $drive->shouldReceive('validateDestination')->once()->andReturn('root');
         $drive->shouldReceive('ensureFolder')->times(5)->andReturnUsing(fn ($received, string $name, string $parent): string => 'folder-'.md5($name.'|'.$parent));
@@ -279,7 +311,7 @@ class GoogleDriveSyncTest extends TestCase
         $evidence = SubmissionEvidence::factory()->for($version, 'submissionVersion')->create(['evidence_type' => 'file', 'disk' => 'local', 'path' => 'evidence/activity-proof.png', 'original_filename' => 'activity-proof.png', 'mime_type' => 'image/png']);
         Storage::disk('local')->put($evidence->path, 'activity evidence');
         $connection = GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'refresh_token' => 'refresh', 'drive_folder_id' => 'root', 'destination_source' => 'picker', 'connected_at' => now()]);
-        $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]);
+        $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSyncStatus::Enqueued]);
 
         $drive = Mockery::mock(GoogleDriveService::class);
         $drive->shouldReceive('validateDestination')->once()->andReturn('root');
@@ -295,6 +327,7 @@ class GoogleDriveSyncTest extends TestCase
         app()->instance(GoogleDriveService::class, $drive);
         (new SyncTrainingDataJob($sync->id))->handle(app(GoogleDriveConnectionService::class), $drive, $exports, $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
 
+        $this->assertSame(GoogleDriveSyncStatus::Completed, $sync->fresh()->status);
         $this->assertDatabaseHas('google_drive_evidence_exports', ['submission_evidence_id' => $evidence->id, 'status' => 'completed', 'destination_folder_id' => 'root']);
         $this->assertSame('completed', $sync->fresh()->component_results['Evidences']['status']);
         $this->assertSame(1, $sync->fresh()->component_results['Evidences']['completed']);
@@ -334,8 +367,8 @@ class GoogleDriveSyncTest extends TestCase
             ]);
         }
         $syncs = collect([
-            GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]),
-            GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]),
+            GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSyncStatus::Enqueued]),
+            GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSyncStatus::Enqueued]),
         ]);
         $calls = [];
         $drive = Mockery::mock(GoogleDriveService::class);
@@ -376,9 +409,9 @@ class GoogleDriveSyncTest extends TestCase
             'destination_source' => 'picker',
             'connected_at' => now(),
         ]);
-        $first = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]);
-        $second = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]);
-        $third = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSync::ENQUEUED]);
+        $first = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSyncStatus::Enqueued]);
+        $second = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSyncStatus::Enqueued]);
+        $third = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSyncStatus::Enqueued]);
         $calls = [];
         $folderCalls = [];
         $ids = [];
@@ -512,7 +545,7 @@ class GoogleDriveSyncTest extends TestCase
             'destination_source' => 'picker',
             'connected_at' => now(),
         ]);
-        GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => GoogleDriveSync::IN_PROGRESS]);
+        GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => GoogleDriveSyncStatus::InProgress]);
 
         $this->actingAs($participant)->get(route('profile.show'))
             ->assertOk()

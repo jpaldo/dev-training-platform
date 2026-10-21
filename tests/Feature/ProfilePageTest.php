@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GoogleDriveSyncStatus;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveSync;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ProfilePageTest extends TestCase
@@ -130,11 +132,11 @@ class ProfilePageTest extends TestCase
             'destination_source' => 'picker',
             'connected_at' => now(),
         ]);
-        GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'old', 'status' => GoogleDriveSync::COMPLETED]);
+        GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'old', 'status' => GoogleDriveSyncStatus::Completed]);
         GoogleDriveSync::create([
             'user_id' => $participant->id,
             'destination_folder_id' => 'picker-folder',
-            'status' => GoogleDriveSync::COMPLETED_WITH_ERRORS,
+            'status' => GoogleDriveSyncStatus::CompletedWithErrors,
             'error' => 'Some components could not be synced.',
             'component_results' => [
                 'workbook' => ['status' => 'failed', 'message' => 'Quota exceeded'],
@@ -192,7 +194,7 @@ class ProfilePageTest extends TestCase
             'destination_source' => 'legacy',
             'connected_at' => now(),
         ]);
-        GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'legacy', 'status' => GoogleDriveSync::IN_PROGRESS]);
+        GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'legacy', 'status' => GoogleDriveSyncStatus::InProgress]);
 
         $this->actingAs($participant)->get(route('profile.show'))
             ->assertOk()
@@ -212,6 +214,45 @@ class ProfilePageTest extends TestCase
             ], false)
             ->assertDontSee('Last successful sync:')
             ->assertDontSee('Failed components:');
+    }
+
+    #[DataProvider('latestSyncStatuses')]
+    public function test_latest_sync_status_sets_the_sync_line_and_whether_the_header_and_card_show_a_running_sync(string $status, string $statusLabel, bool $isRunning): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        GoogleDriveConnection::create([
+            'user_id' => $participant->id,
+            'access_token' => 'access-token',
+            'refresh_token' => 'refresh-token',
+            'drive_folder_id' => 'picker-folder',
+            'destination_source' => 'picker',
+            'connected_at' => now(),
+        ]);
+        GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'picker-folder', 'status' => $status]);
+
+        $response = $this->actingAs($participant)->get(route('profile.show'))
+            ->assertOk()
+            ->assertSee('<dd class="m-0">'.$statusLabel.'</dd>', false);
+        $content = $response->getContent();
+
+        $this->assertSame($isRunning ? 2 : 0, substr_count($content, 'SYNCING...'));
+        $this->assertSame($isRunning ? 0 : 2, substr_count($content, 'SYNC TO GOOGLE DRIVE'));
+        $this->assertSame($isRunning, str_contains($content, 'data-drive-sync-status-url="'.route('google-drive.sync.status').'"'));
+    }
+
+    /**
+     * @return array<string, array{string, string, bool}>
+     */
+    public static function latestSyncStatuses(): array
+    {
+        return [
+            'enqueued' => ['enqueued', 'Syncing…', true],
+            'in progress' => ['in_progress', 'Syncing…', true],
+            'retrying' => ['retrying', 'Retrying', false],
+            'completed' => ['completed', 'Successfully synced to Google Drive.', false],
+            'completed with errors' => ['completed_with_errors', 'Completed with errors', false],
+            'failed' => ['failed', 'Failed', false],
+        ];
     }
 
     public function test_connected_participant_gets_no_picker_hook_or_script_while_google_drive_cannot_connect(): void

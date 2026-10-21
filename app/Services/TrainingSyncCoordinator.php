@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GoogleDriveSyncStatus;
 use App\Jobs\SyncTrainingDataJob;
 use App\Models\GoogleDriveSync;
 use App\Models\User;
@@ -16,7 +17,7 @@ class TrainingSyncCoordinator
             return null;
         }
         $result = Cache::lock('google-drive-sync:'.$participant->id, 5)->get(function () use ($participant, $trigger, $connection): ?GoogleDriveSync {
-            $active = GoogleDriveSync::query()->where('user_id', $participant->id)->whereIn('status', [GoogleDriveSync::ENQUEUED, GoogleDriveSync::IN_PROGRESS])->latest('id')->first();
+            $active = GoogleDriveSync::query()->where('user_id', $participant->id)->whereIn('status', GoogleDriveSyncStatus::active())->latest('id')->first();
             if ($active) {
                 if ($trigger !== 'manual') {
                     $active->update(['needs_follow_up' => true, 'trigger' => $active->trigger ?: $trigger]);
@@ -24,7 +25,7 @@ class TrainingSyncCoordinator
 
                 return null;
             }
-            $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => app(GoogleDriveConnectionService::class)->destinationFolderId($participant), 'destination_resource_key' => $connection?->drive_resource_key, 'destination_drive_id' => $connection?->drive_id, 'status' => GoogleDriveSync::ENQUEUED, 'trigger' => $trigger]);
+            $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => app(GoogleDriveConnectionService::class)->destinationFolderId($participant), 'destination_resource_key' => $connection?->drive_resource_key, 'destination_drive_id' => $connection?->drive_id, 'status' => GoogleDriveSyncStatus::Enqueued, 'trigger' => $trigger]);
             SyncTrainingDataJob::dispatch($sync->id);
 
             return $sync;

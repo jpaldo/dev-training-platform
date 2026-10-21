@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Enums\GoogleDriveExportStatus;
+use App\Enums\GoogleDriveSyncStatus;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveEvidenceExport;
 use App\Models\GoogleDriveExport;
@@ -43,11 +44,11 @@ class SyncTrainingDataJob implements ShouldQueue
         $participant = $sync?->participant;
         $connection = $participant?->googleDriveConnection;
         if (! $sync || ! $participant || ! $connection) {
-            $sync?->update(['status' => GoogleDriveSync::FAILED, 'error' => 'Google Drive is not connected for this participant.', 'completed_at' => now()]);
+            $sync?->update(['status' => GoogleDriveSyncStatus::Failed, 'error' => 'Google Drive is not connected for this participant.', 'completed_at' => now()]);
 
             return;
         }
-        $sync->update(['status' => GoogleDriveSync::IN_PROGRESS, 'started_at' => now(), 'error' => null]);
+        $sync->update(['status' => GoogleDriveSyncStatus::InProgress, 'started_at' => now(), 'error' => null]);
         try {
             // Keep the destination captured when this run was queued. A Picker
             // destination may change while a job is processing; that change is
@@ -101,13 +102,13 @@ class SyncTrainingDataJob implements ShouldQueue
                 'failed' => $evidenceStats['failed'],
                 'message' => $evidenceStats['failed'] > 0 ? 'One or more evidence items failed.' : ($evidenceStats['eligible'] > 0 ? 'Evidence synchronized.' : 'No eligible binary evidence.'),
             ];
-            $sync->update(['status' => $sync->failed_components > 0 ? GoogleDriveSync::COMPLETED_WITH_ERRORS : GoogleDriveSync::COMPLETED, 'component_results' => $componentResults, 'error' => $componentErrors ? implode(' | ', array_unique($componentErrors)) : null, 'completed_at' => now(), 'last_successful_sync_at' => $sync->failed_components > 0 ? $sync->last_successful_sync_at : now(), 'needs_follow_up' => false]);
+            $sync->update(['status' => $sync->failed_components > 0 ? GoogleDriveSyncStatus::CompletedWithErrors : GoogleDriveSyncStatus::Completed, 'component_results' => $componentResults, 'error' => $componentErrors ? implode(' | ', array_unique($componentErrors)) : null, 'completed_at' => now(), 'last_successful_sync_at' => $sync->failed_components > 0 ? $sync->last_successful_sync_at : now(), 'needs_follow_up' => false]);
             if ($needsFollowUp) {
                 $syncs->request($participant, 'coalesced_change');
             }
         } catch (Throwable $exception) {
             $retry = $lifecycle->shouldRetry($this->job, $this->tries, $exception);
-            $sync->update(['status' => $retry ? 'retrying' : GoogleDriveSync::FAILED, 'error' => $lifecycle->failureMessage('Google Drive sync failed.', $exception), 'completed_at' => $retry ? null : now()]);
+            $sync->update(['status' => $retry ? GoogleDriveSyncStatus::Retrying : GoogleDriveSyncStatus::Failed, 'error' => $lifecycle->failureMessage('Google Drive sync failed.', $exception), 'completed_at' => $retry ? null : now()]);
             if ($retry) {
                 throw $exception;
             }

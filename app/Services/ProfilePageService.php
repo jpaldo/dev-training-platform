@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GoogleDriveSyncStatus;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveSync;
 use App\Models\User;
@@ -18,8 +19,6 @@ class ProfilePageService
         'automation' => 'Automation QA',
         'automation_manual' => 'Automation / Manual',
     ];
-
-    private const ACTIVE_SYNC_STATUSES = [GoogleDriveSync::ENQUEUED, GoogleDriveSync::IN_PROGRESS];
 
     public function __construct(private readonly GoogleDriveConfigurationService $configuration) {}
 
@@ -69,7 +68,7 @@ class ProfilePageService
         $hasPickerFolder = $connection?->destination_source === 'picker' && filled($connection->drive_folder_id);
         $canSync = $isPickerConfigured && $hasPickerFolder;
         $latestSync = GoogleDriveSync::query()->where('user_id', $participant->id)->latest('id')->first();
-        $isSyncing = $latestSync !== null && in_array($latestSync->status, self::ACTIVE_SYNC_STATUSES, true);
+        $isSyncing = $latestSync?->isActive() === true;
 
         return [
             'state' => match (true) {
@@ -122,13 +121,13 @@ class ProfilePageService
      */
     private function sync(GoogleDriveSync $sync, bool $isSyncing): array
     {
-        $completedWithErrors = $sync->status === GoogleDriveSync::COMPLETED_WITH_ERRORS;
+        $completedWithErrors = $sync->status === GoogleDriveSyncStatus::CompletedWithErrors;
 
         return [
             'status_label' => match (true) {
                 $isSyncing => 'Syncing…',
-                $sync->status === GoogleDriveSync::COMPLETED => 'Successfully synced to Google Drive.',
-                default => str_replace('_', ' ', ucfirst($sync->status)),
+                $sync->status === GoogleDriveSyncStatus::Completed => 'Successfully synced to Google Drive.',
+                default => $sync->status->label(),
             },
             'last_successful_sync_label' => $sync->last_successful_sync_at?->format('M j, Y g:i A'),
             'error' => $completedWithErrors && $sync->error ? $sync->error : null,

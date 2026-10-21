@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GoogleDriveSyncStatus;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveSync;
 use App\Models\User;
@@ -87,12 +88,12 @@ class GoogleDriveConnectionTest extends TestCase
     {
         $participant = User::factory()->create(['role' => 'participant']);
         $other = User::factory()->create(['role' => 'participant']);
-        GoogleDriveSync::create(['user_id' => $other->id, 'destination_folder_id' => 'other-folder', 'status' => GoogleDriveSync::COMPLETED]);
-        GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'participant-folder', 'status' => GoogleDriveSync::IN_PROGRESS]);
+        GoogleDriveSync::create(['user_id' => $other->id, 'destination_folder_id' => 'other-folder', 'status' => GoogleDriveSyncStatus::Completed]);
+        GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'participant-folder', 'status' => GoogleDriveSyncStatus::InProgress]);
 
         $this->actingAs($participant)->get(route('google-drive.sync.status'))
             ->assertOk()
-            ->assertJsonPath('status', GoogleDriveSync::IN_PROGRESS)
+            ->assertJsonPath('status', 'in_progress')
             ->assertJsonMissing(['user_id' => $other->id]);
     }
 

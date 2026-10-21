@@ -8,14 +8,12 @@ use App\Http\Requests\StoreActivityScoreRequest;
 use App\Http\Requests\StoreSecondReaderScoreRequest;
 use App\Jobs\ExportActivityJob;
 use App\Models\ActivityScore;
-use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\User;
 use App\Services\ScoringPageService;
 use App\Services\ScoringService;
 use App\Services\ScoringSuggestionService;
 use App\Services\TrainingSyncCoordinator;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,23 +23,16 @@ use RuntimeException;
 
 class ScoringController extends Controller
 {
-    public function index(FilterScoringParticipantsRequest $request, ScoringService $scoring): View
+    public function index(FilterScoringParticipantsRequest $request, ScoringPageService $page): View
     {
-        $filters = $request->validated();
-        $program = Program::query()->where('is_active', true)->firstOrFail();
-        $participants = User::query()->where('role', 'participant')->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $s): Builder => $s->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('activitySubmissions.activity.week', fn (Builder $w): Builder => $w->where('week_number', $v)))->when($filters['activity'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('activitySubmissions.activity', fn (Builder $a): Builder => $a->whereKey($v)))->when(($filters['assigned_to_me'] ?? false) && $request->user()->role === 'coach', fn (Builder $q): Builder => $q->whereHas('assignedCoaches', fn (Builder $c): Builder => $c->whereKey($request->user()->id)))->when(($filters['score_status'] ?? null) === 'scored', fn (Builder $q): Builder => $q->whereHas('activitySubmissions.versions.activityScore', fn (Builder $s): Builder => $s->where('status', 'published')))->when(($filters['score_status'] ?? null) === 'unscored', fn (Builder $q): Builder => $q->whereDoesntHave('activitySubmissions.versions.activityScore'))->when($filters['band'] ?? null, fn (Builder $q, string $v): Builder => $q->whereHas('activitySubmissions.versions.activityScore', fn (Builder $s): Builder => $s->where('performance_band', $v)))->with('assignedCoaches')->paginate(25)->withQueryString();
-        $rows = $participants->getCollection()->map(fn (User $participant): array => ['participant' => $participant, 'summary' => $scoring->summary($participant, $program)])->values();
-        $participants->setCollection($rows);
-
-        return view('scoring.index', compact('participants', 'filters'));
+        return view('scoring.index', $page->indexData($request->user(), $request->validated()));
     }
 
-    public function participant(User $participant, ScoringService $scoring): View
+    public function participant(User $participant, ScoringPageService $page): View
     {
         abort_unless($participant->role === 'participant', 404);
-        $program = Program::query()->where('is_active', true)->firstOrFail();
 
-        return view('scoring.participant', ['participant' => $participant, 'summary' => $scoring->summary($participant, $program)]);
+        return view('scoring.participant', $page->participantData($participant));
     }
 
     public function edit(Request $request, SubmissionVersion $submissionVersion, ScoringPageService $page): View
@@ -122,16 +113,8 @@ class ScoringController extends Controller
         return back()->with('status', 'Second-reader review saved.');
     }
 
-    public function criteria(): View
+    public function criteria(ScoringPageService $page): View
     {
-        $ranges = [
-            'D1' => ['Exemplary' => '27–30', 'Proficient' => '24–26', 'Developing' => '18–23', 'Beginning' => '11–17', 'Minimal' => '1–10'],
-            'D2' => ['Exemplary' => '23–25', 'Proficient' => '20–22', 'Developing' => '15–19', 'Beginning' => '9–14', 'Minimal' => '1–8'],
-            'D3' => ['Exemplary' => '18–20', 'Proficient' => '16–17', 'Developing' => '12–15', 'Beginning' => '7–11', 'Minimal' => '1–6'],
-            'D4' => ['Exemplary' => '14–15', 'Proficient' => '12–13', 'Developing' => '9–11', 'Beginning' => '6–8', 'Minimal' => '1–5'],
-            'D5' => ['Exemplary' => '9–10', 'Proficient' => '8', 'Developing' => '6–7', 'Beginning' => '4–5', 'Minimal' => '1–3'],
-        ];
-
-        return view('scoring.criteria', ['dimensions' => ScoringService::DIMENSIONS, 'ranges' => $ranges]);
+        return view('scoring.criteria', $page->criteriaData());
     }
 }

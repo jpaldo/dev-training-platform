@@ -4,15 +4,38 @@ namespace App\Services;
 
 use App\Models\ActivityScore;
 use App\Models\ActivityScoreSuggestion;
+use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class ScoringPageService
 {
     /** The AI scoring status under which suggestions can be generated and feedback improved. */
     private const AI_CONFIGURED = 'Configured';
+
+    private const PARTICIPANTS_PER_PAGE = 25;
+
+    /** The scored weeks, in column order on the scoring overview. */
+    private const SCORED_WEEKS = [2, 3, 4];
+
+    private const PATH_OPTIONS = ['manual' => 'Manual QA', 'automation' => 'Automation QA'];
+
+    private const SCORE_STATUS_OPTIONS = ['scored' => 'Scored', 'unscored' => 'Unscored'];
+
+    private const BAND_OPTIONS = ['Exemplary' => 'Exemplary', 'Proficient' => 'Proficient', 'Developing' => 'Developing', 'Beginning' => 'Beginning', 'Minimal' => 'Minimal'];
+
+    /** The points range of each performance band per rubric dimension, shown on the scoring criteria page. */
+    private const DIMENSION_BAND_RANGES = [
+        'D1' => ['Exemplary' => '27–30', 'Proficient' => '24–26', 'Developing' => '18–23', 'Beginning' => '11–17', 'Minimal' => '1–10'],
+        'D2' => ['Exemplary' => '23–25', 'Proficient' => '20–22', 'Developing' => '15–19', 'Beginning' => '9–14', 'Minimal' => '1–8'],
+        'D3' => ['Exemplary' => '18–20', 'Proficient' => '16–17', 'Developing' => '12–15', 'Beginning' => '7–11', 'Minimal' => '1–6'],
+        'D4' => ['Exemplary' => '14–15', 'Proficient' => '12–13', 'Developing' => '9–11', 'Beginning' => '6–8', 'Minimal' => '1–5'],
+        'D5' => ['Exemplary' => '9–10', 'Proficient' => '8', 'Developing' => '6–7', 'Beginning' => '4–5', 'Minimal' => '1–3'],
+    ];
 
     public function __construct(
         private readonly ScoringService $scoring,
@@ -65,6 +88,221 @@ class ScoringPageService
                 ? User::query()->whereIn('role', ['coach', 'admin'])->where('is_active', true)->orderBy('name')->get()
                 : new Collection,
         ];
+    }
+
+    /**
+     * Everything the scoring overview renders: the filter values and options and the matching participants with
+     * their Weeks 2–4 and overall score and completion. The page has no single main action, so every button is
+     * secondary.
+     *
+     * @param  array{search?: ?string, path?: ?string, week?: int|string|null, activity?: int|string|null, score_status?: ?string, band?: ?string, assigned_to_me?: bool|int|string|null}  $filters
+     * @return array{criteriaUrl: string, reportsUrl: string, search: string, pathOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, scoreStatusOptions: list<array{value: string, label: string, is_selected: bool}>, bandOptions: list<array{value: string, label: string, is_selected: bool}>, isAssignedToMe: bool, weekNumbers: list<int>, participants: LengthAwarePaginator<int, array{name: string, email: string, path: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, coach_names: string, scoring_url: string}>}
+     */
+    public function indexData(User $viewer, array $filters): array
+    {
+        $program = $this->activeProgram();
+
+        return [
+            'criteriaUrl' => route('coach.scoring.criteria'),
+            'reportsUrl' => route('coach.scoring.reports'),
+            'search' => (string) ($filters['search'] ?? ''),
+            'pathOptions' => $this->options(self::PATH_OPTIONS, $filters['path'] ?? null),
+            'weekOptions' => collect(self::SCORED_WEEKS)
+                ->map(fn (int $weekNumber): array => [
+                    'value' => (string) $weekNumber,
+                    'label' => "Week {$weekNumber}",
+                    'is_selected' => isset($filters['week']) && (int) $filters['week'] === $weekNumber,
+                ])
+                ->all(),
+            'scoreStatusOptions' => $this->options(self::SCORE_STATUS_OPTIONS, $filters['score_status'] ?? null),
+            'bandOptions' => $this->options(self::BAND_OPTIONS, $filters['band'] ?? null),
+            'isAssignedToMe' => (bool) ($filters['assigned_to_me'] ?? false),
+            'weekNumbers' => self::SCORED_WEEKS,
+            'participants' => $this->filteredParticipants($viewer, $filters)
+                ->through(fn (User $participant): array => $this->overviewRow($participant, $program)),
+        ];
+    }
+
+    /**
+     * Everything the participant scoring page renders: the overall score and completion, and per scored week its
+     * average, completion and the activity rows with the link to score (or view the score of) each submitted version.
+     *
+     * @return array{participantName: string, participantEmail: string, path: string, stats: list<array{label: string, value: string, note: ?string}>, weeks: list<array{number: int, heading: string, detail: string, rows: list<array{activity: string, score: string, band: string, status: string, action: ?array{label: string, url: string}}>}>}
+     */
+    public function participantData(User $participant): array
+    {
+        $summary = $this->scoring->summary($participant, $this->activeProgram());
+
+        return [
+            'participantName' => $participant->name,
+            'participantEmail' => $participant->email,
+            'path' => $this->pathLabel($participant),
+            'stats' => [
+                ['label' => 'OVERALL SCORE', 'value' => ($summary['average'] ?? '—').' / 100', 'note' => null],
+                [
+                    'label' => 'OVERALL COMPLETION',
+                    'value' => "{$summary['completed']} / {$summary['total']}",
+                    'note' => $this->completionPercent($summary['completed'], $summary['total'])."% complete · {$summary['scored']} scored",
+                ],
+            ],
+            'weeks' => $summary['weeks']
+                ->map(fn (array $week, int $weekNumber): array => [
+                    'number' => $weekNumber,
+                    'heading' => $week['average'] !== null ? "{$week['average']} / 100 average" : 'Average not yet scored',
+                    'detail' => "Completion: {$this->completion($week['completed'], $week['total'])} · Scored: {$week['scored']} / {$week['total']}",
+                    'rows' => $week['rows']->map(fn (array $row): array => [
+                        'activity' => $row['activity']->title,
+                        'score' => (string) ($row['score']?->total_score ?? '—'),
+                        'band' => $row['score']?->performance_band ?? ($row['submission'] ? 'Awaiting scoring' : 'Not submitted'),
+                        'status' => $row['submission']?->status ?? 'Not submitted',
+                        'action' => $row['version'] && $row['version']->status !== 'draft'
+                            ? ['label' => $row['score'] ? 'View score' : 'Score activity', 'url' => route('coach.scoring.edit', $row['version'])]
+                            : null,
+                    ])->values()->all(),
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * The scoring criteria page: each rubric dimension with its maximum and the points range of every band.
+     *
+     * @return array{dimensions: list<array{key: string, label: string, max: int, ranges: list<array{band: string, range: string}>}>}
+     */
+    public function criteriaData(): array
+    {
+        return [
+            'dimensions' => collect(ScoringService::DIMENSIONS)
+                ->map(fn (array $dimension, string $key): array => [
+                    'key' => $key,
+                    'label' => $dimension['label'],
+                    'max' => $dimension['max'],
+                    'ranges' => collect(self::DIMENSION_BAND_RANGES[$key])
+                        ->map(fn (string $range, string $band): array => ['band' => $band, 'range' => $range])
+                        ->values()
+                        ->all(),
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function activeProgram(): Program
+    {
+        return Program::query()->where('is_active', true)->firstOrFail();
+    }
+
+    /**
+     * The participants matching the overview filters, 25 per page with the query string kept. "Assigned to me" only
+     * narrows the list for a coach.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return LengthAwarePaginator<int, User>
+     */
+    private function filteredParticipants(User $viewer, array $filters): LengthAwarePaginator
+    {
+        return User::query()
+            ->where('role', 'participant')
+            ->when($filters['path'] ?? null, fn (Builder $query, string $path): Builder => $query->where('training_path', $path))
+            ->when($filters['search'] ?? null, fn (Builder $query, string $search): Builder => $query->where(
+                fn (Builder $searchQuery): Builder => $searchQuery->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"),
+            ))
+            ->when($filters['week'] ?? null, fn (Builder $query, int|string $week): Builder => $query->whereHas(
+                'activitySubmissions.activity.week',
+                fn (Builder $weekQuery): Builder => $weekQuery->where('week_number', $week),
+            ))
+            ->when($filters['activity'] ?? null, fn (Builder $query, int|string $activity): Builder => $query->whereHas(
+                'activitySubmissions.activity',
+                fn (Builder $activityQuery): Builder => $activityQuery->whereKey($activity),
+            ))
+            ->when(($filters['assigned_to_me'] ?? false) && $viewer->hasAnyRole(['coach']), fn (Builder $query): Builder => $query->whereHas(
+                'assignedCoaches',
+                fn (Builder $coachQuery): Builder => $coachQuery->whereKey($viewer->id),
+            ))
+            ->when(($filters['score_status'] ?? null) === 'scored', fn (Builder $query): Builder => $query->whereHas(
+                'activitySubmissions.versions.activityScore',
+                fn (Builder $scoreQuery): Builder => $scoreQuery->where('status', 'published'),
+            ))
+            ->when(($filters['score_status'] ?? null) === 'unscored', fn (Builder $query): Builder => $query->whereDoesntHave('activitySubmissions.versions.activityScore'))
+            ->when($filters['band'] ?? null, fn (Builder $query, string $band): Builder => $query->whereHas(
+                'activitySubmissions.versions.activityScore',
+                fn (Builder $scoreQuery): Builder => $scoreQuery->where('performance_band', $band),
+            ))
+            ->with('assignedCoaches')
+            ->paginate(self::PARTICIPANTS_PER_PAGE)
+            ->withQueryString();
+    }
+
+    /**
+     * One overview row: the participant, each scored week's average with its band (null while unscored) and
+     * completion, the overall average and completion, the assigned coaches and the link to the participant's scoring.
+     *
+     * @return array{name: string, email: string, path: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, coach_names: string, scoring_url: string}
+     */
+    private function overviewRow(User $participant, Program $program): array
+    {
+        $summary = $this->scoring->summary($participant, $program);
+
+        return [
+            'name' => $participant->name,
+            'email' => $participant->email,
+            'path' => $this->pathLabel($participant),
+            'weeks' => collect(self::SCORED_WEEKS)
+                ->map(function (int $weekNumber) use ($summary): array {
+                    $week = $summary['weeks'][$weekNumber];
+
+                    return [
+                        'average' => $week['average'],
+                        'band' => $week['average'] !== null ? $this->scoring->band($week['average']) : null,
+                        'completion' => $this->completion($week['completed'], $week['total']),
+                    ];
+                })
+                ->all(),
+            'average' => (string) ($summary['average'] ?? '—'),
+            'completion' => $this->completion($summary['completed'], $summary['total']),
+            'coach_names' => $participant->assignedCoaches->pluck('name')->implode(', ') ?: 'Unassigned',
+            'scoring_url' => route('coach.scoring.participant', $participant),
+        ];
+    }
+
+    /**
+     * The QA path label of the scoring pages: Automation QA, otherwise Manual QA.
+     */
+    private function pathLabel(User $participant): string
+    {
+        return $participant->training_path === 'automation' ? 'Automation QA' : 'Manual QA';
+    }
+
+    /**
+     * "completed / total (percent%)".
+     */
+    private function completion(int $completed, int $total): string
+    {
+        return "{$completed} / {$total} ({$this->completionPercent($completed, $total)}%)";
+    }
+
+    private function completionPercent(int $completed, int $total): int
+    {
+        return $total ? (int) round($completed / $total * 100) : 0;
+    }
+
+    /**
+     * Select options from value => label pairs, marking the option that matches the current filter value.
+     *
+     * @param  array<string, string>  $labels
+     * @return list<array{value: string, label: string, is_selected: bool}>
+     */
+    private function options(array $labels, ?string $selectedValue): array
+    {
+        return collect($labels)
+            ->map(fn (string $label, string $value): array => [
+                'value' => $value,
+                'label' => $label,
+                'is_selected' => $selectedValue === $value,
+            ])
+            ->values()
+            ->all();
     }
 
     /**

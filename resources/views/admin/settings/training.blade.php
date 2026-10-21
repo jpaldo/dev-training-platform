@@ -1,5 +1,35 @@
 @extends('layouts.app')
+
 @section('content')
-<div class="eyebrow">ADMIN SETTINGS · TRAINING</div><h1>Training settings</h1><p class="muted">Application behavior and upload limits. These values are read-only configuration summaries.</p>
-<section class="card"><div class="grid"><div><span class="eyebrow">APPLICATION TIMEZONE</span><h2>{{ $training['timezone'] }}</h2></div><div><span class="eyebrow">MENTOR INTERVIEW</span><h2>{{ $training['mentor_duration'] }} minutes</h2></div><div><span class="eyebrow">PHP UPLOAD LIMIT</span><h2>{{ $training['php_upload_display'] }}</h2></div></div><p><strong>Reusable AI Asset application limit:</strong> {{ number_format($training['asset_limit'] / 1048576, 0) }} MB</p><p><strong>Weekly Video application limit:</strong> {{ number_format($training['video_limit'] / 1048576, 0) }} MB</p><p><strong>General evidence application limit:</strong> {{ number_format($training['evidence_limit'] / 1048576, 0) }} MB</p><p><strong>Current PHP post limit:</strong> {{ $training['php_post_display'] }}</p><p><strong>Effective Reusable Asset limit:</strong> {{ number_format($training['effective_asset_limit'] / 1048576, 0) }} MB</p><p><strong>Effective Weekly Video limit:</strong> {{ number_format($training['effective_video_limit'] / 1048576, 0) }} MB</p><p class="muted">Application settings do not edit php.ini or server runtime configuration.</p></section>
+    <div class="grid grid-cols-1 gap-6">
+        <header class="grid min-w-0 gap-2">
+            <x-ui.eyebrow>ADMIN SETTINGS · TRAINING</x-ui.eyebrow>
+            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Training settings</h1>
+            <p class="m-0 leading-relaxed text-muted">Application behavior and upload limits. These values are read-only configuration summaries.</p>
+        </header>
+
+        <x-ui.card as="section" class="grid grid-cols-1 gap-5" aria-labelledby="training-settings-title">
+            <h2 id="training-settings-title" class="sr-only">Current configuration</h2>
+
+            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                @foreach($stats as $stat)
+                    <div class="grid min-w-0 content-start gap-1.5 rounded-xl border border-line bg-field px-4 py-3.5">
+                        <dt><x-ui.eyebrow as="span">{{ $stat['label'] }}</x-ui.eyebrow></dt>
+                        <dd class="m-0 text-xl/snug font-extrabold wrap-break-word">{{ $stat['value'] }}</dd>
+                    </div>
+                @endforeach
+            </dl>
+
+            <dl class="m-0 grid grid-cols-1 gap-2.5">
+                @foreach($limits as $limit)
+                    <div class="flex flex-wrap gap-x-2 leading-relaxed">
+                        <dt class="font-extrabold">{{ $limit['label'] }}</dt>
+                        <dd class="m-0">{{ $limit['value'] }}</dd>
+                    </div>
+                @endforeach
+            </dl>
+
+            <p class="m-0 text-sm/relaxed text-muted">Application settings do not edit php.ini or server runtime configuration.</p>
+        </x-ui.card>
+    </div>
 @endsection

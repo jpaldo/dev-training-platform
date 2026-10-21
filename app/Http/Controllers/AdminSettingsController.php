@@ -6,7 +6,7 @@ use App\Http\Requests\SendEmailTestRequest;
 use App\Http\Requests\UpdateCalendarAvailabilityRequest;
 use App\Http\Requests\UpdateEmailSettingsRequest;
 use App\Models\User;
-use App\Services\AdminSettingsStatusService;
+use App\Services\AdminSettingsPageService;
 use App\Services\EmailConfigurationService;
 use App\Services\GoogleDriveConfigurationService;
 use App\Services\GoogleDriveConnectionService;
@@ -20,14 +20,14 @@ use Throwable;
 
 class AdminSettingsController extends Controller
 {
-    public function index(AdminSettingsStatusService $status): View
+    public function index(AdminSettingsPageService $page): View
     {
-        return view('admin.settings.index', $status->overview());
+        return view('admin.settings.index', $page->indexData());
     }
 
-    public function google(AdminSettingsStatusService $status): View
+    public function google(AdminSettingsPageService $page): View
     {
-        return view('admin.settings.google', ['google' => $status->google()]);
+        return view('admin.settings.google', $page->googleData());
     }
 
     public function updateCalendarAvailability(UpdateCalendarAvailabilityRequest $request, GoogleDriveConfigurationService $configuration): RedirectResponse
@@ -83,9 +83,9 @@ class AdminSettingsController extends Controller
         return redirect()->route('admin.settings.google')->with('status', 'Google Calendar verification authorization completed.');
     }
 
-    public function email(AdminSettingsStatusService $status, EmailConfigurationService $email): View
+    public function email(AdminSettingsPageService $page): View
     {
-        return view('admin.settings.email', ['email' => $status->email(), 'emailSettings' => $email->current()]);
+        return view('admin.settings.email', $page->emailData());
     }
 
     public function updateEmail(UpdateEmailSettingsRequest $request, EmailConfigurationService $email): RedirectResponse
@@ -112,8 +112,8 @@ class AdminSettingsController extends Controller
         return back()->with('status', 'Test email sent successfully to '.$request->string('recipient')->toString().'.');
     }
 
-    public function training(AdminSettingsStatusService $status): View
+    public function training(AdminSettingsPageService $page): View
     {
-        return view('admin.settings.training', ['training' => $status->training()]);
+        return view('admin.settings.training', $page->trainingData());
     }
 }

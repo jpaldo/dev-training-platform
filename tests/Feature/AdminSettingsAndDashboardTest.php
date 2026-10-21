@@ -159,7 +159,7 @@ class AdminSettingsAndDashboardTest extends TestCase
         config(['services.google_drive.client_id' => 'client-id.apps.googleusercontent.com', 'services.google_drive.client_secret' => 'super-secret', 'services.google_drive.redirect_uri' => 'https://example.test/profile/google-drive/callback', 'services.google_drive.enabled' => true]);
 
         $response = $this->actingAs($admin)->get(route('admin.settings.google'))->assertOk();
-        $response->assertSee('Requires manual Google Cloud Console verification')->assertSee('Application configured — authorization required')->assertDontSee('CALENDAR / MEET</span><p class="success">Ready');
+        $response->assertSee('Requires manual Google Cloud Console verification')->assertSee('Application configured — authorization required')->assertDontSee('>Ready</span>', false);
         $this->assertFalse(app(AdminSettingsStatusService::class)->google()['calendar_ready']);
     }
 

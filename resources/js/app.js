@@ -129,10 +129,43 @@ const initializePageTabs = () => {
     });
 };
 
+/**
+ * Open the native date picker when anything inside a `[data-date-picker]` field is clicked, not only the small
+ * calendar indicator. Browsers without `showPicker()` (or that refuse it) just focus the input.
+ */
+const initializeDatePickers = () => {
+    document.querySelectorAll('[data-date-picker]').forEach((field) => {
+        const input = field.querySelector('input[type="date"]');
+
+        if (!input) {
+            return;
+        }
+
+        field.addEventListener('click', (event) => {
+            if (typeof input.showPicker !== 'function') {
+                if (event.target !== input) {
+                    input.focus();
+                }
+
+                return;
+            }
+
+            event.preventDefault();
+
+            try {
+                input.showPicker();
+            } catch {
+                input.focus();
+            }
+        });
+    });
+};
+
 const initializePage = () => {
     initializeMentorDateTimePickers();
     initializeSidebarDrawer();
     initializePageTabs();
+    initializeDatePickers();
 };
 
 if (document.readyState === 'loading') {

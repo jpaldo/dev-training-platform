@@ -1,19 +1,93 @@
 @extends('layouts.app')
 
 @section('content')
-<style>
-.daily-log-table-wrap{overflow-x:auto;margin-top:18px}.daily-log-table{width:100%;min-width:760px;border-collapse:collapse}.daily-log-table th,.daily-log-table td{padding:13px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.daily-log-table th{color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase}.daily-log-date{white-space:nowrap;font-weight:800}.daily-log-content{max-width:520px;white-space:pre-line;overflow-wrap:anywhere}.daily-log-content-preview{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.daily-log-actions{white-space:nowrap}@media(max-width:600px){.daily-log-table th,.daily-log-table td{padding:11px 10px}}
-</style>
-<div class="eyebrow">DAILY LOG</div>
-<div class="page-heading"><div><h1>Your training log</h1><p class="muted">Review your submitted training notes and daily progress.</p></div><a class="btn" href="{{ route('daily-logs.create') }}">New log →</a></div>
-@if(session('status'))<div class="success">{{ session('status') }}</div>@endif
-@if($errors->any())<div class="error">{{ $errors->first() }}</div>@endif
-<div class="card" style="margin:18px 0"><h2>Weekly progress</h2><p class="muted">Each active training week requires five completed daily logs.</p>@foreach($weeklyProgress as $progress)<div class="check"><strong>Week {{ $progress['week']->week_number }}</strong><br>{{ $progress['count'] }} / 5 completed @if($progress['count'] < 5)<p class="muted">Complete {{ 5 - $progress['count'] }} more daily log{{ $progress['count'] === 4 ? '' : 's' }}.</p>@else<p class="success">5 of 5 daily logs completed.</p>@endif</div>@endforeach</div>
-<div class="page-heading"><h2>Daily Logs</h2><a class="btn" href="{{ route('daily-logs.create') }}">New log →</a></div>
-@if($logs->count())
-<div class="card daily-log-table-wrap"><table class="daily-log-table"><caption class="muted" style="text-align:left;padding-bottom:12px">Your daily logs, newest first</caption><thead><tr><th scope="col">Date</th><th scope="col">Activity Type</th><th scope="col">Week</th><th scope="col">Work / Activity</th><th scope="col">Details / Notes</th><th scope="col">Actions</th></tr></thead><tbody>@foreach($logs as $log)<tr><td class="daily-log-date">{{ $log->logged_on?->format('M j, Y') }}</td><td>{{ $log->activity ? 'Training Activity' : 'General Training' }}</td><td>{{ $log->activity?->week?->week_number ? 'Week '.$log->activity->week->week_number : '—' }}</td><td>{{ $log->activity?->title ?? 'General Training' }}</td><td class="daily-log-content"><span class="daily-log-content-preview">{{ $log->content }}</span></td><td class="daily-log-actions"><a class="btn secondary" href="{{ route('daily-logs.edit', $log) }}">Edit</a></td></tr>@endforeach</tbody></table></div>
-@if($logs->hasPages())<div style="margin-top:18px">{{ $logs->links() }}</div>@endif
-@else
-<div class="card" style="margin-top:18px"><p class="muted">No Daily Logs yet.</p><a class="btn" href="{{ route('daily-logs.create') }}">New log →</a></div>
-@endif
+    @php
+        $sectionTitleClasses = 'm-0 text-xl font-extrabold';
+        $headerCellClasses = 'border-b border-line px-3.5 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase max-sm:px-2.5';
+        $cellClasses = 'border-b border-line px-3.5 py-3.5 text-left align-top max-sm:px-2.5 max-sm:py-3';
+    @endphp
+
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <header class="grid min-w-0 gap-2">
+            <x-ui.eyebrow>DAILY LOG</x-ui.eyebrow>
+            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Your training log</h1>
+            <p class="m-0 leading-relaxed text-muted">Review your submitted training notes and daily progress.</p>
+        </header>
+
+        {{-- The single main action stays in view: in the page header on desktop, pinned to the bottom of the screen on mobile. --}}
+        <div id="daily-logs-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
+            <x-ui.button :href="$createUrl">New log →</x-ui.button>
+        </div>
+
+        <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
+            @if(session('status'))
+                <x-ui.alert tone="success" role="status">{{ session('status') }}</x-ui.alert>
+            @endif
+            @if($errors->any())
+                <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
+            @endif
+
+            <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="daily-log-progress-title">
+                <div class="grid gap-1">
+                    <h2 id="daily-log-progress-title" class="{{ $sectionTitleClasses }}">Weekly progress</h2>
+                    <p class="m-0 text-sm/relaxed text-muted">Each active training week requires five completed daily logs.</p>
+                </div>
+                @if($weeklyProgress !== [])
+                    <ul class="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 xl:grid-cols-3">
+                        @foreach($weeklyProgress as $progress)
+                            <li class="grid min-w-0 content-start gap-2 rounded-xl border border-line bg-field px-4 py-3.5">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <strong>{{ $progress['label'] }}</strong>
+                                    <x-ui.badge :tone="$progress['is_complete'] ? 'success' : 'neutral'">{{ $progress['progress'] }}</x-ui.badge>
+                                </div>
+                                <p @class(['m-0 text-sm/relaxed', 'text-emerald-200' => $progress['is_complete'], 'text-muted' => ! $progress['is_complete']])>{{ $progress['message'] }}</p>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </x-ui.card>
+
+            <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="daily-log-list-title">
+                <h2 id="daily-log-list-title" class="{{ $sectionTitleClasses }}">Daily Logs</h2>
+                @if($logs->isNotEmpty())
+                    <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="daily-log-list-title" tabindex="0">
+                        <table class="w-full min-w-190 border-collapse text-sm">
+                            <caption class="pb-3 text-left text-sm text-muted">Your daily logs, newest first</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Date</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Activity Type</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Week</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Work / Activity</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Details / Notes</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($logs as $log)
+                                    <tr data-daily-log-row>
+                                        <td class="{{ $cellClasses }} font-extrabold whitespace-nowrap">{{ $log['date'] }}</td>
+                                        <td class="{{ $cellClasses }}">{{ $log['activity_type'] }}</td>
+                                        <td class="{{ $cellClasses }} whitespace-nowrap">{{ $log['week'] }}</td>
+                                        <td class="{{ $cellClasses }} wrap-break-word">{{ $log['title'] }}</td>
+                                        <td class="{{ $cellClasses }} max-w-130 wrap-anywhere">
+                                            <span class="line-clamp-3 whitespace-pre-line">{{ $log['content'] }}</span>
+                                        </td>
+                                        <td class="{{ $cellClasses }} whitespace-nowrap">
+                                            <x-ui.button variant="secondary" :href="$log['edit_url']">Edit</x-ui.button>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @if($logs->hasPages())
+                        <div>{{ $logs->links() }}</div>
+                    @endif
+                @else
+                    <p class="m-0 text-muted">No Daily Logs yet.</p>
+                @endif
+            </x-ui.card>
+        </div>
+    </div>
 @endsection

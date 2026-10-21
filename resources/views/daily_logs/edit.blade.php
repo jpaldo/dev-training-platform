@@ -1,14 +1,30 @@
 @extends('layouts.app')
+
 @section('content')
-<style>
-    .date-picker-field { position: relative; cursor: pointer; }
-    .date-picker-field input { cursor: pointer; padding-right: 48px; }
-    .date-picker-field::after { content: '📅'; position: absolute; right: 14px; bottom: 13px; pointer-events: none; font-size: 1.1rem; }
-</style>
-<div class="eyebrow">DAILY LOG</div><h1>Edit training log</h1>
-<div class="card" style="max-width:720px"><form class="form" method="post" action="{{ route('daily-logs.update', $dailyLog) }}">@csrf @method('PATCH')
-    <div class="field"><label for="daily-log-date">Date</label><div class="date-picker-field" data-date-picker><input id="daily-log-date" type="date" name="logged_on" value="{{ old('logged_on', $dailyLog->logged_on->toDateString()) }}" max="{{ now(config('app.timezone', 'Asia/Manila'))->toDateString() }}" required><p class="muted">Select the date you performed this activity.</p></div></div>
-    <div class="field"><label for="daily-log-content">Work, findings, evidence, blockers, and outcome</label><textarea id="daily-log-content" name="content" required>{{ old('content', $dailyLog->content) }}</textarea></div><button class="btn">Update log</button>
-</form></div>
-<script>(()=>{const wrap=document.querySelector('[data-date-picker]');const input=wrap?.querySelector('input[type=date]');if(!wrap||!input)return;wrap.addEventListener('click',event=>{if(!wrap.contains(event.target))return;if(typeof input.showPicker!=='function'){if(event.target!==input)input.focus();return;}event.preventDefault();try{input.showPicker();}catch(_){input.focus();}});})();</script>
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <header class="grid min-w-0 gap-2">
+            <x-ui.eyebrow>DAILY LOG</x-ui.eyebrow>
+            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Edit training log</h1>
+        </header>
+
+        {{-- The single main action stays in view: in the page header on desktop, pinned to the bottom of the screen on mobile. --}}
+        <div id="daily-log-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
+            <x-ui.button type="submit" form="daily-log-form">Update log</x-ui.button>
+        </div>
+
+        <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
+            @if($errors->any())
+                <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
+            @endif
+
+            @include('daily_logs.form', [
+                'formAction' => route('daily-logs.update', $dailyLog),
+                'formMethod' => 'PATCH',
+                'dateValue' => $dateValue,
+                'maxDate' => $maxDate,
+                'activityOptions' => null,
+                'contentValue' => $dailyLog->content,
+            ])
+        </div>
+    </div>
 @endsection

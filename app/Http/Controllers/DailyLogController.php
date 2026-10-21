@@ -6,15 +6,12 @@ use App\Http\Requests\StoreDailyLogRequest;
 use App\Http\Requests\UpdateDailyLogRequest;
 use App\Models\Activity;
 use App\Models\DailyLog;
-use App\Models\GoogleDriveExport;
-use App\Models\Program;
-use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Services\DailyLogPageService;
 use App\Services\ExportLifecycleService;
 use App\Services\TrainingExportCoordinator;
 use App\Services\TrainingSyncCoordinator;
 use App\Services\WeekProgressionService;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -22,29 +19,21 @@ use Illuminate\View\View;
 
 class DailyLogController extends Controller
 {
-    public function index(Request $request, ExportLifecycleService $lifecycle): View
-    {
-        /** @var User $user */ $user = $request->user();
-        $lifecycle->reconcileStale($user->id);
-
-        $program = Program::query()->where('is_active', true)->with('weeks')->first();
-        $weeklyProgress = $program ? $program->weeks->where('is_active', true)->sortBy('week_number')->map(fn (TrainingWeek $week): array => [
-            'week' => $week,
-            'count' => $user->dailyLogs()->whereHas('activity', fn (Builder $query): Builder => $query->where('training_week_id', $week->id))->count(),
-        ])->values() : collect();
-
-        $exports = GoogleDriveExport::query()->where('user_id', $user->id)->where('export_type', 'daily_logs')->get()->keyBy('scope_key');
-
-        return view('daily_logs.index', ['logs' => $user->dailyLogs()->with('activity.week')->latest('logged_on')->latest('id')->paginate(25), 'weeklyProgress' => $weeklyProgress, 'exports' => $exports]);
-    }
-
-    public function create(Request $request, WeekProgressionService $progression): View
+    public function index(Request $request, ExportLifecycleService $lifecycle, DailyLogPageService $page): View
     {
         /** @var User $user */
         $user = $request->user();
-        $activities = Activity::query()->with('week')->where('is_active', true)->orderBy('training_week_id')->orderBy('position')->get()->filter(fn (Activity $activity): bool => $progression->canAccessWeek($user, $activity->week));
+        $lifecycle->reconcileStale($user->id);
 
-        return view('daily_logs.create', compact('activities'));
+        return view('daily_logs.index', $page->indexData($user));
+    }
+
+    public function create(Request $request, DailyLogPageService $page): View
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        return view('daily_logs.create', $page->createData($user));
     }
 
     public function store(StoreDailyLogRequest $request, WeekProgressionService $progression, TrainingExportCoordinator $exports): RedirectResponse
@@ -65,11 +54,11 @@ class DailyLogController extends Controller
         return redirect()->route('daily-logs.index')->with('status', 'Daily log saved.');
     }
 
-    public function edit(DailyLog $dailyLog): View
+    public function edit(DailyLog $dailyLog, DailyLogPageService $page): View
     {
         Gate::authorize('update', $dailyLog);
 
-        return view('daily_logs.edit', compact('dailyLog'));
+        return view('daily_logs.edit', $page->editData($dailyLog));
     }
 
     public function update(UpdateDailyLogRequest $request, DailyLog $dailyLog, WeekProgressionService $progression, TrainingExportCoordinator $exports): RedirectResponse

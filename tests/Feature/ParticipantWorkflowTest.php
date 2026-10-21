@@ -833,7 +833,6 @@ class ParticipantWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('type="date"', false)
             ->assertSee('data-date-picker', false)
-            ->assertSee('input.showPicker()', false)
             ->assertSee('value="'.$today.'"', false)
             ->assertSee('max="'.$today.'"', false);
 

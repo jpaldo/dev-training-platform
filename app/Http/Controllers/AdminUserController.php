@@ -8,9 +8,8 @@ use App\Http\Requests\UpdateAdminUserRequest;
 use App\Http\Requests\UpdateParticipantAssignmentsRequest;
 use App\Models\AdminAuditLog;
 use App\Models\User;
+use App\Services\AdminUserPageService;
 use App\Services\PasswordSetupService;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -20,35 +19,14 @@ use Illuminate\View\View;
 
 class AdminUserController extends Controller
 {
-    public const ACCESS_TYPES = [
-        'admin' => 'Admin',
-        'coach' => 'Mentor / Coach',
-        'qa_manual' => 'QA Manual',
-        'qa_automation' => 'QA Automation',
-        'qa_automation_manual' => 'QA Automation / Manual',
-    ];
-
-    public function index(FilterAdminUsersRequest $request): View
+    public function index(FilterAdminUsersRequest $request, AdminUserPageService $page): View
     {
-        $filters = $request->validated();
-        $users = User::query()->when($filters['search'] ?? null, fn (Builder $query, string $search): Builder => $query->where(fn (Builder $q): Builder => $q->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")))
-            ->when($filters['status'] ?? null, fn (Builder $query, string $status): Builder => $query->where('is_active', $status === 'active'))
-            ->when($filters['path'] ?? null, fn (Builder $query, string $path): Builder => $query->where('training_path', $path))
-            ->when($filters['access_type'] ?? null, fn (Builder $query, string $type): Builder => $query->where(fn (Builder $q): Builder => match ($type) {
-                'admin' => $q->where('role', 'admin'),
-                'coach' => $q->where('role', 'coach'),
-                'qa_manual' => $q->where('role', 'participant')->where('training_path', 'manual'),
-                'qa_automation' => $q->where('role', 'participant')->where('training_path', 'automation'),
-                'qa_automation_manual' => $q->where('role', 'participant')->where('training_path', 'automation_manual'),
-            }))
-            ->latest()->paginate(25)->withQueryString();
-
-        return view('admin.users.index', ['users' => $users, 'accessTypes' => self::ACCESS_TYPES]);
+        return view('admin.users.index', $page->indexData($request->validated()));
     }
 
-    public function create(): View
+    public function create(AdminUserPageService $page): View
     {
-        return view('admin.users.form', ['user' => null, 'accessTypes' => self::ACCESS_TYPES]);
+        return view('admin.users.form', $page->formData(null));
     }
 
     public function store(StoreAdminUserRequest $request, PasswordSetupService $passwordSetup): RedirectResponse
@@ -63,11 +41,9 @@ class AdminUserController extends Controller
         return redirect()->route('admin.users.index')->with('password_setup_url', route('password.setup', ['token' => $token]));
     }
 
-    public function edit(User $user): View
+    public function edit(User $user, AdminUserPageService $page): View
     {
-        $user->load(['attendanceSessions' => fn (Relation $query): Relation => $query->latest('check_in_at')->limit(5), 'assignedCoaches']);
-
-        return view('admin.users.form', ['user' => $user, 'accessTypes' => self::ACCESS_TYPES, 'currentAccessType' => $this->accessType($user), 'coaches' => User::query()->where('role', 'coach')->where('is_active', true)->orderBy('name')->get()]);
+        return view('admin.users.form', $page->formData($user));
     }
 
     public function assignments(UpdateParticipantAssignmentsRequest $request, User $user): RedirectResponse
@@ -134,15 +110,6 @@ class AdminUserController extends Controller
             'qa_automation_manual' => ['participant', 'automation_manual'],
             default => ['participant', 'manual'],
         };
-    }
-
-    private function accessType(User $user): string
-    {
-        return $user->role === 'admin' ? 'admin' : ($user->role === 'coach' ? 'coach' : match ($user->training_path) {
-            'automation' => 'qa_automation',
-            'automation_manual' => 'qa_automation_manual',
-            default => 'qa_manual',
-        });
     }
 
     private function audit(Request $request, User $target, string $action, array $metadata = []): void

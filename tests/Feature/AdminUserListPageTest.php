@@ -1,0 +1,85 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\User;
+use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Tests\TestCase;
+
+class AdminUserListPageTest extends TestCase
+{
+    use LazilyRefreshDatabase;
+
+    public function test_rows_show_the_access_type_path_status_and_account_actions_of_each_user(): void
+    {
+        $this->travelTo(now()->setDate(2026, 3, 10));
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null, 'name' => 'Ada Admin', 'created_at' => now()->subDays(5)]);
+        User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Cole Coach', 'created_at' => now()->subDays(4)]);
+        User::factory()->create(['training_path' => 'manual', 'name' => 'Max Manual', 'created_at' => now()->subDays(3)]);
+        User::factory()->create(['training_path' => 'automation', 'name' => 'Ava Automation', 'created_at' => now()->subDays(2)]);
+        $hybrid = User::factory()->create(['training_path' => 'automation_manual', 'name' => 'Hal Hybrid', 'is_active' => false, 'created_at' => now()->subDay()]);
+
+        $this->actingAs($admin)->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'ADMIN · USERS',
+                'User Management',
+                'Access Type determines each user\'s role in the training platform.',
+                'id="admin-users-main-action"', 'href="'.route('admin.users.create').'"', '+ Add User',
+                'aria-label="Admin settings"',
+                'href="'.route('admin.settings.google-drive').'"', 'Google Drive Settings',
+                'href="'.route('admin.settings.ai').'"', 'AI Settings',
+                'aria-label="Filter users"',
+                'role="region" aria-labelledby="user-list-title"',
+                '>Hal Hybrid</th>', 'QA Manual', 'Automation_manual', '>Disabled</span>', 'Mar 9, 2026',
+                'href="'.route('admin.users.edit', $hybrid).'"', 'Edit',
+                'action="'.route('admin.users.enable', $hybrid).'"', 'Enable',
+                '>Ava Automation</th>', 'QA Automation', 'Automation', '>Active</span>', 'Mar 8, 2026',
+                '>Max Manual</th>', 'QA Manual', 'Manual', '>Active</span>',
+                '>Cole Coach</th>', 'Mentor / Coach', '—', '>Active</span>',
+                '>Ada Admin</th>', 'Admin', '—', '>Active</span>', 'Mar 5, 2026',
+                'action="'.route('admin.users.disable', $admin).'"', 'onsubmit="return confirm(\'Disable this account? Historical training records will be preserved.\')"', 'Disable',
+                'href="'.route('admin.attendance.index').'"', 'View Attendance',
+            ], false)
+            ->assertDontSee('action="'.route('admin.users.disable', $hybrid).'"', false)
+            ->assertDontSee('action="'.route('admin.users.enable', $admin).'"', false)
+            ->assertDontSee('Password setup link');
+    }
+
+    public function test_filters_keep_their_values_and_an_empty_result_shows_a_notice_instead_of_the_table(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        User::factory()->create(['training_path' => 'automation', 'name' => 'Ava Automation']);
+        User::factory()->create(['training_path' => 'manual', 'name' => 'Max Manual']);
+
+        $this->actingAs($admin)->get(route('admin.users.index', ['search' => 'Ava', 'access_type' => 'qa_automation', 'status' => 'active', 'path' => 'automation']))
+            ->assertOk()
+            ->assertSee('name="search" value="Ava"', false)
+            ->assertSee('<option value="qa_automation" selected>QA Automation</option>', false)
+            ->assertSee('<option value="active" selected>Active</option>', false)
+            ->assertSee('<option value="automation" selected>Automation QA</option>', false)
+            ->assertSee('>Ava Automation</th>', false)
+            ->assertDontSee('Max Manual');
+
+        $this->actingAs($admin)->get(route('admin.users.index', ['status' => 'disabled']))
+            ->assertOk()
+            ->assertSee('<option value="disabled" selected>Disabled</option>', false)
+            ->assertSee('No users match these filters.')
+            ->assertDontSee('<table', false);
+    }
+
+    public function test_the_one_time_password_setup_link_is_shown_with_its_expiry_after_creating_a_user(): void
+    {
+        config(['password_setup.expire' => 45]);
+
+        $this->actingAs(User::factory()->create(['role' => 'admin', 'training_path' => null]))
+            ->withSession(['password_setup_url' => 'https://example.test/password/setup/token'])
+            ->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Password setup link',
+                'It expires in 45 minutes and is not shown again.',
+                'value="https://example.test/password/setup/token" readonly aria-label="One-time password setup link"',
+            ], false);
+    }
+}

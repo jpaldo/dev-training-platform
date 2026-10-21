@@ -1,11 +1,145 @@
 @extends('layouts.app')
+
 @section('content')
-<p><a class="btn secondary" href="{{ route('admin.settings.google-drive') }}">Google Drive Settings</a> <a class="btn secondary" href="{{ route('admin.settings.ai') }}">AI Settings</a></p>
-<style>.user-tools{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:end}.user-tools input,.user-tools select{width:100%;background:#0a0f21;color:#fff;border:1px solid #293052;border-radius:12px;padding:12px;font:inherit}.user-table{width:100%;border-collapse:collapse}.user-table th,.user-table td{padding:14px 10px;border-bottom:1px solid #293052;text-align:left;vertical-align:middle}.user-table th{color:#9da7c6;font-size:.78rem;letter-spacing:.05em;text-transform:uppercase}.status-active{color:#a7f3d0}.status-disabled{color:#fecdd3}@media(max-width:850px){.user-tools{grid-template-columns:1fr 1fr}.user-table{display:block;overflow-x:auto;white-space:nowrap}}</style>
-<div class="eyebrow">ADMIN · USERS</div><div class="gate-header"><div><h1>User Management</h1><p class="muted">Access Type determines each user's role in the training platform.</p></div><a class="btn" href="{{ route('admin.users.create') }}">+ Add User</a></div>
-@if(session('status'))<div class="success" role="status">{{ session('status') }}</div>@endif @if($errors->any())<div class="error" role="alert">{{ $errors->first() }}</div>@endif
-@if(session('password_setup_url'))<div class="card" style="margin-top:18px" role="status"><h2>Password setup link</h2><p class="muted">Share this one-time link with the new user through your approved secure channel. It expires in {{ config('password_setup.expire') }} minutes and is not shown again.</p><input type="text" value="{{ session('password_setup_url') }}" readonly aria-label="One-time password setup link" style="width:100%"></div>@endif
-<form class="card user-tools" method="GET" style="margin-top:20px"><div><label for="user-search">Search</label><input id="user-search" name="search" value="{{ request('search') }}" placeholder="Name or email"></div><div><label for="access-type">Access Type</label><select id="access-type" name="access_type"><option value="">All</option>@foreach($accessTypes as $key=>$label)<option value="{{ $key }}" @selected(request('access_type')===$key)>{{ $label }}</option>@endforeach</select></div><div><label for="user-status">Status</label><select id="user-status" name="status"><option value="">All</option><option value="active" @selected(request('status')==='active')>Active</option><option value="disabled" @selected(request('status')==='disabled')>Disabled</option></select></div><div><label for="user-path">QA Path</label><select id="user-path" name="path"><option value="">All</option><option value="manual" @selected(request('path')==='manual')>Manual QA</option><option value="automation" @selected(request('path')==='automation')>Automation QA</option></select></div><button class="btn secondary" type="submit">Filter</button></form>
-<div class="card" style="margin-top:18px"><table class="user-table"><thead><tr><th>Name</th><th>Email</th><th>Access Type</th><th>QA Path</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody>@forelse($users as $user)<tr><td>{{ $user->name }}</td><td>{{ $user->email }}</td><td>{{ $user->role==='admin'?'Admin':($user->role==='coach'?'Mentor / Coach':($user->training_path==='automation'?'QA Automation':'QA Manual')) }}</td><td>{{ $user->training_path ? ucfirst($user->training_path) : '—' }}</td><td class="{{ $user->is_active ? 'status-active':'status-disabled' }}">{{ $user->is_active ? 'Active':'Disabled' }}</td><td>{{ $user->created_at?->format('M j, Y') }}</td><td><div class="actions"><a class="btn secondary" href="{{ route('admin.users.edit',$user) }}">Edit</a>@if($user->is_active)<form method="POST" action="{{ route('admin.users.disable',$user) }}" onsubmit="return confirm('Disable this account? Historical training records will be preserved.')">@csrf<button class="btn secondary" type="submit">Disable</button></form>@else<form method="POST" action="{{ route('admin.users.enable',$user) }}">@csrf<button class="btn secondary" type="submit">Enable</button></form>@endif</div></td></tr>@empty<tr><td colspan="7">No users match these filters.</td></tr>@endforelse</tbody></table>{{ $users->links() }}</div>
-<div class="actions" style="margin-top:18px"><a class="btn secondary" href="{{ route('admin.attendance.index') }}">View Attendance</a></div>
+    @php
+        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
+        $labelClasses = 'text-sm font-extrabold';
+        $headerCellClasses = 'border-b border-line px-3.5 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase max-sm:px-2.5';
+        $cellClasses = 'border-b border-line px-3.5 py-3.5 text-left align-middle max-sm:px-2.5 max-sm:py-3';
+    @endphp
+
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <header class="grid min-w-0 gap-2">
+            <x-ui.eyebrow>ADMIN · USERS</x-ui.eyebrow>
+            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">User Management</h1>
+            <p class="m-0 leading-relaxed text-muted">Access Type determines each user's role in the training platform.</p>
+        </header>
+
+        {{-- The single main action stays in view: in the page header on desktop, pinned to the bottom of the screen on mobile. --}}
+        <div id="admin-users-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
+            <x-ui.button :href="$createUrl">+ Add User</x-ui.button>
+        </div>
+
+        <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
+            <nav aria-label="Admin settings">
+                <ul class="m-0 flex list-none flex-wrap gap-3 p-0">
+                    @foreach($settingsLinks as $link)
+                        <li>
+                            <x-ui.button variant="secondary" :href="$link['url']">{{ $link['label'] }}</x-ui.button>
+                        </li>
+                    @endforeach
+                </ul>
+            </nav>
+
+            @if(session('status'))
+                <x-ui.alert tone="success" role="status">{{ session('status') }}</x-ui.alert>
+            @endif
+            @if($errors->any())
+                <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
+            @endif
+
+            @if(session('password_setup_url'))
+                <x-ui.card as="section" class="grid grid-cols-1 gap-3" role="status" aria-labelledby="password-setup-title">
+                    <h2 id="password-setup-title" class="m-0 text-xl font-extrabold">Password setup link</h2>
+                    <p class="m-0 leading-relaxed text-muted">Share this one-time link with the new user through your approved secure channel. It expires in {{ $passwordSetupExpiresInMinutes }} minutes and is not shown again.</p>
+                    <input type="text" value="{{ session('password_setup_url') }}" readonly aria-label="One-time password setup link" class="{{ $controlClasses }}">
+                </x-ui.card>
+            @endif
+
+            <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" aria-label="Filter users">
+                <div class="grid min-w-0 gap-2">
+                    <label for="user-search" class="{{ $labelClasses }}">Search</label>
+                    <input id="user-search" name="search" value="{{ $search }}" placeholder="Name or email" class="{{ $controlClasses }}">
+                </div>
+                <div class="grid min-w-0 gap-2">
+                    <label for="access-type" class="{{ $labelClasses }}">Access Type</label>
+                    <select id="access-type" name="access_type" class="{{ $controlClasses }}">
+                        <option value="">All</option>
+                        @foreach($accessTypeOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="grid min-w-0 gap-2">
+                    <label for="user-status" class="{{ $labelClasses }}">Status</label>
+                    <select id="user-status" name="status" class="{{ $controlClasses }}">
+                        <option value="">All</option>
+                        @foreach($statusOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="grid min-w-0 gap-2">
+                    <label for="user-path" class="{{ $labelClasses }}">QA Path</label>
+                    <select id="user-path" name="path" class="{{ $controlClasses }}">
+                        <option value="">All</option>
+                        @foreach($pathOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <x-ui.button variant="secondary" type="submit">Filter</x-ui.button>
+            </x-ui.card>
+
+            <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="user-list-title">
+                <h2 id="user-list-title" class="m-0 text-xl font-extrabold">Users</h2>
+                @if($users->isNotEmpty())
+                    <div class="overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="user-list-title" tabindex="0">
+                        <table class="w-full min-w-220 border-collapse text-sm" aria-labelledby="user-list-title">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Name</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Email</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Access Type</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">QA Path</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Status</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Created</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($users as $user)
+                                    <tr data-user-row>
+                                        <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">{{ $user['name'] }}</th>
+                                        <td class="{{ $cellClasses }} wrap-anywhere text-muted">{{ $user['email'] }}</td>
+                                        <td class="{{ $cellClasses }} whitespace-nowrap">{{ $user['access_type'] }}</td>
+                                        <td class="{{ $cellClasses }} whitespace-nowrap">{{ $user['path'] }}</td>
+                                        <td class="{{ $cellClasses }}">
+                                            <x-ui.badge :tone="$user['is_active'] ? 'success' : 'danger'">{{ $user['is_active'] ? 'Active' : 'Disabled' }}</x-ui.badge>
+                                        </td>
+                                        <td class="{{ $cellClasses }} whitespace-nowrap">{{ $user['created'] }}</td>
+                                        <td class="{{ $cellClasses }}">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <x-ui.button variant="secondary" :href="$user['edit_url']">Edit</x-ui.button>
+                                                @if($user['disable_url'])
+                                                    <form method="POST" action="{{ $user['disable_url'] }}" class="m-0" onsubmit="return confirm('Disable this account? Historical training records will be preserved.')">
+                                                        @csrf
+                                                        <x-ui.button variant="secondary" type="submit">Disable</x-ui.button>
+                                                    </form>
+                                                @else
+                                                    <form method="POST" action="{{ $user['enable_url'] }}" class="m-0">
+                                                        @csrf
+                                                        <x-ui.button variant="secondary" type="submit">Enable</x-ui.button>
+                                                    </form>
+                                                @endif
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @if($users->hasPages())
+                        <div>{{ $users->links() }}</div>
+                    @endif
+                @else
+                    <p class="m-0 text-muted">No users match these filters.</p>
+                @endif
+            </x-ui.card>
+
+            <div class="flex flex-wrap gap-3">
+                <x-ui.button variant="secondary" :href="$attendanceUrl">View Attendance</x-ui.button>
+            </div>
+        </div>
+    </div>
 @endsection

@@ -1,10 +1,120 @@
 @extends('layouts.app')
+
 @section('content')
-@if($user)<div class="card" style="margin:18px 0"><h2>Training Drive</h2>@if($user->drive_link)<a class="btn secondary" href="{{ $user->drive_link }}" target="_blank" rel="noopener noreferrer">Open Training Drive ↗</a>@else<p class="muted">Not provided</p>@endif</div>@endif
-@if($user && $user->role === 'participant')<div class="card" style="margin:18px 0"><h2>Assigned Coaches</h2><p class="muted">Assign one or more active Mentor / Coach users. Assignments control which Coaches can change this participant's training outcomes.</p><form method="POST" action="{{ route('admin.users.assignments', $user) }}">@csrf<select name="coach_ids[]" multiple size="{{ max(3, min(6, $coaches->count())) }}" style="width:100%;background:#0a0f21;color:#fff;border:1px solid #293052;border-radius:12px;padding:12px;font:inherit">@foreach($coaches as $coach)<option value="{{ $coach->id }}" @selected($user->assignedCoaches->contains($coach->id))>{{ $coach->name }} · {{ $coach->email }}</option>@endforeach</select><div class="actions"><button class="btn secondary" type="submit">Save Assignments</button></div></form>@if($user->assignedCoaches->isNotEmpty())<p class="muted">Currently assigned: {{ $user->assignedCoaches->pluck('name')->join(', ') }}</p>@endif</div>@endif
-<div class="eyebrow">ADMIN · USERS</div><h1>{{ $user ? 'Edit User':'Add User' }}</h1><p class="muted">Choose a friendly Access Type; the existing role and QA path are assigned automatically.</p>
-@if($errors->any())<div class="error" role="alert">{{ $errors->first() }}</div>@endif
-<form class="card form" method="POST" action="{{ $user ? route('admin.users.update',$user) : route('admin.users.store') }}">@csrf @if($user)@method('PUT')@endif
-<div class="field"><label for="name">Full Name *</label><input id="name" name="name" value="{{ old('name',$user?->name) }}" required></div><div class="field"><label for="email">Email *</label><input id="email" name="email" type="email" value="{{ old('email',$user?->email) }}" required></div><div class="field"><label for="access_type">Access Type *</label><select id="access_type" name="access_type" required>@foreach($accessTypes as $key=>$label)<option value="{{ $key }}" @selected(old('access_type',$currentAccessType ?? '')===$key)>{{ $label }}</option>@endforeach</select><p class="muted">Admin, Mentor / Coach, QA Manual, and QA Automation map to the platform's existing authorization model.</p></div>@if($user)<div class="field"><label for="password">New password (optional)</label><input id="password" name="password" type="password" autocomplete="new-password"><div class="field"><label for="password_confirmation">Confirm password</label><input id="password_confirmation" name="password_confirmation" type="password" autocomplete="new-password"></div></div>@else<div class="card"><h2>Secure password setup</h2><p class="muted">A cryptographically secure, single-use password setup link will be generated after this account is created. No plaintext password is required or stored.</p></div>@endif<label><input type="hidden" name="is_active" value="0"><input type="checkbox" name="is_active" value="1" @checked(old('is_active',$user?->is_active ?? true))> Active account</label><div class="actions"><button class="btn" type="submit">{{ $user ? 'Save User':'Create User' }}</button><a class="btn secondary" href="{{ route('admin.users.index') }}">Cancel</a></div></form>
-@if($user)<div class="card" style="margin-top:18px"><h2>Attendance summary</h2><p class="muted">{{ $user->attendanceSessions->whereNotNull('check_out_at')->count() }} completed session(s) · {{ number_format($user->attendanceSessions->whereNotNull('check_out_at')->sum(fn ($session) => $session->totalHours()), 2) }} total hours.</p><a class="btn secondary" href="{{ route('admin.attendance.index', ['participant' => $user->id]) }}">View attendance</a></div>@endif
+    @php
+        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
+        $labelClasses = 'text-sm font-extrabold';
+        $hintClasses = 'm-0 text-sm/relaxed text-muted';
+        $sectionTitleClasses = 'm-0 text-xl font-extrabold';
+    @endphp
+
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <header class="grid min-w-0 gap-2">
+            <x-ui.eyebrow>ADMIN · USERS</x-ui.eyebrow>
+            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">{{ $title }}</h1>
+            <p class="m-0 leading-relaxed text-muted">Choose a friendly Access Type; the existing role and QA path are assigned automatically.</p>
+        </header>
+
+        {{-- The single main action stays in view: in the page header on desktop, pinned to the bottom of the screen on mobile. --}}
+        <div id="admin-user-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
+            <x-ui.button type="submit" form="admin-user-form">{{ $submitLabel }}</x-ui.button>
+            <x-ui.button variant="secondary" :href="$cancelUrl">Cancel</x-ui.button>
+        </div>
+
+        <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
+            @if($errors->any())
+                <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
+            @endif
+
+            <x-ui.card as="form" method="POST" action="{{ $formAction }}" id="admin-user-form" class="grid w-full max-w-180 grid-cols-1 gap-6" aria-label="User details">
+                @csrf
+                @if($formMethod)
+                    @method($formMethod)
+                @endif
+
+                <div class="grid gap-2">
+                    <label for="name" class="{{ $labelClasses }}">Full Name *</label>
+                    <input id="name" name="name" value="{{ old('name', $name) }}" required class="{{ $controlClasses }}">
+                </div>
+
+                <div class="grid gap-2">
+                    <label for="email" class="{{ $labelClasses }}">Email *</label>
+                    <input id="email" name="email" type="email" value="{{ old('email', $email) }}" required class="{{ $controlClasses }}">
+                </div>
+
+                <div class="grid gap-2">
+                    <label for="access_type" class="{{ $labelClasses }}">Access Type *</label>
+                    <select id="access_type" name="access_type" required aria-describedby="access-type-hint" class="{{ $controlClasses }}">
+                        @foreach($accessTypeOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected(old('access_type', $accessType) === $option['value'])>{{ $option['label'] }}</option>
+                        @endforeach
+                    </select>
+                    <p id="access-type-hint" class="{{ $hintClasses }}">Admin, Mentor / Coach, QA Manual, and QA Automation map to the platform's existing authorization model.</p>
+                </div>
+
+                @if($isEditing)
+                    <div class="grid gap-2">
+                        <label for="password" class="{{ $labelClasses }}">New password (optional)</label>
+                        <input id="password" name="password" type="password" autocomplete="new-password" class="{{ $controlClasses }}">
+                    </div>
+
+                    <div class="grid gap-2">
+                        <label for="password_confirmation" class="{{ $labelClasses }}">Confirm password</label>
+                        <input id="password_confirmation" name="password_confirmation" type="password" autocomplete="new-password" class="{{ $controlClasses }}">
+                    </div>
+                @else
+                    <section class="grid gap-2 rounded-xl border border-line bg-surface-sunken px-4 py-3.5" aria-labelledby="password-setup-title">
+                        <h2 id="password-setup-title" class="m-0 text-base font-extrabold">Secure password setup</h2>
+                        <p class="{{ $hintClasses }}">A cryptographically secure, single-use password setup link will be generated after this account is created. No plaintext password is required or stored.</p>
+                    </section>
+                @endif
+
+                <label class="flex min-h-11 items-center gap-2.5 text-sm font-extrabold">
+                    <input type="hidden" name="is_active" value="0">
+                    <input type="checkbox" name="is_active" value="1" @checked(old('is_active', $isActive)) class="size-4.5 shrink-0 accent-brand focus-visible:outline-3 focus-visible:outline-accent/50">
+                    Active account
+                </label>
+            </x-ui.card>
+
+            @if($isEditing)
+                <x-ui.card as="section" class="grid justify-items-start gap-3" aria-labelledby="user-drive-title">
+                    <h2 id="user-drive-title" class="{{ $sectionTitleClasses }}">Training Drive</h2>
+                    @if($driveUrl)
+                        <x-ui.button variant="secondary" :href="$driveUrl" target="_blank" rel="noopener noreferrer">Open Training Drive ↗</x-ui.button>
+                    @else
+                        <p class="m-0 leading-relaxed text-muted">Not provided</p>
+                    @endif
+                </x-ui.card>
+            @endif
+
+            @if($coachAssignment)
+                <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="user-coaches-title">
+                    <div class="grid gap-2">
+                        <h2 id="user-coaches-title" class="{{ $sectionTitleClasses }}">Assigned Coaches</h2>
+                        <p id="user-coaches-hint" class="m-0 leading-relaxed text-muted">Assign one or more active Mentor / Coach users. Assignments control which Coaches can change this participant's training outcomes.</p>
+                    </div>
+                    <form method="POST" action="{{ $coachAssignment['url'] }}" class="m-0 grid grid-cols-1 justify-items-start gap-4">
+                        @csrf
+                        <select name="coach_ids[]" multiple size="{{ $coachAssignment['size'] }}" aria-labelledby="user-coaches-title" aria-describedby="user-coaches-hint" class="{{ $controlClasses }}">
+                            @foreach($coachAssignment['coachOptions'] as $option)
+                                <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                            @endforeach
+                        </select>
+                        <x-ui.button variant="secondary" type="submit">Save Assignments</x-ui.button>
+                    </form>
+                    @if($coachAssignment['assignedNames'] !== '')
+                        <p class="m-0 text-sm/relaxed text-muted">Currently assigned: {{ $coachAssignment['assignedNames'] }}</p>
+                    @endif
+                </x-ui.card>
+            @endif
+
+            @if($attendance)
+                <x-ui.card as="section" class="grid justify-items-start gap-3" aria-labelledby="user-attendance-title">
+                    <h2 id="user-attendance-title" class="{{ $sectionTitleClasses }}">Attendance summary</h2>
+                    <p class="m-0 leading-relaxed text-muted">{{ $attendance['completedCount'] }} completed session(s) · {{ $attendance['totalHours'] }} total hours.</p>
+                    <x-ui.button variant="secondary" :href="$attendance['url']">View attendance</x-ui.button>
+                </x-ui.card>
+            @endif
+        </div>
+    </div>
 @endsection

@@ -6,6 +6,7 @@ use App\Http\Requests\FilterReviewQueueRequest;
 use App\Http\Requests\StoreSubmissionReviewRequest;
 use App\Models\SubmissionVersion;
 use App\Services\CoachReviewQueuePageService;
+use App\Services\CoachSubmissionReviewPageService;
 use App\Services\SubmissionReviewService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,11 +20,11 @@ class CoachReviewController extends Controller
         return view('coach.reviews', $page->indexData($request->validated()));
     }
 
-    public function show(Request $request, SubmissionVersion $submissionVersion, SubmissionReviewService $reviews): View
+    public function show(Request $request, SubmissionVersion $submissionVersion, CoachSubmissionReviewPageService $page): View
     {
         Gate::authorize('view', $submissionVersion);
 
-        return view('coach.review', $reviews->reviewPage($submissionVersion, $request->user()));
+        return view('coach.review', $page->showData($submissionVersion, $request->user()));
     }
 
     public function claim(SubmissionVersion $submissionVersion, SubmissionReviewService $reviews): RedirectResponse

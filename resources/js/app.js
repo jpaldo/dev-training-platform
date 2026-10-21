@@ -161,11 +161,32 @@ const initializeDatePickers = () => {
     });
 };
 
+/**
+ * Before a `[data-markdown-flush-on-submit]` form submits, switch its Markdown fields back to Write mode: show each
+ * source textarea and hide its preview panel.
+ */
+const initializeMarkdownFlushOnSubmit = () => {
+    document.querySelectorAll('[data-markdown-flush-on-submit]').forEach((form) => {
+        form.addEventListener('submit', () => {
+            form.querySelectorAll('[data-markdown-source]').forEach((textarea) => {
+                textarea.hidden = false;
+
+                const panel = textarea.closest('.markdown-field')?.querySelector('[data-markdown-preview]');
+
+                if (panel) {
+                    panel.hidden = true;
+                }
+            });
+        });
+    });
+};
+
 const initializePage = () => {
     initializeMentorDateTimePickers();
     initializeSidebarDrawer();
     initializePageTabs();
     initializeDatePickers();
+    initializeMarkdownFlushOnSubmit();
 };
 
 if (document.readyState === 'loading') {

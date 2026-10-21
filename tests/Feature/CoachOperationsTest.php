@@ -311,7 +311,7 @@ class CoachOperationsTest extends TestCase
             ->assertSee('Revise')
             ->assertSee('Failed')
             ->assertSee('Feedback / Comments')
-            ->assertSee('min-height: 160px', false);
+            ->assertSee('min-h-40 resize-y', false);
     }
 
     public function test_unassigned_coach_can_view_submission_but_cannot_change_review(): void

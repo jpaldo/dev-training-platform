@@ -14,41 +14,7 @@ class SubmissionReviewService
     /** @var array<string, string> Submission status that each review decision leads to. */
     private const STATUS_BY_DECISION = ['approved' => 'approved', 'needs_revision' => 'needs_revision', 'rejected' => 'failed'];
 
-    public function __construct(
-        private readonly SubmissionAnswerPresenter $answers,
-        private readonly WeekFourReviewPresenter $weekFour,
-        private readonly WeekFourInterviewService $interviews,
-        private readonly TrainingSyncCoordinator $syncs,
-    ) {}
-
-    /**
-     * Prepare the coach review page of a submission version.
-     *
-     * @return array{submissionVersion: SubmissionVersion, isActivityOne: bool, submittedFields: array<int, array<string, mixed>>, linkedValidationSubmission: mixed, canManage: bool, weekThreeSnapshot: mixed, weekThreeReview: ?array<string, mixed>, weekFourReview: ?array<string, mixed>, officialQuestions: array<int, array<string, mixed>>}
-     */
-    public function reviewPage(SubmissionVersion $submissionVersion, User $viewer): array
-    {
-        $submissionVersion->load(['submission.participant', 'submission.activity.week', 'evidence', 'reviews.reviewer', 'validationSubmission', 'interactions']);
-        $submission = $submissionVersion->submission;
-        $activity = $submission->activity;
-        $linkedValidationSubmission = $submissionVersion->validationSubmission;
-        if (! $linkedValidationSubmission || (int) $linkedValidationSubmission->user_id !== (int) $submission->user_id) {
-            $linkedValidationSubmission = null;
-        }
-        $weekThreeSnapshot = $activity->week->week_number === 3 ? ($submissionVersion->field_values['week_three_snapshot'] ?? null) : null;
-
-        return [
-            'submissionVersion' => $submissionVersion,
-            'isActivityOne' => $activity->title === 'Validation Checklist' && $activity->week->week_number === 2,
-            'submittedFields' => $this->answers->fields($submissionVersion),
-            'linkedValidationSubmission' => $linkedValidationSubmission,
-            'canManage' => $viewer->canManageParticipant($submission->participant),
-            'weekThreeSnapshot' => $weekThreeSnapshot,
-            'weekThreeReview' => $weekThreeSnapshot ? $this->answers->weekThreeReview($weekThreeSnapshot, (int) $activity->position, $submission->participant->training_path) : null,
-            'weekFourReview' => $this->weekFour->present($activity, $submissionVersion->field_values ?? [], true),
-            'officialQuestions' => $activity->week->week_number === 4 && $activity->position === 2 ? $this->interviews->questionnaire() : [],
-        ];
-    }
+    public function __construct(private readonly TrainingSyncCoordinator $syncs) {}
 
     /**
      * Move a submitted or resubmitted submission to "under review".

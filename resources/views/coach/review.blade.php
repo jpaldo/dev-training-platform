@@ -1,221 +1,237 @@
 @extends('layouts.app')
 
 @section('content')
-    <style>
-        .review-panel { display: grid; gap: 22px; }
-        .review-panel .field { display: grid; gap: 8px; }
-        .review-panel label { font-weight: 800; }
-        .review-panel select,
-        .review-panel textarea { width: 100%; background: #0a0f21; color: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 13px; font: inherit; min-height: 48px; }
-        .review-panel textarea { min-height: 160px; resize: vertical; line-height: 1.55; }
-        .review-panel select:focus,
-        .review-panel textarea:focus { outline: 3px solid #22d3ee55; border-color: var(--c); }
-        .review-help { display: grid; gap: 8px; margin-top: 4px; }
-        .review-help p { margin: 0; color: var(--muted); line-height: 1.5; }
-        .review-help strong { color: #eef2ff; }
-        .review-actions { padding-top: 4px; }
-        .review-actions .btn { min-width: 150px; }
-        .review-error { margin-top: 5px; color: #fecdd3; }
-    </style>
-
-    <div class="eyebrow">SUBMISSION REVIEW</div>
-    <h1>{{ $submissionVersion->submission->activity->title }}</h1>
-    <p class="muted">
-        {{ $submissionVersion->submission->participant->name }} ·
-        Version {{ $submissionVersion->version_number }} ·
-        {{ str_replace('_', ' ', ucfirst($submissionVersion->status)) }}
-    </p>
-
-    @if($isActivityOne)
-        <section class="card">
-            <h2>Validation Lab Record</h2>
-            @if($linkedValidationSubmission)
-                <p><strong>Validation Lab Record #{{ $linkedValidationSubmission->id }}</strong></p>
-                <dl class="detail-list">
-                    <dt>Artifact Name</dt>
-                    <dd>{{ $linkedValidationSubmission->artifact_name ?: 'Not provided' }}</dd>
-                    <dt>Artifact ID</dt>
-                    <dd>{{ $linkedValidationSubmission->artifact_code }}</dd>
-                    <dt>Created</dt>
-                    <dd>{{ $linkedValidationSubmission->created_at?->format('F j, Y H:i') ?: 'Not provided' }}</dd>
-                </dl>
-                <a class="btn secondary" href="{{ route('lab.records.show', $linkedValidationSubmission) }}?submission_version={{ $submissionVersion->id }}">
-                    View Validation Lab Record
-                </a>
-            @else
-                <p class="muted">No Validation Lab record linked.</p>
-            @endif
-        </section>
-    @endif
-
-    @if($weekThreeReview)
-        <section class="card">
-            <p class="muted">Participant submission · immutable Week 3 snapshot for Version {{ $submissionVersion->version_number }}</p>
-            @include('components.week-three-review', ['review' => $weekThreeReview])
-        </section>
-    @endif
-
-    @if($weekFourReview)
-        <section class="card">
-            <p class="muted">Participant submission · immutable Week 4 snapshot for Version {{ $submissionVersion->version_number }}</p>
-            <h2>Participant Submission</h2>
-            @include('components.week-four-review', ['review' => $weekFourReview])
-        </section>
-        @if($officialQuestions)
-            <section class="card">
-                <h2>Official AI Proficiency Interview Questionnaire</h2>
-                <p class="muted">Coach/Mentor/Admin reference only. These official questions are separate from the participant-authored peer practice questions above.</p>
-                <a class="btn secondary" href="{{ route('coach.week-four.questionnaire') }}">Open full questionnaire</a>
-                @foreach($officialQuestions as $number => $question)
-                    <div class="check" style="margin-top:12px"><strong>Q{{ $number }} · {{ $question['title'] }}</strong><p>{{ $question['prompt'] }}</p></div>
-                @endforeach
-            </section>
-        @endif
-    @endif
-
-    @if($canManage && in_array($submissionVersion->submission->status, ['submitted', 'resubmitted'], true))
-        <form method="POST" action="{{ route('coach.reviews.claim', $submissionVersion) }}" class="card">
-            @csrf
-            <button class="btn" type="submit">Start Review</button>
-        </form>
-    @endif
-
-    @if($canManage && $submissionVersion->submission->status === 'failed')
-        <form method="POST" action="{{ route('coach.reviews.retry', $submissionVersion) }}" class="card">
-            @csrf
-            <p>This failed attempt is immutable. Create a separate retry attempt for the participant.</p>
-            <button class="btn" type="submit">Create Retry</button>
-        </form>
-    @endif
-
-    @if(! $weekFourReview)<section class="card">
-        <h2>Submitted Activity Details</h2>
-        @forelse($submittedFields as $field)
-            @if($field['key'] !== 'validation_submission_id')
-                <div class="check">
-                    <strong>{{ $field['label'] }}</strong>
-                    @if(is_string($field['value']) && in_array($field['key'], \App\Support\Markdown::OUTPUT_FIELDS, true))
-                        <x-formatted-text class="ai review-value" :text="$field['value']" />
-                    @else
-                        <x-formatted-text class="ai review-value" :text="$field['display'] ?? (is_scalar($field['value']) ? $field['value'] : 'Structured response')" />
-                    @endif
-                </div>
-            @endif
-        @empty
-            <p class="muted">No submitted activity fields were provided.</p>
-        @endforelse
-
-        @if($submissionVersion->interactions->isNotEmpty())
-            <h2>Prompt / output history</h2>
-            @foreach($submissionVersion->interactions as $interaction)
-                <div class="check"><strong>Prompt {{ $interaction->sequence }}</strong><x-formatted-text class="ai review-value" :text="$interaction->prompt" /><strong>AI Output {{ $interaction->sequence }}</strong><x-formatted-text class="ai review-value" :text="$interaction->output" /></div>
-            @endforeach
-        @endif
-
-        @endif
-        <h2>Evidence</h2>
-        @forelse($submissionVersion->evidence as $evidence)
-            <div class="check">
-                <strong>{{ $evidence->title ?: 'Evidence' }}</strong>
-                <span class="muted"> · Type: {{ filled($evidence->disk) && filled($evidence->path) && filled($evidence->original_filename) ? 'Uploaded File' : ucfirst($evidence->evidence_type) }}</span>
-                @if(filled($evidence->disk) && filled($evidence->path) && filled($evidence->original_filename))
-                    <span> · {{ $evidence->original_filename }}</span>
-                    <x-evidence-actions :evidence="$evidence" />
-                @elseif($evidence->url)
-                    <a class="btn secondary" href="{{ $evidence->url }}" target="_blank" rel="noopener noreferrer">Open evidence</a>
-                @elseif($evidence->content)
-                    <p class="muted">Text evidence</p><p class="ai review-value">{{ $evidence->content }}</p>
-                @else
-                    <p class="muted">No evidence content provided.</p>
-                @endif
-            </div>
-        @empty
-            <p class="muted">No evidence attached.</p>
-        @endforelse
-    </section>
-
-    <section class="card">
-        <h2>Participant Note</h2>
-        <p class="ai review-value">{{ $submissionVersion->participant_note ?: 'Not provided' }}</p>
-    </section>
-
     @php
-        $currentReview = $submissionVersion->reviews->sortByDesc('reviewed_at')->first();
-        $decisionLabels = ['approved' => 'Passed', 'needs_revision' => 'Revise', 'rejected' => 'Failed'];
+        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
+        $labelClasses = 'text-sm font-extrabold';
+        $sectionTitleClasses = 'm-0 text-xl font-extrabold';
+        $rowClasses = 'grid min-w-0 grid-cols-1 justify-items-start gap-2 rounded-xl border border-line bg-field px-4 py-3.5';
+        $formattedClasses = 'w-full min-w-0 rounded-xl bg-surface-sunken p-4';
+        $hintClasses = 'm-0 text-sm/relaxed text-muted';
+        $fieldErrorClasses = 'm-0 text-sm text-rose-200';
     @endphp
-    <section class="card review-panel">
-        <div>
-            <h2>Coach Review</h2>
-            <p class="muted">Review this submission, choose a decision, and provide feedback for the participant.</p>
-        </div>
 
-        @if(session('status'))
-            <div class="success" role="status">{{ session('status') }}</div>
-        @endif
-        @if($errors->any())
-            <div class="error" role="alert">{{ $errors->first() }}</div>
-        @endif
-
-        @if($currentReview)
-            <div class="check">
-                <strong>Current Review</strong>
-                <p class="muted">
-                    Decision: {{ $decisionLabels[$currentReview->decision] ?? ucfirst(str_replace('_', ' ', $currentReview->decision)) }}
-                    · Reviewed by {{ $currentReview->reviewer?->name ?: 'Coach' }}
-                    · {{ $currentReview->reviewed_at?->format('F j, Y H:i') ?: 'Date not available' }}
-                </p>
-                @if($currentReview->comments)
-                    <div class="ai review-value"><strong>Feedback</strong><br><x-formatted-text :text="$currentReview->comments" /></div>
-                @endif
-            </div>
-        @endif
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <header class="grid min-w-0 gap-2">
+            <x-ui.eyebrow>SUBMISSION REVIEW</x-ui.eyebrow>
+            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">{{ $activityTitle }}</h1>
+            <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $participantName }} · Version {{ $submissionVersion->version_number }} · {{ $versionStatusLabel }}</p>
+        </header>
 
         @if($canManage)
-        <form method="POST" action="{{ route('coach.reviews.store', $submissionVersion) }}" class="review-panel" data-markdown-flush-on-submit>
-            @csrf
-            <div class="field">
-                <label for="decision">Decision</label>
-                <select id="decision" name="decision" aria-describedby="decision-help" required>
-                    <option value="">Select a decision...</option>
-                    <option value="approved" @selected(old('decision') === 'approved')>Passed</option>
-                    <option value="needs_revision" @selected(old('decision') === 'needs_revision')>Revise</option>
-                    <option value="rejected" @selected(old('decision') === 'rejected')>Failed</option>
-                </select>
-                @error('decision')<div class="review-error" role="alert">{{ $message }}</div>@enderror
-                <div id="decision-help" class="review-help">
-                    <p><strong>Passed:</strong> The submission meets the activity requirements and is accepted.</p>
-                    <p><strong>Revise:</strong> The participant needs to correct or improve the submission and can submit a revision.</p>
-                    <p><strong>Failed:</strong> The attempt is not accepted and is closed. A coach may create a retry when appropriate.</p>
-                </div>
+            {{-- The single main action stays in view: in the page header on desktop, pinned to the bottom of the screen on mobile. --}}
+            <div id="submission-review-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
+                <x-ui.button type="submit" form="submission-review-form">Save Review</x-ui.button>
             </div>
-
-            <div class="field">
-                <label for="comments">Feedback / Comments <span class="muted">(optional)</span></label>
-                <x-markdown-field id="comments" name="comments" :value="old('comments')" rows="7" placeholder="Provide clear feedback explaining your decision and any next steps for the participant." :maxlength="\App\Support\FieldLimits::REVIEW_COMMENTS"/>
-                <p id="comments-help" class="muted">Specific, actionable feedback helps the participant understand what to do next.</p>
-                @error('comments')<div class="review-error" role="alert">{{ $message }}</div>@enderror
-            </div>
-
-            <div class="review-actions">
-                <button class="btn" type="submit">Save Review</button>
-            </div>
-        </form>
-        @else
-            <p class="error" role="status">Read only — this participant is not assigned to you.</p>
         @endif
-    </section>
+
+        <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
+            @if(session('status'))
+                <x-ui.alert tone="success" role="status">{{ session('status') }}</x-ui.alert>
+            @endif
+            @if($errors->any())
+                <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
+            @endif
+
+            @if($isActivityOne)
+                <x-ui.card as="section" class="grid grid-cols-1 justify-items-start gap-3" aria-labelledby="lab-record-title">
+                    <h2 id="lab-record-title" class="{{ $sectionTitleClasses }}">Validation Lab Record</h2>
+                    @if($linkedValidationSubmission)
+                        <p class="m-0"><strong>Validation Lab Record #{{ $linkedValidationSubmission->id }}</strong></p>
+                        <dl class="m-0 grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
+                            <div class="grid min-w-0 content-start gap-1">
+                                <dt class="text-xs font-bold tracking-[0.08em] text-subtle uppercase">Artifact Name</dt>
+                                <dd class="m-0 font-bold wrap-anywhere">{{ $linkedValidationSubmission->artifact_name ?: 'Not provided' }}</dd>
+                            </div>
+                            <div class="grid min-w-0 content-start gap-1">
+                                <dt class="text-xs font-bold tracking-[0.08em] text-subtle uppercase">Artifact ID</dt>
+                                <dd class="m-0 font-bold wrap-anywhere">{{ $linkedValidationSubmission->artifact_code }}</dd>
+                            </div>
+                            <div class="grid min-w-0 content-start gap-1">
+                                <dt class="text-xs font-bold tracking-[0.08em] text-subtle uppercase">Created</dt>
+                                <dd class="m-0 font-bold">{{ $linkedValidationSubmission->created_at?->format('F j, Y H:i') ?: 'Not provided' }}</dd>
+                            </div>
+                        </dl>
+                        <x-ui.button variant="secondary" :href="route('lab.records.show', [$linkedValidationSubmission, 'submission_version' => $submissionVersion->id])">View Validation Lab Record</x-ui.button>
+                    @else
+                        <p class="{{ $hintClasses }}">No Validation Lab record linked.</p>
+                    @endif
+                </x-ui.card>
+            @endif
+
+            @if($weekThreeReview)
+                <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-3" aria-label="Week 3 snapshot">
+                    <p class="{{ $hintClasses }}">Participant submission · immutable Week 3 snapshot for Version {{ $submissionVersion->version_number }}</p>
+                    @include('components.week-three-review', ['review' => $weekThreeReview])
+                </x-ui.card>
+            @endif
+
+            @if($weekFourReview)
+                <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-3" aria-labelledby="week-four-review-title">
+                    <p class="{{ $hintClasses }}">Participant submission · immutable Week 4 snapshot for Version {{ $submissionVersion->version_number }}</p>
+                    <h2 id="week-four-review-title" class="{{ $sectionTitleClasses }}">Participant Submission</h2>
+                    @include('components.week-four-review', ['review' => $weekFourReview])
+                </x-ui.card>
+
+                @if($officialQuestions)
+                    <x-ui.card as="section" class="grid grid-cols-1 justify-items-start gap-4" aria-labelledby="official-questions-title">
+                        <h2 id="official-questions-title" class="{{ $sectionTitleClasses }}">Official AI Proficiency Interview Questionnaire</h2>
+                        <p class="{{ $hintClasses }}">Coach/Mentor/Admin reference only. These official questions are separate from the participant-authored peer practice questions above.</p>
+                        <x-ui.button variant="secondary" :href="route('coach.week-four.questionnaire')">Open full questionnaire</x-ui.button>
+                        <ol class="m-0 grid w-full list-none gap-3 p-0">
+                            @foreach($officialQuestions as $number => $question)
+                                <li class="{{ $rowClasses }}">
+                                    <strong>Q{{ $number }} · {{ $question['title'] }}</strong>
+                                    <p class="m-0 leading-relaxed">{{ $question['prompt'] }}</p>
+                                </li>
+                            @endforeach
+                        </ol>
+                    </x-ui.card>
+                @endif
+            @endif
+
+            @if($canClaim)
+                <x-ui.card as="form" method="POST" action="{{ route('coach.reviews.claim', $submissionVersion) }}" class="grid grid-cols-1 justify-items-start gap-3">
+                    @csrf
+                    <x-ui.button variant="secondary" type="submit">Start Review</x-ui.button>
+                </x-ui.card>
+            @endif
+
+            @if($canRetry)
+                <x-ui.card as="form" method="POST" action="{{ route('coach.reviews.retry', $submissionVersion) }}" class="grid grid-cols-1 justify-items-start gap-3">
+                    @csrf
+                    <p class="m-0 leading-relaxed">This failed attempt is immutable. Create a separate retry attempt for the participant.</p>
+                    <x-ui.button variant="secondary" type="submit">Create Retry</x-ui.button>
+                </x-ui.card>
+            @endif
+
+            @if(! $weekFourReview)
+                <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="activity-details-title">
+                    <h2 id="activity-details-title" class="{{ $sectionTitleClasses }}">Submitted Activity Details</h2>
+                    @if($submittedFields !== [])
+                        <ul class="m-0 grid list-none gap-3 p-0">
+                            @foreach($submittedFields as $field)
+                                <li class="{{ $rowClasses }}">
+                                    <strong>{{ $field['label'] }}</strong>
+                                    <div class="{{ $formattedClasses }}">
+                                        <x-formatted-text :text="$field['text']" />
+                                    </div>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @else
+                        <p class="{{ $hintClasses }}">No submitted activity fields were provided.</p>
+                    @endif
+
+                    @if($submissionVersion->interactions->isNotEmpty())
+                        <h2 class="{{ $sectionTitleClasses }}">Prompt / output history</h2>
+                        <ul class="m-0 grid list-none gap-3 p-0">
+                            @foreach($submissionVersion->interactions as $interaction)
+                                <li class="{{ $rowClasses }}">
+                                    <strong>Prompt {{ $interaction->sequence }}</strong>
+                                    <div class="{{ $formattedClasses }}">
+                                        <x-formatted-text :text="$interaction->prompt" />
+                                    </div>
+                                    <strong>AI Output {{ $interaction->sequence }}</strong>
+                                    <div class="{{ $formattedClasses }}">
+                                        <x-formatted-text :text="$interaction->output" />
+                                    </div>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </x-ui.card>
+            @endif
+
+            <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="review-evidence-title">
+                <h2 id="review-evidence-title" class="{{ $sectionTitleClasses }}">Evidence</h2>
+                @if($evidenceItems !== [])
+                    <ul class="m-0 grid list-none gap-3 p-0">
+                        @foreach($evidenceItems as $item)
+                            <li class="{{ $rowClasses }}">
+                                <strong>{{ $item['evidence']->title ?: 'Evidence' }}</strong>
+                                <p class="{{ $hintClasses }}">Type: {{ $item['type_label'] }}</p>
+                                @if($item['is_file'])
+                                    <p class="m-0 wrap-anywhere">{{ $item['evidence']->original_filename }}</p>
+                                    <div class="flex flex-wrap items-center gap-3">
+                                        <x-evidence-actions :evidence="$item['evidence']" />
+                                    </div>
+                                @elseif($item['evidence']->url)
+                                    <x-ui.button variant="secondary" :href="$item['evidence']->url" target="_blank" rel="noopener noreferrer">Open evidence</x-ui.button>
+                                @elseif($item['evidence']->content)
+                                    <p class="{{ $hintClasses }}">Text evidence</p>
+                                    <p class="{{ $formattedClasses }} m-0 whitespace-pre-wrap wrap-anywhere">{{ $item['evidence']->content }}</p>
+                                @else
+                                    <p class="{{ $hintClasses }}">No evidence content provided.</p>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                @else
+                    <p class="{{ $hintClasses }}">No evidence attached.</p>
+                @endif
+            </x-ui.card>
+
+            <x-ui.card as="section" class="grid grid-cols-1 gap-3" aria-labelledby="participant-note-title">
+                <h2 id="participant-note-title" class="{{ $sectionTitleClasses }}">Participant Note</h2>
+                <p class="{{ $formattedClasses }} m-0 whitespace-pre-wrap wrap-anywhere">{{ $submissionVersion->participant_note ?: 'Not provided' }}</p>
+            </x-ui.card>
+
+            <x-ui.card as="section" class="grid grid-cols-1 gap-5" aria-labelledby="coach-review-title">
+                <div class="grid gap-1.5">
+                    <h2 id="coach-review-title" class="{{ $sectionTitleClasses }}">Coach Review</h2>
+                    <p class="{{ $hintClasses }}">Review this submission, choose a decision, and provide feedback for the participant.</p>
+                </div>
+
+                @if($currentReview)
+                    <div class="{{ $rowClasses }}">
+                        <strong>Current Review</strong>
+                        <p class="{{ $hintClasses }}">Decision: {{ $currentReview['decision_label'] }} · Reviewed by {{ $currentReview['reviewer_name'] }} · {{ $currentReview['reviewed_at'] }}</p>
+                        @if($currentReview['comments'])
+                            <div class="{{ $formattedClasses }} grid gap-2">
+                                <strong>Feedback</strong>
+                                <x-formatted-text :text="$currentReview['comments']" />
+                            </div>
+                        @endif
+                    </div>
+                @endif
+
+                @if($canManage)
+                    <form method="POST" action="{{ route('coach.reviews.store', $submissionVersion) }}" id="submission-review-form" class="m-0 grid grid-cols-1 gap-6 border-t border-line pt-5" data-markdown-flush-on-submit>
+                        @csrf
+                        <div class="grid gap-2">
+                            <label for="decision" class="{{ $labelClasses }}">Decision</label>
+                            <select id="decision" name="decision" aria-describedby="decision-help" required class="{{ $controlClasses }} min-h-12">
+                                <option value="">Select a decision...</option>
+                                @foreach($decisionOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected(old('decision') === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            @error('decision')
+                                <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                            @enderror
+                            <div id="decision-help" class="grid gap-2 pt-1 text-sm/relaxed text-muted">
+                                <p class="m-0"><strong class="text-slate-100">Passed:</strong> The submission meets the activity requirements and is accepted.</p>
+                                <p class="m-0"><strong class="text-slate-100">Revise:</strong> The participant needs to correct or improve the submission and can submit a revision.</p>
+                                <p class="m-0"><strong class="text-slate-100">Failed:</strong> The attempt is not accepted and is closed. A coach may create a retry when appropriate.</p>
+                            </div>
+                        </div>
+
+                        <div class="grid gap-2">
+                            <label for="comments" class="{{ $labelClasses }}">Feedback / Comments <span class="font-normal text-muted">(optional)</span></label>
+                            <x-markdown-field id="comments" name="comments" :value="old('comments')" rows="7" placeholder="Provide clear feedback explaining your decision and any next steps for the participant." :maxlength="\App\Support\FieldLimits::REVIEW_COMMENTS" aria-describedby="comments-help" class="{{ $controlClasses }} min-h-40 resize-y leading-relaxed" />
+                            <p id="comments-help" class="{{ $hintClasses }}">Specific, actionable feedback helps the participant understand what to do next.</p>
+                            @error('comments')
+                                <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </form>
+                @else
+                    <x-ui.alert tone="error" role="status">Read only — this participant is not assigned to you.</x-ui.alert>
+                @endif
+            </x-ui.card>
+        </div>
+    </div>
+
     @vite('resources/js/markdown-preview.js')
-    <script>
-    (() => {
-        const form = document.querySelector('[data-markdown-flush-on-submit]');
-        if (!form) return;
-        form.addEventListener('submit', () => {
-            form.querySelectorAll('[data-markdown-source]').forEach(textarea => {
-                textarea.hidden = false;
-                const panel = textarea.closest('.markdown-field')?.querySelector('[data-markdown-preview]');
-                if (panel) panel.hidden = true;
-            });
-        });
-    })();
-    </script>
 @endsection

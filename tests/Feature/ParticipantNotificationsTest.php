@@ -2,9 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ParticipantNotificationPriority;
+use App\Enums\ParticipantNotificationType;
 use App\Jobs\GenerateParticipantNotificationsJob;
+use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
 use App\Models\ParticipantNotification;
+use App\Models\Program;
 use App\Models\User;
 use App\Services\ParticipantNotificationService;
 use Database\Seeders\QaTrainingProgramSeeder;
@@ -54,6 +58,41 @@ class ParticipantNotificationsTest extends TestCase
         }
         $service->sync($participant->fresh());
         $this->assertNotNull($participant->participantNotifications()->where('key', 'general_daily_logs')->first()->resolved_at);
+    }
+
+    public function test_revision_reminder_is_a_high_priority_needs_revision_notification(): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
+        $week = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
+        $activity = $week->activities()->where('position', 1)->firstOrFail();
+        ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'needs_revision']);
+
+        app(ParticipantNotificationService::class)->sync($participant);
+
+        $revision = $participant->participantNotifications()->where('key', "week:{$week->id}:activity:{$activity->id}:revision")->firstOrFail();
+        $this->assertSame(ParticipantNotificationType::NeedsRevision, $revision->type);
+        $this->assertSame(ParticipantNotificationPriority::High, $revision->priority);
+        $this->assertNull($revision->resolved_at);
+        $review = $participant->participantNotifications()->where('key', "week:{$week->id}:activity:{$activity->id}:review")->firstOrFail();
+        $this->assertSame(ParticipantNotificationType::AwaitingReview, $review->type);
+        $this->assertSame(ParticipantNotificationPriority::Normal, $review->priority);
+        $this->assertNotNull($review->resolved_at);
+    }
+
+    public function test_dashboard_next_action_skips_notifications_awaiting_review(): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
+        $participant->participantNotifications()->delete();
+        ParticipantNotification::factory()->for($participant, 'participant')->create(['title' => 'Activity incomplete', 'body' => 'Complete your activity.', 'created_at' => now()->subHour()]);
+        ParticipantNotification::factory()->for($participant, 'participant')->create(['type' => ParticipantNotificationType::AwaitingReview, 'title' => 'Awaiting coach review', 'body' => 'Your submission is awaiting review.']);
+
+        $this->actingAs($participant)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder(['NEXT ACTION', 'Activity incomplete — Complete your activity.'])
+            ->assertDontSee('Awaiting coach review — ')
+            ->assertSee('Your submission is awaiting review.');
     }
 
     public function test_notifications_are_paginated_and_participant_isolation_is_enforced(): void

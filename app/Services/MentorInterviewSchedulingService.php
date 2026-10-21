@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Enums\MentorInterviewAvailabilityStatus;
 use App\Enums\MentorInterviewScheduleStatus;
+use App\Enums\ParticipantNotificationPriority;
+use App\Enums\ParticipantNotificationType;
 use App\Mail\MentorMockInterviewScheduled;
 use App\Models\Activity;
 use App\Models\MentorInterviewAvailability;
@@ -82,7 +84,7 @@ class MentorInterviewSchedulingService
             $schedule->update(['status' => MentorInterviewScheduleStatus::Scheduled, 'google_event_id' => $event['event_id'], 'google_meet_url' => $event['meet_url'], 'google_conference_id' => $event['conference_id'], 'scheduled_at' => now(), 'failure_reason' => null]);
             $schedule->load(['participant', 'mentor']);
             $this->queueNotifications($schedule, $participant, $mentor);
-            ParticipantNotification::updateOrCreate(['user_id' => $participant->id, 'key' => "mentor-interview:{$schedule->id}"], ['type' => 'mentor_interview_scheduled', 'title' => 'Mock interview scheduled', 'body' => "Your mock interview with {$mentor->name} is scheduled for {$startsAt->format('F j')} at {$startsAt->format('g:i A')} ({$timezone}).", 'action_url' => route('training.submission.edit', [$activity->week, $activity]), 'priority' => 'high', 'resolved_at' => null]);
+            ParticipantNotification::updateOrCreate(['user_id' => $participant->id, 'key' => "mentor-interview:{$schedule->id}"], ['type' => ParticipantNotificationType::MentorInterviewScheduled, 'title' => 'Mock interview scheduled', 'body' => "Your mock interview with {$mentor->name} is scheduled for {$startsAt->format('F j')} at {$startsAt->format('g:i A')} ({$timezone}).", 'action_url' => route('training.submission.edit', [$activity->week, $activity]), 'priority' => ParticipantNotificationPriority::High, 'resolved_at' => null]);
 
             return $schedule;
         } catch (ValidationException $exception) {

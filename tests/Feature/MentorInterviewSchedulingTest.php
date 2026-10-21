@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Enums\MentorInterviewScheduleStatus;
+use App\Enums\ParticipantNotificationPriority;
+use App\Enums\ParticipantNotificationType;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
@@ -40,6 +42,10 @@ class MentorInterviewSchedulingTest extends TestCase
         $this->assertSame('https://meet.google.com/abc-defg-hij', $schedule->google_meet_url);
         Http::assertSent(fn ($request): bool => $request->url() === 'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all' && $request['start']['timeZone'] === 'Asia/Manila' && $request['end']['timeZone'] === 'Asia/Manila' && $request['attendees'][0]['email'] === $participant->email && $request['attendees'][1]['email'] === $mentor->email && $request['conferenceData']['createRequest']['conferenceSolutionKey']['type'] === 'hangoutsMeet');
         Mail::assertQueuedCount(2);
+        $notification = $participant->participantNotifications()->where('key', "mentor-interview:{$schedule->id}")->firstOrFail();
+        $this->assertSame(ParticipantNotificationType::MentorInterviewScheduled, $notification->type);
+        $this->assertSame(ParticipantNotificationPriority::High, $notification->priority);
+        $this->assertNull($notification->resolved_at);
     }
 
     public function test_calendar_failure_does_not_mark_the_interview_scheduled(): void

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\ParticipantNotificationPriority;
+use App\Enums\ParticipantNotificationType;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\ParticipantNotification;
@@ -28,7 +30,7 @@ class ParticipantNotificationService
             return;
         }
 
-        $this->state($participant, 'general_daily_logs', 'daily_logs', 'General Training Daily Logs incomplete', $this->generalLogBody($participant), route('daily-logs.index'), $this->generalLogsMissing($participant) > 0);
+        $this->state($participant, 'general_daily_logs', ParticipantNotificationType::DailyLogs, 'General Training Daily Logs incomplete', $this->generalLogBody($participant), route('daily-logs.index'), $this->generalLogsMissing($participant) > 0);
         $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $q): Relation => $q->whereIn('week_number', [2, 3, 4])->where('is_active', true)->with(['activities' => fn (Relation $a): Relation => $a->where('is_active', true)->orderBy('position'), 'gates'])])->first();
         if (! $program) {
             return;
@@ -41,25 +43,25 @@ class ParticipantNotificationService
             }
             $logs = $this->weekLogCount($participant, $week);
             $remaining = max($this->gates->minimumDailyLogs() - $logs, 0);
-            $this->state($participant, "week:{$week->id}:daily_logs", 'daily_logs', "Week {$week->week_number} Daily Logs incomplete", "You have completed {$logs} of {$this->gates->minimumDailyLogs()} required Daily Logs for Week {$week->week_number}. {$remaining} Daily Log".($remaining === 1 ? '' : 's').' are still missing.', route('daily-logs.index'), $remaining > 0);
+            $this->state($participant, "week:{$week->id}:daily_logs", ParticipantNotificationType::DailyLogs, "Week {$week->week_number} Daily Logs incomplete", "You have completed {$logs} of {$this->gates->minimumDailyLogs()} required Daily Logs for Week {$week->week_number}. {$remaining} Daily Log".($remaining === 1 ? '' : 's').' are still missing.', route('daily-logs.index'), $remaining > 0);
 
             foreach ($week->activities as $activity) {
                 $submission = $participant->activitySubmissions()->where('activity_id', $activity->id)->latest('attempt_number')->with(['versions' => fn (Relation $q): Relation => $q->latest('version_number')])->first();
                 $status = $submission?->status;
                 $url = route('training.activities.show', [$week, $activity]);
-                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:incomplete", 'activity_incomplete', 'Activity incomplete', "{$activity->title} has not been completed for Week {$week->week_number}.", $url, ! $submission || $status === 'failed');
-                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:draft", 'activity_draft', 'Continue your activity', "You have an unfinished draft for {$activity->title}.", route('training.submission.edit', [$week, $activity]), $status === 'draft');
+                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:incomplete", ParticipantNotificationType::ActivityIncomplete, 'Activity incomplete', "{$activity->title} has not been completed for Week {$week->week_number}.", $url, ! $submission || $status === 'failed');
+                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:draft", ParticipantNotificationType::ActivityDraft, 'Continue your activity', "You have an unfinished draft for {$activity->title}.", route('training.submission.edit', [$week, $activity]), $status === 'draft');
                 $version = $submission?->versions->first();
                 $latestReview = $version?->reviews()->latest('reviewed_at')->first();
                 $needsRevision = $status === 'needs_revision' || $latestReview?->decision === 'needs_revision';
-                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:revision", 'needs_revision', 'Revision required', "Your submission for {$activity->title} needs revision. Coach feedback is available.", route('training.submission.edit', [$week, $activity]), $needsRevision, 'high');
+                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:revision", ParticipantNotificationType::NeedsRevision, 'Revision required', "Your submission for {$activity->title} needs revision. Coach feedback is available.", route('training.submission.edit', [$week, $activity]), $needsRevision, ParticipantNotificationPriority::High);
                 $awaiting = $submission && in_array($status, ['submitted', 'resubmitted', 'under_review'], true);
-                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:review", 'awaiting_review', 'Awaiting coach review', "Your {$activity->title} submission has been submitted and is awaiting review.", route('training.submission.edit', [$week, $activity]), (bool) $awaiting);
+                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:review", ParticipantNotificationType::AwaitingReview, 'Awaiting coach review', "Your {$activity->title} submission has been submitted and is awaiting review.", route('training.submission.edit', [$week, $activity]), (bool) $awaiting);
                 if ($latestReview && in_array($latestReview->decision, ['approved', 'passed'], true)) {
-                    $this->event($participant, "event:review:{$latestReview->id}", 'activity_approved', 'Activity approved', "Your {$activity->title} submission has been approved.", route('training.submission.edit', [$week, $activity]));
+                    $this->event($participant, "event:review:{$latestReview->id}", ParticipantNotificationType::ActivityApproved, 'Activity approved', "Your {$activity->title} submission has been approved.", route('training.submission.edit', [$week, $activity]));
                 }
                 $missingEvidence = $this->missingEvidence($activity, $submission);
-                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:evidence", 'missing_evidence', 'Evidence missing', "{$activity->title} is missing required evidence.", $url, $missingEvidence);
+                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:evidence", ParticipantNotificationType::MissingEvidence, 'Evidence missing', "{$activity->title} is missing required evidence.", $url, $missingEvidence);
             }
 
             $allSubmitted = $week->activities->every(function (Activity $activity) use ($participant): bool {
@@ -68,15 +70,15 @@ class ParticipantNotificationService
                 return in_array($status, ['submitted', 'resubmitted', 'under_review', 'approved', 'completed'], true);
             });
             $videoMissing = $allSubmitted && ! WeeklyVideoRecording::query()->where('user_id', $participant->id)->where('training_week_id', $week->id)->exists();
-            $this->state($participant, "week:{$week->id}:video", 'missing_video', 'Weekly Video Recording missing', "Upload your Week {$week->week_number} Video Recording to complete the weekly requirements.", route('training.video-recording.edit', $week), $videoMissing);
+            $this->state($participant, "week:{$week->id}:video", ParticipantNotificationType::MissingVideo, 'Weekly Video Recording missing', "Upload your Week {$week->week_number} Video Recording to complete the weekly requirements.", route('training.video-recording.edit', $week), $videoMissing);
 
             $gate = $week->gates->first();
             if ($gate) {
                 $reasons = $this->gates->readiness($participant, $gate);
                 $passed = $gate->evaluations()->where('user_id', $participant->id)->where('status', 'passed')->latest('evaluated_at')->first();
-                $this->state($participant, "week:{$week->id}:gate", 'gate_incomplete', "Week {$week->week_number} Gate requirements incomplete", 'You still have requirements to complete before your Gate can be passed.', route('training.gates.show', [$week, $gate]), ! $passed && $reasons !== []);
+                $this->state($participant, "week:{$week->id}:gate", ParticipantNotificationType::GateIncomplete, "Week {$week->week_number} Gate requirements incomplete", 'You still have requirements to complete before your Gate can be passed.', route('training.gates.show', [$week, $gate]), ! $passed && $reasons !== []);
                 if ($passed) {
-                    $this->event($participant, "event:gate:{$passed->id}", 'gate_passed', "Week {$week->week_number} Gate passed", "Your Week {$week->week_number} Gate has been completed successfully.", route('training.weeks.show', $week));
+                    $this->event($participant, "event:gate:{$passed->id}", ParticipantNotificationType::GatePassed, "Week {$week->week_number} Gate passed", "Your Week {$week->week_number} Gate has been completed successfully.", route('training.weeks.show', $week));
                 }
             }
         }
@@ -92,7 +94,7 @@ class ParticipantNotificationService
     {
         $items = $participant->participantNotifications()->active()->latest()->get();
         $groups = $items->groupBy(fn (ParticipantNotification $n): string => str_contains($n->title, 'General') ? 'General Training' : (preg_match('/Week (\d+)/', $n->title, $m) ? "Week {$m[1]}" : 'Current work'));
-        $next = $items->first(fn (ParticipantNotification $n): bool => $n->type !== 'awaiting_review');
+        $next = $items->first(fn (ParticipantNotification $n): bool => $n->type !== ParticipantNotificationType::AwaitingReview);
 
         return ['groups' => $groups, 'next' => $next, 'items' => $items];
     }
@@ -133,7 +135,7 @@ class ParticipantNotificationService
         return false;
     }
 
-    private function state(User $participant, string $key, string $type, string $title, string $body, ?string $url, bool $active, string $priority = 'normal'): void
+    private function state(User $participant, string $key, ParticipantNotificationType $type, string $title, string $body, ?string $url, bool $active, ParticipantNotificationPriority $priority = ParticipantNotificationPriority::Normal): void
     {
         $notification = $participant->participantNotifications()->firstOrNew(['key' => $key]);
         $notification->fill(compact('type', 'title', 'body', 'priority'));
@@ -149,12 +151,12 @@ class ParticipantNotificationService
         $notification->save();
     }
 
-    private function event(User $participant, string $key, string $type, string $title, string $body, ?string $url): void
+    private function event(User $participant, string $key, ParticipantNotificationType $type, string $title, string $body, ?string $url): void
     {
         $notification = $participant->participantNotifications()->firstOrNew(['key' => $key]);
         $notification->fill(compact('type', 'title', 'body'));
         $notification->action_url = $url;
-        $notification->priority = 'normal';
+        $notification->priority = ParticipantNotificationPriority::Normal;
         $notification->resolved_at = null;
         $notification->save();
     }

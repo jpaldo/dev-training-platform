@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ParticipantNotificationType;
 use App\Models\ParticipantNotification;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -43,7 +44,7 @@ class ParticipantNotificationPageService
                     'created_at_label' => $notification->created_at->diffForHumans(),
                     'is_read' => $notification->is_read,
                     'action_url' => $notification->action_url,
-                    'action_label' => $notification->type === 'needs_revision' ? 'View Feedback & Revise' : 'Open',
+                    'action_label' => $notification->type === ParticipantNotificationType::NeedsRevision ? 'View Feedback & Revise' : 'Open',
                     'read_url' => route('participant.notifications.read', $notification),
                 ]),
             'readAllUrl' => route('participant.notifications.read-all'),

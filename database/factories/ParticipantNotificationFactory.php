@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Enums\ParticipantNotificationPriority;
+use App\Enums\ParticipantNotificationType;
 use App\Models\ParticipantNotification;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -12,6 +14,6 @@ class ParticipantNotificationFactory extends Factory
 
     public function definition(): array
     {
-        return ['user_id' => 1, 'key' => $this->faker->unique()->slug(), 'type' => 'activity_incomplete', 'title' => 'Activity incomplete', 'body' => 'Complete your activity.', 'action_url' => '/dashboard', 'priority' => 'normal', 'is_read' => false];
+        return ['user_id' => 1, 'key' => $this->faker->unique()->slug(), 'type' => ParticipantNotificationType::ActivityIncomplete, 'title' => 'Activity incomplete', 'body' => 'Complete your activity.', 'action_url' => '/dashboard', 'priority' => ParticipantNotificationPriority::Normal, 'is_read' => false];
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ParticipantNotificationPriority;
+use App\Enums\ParticipantNotificationType;
 use Database\Factories\ParticipantNotificationFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,9 +21,19 @@ class ParticipantNotification extends Model
         return ParticipantNotificationFactory::new();
     }
 
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
-        return ['is_read' => 'boolean', 'resolved_at' => 'datetime'];
+        return [
+            'type' => ParticipantNotificationType::class,
+            'priority' => ParticipantNotificationPriority::class,
+            'is_read' => 'boolean',
+            'resolved_at' => 'datetime',
+        ];
     }
 
     public function participant(): BelongsTo

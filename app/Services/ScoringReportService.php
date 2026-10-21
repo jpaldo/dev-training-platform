@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ActivityScoreStatus;
 use App\Models\SubmissionVersion;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,7 +23,7 @@ class ScoringReportService
             ->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('submission.activity.week', fn (Builder $w): Builder => $w->where('week_number', $v)))
             ->when($filters['activity'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('submission', fn (Builder $s): Builder => $s->where('activity_id', $v)))
             ->when($filters['assigned_coach'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('submission.participant.assignedCoaches', fn (Builder $c): Builder => $c->whereKey($v)))
-            ->when(($filters['score_status'] ?? null) === 'scored', fn (Builder $q): Builder => $q->whereHas('activityScore', fn (Builder $s): Builder => $s->where('status', 'published')))
+            ->when(($filters['score_status'] ?? null) === 'scored', fn (Builder $q): Builder => $q->whereHas('activityScore', fn (Builder $s): Builder => $s->where('status', ActivityScoreStatus::Published)))
             ->when(($filters['score_status'] ?? null) === 'unscored', fn (Builder $q): Builder => $q->whereDoesntHave('activityScore'))
             ->when($filters['band'] ?? null, fn (Builder $q, string $v): Builder => $q->whereHas('activityScore', fn (Builder $s): Builder => $s->where('performance_band', $v)))
             ->when($filters['from'] ?? null, fn (Builder $q, string $v): Builder => $q->whereDate('submitted_at', '>=', $v))

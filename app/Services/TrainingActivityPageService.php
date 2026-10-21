@@ -182,7 +182,7 @@ class TrainingActivityPageService
                 'has_later_attempt' => $attempts->contains(fn (ActivitySubmission $candidate): bool => $candidate->attempt_number > $attempt->attempt_number),
                 'feedback' => $latestReview?->comments ? $this->markdown->render($latestReview->comments) : null,
                 'recovery_request' => $recoveryRequests->firstWhere('activity_submission_id', $attempt->id),
-                'published_score' => $latestAttemptVersion?->activityScore?->status === 'published' ? $latestAttemptVersion->activityScore : null,
+                'published_score' => $latestAttemptVersion?->activityScore?->isPublished() ? $latestAttemptVersion->activityScore : null,
             ];
         });
     }

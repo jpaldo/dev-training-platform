@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ActivityScoreStatus;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
+use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
 use App\Models\EvidenceRequirement;
@@ -33,6 +35,26 @@ class ParticipantDashboardControllerTest extends TestCase
         $threeRowQueryCount = $this->dashboardQueryCount(3);
 
         $this->assertSame($singleRowQueryCount, $threeRowQueryCount);
+    }
+
+    public function test_dashboard_shows_the_published_score_of_an_activity_but_not_a_draft_score(): void
+    {
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
+
+        foreach ([[1, ActivityScoreStatus::Published, 88], [2, ActivityScoreStatus::Draft, 41]] as [$position, $status, $totalScore]) {
+            $activity = Activity::factory()->for($week, 'week')->create(['position' => $position]);
+            $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted']);
+            $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
+            ActivityScore::create(['submission_version_id' => $version->id, 'scorer_id' => $coach->id, 'status' => $status, 'total_score' => $totalScore, 'performance_band' => 'Proficient']);
+        }
+
+        $html = $this->actingAs($participant)->get(route('dashboard'))->assertOk()->getContent();
+
+        $this->assertSame(1, substr_count($html, 'Score: <strong'));
+        $this->assertStringContainsString('>88 / 100</strong>', $html);
+        $this->assertStringNotContainsString('41 / 100', $html);
     }
 
     /**

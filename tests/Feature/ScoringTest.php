@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Contracts\ScoringSuggestionProvider;
+use App\Enums\ActivityScoreStatus;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
@@ -50,6 +51,7 @@ class ScoringTest extends TestCase
         $payload = ['dimensions' => ['D1' => ['points' => 25, 'evidence_reasoning' => 'Requirements met.'], 'D2' => ['points' => 21, 'evidence_reasoning' => 'Validation executed.'], 'D3' => ['points' => 17, 'evidence_reasoning' => 'AI used deliberately.'], 'D4' => ['points' => 12, 'evidence_reasoning' => 'Judgment documented.'], 'D5' => ['points' => 8, 'evidence_reasoning' => 'Evidence supplied.']]];
         $this->actingAs($coach)->post(route('coach.scoring.store', $version), $payload)->assertRedirect(route('coach.scoring.participant', $participant));
         $score = ActivityScore::with('dimensions')->firstOrFail();
+        $this->assertSame(ActivityScoreStatus::Published, $score->status);
         $this->assertSame(83, $score->total_score);
         $this->assertSame('Proficient', $score->performance_band);
         $this->assertCount(5, $score->dimensions);

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ActivityScoreStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,9 +11,14 @@ class ActivityScore extends Model
 {
     protected $fillable = ['submission_version_id', 'scorer_id', 'status', 'total_score', 'performance_band', 'overall_feedback', 'second_reader_required', 'second_reader_id', 'second_score', 'second_reasoning', 'moderation_outcome', 'moderation_reason'];
 
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
-        return ['total_score' => 'integer', 'second_score' => 'integer', 'second_reader_required' => 'boolean'];
+        return ['status' => ActivityScoreStatus::class, 'total_score' => 'integer', 'second_score' => 'integer', 'second_reader_required' => 'boolean'];
     }
 
     public function version(): BelongsTo
@@ -38,6 +44,11 @@ class ActivityScore extends Model
     public function history(): HasMany
     {
         return $this->hasMany(ActivityScoreHistory::class);
+    }
+
+    public function isPublished(): bool
+    {
+        return $this->status === ActivityScoreStatus::Published;
     }
 
     public function secondReaderStatus(): string

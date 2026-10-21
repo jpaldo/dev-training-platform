@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ActivityScoreStatus;
 use App\Models\ActivityScore;
 use App\Models\ActivityScoreSuggestion;
 use App\Models\Program;
@@ -259,7 +260,7 @@ class ScoringPageService
             ))
             ->when(($filters['score_status'] ?? null) === 'scored', fn (Builder $query): Builder => $query->whereHas(
                 'activitySubmissions.versions.activityScore',
-                fn (Builder $scoreQuery): Builder => $scoreQuery->where('status', 'published'),
+                fn (Builder $scoreQuery): Builder => $scoreQuery->where('status', ActivityScoreStatus::Published),
             ))
             ->when(($filters['score_status'] ?? null) === 'unscored', fn (Builder $query): Builder => $query->whereDoesntHave('activitySubmissions.versions.activityScore'))
             ->when($filters['band'] ?? null, fn (Builder $query, string $band): Builder => $query->whereHas(
@@ -334,7 +335,7 @@ class ScoringPageService
     private function scoringCompletionStats(Collection $versions): array
     {
         $completed = $versions->count();
-        $scored = $versions->filter(fn (SubmissionVersion $version): bool => $version->activityScore?->status === 'published')->count();
+        $scored = $versions->filter(fn (SubmissionVersion $version): bool => $version->activityScore?->isPublished() === true)->count();
 
         return [
             ['label' => 'COMPLETED ACTIVITIES', 'value' => (string) $completed],

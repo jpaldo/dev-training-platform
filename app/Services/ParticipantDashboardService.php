@@ -96,7 +96,7 @@ class ParticipantDashboardService
                 $attempts = $attemptsByActivity->get($activity->id, new EloquentCollection);
                 $activity->participant_submission = $attempts->last();
                 $activity->participant_attempts = $attempts->values();
-                $activity->participant_score = $activity->participant_submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $version): bool => $version->activityScore?->status === 'published')?->activityScore;
+                $activity->participant_score = $activity->participant_submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $version): bool => $version->activityScore?->isPublished() === true)?->activityScore;
                 $activity->participant_score_max = $scoreMax;
                 $activity->week_four_partner_assigned = ! $this->requiresWeekFourPartner($week, $activity) || ($hasWeekFourPartner ??= (bool) WeekFourInterviewPair::forParticipant($user->id));
                 $activity->lab_prerequisite_met = ! $this->requiresValidationLabRecord($week, $activity)

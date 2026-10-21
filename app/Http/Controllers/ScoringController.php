@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ActivityScoreStatus;
 use App\Http\Requests\FilterScoringParticipantsRequest;
 use App\Http\Requests\ImproveScoringFeedbackRequest;
 use App\Http\Requests\StoreActivityScoreRequest;
@@ -88,7 +89,7 @@ class ScoringController extends Controller
             $previousDimensions = $score->exists ? $score->dimensions()->pluck('points', 'dimension')->all() : null;
             $previousReasoning = $score->exists ? $score->dimensions()->pluck('evidence_reasoning', 'dimension')->all() : null;
             $previousOverallFeedback = $score->overall_feedback;
-            $score->fill(['scorer_id' => $request->user()->id, 'status' => 'published', 'total_score' => $total, 'performance_band' => $service->band($total), 'overall_feedback' => $data['overall_feedback'] ?? null]);
+            $score->fill(['scorer_id' => $request->user()->id, 'status' => ActivityScoreStatus::Published, 'total_score' => $total, 'performance_band' => $service->band($total), 'overall_feedback' => $data['overall_feedback'] ?? null]);
             $score->second_reader_required = $service->requiresSecondReader($total, $service->runningAverage($submissionVersion->submission->participant, $submissionVersion->id));
             $score->save();
             foreach ($data['dimensions'] as $dimension => $values) {

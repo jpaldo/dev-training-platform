@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ActivityScoreStatus;
 use App\Enums\RecoveryRequestStatus;
 use App\Jobs\ExportActivityJob;
 use App\Jobs\SyncTrainingDataJob;
@@ -577,6 +578,24 @@ class ParticipantWorkflowTest extends TestCase
             ->assertSee('Review request declined: The evidence does not cover the failed step.')
             ->assertDontSee('Request Review')
             ->assertDontSee('Waiting for coach response.');
+    }
+
+    public function test_attempt_history_shows_the_published_score_of_an_attempt_but_not_a_draft_score(): void
+    {
+        [$participant, $week2, $activity] = $this->trainingFixture();
+        $coach = User::factory()->create(['role' => 'coach']);
+        $failed = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['attempt_number' => 1, 'status' => 'failed']);
+        $failedVersion = SubmissionVersion::factory()->for($failed, 'submission')->create(['status' => 'failed']);
+        ActivityScore::create(['submission_version_id' => $failedVersion->id, 'scorer_id' => $coach->id, 'status' => ActivityScoreStatus::Draft, 'total_score' => 41, 'performance_band' => 'Beginning']);
+        $approved = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['attempt_number' => 2, 'status' => 'approved']);
+        $approvedVersion = SubmissionVersion::factory()->for($approved, 'submission')->create(['status' => 'approved']);
+        ActivityScore::create(['submission_version_id' => $approvedVersion->id, 'scorer_id' => $coach->id, 'status' => ActivityScoreStatus::Published, 'total_score' => 88, 'performance_band' => 'Proficient']);
+
+        $html = $this->actingAs($participant)->get(route('training.activities.show', [$week2, $activity]))->assertOk()->getContent();
+
+        $this->assertSame(1, substr_count($html, '<strong>Published score:</strong>'));
+        $this->assertStringContainsString('<strong>Published score:</strong> 88 / 100 · Proficient', $html);
+        $this->assertStringNotContainsString('41 / 100', $html);
     }
 
     public function test_invalid_evidence_files_are_rejected_and_other_participants_cannot_download_evidence(): void

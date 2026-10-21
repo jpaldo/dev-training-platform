@@ -106,7 +106,7 @@ class ActivitySubmissionPageService
             'text' => is_scalar($value) ? $value : json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'markdown' => in_array($key, Markdown::OUTPUT_FIELDS, true),
         ]);
-        $finalScore = $version->activityScore?->status === 'published' ? $version->activityScore : null;
+        $finalScore = $version->activityScore?->isPublished() ? $version->activityScore : null;
         $weekThreeSnapshot = $trainingWeek->week_number === 3 ? ($version->field_values['week_three_snapshot'] ?? null) : null;
         $weekFourReview = $this->weekFour->present($activity, $version->field_values ?? []);
         $versions = $version->submission->versions;

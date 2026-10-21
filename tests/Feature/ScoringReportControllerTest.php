@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ActivityScoreStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\Program;
@@ -58,6 +59,27 @@ class ScoringReportControllerTest extends TestCase
         $this->assertSame(['Ben', 'ben@example.com', 'automation', '', '2', '2', '0', '60', '70', '', '65', 'Developing', '2026-10-01 10:00:00'], $rows['Ben']);
     }
 
+    public function test_activity_scores_export_prints_the_scoring_status_of_each_submitted_version(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $program = Program::factory()->create();
+        $week = TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 1]);
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        $published = Activity::factory()->for($week, 'week')->create(['title' => 'Published activity', 'position' => 1]);
+        $draft = Activity::factory()->for($week, 'week')->create(['title' => 'Draft activity', 'position' => 2]);
+        $unscored = Activity::factory()->for($week, 'week')->create(['title' => 'Unscored activity', 'position' => 3]);
+
+        $this->createScoredSubmission($participant, $published, $coach, 83);
+        $this->createScoredSubmission($participant, $draft, $coach, 41, status: ActivityScoreStatus::Draft);
+        $unscoredSubmission = ActivitySubmission::factory()->for($unscored)->for($participant, 'participant')->create(['status' => 'submitted']);
+        SubmissionVersion::factory()->for($unscoredSubmission, 'submission')->create(['status' => 'submitted']);
+
+        $csv = $this->actingAs($coach)->get(route('coach.reports.scores'))->assertOk()->streamedContent();
+        $statuses = collect(explode("\n", trim($csv)))->skip(1)->map(fn (string $line): array => str_getcsv($line))->mapWithKeys(fn (array $row): array => [$row[4] => [$row[7], $row[13]]]);
+
+        $this->assertSame(['Published activity' => ['published', '83'], 'Draft activity' => ['draft', '41'], 'Unscored activity' => ['unscored', '']], $statuses->all());
+    }
+
     /**
      * Build an active program with Weeks 2–4 holding the given number of activities each, have the given number of
      * participants submit and get a published score on every activity, and count the queries of a participant
@@ -91,10 +113,10 @@ class ScoringReportControllerTest extends TestCase
         return count(DB::getQueryLog());
     }
 
-    private function createScoredSubmission(User $participant, Activity $activity, User $scorer, int $totalScore, int $attemptNumber = 1): void
+    private function createScoredSubmission(User $participant, Activity $activity, User $scorer, int $totalScore, int $attemptNumber = 1, ActivityScoreStatus $status = ActivityScoreStatus::Published): void
     {
         $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted', 'attempt_number' => $attemptNumber]);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
-        $version->activityScore()->create(['scorer_id' => $scorer->id, 'status' => 'published', 'total_score' => $totalScore, 'performance_band' => 'Proficient']);
+        $version->activityScore()->create(['scorer_id' => $scorer->id, 'status' => $status, 'total_score' => $totalScore, 'performance_band' => 'Proficient']);
     }
 }

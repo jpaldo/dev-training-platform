@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\InterviewType;
 use App\Models\InterviewScheduler;
 use App\Models\User;
 
@@ -19,13 +20,13 @@ class MentorBookingCalendarPageService
     public function indexData(User $mentor): array
     {
         $booking = InterviewScheduler::query()
-            ->where('interview_type', InterviewScheduler::MOCK)
+            ->where('interview_type', InterviewType::Mock)
             ->where('user_id', $mentor->id)
             ->first();
 
         return [
             'hasBooking' => $booking !== null,
-            'bookingUrl' => $booking ? $this->bookingLinks->bookingUrl($booking, InterviewScheduler::MOCK) : null,
+            'bookingUrl' => $booking ? $this->bookingLinks->bookingUrl($booking, InterviewType::Mock) : null,
         ];
     }
 }

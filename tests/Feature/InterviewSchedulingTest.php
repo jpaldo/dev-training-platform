@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\InterviewerApprovalStatus;
+use App\Enums\InterviewType;
 use App\Models\InterviewScheduler;
 use App\Models\User;
 use App\Rules\ExternalBookingUrl;
@@ -146,9 +147,30 @@ class InterviewSchedulingTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $payload = ['interview_type' => 'mock', 'full_name' => 'External Mentor', 'email' => 'mentor@example.com', 'mock_booking_url' => 'https://calendar.app.google/abc', 'is_active' => '1'];
-        $this->actingAs($admin)->post(route('admin.settings.interview-scheduling.store'), $payload)->assertRedirect();
+        $this->actingAs($admin)->post(route('admin.settings.interview-scheduling.store'), $payload)->assertRedirect()->assertSessionHas('status', 'Mock interviewer added.');
         $this->assertDatabaseHas('interview_schedulers', ['full_name' => 'External Mentor', 'user_id' => null]);
         $this->actingAs($admin)->from(route('admin.settings.interview-scheduling'))->post(route('admin.settings.interview-scheduling.store'), [...$payload, 'mock_booking_url' => 'javascript:alert(1)'])->assertSessionHasErrors('mock_booking_url');
+        $this->actingAs($admin)->from(route('admin.settings.interview-scheduling'))->post(route('admin.settings.interview-scheduling.store'), [...$payload, 'interview_type' => 'other'])->assertSessionHasErrors(['interview_type' => 'The selected interview type is invalid.']);
+        $this->actingAs($admin)->post(route('admin.settings.interview-scheduling.store'), ['interview_type' => 'final_reassessment', 'full_name' => 'Final Mentor', 'final_booking_url' => 'https://calendar.app.google/final', 'is_active' => '1'])->assertSessionHas('status', 'Final reassessment interviewer added.');
+        $this->assertSame(1, InterviewScheduler::query()->where('full_name', 'External Mentor')->count());
+    }
+
+    public function test_mentor_booking_link_is_one_mock_listing_that_can_be_replaced_and_removed(): void
+    {
+        $mentor = User::factory()->create(['role' => 'coach']);
+        $finalListing = InterviewScheduler::create(['interview_type' => InterviewType::FinalReassessment, 'user_id' => $mentor->id, 'full_name' => $mentor->name, 'booking_url' => 'https://calendar.app.google/final', 'is_active' => true]);
+
+        $this->actingAs($mentor)->post(route('coach.mentor-booking-calendar.store'), ['booking_url' => 'https://calendar.app.google/first'])->assertSessionHas('status', 'Mock Interview booking link saved.');
+        $this->actingAs($mentor)->post(route('coach.mentor-booking-calendar.store'), ['booking_url' => 'https://calendar.app.google/second'])->assertSessionHas('status', 'Mock Interview booking link saved.');
+
+        $mockListing = InterviewScheduler::query()->where('user_id', $mentor->id)->whereKeyNot($finalListing->id)->sole();
+        $this->assertSame(InterviewType::Mock, $mockListing->interview_type);
+        $this->assertSame('https://calendar.app.google/second', $mockListing->mock_booking_url);
+
+        $this->actingAs($mentor)->delete(route('coach.mentor-booking-calendar.destroy'))->assertSessionHas('status', 'Mock Interview booking link removed.');
+
+        $this->assertModelMissing($mockListing);
+        $this->assertModelExists($finalListing);
     }
 
     public function test_assigned_participant_sees_registered_mentor_booking_link_without_local_slot_form(): void
@@ -172,6 +194,7 @@ class InterviewSchedulingTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $request = InterviewScheduler::query()->where('full_name', 'External Reviewer')->firstOrFail();
         $this->assertSame(InterviewerApprovalStatus::Pending, $request->approval_status);
+        $this->assertSame(InterviewType::Both, $request->interview_type);
         $this->actingAs($admin)->patch(route('admin.settings.interview-scheduling.approve', $request))->assertRedirect();
         $this->get(route('interviews.index'))->assertSee('External Reviewer');
 
@@ -206,7 +229,7 @@ class InterviewSchedulingTest extends TestCase
         $before = User::query()->count();
         $this->from(route('interviews.register'))->post(route('interviews.register.store'), ['full_name' => 'Unsafe', 'mock_booking_url' => 'javascript:alert(1)', 'interview_type' => 'mock'])->assertSessionHasErrors('mock_booking_url');
         $this->assertSame($before, User::query()->count());
-        $this->from(route('interviews.register'))->post(route('interviews.register.store'), ['full_name' => 'Invalid Type', 'mock_booking_url' => 'https://calendar.app.google/safe', 'interview_type' => 'other'])->assertSessionHasErrors('interview_type');
+        $this->from(route('interviews.register'))->post(route('interviews.register.store'), ['full_name' => 'Invalid Type', 'mock_booking_url' => 'https://calendar.app.google/safe', 'interview_type' => 'other'])->assertSessionHasErrors(['interview_type' => 'The selected interview type is invalid.']);
     }
 
     public function test_public_registration_duplicate_is_idempotent(): void

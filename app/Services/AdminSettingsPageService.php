@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\InterviewerApprovalStatus;
+use App\Enums\InterviewType;
 use App\Models\GoogleDriveConnection;
 use App\Models\InterviewScheduler;
 use App\Models\User;
@@ -24,17 +25,6 @@ class AdminSettingsPageService
     ];
 
     private const MASKED_SECRET_PLACEHOLDER = '••••••••••••';
-
-    /**
-     * The interview type options of the interviewer forms, in display order.
-     *
-     * @var array<string, string>
-     */
-    private const INTERVIEW_TYPE_LABELS = [
-        InterviewScheduler::MOCK => 'Mock Interview',
-        InterviewScheduler::FINAL_REASSESSMENT => 'Final Re-assessment Interview',
-        InterviewScheduler::BOTH => 'Both',
-    ];
 
     public function __construct(
         private readonly AdminSettingsStatusService $status,
@@ -284,11 +274,6 @@ class AdminSettingsPageService
     public function interviewSchedulingData(): array
     {
         $logoConfigured = filled($this->interviewBookingLinks->logoPath());
-        $interviewTypes = [];
-
-        foreach (self::INTERVIEW_TYPE_LABELS as $value => $label) {
-            $interviewTypes[] = ['value' => $value, 'label' => $label];
-        }
 
         return [
             'publicTitle' => $this->interviewBookingLinks->publicTitle(),
@@ -296,7 +281,10 @@ class AdminSettingsPageService
             'logoStatus' => $logoConfigured
                 ? 'A public logo is configured.'
                 : 'No logo configured; the public page uses the configured title as its branding fallback.',
-            'interviewTypes' => $interviewTypes,
+            'interviewTypes' => array_map(
+                fn (InterviewType $interviewType): array => ['value' => $interviewType->value, 'label' => $interviewType->label()],
+                InterviewType::cases(),
+            ),
             'users' => User::query()
                 ->whereIn('role', ['coach', 'admin'])
                 ->orderBy('name')
@@ -311,16 +299,16 @@ class AdminSettingsPageService
                 ->all(),
             'sections' => [
                 [
-                    'key' => InterviewScheduler::MOCK,
+                    'key' => InterviewType::Mock->value,
                     'title' => 'Mock Interview',
                     'emptyMessage' => 'No mock interview interviewers configured.',
-                    'interviewers' => $this->approvedInterviewers(InterviewScheduler::MOCK),
+                    'interviewers' => $this->approvedInterviewers(InterviewType::Mock),
                 ],
                 [
-                    'key' => InterviewScheduler::FINAL_REASSESSMENT,
+                    'key' => InterviewType::FinalReassessment->value,
                     'title' => 'Final Re-assessment Interview',
                     'emptyMessage' => 'No final re-assessment interview interviewers configured.',
-                    'interviewers' => $this->approvedInterviewers(InterviewScheduler::FINAL_REASSESSMENT),
+                    'interviewers' => $this->approvedInterviewers(InterviewType::FinalReassessment),
                 ],
             ],
         ];
@@ -355,10 +343,10 @@ class AdminSettingsPageService
      *
      * @return list<array{id: int, fullName: string, email: ?string, interviewType: string, mockBookingUrl: string, finalBookingUrl: string, displayOrder: int, summary: string, toggleLabel: string, updateUrl: string, toggleUrl: string, destroyUrl: string}>
      */
-    private function approvedInterviewers(string $interviewType): array
+    private function approvedInterviewers(InterviewType $interviewType): array
     {
         return InterviewScheduler::query()
-            ->whereIn('interview_type', [$interviewType, InterviewScheduler::BOTH])
+            ->whereIn('interview_type', InterviewType::offering($interviewType))
             ->where('approval_status', InterviewerApprovalStatus::Approved)
             ->orderBy('display_order')
             ->orderBy('full_name')
@@ -367,7 +355,7 @@ class AdminSettingsPageService
                 'id' => $interviewer->id,
                 'fullName' => $interviewer->full_name,
                 'email' => $interviewer->email,
-                'interviewType' => $interviewer->interview_type,
+                'interviewType' => $interviewer->interview_type->value,
                 'mockBookingUrl' => $this->mockBookingUrl($interviewer),
                 'finalBookingUrl' => $this->finalBookingUrl($interviewer),
                 'displayOrder' => $interviewer->display_order,
@@ -388,7 +376,7 @@ class AdminSettingsPageService
         return [
             'id' => $interviewer->id,
             'fullName' => $interviewer->full_name,
-            'interviewType' => $interviewer->interview_type,
+            'interviewType' => $interviewer->interview_type->value,
             'mockBookingUrl' => $this->mockBookingUrl($interviewer),
             'finalBookingUrl' => $this->finalBookingUrl($interviewer),
             'submittedAt' => $interviewer->created_at?->format('F j, Y g:i A'),
@@ -404,7 +392,7 @@ class AdminSettingsPageService
     private function mockBookingUrl(InterviewScheduler $interviewer): string
     {
         return (string) ($interviewer->mock_booking_url
-            ?: ($interviewer->interview_type !== InterviewScheduler::FINAL_REASSESSMENT ? $interviewer->booking_url : ''));
+            ?: ($interviewer->interview_type->offers(InterviewType::Mock) ? $interviewer->booking_url : ''));
     }
 
     /**
@@ -413,7 +401,7 @@ class AdminSettingsPageService
     private function finalBookingUrl(InterviewScheduler $interviewer): string
     {
         return (string) ($interviewer->final_booking_url
-            ?: ($interviewer->interview_type !== InterviewScheduler::MOCK ? $interviewer->booking_url : ''));
+            ?: ($interviewer->interview_type->offers(InterviewType::FinalReassessment) ? $interviewer->booking_url : ''));
     }
 
     private function megabytes(int $bytes): string

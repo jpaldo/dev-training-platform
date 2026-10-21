@@ -24,7 +24,7 @@ class AdminInterviewSchedulingController extends Controller
     {
         $scheduler = InterviewScheduler::create($this->interviewerAttributes($request));
 
-        return back()->with('status', ucfirst(str_replace('_', ' ', $scheduler->interview_type)).' interviewer added.');
+        return back()->with('status', ucfirst(str_replace('_', ' ', $scheduler->interview_type->value)).' interviewer added.');
     }
 
     public function update(SaveInterviewSchedulerRequest $request, InterviewScheduler $interviewer): RedirectResponse

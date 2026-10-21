@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\InterviewerApprovalStatus;
+use App\Enums\InterviewType;
 use App\Models\ApplicationSetting;
 use App\Models\GoogleDriveConnection;
 use App\Models\InterviewScheduler;
@@ -463,17 +464,17 @@ class AdminSettingsPageTest extends TestCase
     {
         $this->travelTo(now()->setDate(2026, 10, 1)->setTime(9, 30));
         $older = InterviewScheduler::create([
-            'interview_type' => InterviewScheduler::MOCK, 'full_name' => 'Older Request', 'booking_url' => 'https://booking.example.com/older',
+            'interview_type' => InterviewType::Mock, 'full_name' => 'Older Request', 'booking_url' => 'https://booking.example.com/older',
             'approval_status' => InterviewerApprovalStatus::Pending, 'submitted_publicly' => true, 'is_active' => false,
         ]);
         $this->travelTo(now()->setDate(2026, 10, 2)->setTime(14, 5));
         $newer = InterviewScheduler::create([
-            'interview_type' => InterviewScheduler::BOTH, 'full_name' => 'Newer Request', 'booking_url' => 'https://booking.example.com/legacy',
+            'interview_type' => InterviewType::Both, 'full_name' => 'Newer Request', 'booking_url' => 'https://booking.example.com/legacy',
             'final_booking_url' => 'https://booking.example.com/newer-final',
             'approval_status' => InterviewerApprovalStatus::Pending, 'submitted_publicly' => true, 'is_active' => false,
         ]);
         InterviewScheduler::create([
-            'interview_type' => InterviewScheduler::MOCK, 'full_name' => 'Rejected Request', 'booking_url' => 'https://booking.example.com/rejected',
+            'interview_type' => InterviewType::Mock, 'full_name' => 'Rejected Request', 'booking_url' => 'https://booking.example.com/rejected',
             'approval_status' => InterviewerApprovalStatus::Rejected, 'is_active' => false,
         ]);
 
@@ -512,15 +513,15 @@ class AdminSettingsPageTest extends TestCase
     {
         $mentor = User::factory()->create(['role' => 'coach']);
         $both = InterviewScheduler::create([
-            'interview_type' => InterviewScheduler::BOTH, 'full_name' => 'Dual Interviewer', 'email' => 'dual@example.com', 'user_id' => $mentor->id,
+            'interview_type' => InterviewType::Both, 'full_name' => 'Dual Interviewer', 'email' => 'dual@example.com', 'user_id' => $mentor->id,
             'booking_url' => 'https://booking.example.com/dual', 'final_booking_url' => 'https://booking.example.com/dual-final', 'display_order' => 1, 'is_active' => true,
         ]);
         $mock = InterviewScheduler::create([
-            'interview_type' => InterviewScheduler::MOCK, 'full_name' => 'Mock Only', 'mock_booking_url' => 'https://booking.example.com/mock-only',
+            'interview_type' => InterviewType::Mock, 'full_name' => 'Mock Only', 'mock_booking_url' => 'https://booking.example.com/mock-only',
             'booking_url' => 'https://booking.example.com/mock-legacy', 'display_order' => 0, 'is_active' => false,
         ]);
         $final = InterviewScheduler::create([
-            'interview_type' => InterviewScheduler::FINAL_REASSESSMENT, 'full_name' => 'Final Only', 'booking_url' => 'https://booking.example.com/final-legacy',
+            'interview_type' => InterviewType::FinalReassessment, 'full_name' => 'Final Only', 'booking_url' => 'https://booking.example.com/final-legacy',
             'display_order' => 5, 'is_active' => true,
         ]);
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\InterviewType;
 use App\Enums\MentorInterviewScheduleStatus;
 use App\Models\GoogleDriveExport;
 use App\Models\InterviewScheduler;
@@ -38,7 +39,7 @@ class ParticipantDashboardController extends Controller
         $activeAttendance = $user->attendanceSessions()->whereNull('check_out_at')->latest('check_in_at')->first();
         $assignedMentor = $mentorScheduling->assignedMentor($user);
         $mentorInterviewSchedule = WeekFourMentorInterviewSchedule::query()->where('participant_id', $user->id)->where('status', MentorInterviewScheduleStatus::Scheduled)->latest('id')->first();
-        $mentorBooking = $assignedMentor ? InterviewScheduler::query()->where('interview_type', InterviewScheduler::MOCK)->where('user_id', $assignedMentor->id)->where('is_active', true)->first() : null;
+        $mentorBooking = $assignedMentor ? InterviewScheduler::query()->where('interview_type', InterviewType::Mock)->where('user_id', $assignedMentor->id)->where('is_active', true)->first() : null;
         $weeks = $dashboard->weeks($user, $program, $activeAttendance);
 
         $programCompleted = $progression->isProgramCompleted($user, $program);

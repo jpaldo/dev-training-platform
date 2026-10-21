@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\InterviewerApprovalStatus;
+use App\Enums\InterviewType;
 use App\Models\ApplicationSetting;
 use App\Models\InterviewScheduler;
 use App\Services\InterviewBookingLinkService;
@@ -18,11 +19,11 @@ class PublicInterviewPagesTest extends TestCase
 
     public function test_scheduling_page_lists_approved_active_interviewers_per_tab_with_their_booking_links(): void
     {
-        $this->interviewer('Zed Mentor', InterviewScheduler::MOCK, displayOrder: 1, mockUrl: 'https://calendar.app.google/zed-mock');
-        $this->interviewer('Amy Mentor', InterviewScheduler::MOCK, displayOrder: 1, mockUrl: 'https://calendar.app.google/amy-mock');
-        $this->interviewer('Bea Both', InterviewScheduler::BOTH, displayOrder: 0, finalUrl: 'https://calendar.app.google/bea-final', sharedUrl: 'https://calendar.app.google/bea-shared');
-        $this->interviewer('Pending Person', InterviewScheduler::MOCK, approvalStatus: InterviewerApprovalStatus::Pending);
-        $this->interviewer('Inactive Person', InterviewScheduler::FINAL_REASSESSMENT, isActive: false);
+        $this->interviewer('Zed Mentor', InterviewType::Mock, displayOrder: 1, mockUrl: 'https://calendar.app.google/zed-mock');
+        $this->interviewer('Amy Mentor', InterviewType::Mock, displayOrder: 1, mockUrl: 'https://calendar.app.google/amy-mock');
+        $this->interviewer('Bea Both', InterviewType::Both, displayOrder: 0, finalUrl: 'https://calendar.app.google/bea-final', sharedUrl: 'https://calendar.app.google/bea-shared');
+        $this->interviewer('Pending Person', InterviewType::Mock, approvalStatus: InterviewerApprovalStatus::Pending);
+        $this->interviewer('Inactive Person', InterviewType::FinalReassessment, isActive: false);
 
         $response = $this->get(route('interviews.index'))
             ->assertOk()
@@ -145,7 +146,7 @@ class PublicInterviewPagesTest extends TestCase
     {
         $this->post(route('interviews.register.store'), [
             'full_name' => 'Ada Interviewer',
-            'interview_type' => InterviewScheduler::MOCK,
+            'interview_type' => 'mock',
             'mock_booking_url' => 'https://calendar.app.google/ada-mock',
         ])->assertRedirect(route('interviews.register'));
 
@@ -165,7 +166,7 @@ class PublicInterviewPagesTest extends TestCase
     {
         $this->from(route('interviews.register'))->post(route('interviews.register.store'), [
             'full_name' => 'Ada Interviewer',
-            'interview_type' => InterviewScheduler::BOTH,
+            'interview_type' => 'both',
             'mock_booking_url' => 'https://calendar.app.google/ada-mock',
         ])->assertRedirect(route('interviews.register'));
 
@@ -191,7 +192,7 @@ class PublicInterviewPagesTest extends TestCase
 
         $this->from(route('interviews.register'))->post(route('interviews.register.store'), [
             'full_name' => 'Ada Interviewer',
-            'interview_type' => InterviewScheduler::MOCK,
+            'interview_type' => 'mock',
             'mock_booking_url' => 'https://calendar.app.google/ada-mock',
         ])->assertRedirect(route('interviews.register'));
 
@@ -222,7 +223,7 @@ class PublicInterviewPagesTest extends TestCase
 
     private function interviewer(
         string $fullName,
-        string $interviewType,
+        InterviewType $interviewType,
         int $displayOrder = 0,
         ?string $mockUrl = null,
         ?string $finalUrl = null,

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\InterviewType;
 use App\Models\InterviewScheduler;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -65,7 +66,7 @@ class MentorBookingCalendarPageTest extends TestCase
     {
         $mentor = User::factory()->create(['role' => 'coach']);
         $this->bookingFor(User::factory()->create(['role' => 'coach']), 'https://booking.example.com/other', 'https://booking.example.com/other-mock');
-        InterviewScheduler::create(['interview_type' => InterviewScheduler::FINAL_REASSESSMENT, 'user_id' => $mentor->id, 'full_name' => $mentor->name, 'booking_url' => 'https://booking.example.com/final', 'is_active' => true]);
+        InterviewScheduler::create(['interview_type' => InterviewType::FinalReassessment, 'user_id' => $mentor->id, 'full_name' => $mentor->name, 'booking_url' => 'https://booking.example.com/final', 'is_active' => true]);
 
         $this->actingAs($mentor)->get(route('coach.mentor-booking-calendar.index'))
             ->assertOk()
@@ -92,7 +93,7 @@ class MentorBookingCalendarPageTest extends TestCase
     private function bookingFor(User $mentor, string $bookingUrl, ?string $mockBookingUrl): InterviewScheduler
     {
         return InterviewScheduler::create([
-            'interview_type' => InterviewScheduler::MOCK,
+            'interview_type' => InterviewType::Mock,
             'user_id' => $mentor->id,
             'full_name' => $mentor->name,
             'email' => $mentor->email,

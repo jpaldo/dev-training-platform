@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\InterviewType;
 use App\Rules\ExternalBookingUrl;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -36,9 +37,9 @@ class StoreInterviewerRegistrationRequest extends FormRequest
 
         return [
             'full_name' => ['required', 'string', 'max:255'],
-            'interview_type' => ['required', 'in:mock,final_reassessment,both'],
-            'mock_booking_url' => [Rule::requiredIf(fn (): bool => in_array($this->input('interview_type'), ['mock', 'both'], true)), 'nullable', 'string', 'max:2000', new ExternalBookingUrl],
-            'final_booking_url' => [Rule::requiredIf(fn (): bool => in_array($this->input('interview_type'), ['final_reassessment', 'both'], true)), 'nullable', 'string', 'max:2000', new ExternalBookingUrl],
+            'interview_type' => ['required', Rule::enum(InterviewType::class)],
+            'mock_booking_url' => [Rule::requiredIf(fn (): bool => $this->submittedTypeOffers(InterviewType::Mock)), 'nullable', 'string', 'max:2000', new ExternalBookingUrl],
+            'final_booking_url' => [Rule::requiredIf(fn (): bool => $this->submittedTypeOffers(InterviewType::FinalReassessment)), 'nullable', 'string', 'max:2000', new ExternalBookingUrl],
         ];
     }
 
@@ -61,5 +62,16 @@ class StoreInterviewerRegistrationRequest extends FormRequest
         if (! $this->isRateLimited) {
             RateLimiter::hit($key, 600);
         }
+    }
+
+    /**
+     * Whether the submitted interview type offers the given interview (read before validation, so any other
+     * input, including a non-string one, offers none).
+     */
+    private function submittedTypeOffers(InterviewType $interview): bool
+    {
+        $type = $this->input('interview_type');
+
+        return is_string($type) && InterviewType::tryFrom($type)?->offers($interview) === true;
     }
 }

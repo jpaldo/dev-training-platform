@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\InterviewType;
 use App\Models\ApplicationSetting;
 use App\Models\InterviewScheduler;
 use App\Models\User;
@@ -16,12 +17,12 @@ class InterviewBookingLinkService
 
     public function forMentor(User $mentor): ?InterviewScheduler
     {
-        return InterviewScheduler::query()->whereIn('interview_type', [InterviewScheduler::MOCK, InterviewScheduler::BOTH])->where('user_id', $mentor->id)->latest('id')->first();
+        return InterviewScheduler::query()->whereIn('interview_type', InterviewType::offering(InterviewType::Mock))->where('user_id', $mentor->id)->latest('id')->first();
     }
 
-    public function bookingUrl(InterviewScheduler $interviewer, string $type): ?string
+    public function bookingUrl(InterviewScheduler $interviewer, InterviewType $type): ?string
     {
-        $url = $type === InterviewScheduler::FINAL_REASSESSMENT
+        $url = $type === InterviewType::FinalReassessment
             ? $interviewer->final_booking_url
             : $interviewer->mock_booking_url;
 

@@ -3,22 +3,12 @@
 namespace App\Services;
 
 use App\Enums\InterviewerApprovalStatus;
+use App\Enums\InterviewType;
 use App\Models\InterviewScheduler;
 use Illuminate\Support\Collection;
 
 class PublicInterviewPageService
 {
-    /**
-     * The interview type options of the public interviewer registration form, in display order.
-     *
-     * @var array<string, string>
-     */
-    private const INTERVIEW_TYPE_LABELS = [
-        InterviewScheduler::MOCK => 'Mock Interview',
-        InterviewScheduler::FINAL_REASSESSMENT => 'Final Re-assessment Interview',
-        InterviewScheduler::BOTH => 'Both',
-    ];
-
     public function __construct(private readonly InterviewBookingLinkService $interviewBookingLinks) {}
 
     /**
@@ -34,7 +24,7 @@ class PublicInterviewPageService
         $interviewers = InterviewScheduler::query()
             ->where('is_active', true)
             ->where('approval_status', InterviewerApprovalStatus::Approved)
-            ->whereIn('interview_type', [InterviewScheduler::MOCK, InterviewScheduler::FINAL_REASSESSMENT, InterviewScheduler::BOTH])
+            ->whereIn('interview_type', InterviewType::cases())
             ->orderBy('display_order')
             ->orderBy('full_name')
             ->get();
@@ -48,27 +38,25 @@ class PublicInterviewPageService
                 ['key' => 'final', 'label' => 'Final Re-assessment Interview'],
             ],
             'selectedTab' => 'mock',
-            'mockInterviewers' => $this->interviewerRows($interviewers, InterviewScheduler::MOCK),
-            'finalInterviewers' => $this->interviewerRows($interviewers, InterviewScheduler::FINAL_REASSESSMENT),
+            'mockInterviewers' => $this->interviewerRows($interviewers, InterviewType::Mock),
+            'finalInterviewers' => $this->interviewerRows($interviewers, InterviewType::FinalReassessment),
         ];
     }
 
     /**
-     * The public interviewer registration page: the public title, the interview type options and the form URLs.
+     * The public interviewer registration page: the public title, the interview type options (in case order) and
+     * the form URLs.
      *
      * @return array{publicTitle: string, interviewTypes: list<array{value: string, label: string}>, storeUrl: string, schedulingUrl: string}
      */
     public function registerData(): array
     {
-        $interviewTypes = [];
-
-        foreach (self::INTERVIEW_TYPE_LABELS as $value => $label) {
-            $interviewTypes[] = ['value' => $value, 'label' => $label];
-        }
-
         return [
             'publicTitle' => $this->interviewBookingLinks->publicTitle(),
-            'interviewTypes' => $interviewTypes,
+            'interviewTypes' => array_map(
+                fn (InterviewType $interviewType): array => ['value' => $interviewType->value, 'label' => $interviewType->label()],
+                InterviewType::cases(),
+            ),
             'storeUrl' => route('interviews.register.store'),
             'schedulingUrl' => route('interviews.index'),
         ];
@@ -80,10 +68,10 @@ class PublicInterviewPageService
      * @param  Collection<int, InterviewScheduler>  $interviewers
      * @return list<array{fullName: string, bookingUrl: ?string}>
      */
-    private function interviewerRows(Collection $interviewers, string $interviewType): array
+    private function interviewerRows(Collection $interviewers, InterviewType $interviewType): array
     {
         return $interviewers
-            ->filter(fn (InterviewScheduler $interviewer): bool => in_array($interviewer->interview_type, [$interviewType, InterviewScheduler::BOTH], true))
+            ->filter(fn (InterviewScheduler $interviewer): bool => $interviewer->interview_type->offers($interviewType))
             ->map(fn (InterviewScheduler $interviewer): array => [
                 'fullName' => $interviewer->full_name,
                 'bookingUrl' => $this->interviewBookingLinks->bookingUrl($interviewer, $interviewType),

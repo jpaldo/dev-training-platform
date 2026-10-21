@@ -3,17 +3,12 @@
 namespace App\Models;
 
 use App\Enums\InterviewerApprovalStatus;
+use App\Enums\InterviewType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class InterviewScheduler extends Model
 {
-    public const MOCK = 'mock';
-
-    public const FINAL_REASSESSMENT = 'final_reassessment';
-
-    public const BOTH = 'both';
-
     protected $fillable = [
         'interview_type',
         'user_id',
@@ -39,6 +34,7 @@ class InterviewScheduler extends Model
     protected function casts(): array
     {
         return [
+            'interview_type' => InterviewType::class,
             'is_active' => 'boolean',
             'display_order' => 'integer',
             'approval_status' => InterviewerApprovalStatus::class,

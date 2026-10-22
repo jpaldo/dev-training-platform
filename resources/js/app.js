@@ -438,16 +438,6 @@ const initializeConfirmations = () => {
 };
 
 /**
- * Show the `data-alert` message of each `[data-alert]` button in a browser alert when it is clicked (the QA
- * Validation Lab mock app's Resend OTP).
- */
-const initializeAlertButtons = () => {
-    document.querySelectorAll('[data-alert]').forEach((button) => {
-        button.addEventListener('click', () => window.alert(button.dataset.alert));
-    });
-};
-
-/**
  * On the AI scoring settings page, show the selected provider's model label and hint and its API key placeholder and
  * hint (from the option's data attributes), update the "API key:" part of the status summary to whether that provider
  * has an effective key (Admin-saved or from the environment), and copy the current provider, model and API key into
@@ -549,32 +539,6 @@ const initializeInterviewRegistrationFields = () => {
 
     type.addEventListener('change', sync);
     sync();
-};
-
-/**
- * On the QA Validation Lab activity form, show the `#other_{key}_wrap` field of each `[data-other-select="{key}"]`
- * select, and require its `#other_{key}` input, only while "Other" is selected; any other choice clears the typed value.
- */
-const initializeOtherSelectFields = () => {
-    document.querySelectorAll('[data-other-select]').forEach((select) => {
-        const key = select.dataset.otherSelect;
-        const wrap = document.getElementById(`other_${key}_wrap`);
-        const input = document.getElementById(`other_${key}`);
-
-        const sync = () => {
-            const isOtherSelected = select.value === 'Other';
-
-            wrap.hidden = !isOtherSelected;
-            input.required = isOtherSelected;
-
-            if (!isOtherSelected) {
-                input.value = '';
-            }
-        };
-
-        select.addEventListener('change', sync);
-        sync();
-    });
 };
 
 /**
@@ -1015,11 +979,9 @@ const initializePage = () => {
     initializeCharacterCounters();
     initializeMarkdownFields();
     initializeConfirmations();
-    initializeAlertButtons();
     initializeAiProviderSettings();
     initializeInterviewerTypeFields();
     initializeInterviewRegistrationFields();
-    initializeOtherSelectFields();
     initializeGoogleDrivePicker();
     initializeGoogleDriveSyncStatus();
     initializeEvidencePreviews();

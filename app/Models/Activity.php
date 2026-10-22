@@ -39,13 +39,4 @@ class Activity extends Model
     {
         return $this->hasMany(DailyLog::class);
     }
-
-    /**
-     * Whether this is the Week 2 Validation Checklist (Activity 1), which a participant starts only after recording a
-     * QA Validation Lab record. The activity's week is passed in so callers that already hold it skip a query.
-     */
-    public function isValidationChecklist(TrainingWeek $week): bool
-    {
-        return $week->week_number === 2 && $this->position === 1 && $this->title === 'Validation Checklist';
-    }
 }

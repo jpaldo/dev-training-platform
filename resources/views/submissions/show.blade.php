@@ -40,14 +40,6 @@
             @endif
         </x-ui.card>
 
-        @if($labRecord)
-            <x-ui.card as="section" class="grid grid-cols-1 justify-items-start gap-3" aria-labelledby="lab-record-title">
-                <h2 id="lab-record-title" class="{{ $sectionTitleClasses }}">QA Validation Lab Record</h2>
-                <p class="m-0 wrap-anywhere"><strong>{{ $labRecord->artifact_code }}</strong> — {{ $labRecord->artifact_name ?: 'Artifact name not provided' }}</p>
-                <x-ui.button variant="secondary" :href="route('lab.records.show', $labRecord)">View Lab Record</x-ui.button>
-            </x-ui.card>
-        @endif
-
         @if($weekThreeReview)
             <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-3" aria-label="Week 3 snapshot">
                 <p class="{{ $hintClasses }}">Participant submission · immutable Week 3 snapshot for Version {{ $submissionVersion->version_number }}</p>

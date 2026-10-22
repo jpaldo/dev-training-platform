@@ -24,7 +24,6 @@ class CoachSubmissionReviewPageTest extends TestCase
         [$coach, $version] = $this->assignedCoachWithVersion('submitted', [
             'feature_area' => 'Checkout',
             'exact_ai_output' => '**AI said this**',
-            'validation_submission_id' => 99,
         ]);
         $version->update(['participant_note' => 'Checked against staging.']);
         SubmissionInteraction::create(['submission_version_id' => $version->id, 'sequence' => 1, 'prompt' => 'First prompt', 'output' => 'First output']);
@@ -60,7 +59,6 @@ class CoachSubmissionReviewPageTest extends TestCase
         $content = $response->getContent();
         $this->assertSame(1, substr_count($content, '>Save Review</button>'));
         $this->assertSame(1, substr_count($content, 'from-brand to-brand-deep'), 'Save Review is the only primary button.');
-        $this->assertStringNotContainsString('Validation Submission Id', $content);
         $response->assertDontSee('Create Retry')->assertDontSee('Read only')->assertDontSee('Current Review');
     }
 

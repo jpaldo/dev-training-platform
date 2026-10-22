@@ -12,7 +12,6 @@ use App\Models\EvidenceRequirement;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\User;
-use App\Models\ValidationSubmission;
 use App\Models\WeekFourInterviewPair;
 use App\Models\WeekFourMentorInterviewSchedule;
 use App\Models\WeekFourPartnerFeedback;
@@ -73,13 +72,6 @@ class SubmissionWorkflowService
             }
             Validator::make($allowed, ['artifact_type' => ['nullable', 'string', 'max:120']])->validate();
         }
-        if (array_key_exists('validation_submission_id', $allowed) && filled($allowed['validation_submission_id'])) {
-            $record = ValidationSubmission::query()->whereKey((int) $allowed['validation_submission_id'])->where('user_id', $user->id)->recorded()->first();
-            if (! $record) {
-                throw ValidationException::withMessages(['field_values.validation_submission_id' => 'Select one of your own Validation Lab records.']);
-            }
-            $allowed['validation_submission_id'] = $record->id;
-        }
         $this->validateWeekFourDraftFields($activity, $user, $allowed);
 
         return DB::transaction(function () use ($activity, $allowed, $note, $user, $interactions): SubmissionVersion {
@@ -89,13 +81,13 @@ class SubmissionWorkflowService
             }
             $latest = $submission->versions()->lockForUpdate()->orderByDesc('version_number')->first();
             if (! $latest) {
-                $version = $submission->versions()->create(['version_number' => 1, 'validation_submission_id' => $allowed['validation_submission_id'] ?? null, 'status' => SubmissionStatus::Draft, 'field_values' => $allowed, 'participant_note' => $note]);
+                $version = $submission->versions()->create(['version_number' => 1, 'status' => SubmissionStatus::Draft, 'field_values' => $allowed, 'participant_note' => $note]);
                 $this->syncInteractions($version, $interactions);
 
                 return $version;
             }
             if ($latest->isDraft()) {
-                $latest->update(['validation_submission_id' => array_key_exists('validation_submission_id', $allowed) ? ($allowed['validation_submission_id'] ?: null) : $latest->validation_submission_id, 'field_values' => array_replace_recursive($latest->field_values ?? [], $allowed), 'participant_note' => $note]);
+                $latest->update(['field_values' => array_replace_recursive($latest->field_values ?? [], $allowed), 'participant_note' => $note]);
                 $this->syncInteractions($latest, $interactions);
 
                 return $latest;
@@ -105,7 +97,7 @@ class SubmissionWorkflowService
             }
             $submission->update(['status' => SubmissionStatus::Draft]);
 
-            $version = $submission->versions()->create(['version_number' => $latest->version_number + 1, 'validation_submission_id' => $allowed['validation_submission_id'] ?? null, 'status' => SubmissionStatus::Draft, 'field_values' => $allowed, 'participant_note' => $note]);
+            $version = $submission->versions()->create(['version_number' => $latest->version_number + 1, 'status' => SubmissionStatus::Draft, 'field_values' => $allowed, 'participant_note' => $note]);
             $this->syncInteractions($version, $interactions);
 
             return $version;

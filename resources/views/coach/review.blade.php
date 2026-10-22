@@ -32,32 +32,6 @@
                 <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
             @endif
 
-            @if($isActivityOne)
-                <x-ui.card as="section" class="grid grid-cols-1 justify-items-start gap-3" aria-labelledby="lab-record-title">
-                    <h2 id="lab-record-title" class="{{ $sectionTitleClasses }}">Validation Lab Record</h2>
-                    @if($linkedValidationSubmission)
-                        <p class="m-0"><strong>Validation Lab Record #{{ $linkedValidationSubmission->id }}</strong></p>
-                        <dl class="m-0 grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
-                            <div class="grid min-w-0 content-start gap-1">
-                                <dt class="text-xs font-bold tracking-[0.08em] text-subtle uppercase">Artifact Name</dt>
-                                <dd class="m-0 font-bold wrap-anywhere">{{ $linkedValidationSubmission->artifact_name ?: 'Not provided' }}</dd>
-                            </div>
-                            <div class="grid min-w-0 content-start gap-1">
-                                <dt class="text-xs font-bold tracking-[0.08em] text-subtle uppercase">Artifact ID</dt>
-                                <dd class="m-0 font-bold wrap-anywhere">{{ $linkedValidationSubmission->artifact_code }}</dd>
-                            </div>
-                            <div class="grid min-w-0 content-start gap-1">
-                                <dt class="text-xs font-bold tracking-[0.08em] text-subtle uppercase">Created</dt>
-                                <dd class="m-0 font-bold">{{ $linkedValidationSubmission->created_at?->format('F j, Y H:i') ?: 'Not provided' }}</dd>
-                            </div>
-                        </dl>
-                        <x-ui.button variant="secondary" :href="route('lab.records.show', [$linkedValidationSubmission, 'submission_version' => $submissionVersion->id])">View Validation Lab Record</x-ui.button>
-                    @else
-                        <p class="{{ $hintClasses }}">No Validation Lab record linked.</p>
-                    @endif
-                </x-ui.card>
-            @endif
-
             @if($weekThreeReview)
                 <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-3" aria-label="Week 3 snapshot">
                     <p class="{{ $hintClasses }}">Participant submission · immutable Week 3 snapshot for Version {{ $submissionVersion->version_number }}</p>

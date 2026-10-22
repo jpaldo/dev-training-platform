@@ -35,10 +35,6 @@ return [
         ],
     ],
 
-    'qa_application' => [
-        'url' => env('QA_APPLICATION_URL'),
-    ],
-
     'google_drive' => [
         'enabled' => (bool) env('GOOGLE_DRIVE_ENABLED', false),
         'client_id' => env('GOOGLE_CLIENT_ID'),

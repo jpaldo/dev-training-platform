@@ -26,7 +26,7 @@ class ActivitySubmissionController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $submissionVersion->load(['submission.participant', 'submission.activity', 'submission.versions', 'evidence', 'reviews', 'publishedActivityScore.dimensions', 'validationSubmission', 'interactions']);
+        $submissionVersion->load(['submission.participant', 'submission.activity', 'submission.versions', 'evidence', 'reviews', 'publishedActivityScore.dimensions', 'interactions']);
         abort_unless($submissionVersion->submission->user_id === $user->id && $submissionVersion->submission->activity_id === $activity->id && $submissionVersion->submission->activity->training_week_id === $trainingWeek->id, 404);
         abort_unless(! $submissionVersion->isDraft(), 404);
 
@@ -38,7 +38,7 @@ class ActivitySubmissionController extends Controller
         ]);
     }
 
-    public function edit(Request $request, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, GoogleDriveReadinessService $readiness, ActivitySubmissionService $submissions, ActivitySubmissionPageService $pages): View|Response|RedirectResponse
+    public function edit(Request $request, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, GoogleDriveReadinessService $readiness, ActivitySubmissionPageService $pages): View|Response|RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -54,12 +54,9 @@ class ActivitySubmissionController extends Controller
             ]);
         }
         $progression->ensureCanEditActivity($user, $trainingWeek, $activity);
-        if ($submissions->isMissingLabPrerequisite($user, $trainingWeek, $activity)) {
-            return redirect()->route('training.activities.show', [$trainingWeek, $activity])->withErrors(['lab_prerequisite' => ActivitySubmissionService::LAB_PREREQUISITE_MESSAGE]);
-        }
 
         return response()
-            ->view('submissions.edit', $pages->editData($user, $trainingWeek, $activity, $request->integer('validation_submission_id')))
+            ->view('submissions.edit', $pages->editData($user, $trainingWeek, $activity))
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
@@ -67,7 +64,7 @@ class ActivitySubmissionController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $this->ensureCanEdit($user, $trainingWeek, $activity, $progression, $readiness, $submissions);
+        $this->ensureCanEdit($user, $trainingWeek, $activity, $progression, $readiness);
         Gate::authorize('create', ActivitySubmission::class);
         $version = $submissions->saveDraft($user, $trainingWeek, $activity, $request->validated('field_values', []), $request->validated('participant_note'), $request->validated('interactions'));
 
@@ -82,7 +79,7 @@ class ActivitySubmissionController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $this->ensureCanEdit($user, $trainingWeek, $activity, $progression, $readiness, $submissions);
+        $this->ensureCanEdit($user, $trainingWeek, $activity, $progression, $readiness);
         $submission = $submissions->latestAttempt($user, $activity);
         if ($submissions->hasDraftVersion($submission)) {
             return redirect()->route('training.submission.edit', [$trainingWeek, $activity])->with('status', 'Revision draft already available.');
@@ -97,7 +94,7 @@ class ActivitySubmissionController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $this->ensureCanEdit($user, $trainingWeek, $activity, $progression, $readiness, $submissions);
+        $this->ensureCanEdit($user, $trainingWeek, $activity, $progression, $readiness);
         abort_unless($submissionVersion->submission->activity_id === $activity->id, 404);
         Gate::authorize('update', $submissionVersion);
         $submissions->submit($user, $trainingWeek, $activity, $submissionVersion);
@@ -106,13 +103,12 @@ class ActivitySubmissionController extends Controller
     }
 
     /**
-     * Stop the write when Google Drive is not ready (403), the activity cannot be accessed or edited, or the Validation Checklist's Lab record prerequisite is missing.
+     * Stop the write when Google Drive is not ready (403) or the activity cannot be accessed or edited.
      */
-    private function ensureCanEdit(User $user, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, GoogleDriveReadinessService $readiness, ActivitySubmissionService $submissions): void
+    private function ensureCanEdit(User $user, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, GoogleDriveReadinessService $readiness): void
     {
         abort_if($user->hasAnyRole(UserRole::Participant) && $readiness->enforced() && ! $readiness->isReady($user), 403, $readiness->message($user));
         $progression->ensureCanAccessActivity($user, $trainingWeek, $activity);
         $progression->ensureCanEditActivity($user, $trainingWeek, $activity);
-        $submissions->ensureLabPrerequisite($user, $trainingWeek, $activity);
     }
 }

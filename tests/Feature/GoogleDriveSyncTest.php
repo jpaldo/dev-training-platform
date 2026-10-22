@@ -495,7 +495,6 @@ class GoogleDriveSyncTest extends TestCase
         $this->assertNotContains('Activity Scores.xlsx', array_column($calls, 0));
         $this->assertNotContains('Training Progress.xlsx', array_column($calls, 0));
         $this->assertNotContains('Gate Progress.xlsx', array_column($calls, 0));
-        $this->assertNotContains('Lab Record.xlsx', array_column($calls, 0));
         $this->assertNotContains('Daily Logs.xlsx', array_column($calls, 0));
         foreach (array_slice($calls, 0, 4) as [$name, $parent, $existing]) {
             $this->assertNull($existing, $name.' should be created on the first sync.');

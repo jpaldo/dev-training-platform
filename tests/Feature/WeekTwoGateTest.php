@@ -14,7 +14,6 @@ use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\ValidationSubmission;
 use App\Models\WeeklyVideoRecording;
 use App\Services\SubmissionWorkflowService;
 use App\Services\WeekTwoGateService;
@@ -73,61 +72,25 @@ class WeekTwoGateTest extends TestCase
         $this->assertDatabaseMissing('gate_evaluations', ['training_gate_id' => $gate->id, 'user_id' => $participant->id, 'status' => 'passed']);
     }
 
-    public function test_authenticated_lab_record_can_only_be_linked_by_owner(): void
-    {
-        $owner = User::factory()->create();
-        $other = User::factory()->create();
-        $this->actingAs($owner)->withSession(['trainee_name' => 'Owner'])->post('/checklist', $this->labPayload())->assertRedirect();
-        $id = ValidationSubmission::latest('id')->value('id');
-        $this->assertDatabaseHas('validation_submissions', ['id' => $id, 'user_id' => $owner->id]);
-        [$week2] = $this->setupWeekTwo();
-        $activity = $week2->activities->first();
-        $this->actingAs($other)->post(route('training.submission.draft', [$week2, $activity]), ['field_values' => ['artifact_context' => 'x', 'checklist_outcomes' => 'x', 'finding_and_decision' => 'x', 'validation_submission_id' => $id]])->assertSessionHasErrors('field_values.validation_submission_id');
-    }
-
     public function test_week_two_template_fields_are_configured_for_each_activity(): void
     {
         [$week2] = $this->setupWeekTwo();
         $expected = [
-            'Validation Checklist' => ['validation_submission_id', 'issue_caught', 'action_taken'],
-            'AI Output Error Detection' => ['validation_submission_id', 'actual_truth', 'how_caught', 'what_i_did', 'final_result'],
-            'Pre-acceptance Check' => ['validation_submission_id', 'affected_scope', 'validation_performed', 'decision', 'final_notes'],
+            'Validation Checklist' => ['issue_caught', 'action_taken'],
+            'AI Output Error Detection' => ['actual_truth', 'how_caught', 'what_i_did', 'final_result'],
+            'Pre-acceptance Check' => ['affected_scope', 'validation_performed', 'decision', 'final_notes'],
         ];
 
         foreach ($expected as $title => $keys) {
             $activity = $week2->activities->firstWhere('title', $title);
             $actual = $activity->requirements()->where('requirement_type', 'submission_field')->get()->filter(fn ($requirement) => ! ($requirement->configuration['deprecated'] ?? false))->values()->map(fn ($requirement) => $requirement->configuration['key'])->all();
             $this->assertSame($keys, $actual, $title.' current field definition changed unexpectedly.');
-            $this->assertEmpty(array_intersect(['artifact_context', 'feature_area', 'environment', 'ai_tool', 'artifact_type', 'exact_prompt', 'exact_ai_output', 'prompt', 'ai_output'], $actual), $title.' exposes duplicated Lab context.');
+            $this->assertEmpty(array_intersect(['artifact_context', 'feature_area', 'environment', 'ai_tool', 'artifact_type', 'exact_prompt', 'exact_ai_output', 'prompt', 'ai_output'], $actual), $title.' exposes duplicated artifact context.');
         }
 
         $activity1 = $week2->activities->firstWhere('title', 'Validation Checklist');
         $actual = $activity1->requirements()->where('requirement_type', 'submission_field')->get()->filter(fn ($requirement) => ! ($requirement->configuration['deprecated'] ?? false))->values()->map(fn ($requirement) => $requirement->configuration['key'])->all();
         $this->assertEmpty(array_intersect(['checklist_outcomes', 'source_check', 'scope_check', 'spec_check', 'cross_check', 'run_check', 'log_check'], $actual));
-    }
-
-    public function test_activity_one_uses_owned_lab_reference_without_copying_lab_checks(): void
-    {
-        [$week2] = $this->setupWeekTwo();
-        $participant = User::factory()->create(['training_path' => 'manual']);
-        $activity = $week2->activities->firstWhere('title', 'Validation Checklist');
-        $lab = ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-014', 'source_status' => 'pass', 'source_notes' => 'Source checked', 'scope_status' => 'pass', 'scope_notes' => 'Scope checked', 'spec_status' => 'pass', 'spec_notes' => 'Spec checked', 'cross_check_status' => 'pass', 'cross_check_notes' => 'Cross checked', 'run_status' => 'pass', 'run_notes' => 'Run checked', 'log_status' => 'pass', 'log_notes' => 'Logged', 'finding' => 'Issue found', 'decision' => 'revise', 'evidence_notes' => 'Evidence']);
-        $fields = app(SubmissionWorkflowService::class)->fieldDefinitions($activity, $participant);
-        $values = collect($fields)->mapWithKeys(fn ($field): array => [$field['key'] => $field['key'] === 'validation_submission_id' ? (string) $lab->id : 'Activity answer'])->all();
-
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week2, $activity]))->assertOk()->assertDontSee('Source, Scope, Spec, Cross-check, Run, and Log outcomes')->assertDontSee('name="field_values[source_check]"');
-        $this->actingAs($participant)->post(route('training.submission.draft', [$week2, $activity]), ['field_values' => $values])->assertRedirect();
-        $version = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $participant->id)->firstOrFail()->versions()->firstOrFail();
-
-        $this->assertSame($lab->id, $version->validation_submission_id);
-        $this->assertArrayNotHasKey('checklist_outcomes', $version->field_values);
-        $this->assertArrayNotHasKey('source_check', $version->field_values);
-        $this->assertArrayNotHasKey('scope_check', $version->field_values);
-        $this->assertArrayNotHasKey('spec_check', $version->field_values);
-        $this->assertArrayNotHasKey('cross_check', $version->field_values);
-        $this->assertArrayNotHasKey('run_check', $version->field_values);
-        $this->assertArrayNotHasKey('log_check', $version->field_values);
     }
 
     public function test_exact_ai_interaction_values_persist_in_submission_version(): void
@@ -136,15 +99,13 @@ class WeekTwoGateTest extends TestCase
         $participant = User::factory()->create(['training_path' => 'manual']);
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $activity = $week2->activities->firstWhere('title', 'AI Output Error Detection');
-        $lab = ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-015', 'source_status' => 'pass']);
         $fields = app(SubmissionWorkflowService::class)->fieldDefinitions($activity, $participant);
-        $values = collect($fields)->mapWithKeys(fn ($field): array => [$field['key'] => $field['key'] === 'validation_submission_id' ? (string) $lab->id : ($field['key'] === 'thread_drive_link' ? '' : "Entered {$field['key']}")])->all();
+        $values = collect($fields)->mapWithKeys(fn ($field): array => [$field['key'] => $field['key'] === 'thread_drive_link' ? '' : "Entered {$field['key']}"])->all();
 
         $this->actingAs($participant)->post(route('training.submission.draft', [$week2, $activity]), ['field_values' => $values])->assertRedirect();
         $version = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $participant->id)->firstOrFail()->versions()->firstOrFail();
 
         $this->assertSame($values['actual_truth'], $version->field_values['actual_truth']);
-        $this->assertSame($lab->id, $version->validation_submission_id);
     }
 
     public function test_each_training_week_requires_five_logs(): void
@@ -384,16 +345,5 @@ class WeekTwoGateTest extends TestCase
         }
 
         return ['week' => $week, 'gate' => $gate->load('criteria'), 'participant' => $participant];
-    }
-
-    private function labPayload(): array
-    {
-        $data = ['artifact_code' => 'AI-TC-014', 'artifact_name' => 'OTP validation response', 'finding' => 'Issue', 'decision' => 'revise', 'evidence_notes' => 'Proof'];
-        foreach (['source', 'scope', 'spec', 'cross_check', 'run', 'log'] as $check) {
-            $data[$check.'_status'] = 'pass';
-            $data[$check.'_notes'] = 'Checked';
-        }
-
-        return $data;
     }
 }

@@ -16,7 +16,6 @@ use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\ValidationSubmission;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -45,22 +44,16 @@ class TrainingActivityPageService
     }
 
     /**
-     * Everything the activity page renders: the requirements, the latest attempt and version, the Lab records, the
-     * Google Drive sync summary, the attempt history and the page tabs.
+     * Everything the activity page renders: the requirements, the latest attempt and version, the Google Drive sync
+     * summary, the attempt history and the page tabs.
      *
      * @param  EloquentCollection<int, ActivitySubmission>  $attempts
-     * @return array{activity: Activity, trainingWeek: TrainingWeek, user: User, requirements: Collection<int, ActivityRequirement>, submission: ?ActivitySubmission, latestVersion: ?SubmissionVersion, revisionFeedback: ?HtmlString, labUrl: ?string, labRecords: Collection<int, ValidationSubmission>, labPrerequisiteMet: bool, googleDrive: array{connected: bool, status_label: string, evidence_total: int, evidence_synced: int, evidence_failed: int, last_synced_at: ?CarbonInterface, error: ?string}, attempts: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, has_later_attempt: bool, feedback: ?HtmlString, recovery_request: ?ActivityRecoveryRequest, published_score: ?ActivityScore}>, tabs: list<array{key: string, label: string}>, selectedTab: string}
+     * @return array{activity: Activity, trainingWeek: TrainingWeek, user: User, requirements: Collection<int, ActivityRequirement>, submission: ?ActivitySubmission, latestVersion: ?SubmissionVersion, revisionFeedback: ?HtmlString, googleDrive: array{connected: bool, status_label: string, evidence_total: int, evidence_synced: int, evidence_failed: int, last_synced_at: ?CarbonInterface, error: ?string}, attempts: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, has_later_attempt: bool, feedback: ?HtmlString, recovery_request: ?ActivityRecoveryRequest, published_score: ?ActivityScore}>, tabs: list<array{key: string, label: string}>, selectedTab: string}
      */
     public function showData(User $user, TrainingWeek $trainingWeek, Activity $activity, EloquentCollection $attempts): array
     {
         $submission = $attempts->last();
         $latestVersion = $submission?->versions->first();
-        $labRoute = $activity->configuration['lab_route'] ?? null;
-        $requiresLabRecord = $user->hasAnyRole(UserRole::Participant) && $activity->isValidationChecklist($trainingWeek);
-        $labRecords = $labRoute || $requiresLabRecord
-            ? ValidationSubmission::query()->where('user_id', $user->id)->recorded()->latest('submitted_at')->latest('id')->get()
-            : collect();
-        $labPrerequisiteMet = ! $requiresLabRecord || $labRecords->isNotEmpty();
 
         return [
             'activity' => $activity,
@@ -72,17 +65,13 @@ class TrainingActivityPageService
             'revisionFeedback' => $submission?->needsRevision() && $latestVersion?->reviews->isNotEmpty()
                 ? $this->markdown->render($latestVersion->reviews->sortByDesc('reviewed_at')->first()?->comments)
                 : null,
-            'labUrl' => $labRoute ? route($labRoute) : null,
-            'labRecords' => $labRecords,
-            'labPrerequisiteMet' => $labPrerequisiteMet,
             'googleDrive' => $this->googleDriveSummary($user, $latestVersion),
             'attempts' => $this->attemptRows($attempts),
-            'tabs' => array_values(array_filter([
+            'tabs' => [
                 ['key' => 'instructions', 'label' => 'Instructions'],
                 ['key' => 'requirements', 'label' => 'Requirements'],
-                $labRoute ? ['key' => 'validation-lab', 'label' => 'Validation Lab'] : null,
                 ['key' => 'submission', 'label' => 'Submission & Attempts'],
-            ])),
+            ],
             'selectedTab' => $submission ? 'submission' : 'instructions',
         ];
     }

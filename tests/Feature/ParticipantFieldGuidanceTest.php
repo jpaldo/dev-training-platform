@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\TrainingPath;
-use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
@@ -12,7 +11,6 @@ use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\User;
-use App\Models\ValidationSubmission;
 use App\Services\SubmissionWorkflowService;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -66,7 +64,6 @@ class ParticipantFieldGuidanceTest extends TestCase
         $activity = $week->activities()->where('title', 'Validation Checklist')->firstOrFail();
         $participant = User::factory()->create();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-TEST', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
 
         $this->actingAs($participant)
             ->get(route('training.submission.edit', [$week, $activity]))
@@ -96,7 +93,6 @@ class ParticipantFieldGuidanceTest extends TestCase
         $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
         $participant = User::factory()->create();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-TEST', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
         $deprecated = ['artifact_context', 'finding_and_decision', 'detection_and_action', 'validation_outcome', 'execution_investigation', 'pr_and_requirements', 'regression_priorities'];
 
         foreach ($program->weeks()->whereIn('week_number', [2, 3, 4])->with('activities')->get() as $week) {
@@ -144,9 +140,9 @@ class ParticipantFieldGuidanceTest extends TestCase
         $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
         $expected = [
             2 => [
-                'Validation Checklist' => ['validation_submission_id', 'issue_caught', 'action_taken'],
-                'AI Output Error Detection' => ['validation_submission_id', 'actual_truth', 'how_caught', 'what_i_did', 'final_result'],
-                'Pre-acceptance Check' => ['validation_submission_id', 'affected_scope', 'validation_performed', 'decision', 'final_notes'],
+                'Validation Checklist' => ['issue_caught', 'action_taken'],
+                'AI Output Error Detection' => ['actual_truth', 'how_caught', 'what_i_did', 'final_result'],
+                'Pre-acceptance Check' => ['affected_scope', 'validation_performed', 'decision', 'final_notes'],
             ],
             3 => [
                 'Test-Failure Root-Cause Analysis' => ['feature_area', 'environment', 'ai_tool', 'artifact_type', 'exact_prompt', 'exact_ai_output', 'test_scenario', 'failure_description', 'expected_result', 'actual_result', 'failed_runs', 'diagnostic_steps', 'evidence_reviewed', 'ai_suggested_root_causes', 'actual_root_cause', 'shared_cause', 'root_cause_validation', 'severity', 'blast_radius', 'affected_areas', 'action_taken', 'impact_next_step', 'final_result', 'qa_conclusion'],
@@ -170,26 +166,19 @@ class ParticipantFieldGuidanceTest extends TestCase
         }
     }
 
-    public function test_all_week_two_new_and_revision_forms_use_lab_context_without_duplicate_fields(): void
+    public function test_all_week_two_new_and_revision_forms_hide_duplicate_artifact_context_fields(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);
         $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
         $week2 = $program->weeks()->where('week_number', 2)->firstOrFail();
         $participant = User::factory()->create();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        ValidationSubmission::create([
-            'user_id' => $participant->id,
-            'trainee_name' => $participant->name,
-            'artifact_code' => 'AI-TC-W2',
-            'status' => ValidationSubmissionStatus::Submitted,
-            'submitted_at' => now(),
-        ]);
 
         $duplicateLabels = ['AI / ARTIFACT CONTEXT', 'Feature / Area', 'Environment', 'AI Tool', 'Artifact Type', 'Exact Prompt', 'Exact AI Output'];
         foreach (['Validation Checklist', 'AI Output Error Detection', 'Pre-acceptance Check'] as $title) {
             $activity = $week2->activities()->where('title', $title)->firstOrFail();
             $response = $this->actingAs($participant)->get(route('training.submission.edit', [$week2, $activity]));
-            $response->assertOk()->assertSee('QA Validation Lab Record');
+            $response->assertOk();
             foreach ($duplicateLabels as $label) {
                 $response->assertDontSee($label);
             }

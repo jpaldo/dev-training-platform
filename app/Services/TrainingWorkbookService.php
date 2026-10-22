@@ -57,12 +57,11 @@ class TrainingWorkbookService
         $requirements = $activity->requirements()->where('requirement_type', 'submission_field')->where(fn (Builder $q): Builder => $q->whereNull('participant_path')->orWhereIn('participant_path', $participant->eligibleTrainingPaths()))->orderBy('position')->get()->filter(fn (ActivityRequirement $r): bool => ! ($r->configuration['deprecated'] ?? false));
         $allRequirements = $activity->requirements()->where('requirement_type', 'submission_field')->where(fn (Builder $q): Builder => $q->whereNull('participant_path')->orWhereIn('participant_path', $participant->eligibleTrainingPaths()))->orderBy('position')->get();
         $fields = $requirements->mapWithKeys(fn (ActivityRequirement $r): array => [$r->configuration['key'] => $r->configuration['label'] ?? $r->title]);
-        $labHeaders = $activity->week->week_number === 2 ? ['QA Validation Lab Record', 'Artifact Code', 'Artifact Name'] : [];
-        $headers = ['Participant', 'QA Path', 'Week', 'Activity', 'Submission ID', 'Attempt', 'Submission Version', 'Submission Status', 'Submitted At', 'Participant Notes', ...$labHeaders, ...$fields->values()->all()];
+        $headers = ['Participant', 'QA Path', 'Week', 'Activity', 'Submission ID', 'Attempt', 'Submission Version', 'Submission Status', 'Submitted At', 'Participant Notes', ...$fields->values()->all()];
         $submission = ActivitySubmission::query()
             ->where('user_id', $participant->id)
             ->where('activity_id', $activity->id)
-            ->with(['activity.week', 'versions' => fn (Relation $query): Relation => $query->with(['validationSubmission'])->orderByDesc('version_number')])
+            ->with(['activity.week', 'versions' => fn (Relation $query): Relation => $query->orderByDesc('version_number')])
             ->latest('attempt_number')
             ->first();
         $version = $submission?->versions->first(fn (SubmissionVersion $candidate): bool => ! $candidate->isDraft())
@@ -79,10 +78,6 @@ class TrainingWorkbookService
         $row = array_fill(0, count($headers), null);
         if ($version) {
             $values = [$participant->name, $participant->trainingPathLabel(), $activity->week->week_number, $activity->title, $version->submission->id, $version->submission->attempt_number, $version->version_number, $version->submission->status->value, $version->submitted_at, $version->participant_note];
-            if ($labHeaders !== []) {
-                $lab = $version->validationSubmission;
-                array_push($values, $lab?->id, $lab?->artifact_code, $lab?->artifact_name);
-            }
             foreach ($fields as $key => $label) {
                 $values[] = $version->field_values[$key] ?? null;
             }

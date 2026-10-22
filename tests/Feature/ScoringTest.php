@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Contracts\ScoringSuggestionProvider;
 use App\Enums\ActivityScoreStatus;
-use App\Enums\ValidationSubmissionStatus;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
@@ -14,7 +13,6 @@ use App\Models\SubmissionEvidence;
 use App\Models\SubmissionInteraction;
 use App\Models\SubmissionVersion;
 use App\Models\User;
-use App\Models\ValidationSubmission;
 use App\Services\OpenRouterScoringSuggestionProvider;
 use App\Services\ScoringService;
 use App\Services\SubmissionWorkflowService;
@@ -233,13 +231,12 @@ class ScoringTest extends TestCase
         $activity = Program::where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail()->activities()->where('position', 2)->firstOrFail();
         EvidenceRequirement::query()->whereHas('activityRequirement', fn ($query) => $query->where('activity_id', $activity->id))->delete();
         $participant = User::factory()->create(['training_path' => 'manual']);
-        $lab = ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'TEST', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
         $workflow = app(SubmissionWorkflowService::class);
-        $v1 = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy', 'validation_submission_id' => $lab->id], null, [['prompt' => 'Prompt 1', 'output' => 'Output 1'], ['prompt' => 'Prompt 2', 'output' => 'Output 2']]);
+        $v1 = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy'], null, [['prompt' => 'Prompt 1', 'output' => 'Output 1'], ['prompt' => 'Prompt 2', 'output' => 'Output 2']]);
         $workflow->submit($participant, $v1);
         $v1->refresh();
         $v1->submission->update(['status' => 'needs_revision']);
-        $v2 = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy', 'validation_submission_id' => $lab->id], null, [['prompt' => 'Prompt 1', 'output' => 'Output 1'], ['prompt' => 'Prompt 2 revised', 'output' => 'Output 2 revised'], ['prompt' => 'Prompt 3', 'output' => 'Output 3']]);
+        $v2 = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy'], null, [['prompt' => 'Prompt 1', 'output' => 'Output 1'], ['prompt' => 'Prompt 2 revised', 'output' => 'Output 2 revised'], ['prompt' => 'Prompt 3', 'output' => 'Output 3']]);
         $workflow->submit($participant, $v2);
 
         $this->assertSame(['Output 1', 'Output 2'], $v1->fresh()->interactions->pluck('output')->all());

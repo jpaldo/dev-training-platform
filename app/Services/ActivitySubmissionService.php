@@ -3,44 +3,20 @@
 namespace App\Services;
 
 use App\Enums\SubmissionStatus;
-use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionInteraction;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use Illuminate\Validation\ValidationException;
 
 class ActivitySubmissionService
 {
-    public const LAB_PREREQUISITE_MESSAGE = 'Submit a QA Validation Lab record before starting this activity.';
-
     public function __construct(
         private readonly SubmissionWorkflowService $workflow,
         private readonly WeekThreeWorkspaceService $weekThree,
         private readonly TrainingSyncCoordinator $syncs,
     ) {}
-
-    /**
-     * Whether a participant must still submit a QA Validation Lab record before working on the Week 2 Validation Checklist.
-     */
-    public function isMissingLabPrerequisite(User $user, TrainingWeek $trainingWeek, Activity $activity): bool
-    {
-        return $user->hasAnyRole(UserRole::Participant)
-            && $activity->isValidationChecklist($trainingWeek)
-            && ! $user->validationSubmissions()->recorded()->exists();
-    }
-
-    /**
-     * @throws ValidationException when the participant has no submitted Lab record for the Validation Checklist.
-     */
-    public function ensureLabPrerequisite(User $user, TrainingWeek $trainingWeek, Activity $activity): void
-    {
-        if ($this->isMissingLabPrerequisite($user, $trainingWeek, $activity)) {
-            throw ValidationException::withMessages(['lab_prerequisite' => self::LAB_PREREQUISITE_MESSAGE]);
-        }
-    }
 
     /**
      * Save the participant's draft (opening the Week 3 workspace first), then request a Drive sync.

@@ -20,7 +20,7 @@
 
         <section class="{{ $sectionClasses }}">
             <h2 class="{{ $headingClasses }}">Information used by the platform</h2>
-            <p class="{{ $paragraphClasses }}">The platform uses account details such as your name, email address, role, QA path, and profile information you provide. It also stores the training information you submit, including activity responses, artifacts, evidence, participant notes, Validation Lab records, reviews, scores, and related feedback.</p>
+            <p class="{{ $paragraphClasses }}">The platform uses account details such as your name, email address, role, QA path, and profile information you provide. It also stores the training information you submit, including activity responses, artifacts, evidence, participant notes, reviews, scores, and related feedback.</p>
             <p class="{{ $paragraphClasses }}">When you use attendance features, the platform records check-in and check-out timestamps and the resulting session duration. Coaches/Mentors and Admins may access training records needed to operate, review, and administer the program.</p>
         </section>
 

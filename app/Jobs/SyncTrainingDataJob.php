@@ -186,63 +186,6 @@ class SyncTrainingDataJob implements ShouldQueue
             }
         }
 
-        try {
-            $linkedRecords = $participant->validationSubmissions()->whereNotNull('evidence_files')->get();
-        } catch (Throwable $exception) {
-            $sync->increment('failed_components');
-            $componentErrors[] = 'Evidences: Unable to discover Lab evidence.';
-
-            return;
-        }
-        foreach ($linkedRecords as $record) {
-            $version = SubmissionVersion::query()->with('submission.activity.week')
-                ->where('validation_submission_id', $record->id)
-                ->whereHas('submission', fn (Builder $q): Builder => $q->where('user_id', $participant->id))
-                ->latest('version_number')->first();
-            if (! $version || (int) $version->submission->activity->week->week_number !== $weekNumber) {
-                continue;
-            }
-            $files = $record->evidence_files ?? [];
-            if ($files === []) {
-                continue;
-            }
-            try {
-                $evidenceWeekFolder = $ensureEvidenceFolder();
-                $evidenceActivityFolder = $this->managedFolder($participant, $connection, $drive, $version->submission->activity->title, $evidenceWeekFolder, 'evidence_activity_folder', "{$weekNumber}:{$version->submission->activity->id}", $destination);
-            } catch (Throwable $exception) {
-                $sync->increment('failed_components');
-                $componentErrors[] = "Evidences (Week {$weekNumber}): Unable to prepare Lab evidence folder.";
-
-                continue;
-            }
-            foreach ($files as $index => $file) {
-                $fileDisk = $file['disk'] ?? 'local';
-                if (! ($file['path'] ?? null) || ! Storage::disk($fileDisk)->exists($file['path'])) {
-                    $evidenceStats['eligible']++;
-                    $evidenceStats['failed']++;
-                    $sync->increment('failed_components');
-                    $componentErrors[] = 'Evidences: One Lab evidence file could not be read.';
-
-                    continue;
-                }
-                try {
-                    $existing = ($file['destination_folder_id'] ?? null) === $destination ? ($file['drive_file_id'] ?? null) : null;
-                    $driveId = $drive->uploadFile($connection, $file['original_filename'] ?? "lab-evidence-{$record->id}-{$index}", Storage::disk($fileDisk)->get($file['path']), $evidenceActivityFolder, $file['mime_type'] ?? 'application/octet-stream', $existing);
-                    $files[$index]['destination_folder_id'] = $destination;
-                    $files[$index]['drive_file_id'] = $driveId;
-                    $sync->increment('successful_components');
-                    $evidenceStats['eligible']++;
-                    $evidenceStats['completed']++;
-                } catch (Throwable $exception) {
-                    $sync->increment('failed_components');
-                    $evidenceStats['eligible']++;
-                    $evidenceStats['failed']++;
-                    $componentErrors[] = 'Evidences: One Lab evidence file could not be synchronized.';
-                }
-            }
-            $record->update(['evidence_files' => $files]);
-        }
-
         $video = WeeklyVideoRecording::query()->where('user_id', $participant->id)->whereHas('week', fn (Builder $q): Builder => $q->where('week_number', $weekNumber))->first();
         if ($video && $video->disk && $video->path && Storage::disk($video->disk)->exists($video->path)) {
             try {

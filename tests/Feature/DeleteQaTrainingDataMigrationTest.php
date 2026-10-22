@@ -25,8 +25,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
 
     private const VIDEO_PATH = 'weekly-video/1/1/week-2.mp4';
 
-    private const LAB_EVIDENCE_PATH = 'validation-evidence/1/lab.png';
-
     /**
      * Every table that holds per-participant training data.
      */
@@ -50,7 +48,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         'daily_logs',
         'attendance_sessions',
         'weekly_video_recordings',
-        'validation_submissions',
         'week_three_fix_validations',
         'week_three_tests',
         'week_three_findings',
@@ -125,14 +122,13 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         Storage::fake('local');
         Storage::disk('local')->put(self::EVIDENCE_PATH, 'evidence');
         Storage::disk('local')->put(self::VIDEO_PATH, 'video');
-        Storage::disk('local')->put(self::LAB_EVIDENCE_PATH, 'lab evidence');
         Storage::disk('local')->put('public-interview/booking.pdf', 'kept');
         $this->seed(QaTrainingProgramSeeder::class);
         $this->seedTrainingRecords(User::factory()->create(), User::factory()->create(), User::factory()->create(['role' => UserRole::Coach]));
 
         $this->migration()->up();
 
-        Storage::disk('local')->assertMissing([self::EVIDENCE_PATH, self::VIDEO_PATH, self::LAB_EVIDENCE_PATH]);
+        Storage::disk('local')->assertMissing([self::EVIDENCE_PATH, self::VIDEO_PATH]);
         Storage::disk('local')->assertExists('public-interview/booking.pdf');
     }
 
@@ -164,13 +160,7 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         $evidenceRequirement = EvidenceRequirement::query()->firstOrFail();
 
         $submissionId = DB::table('activity_submissions')->insertGetId(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted']);
-        $labId = DB::table('validation_submissions')->insertGetId([
-            'user_id' => $participant->id,
-            'trainee_name' => $participant->name,
-            'artifact_code' => 'LAB-1',
-            'evidence_files' => json_encode([['disk' => 'local', 'path' => self::LAB_EVIDENCE_PATH, 'original_filename' => 'lab.png']]),
-        ]);
-        $versionId = DB::table('submission_versions')->insertGetId(['activity_submission_id' => $submissionId, 'validation_submission_id' => $labId, 'version_number' => 1]);
+        $versionId = DB::table('submission_versions')->insertGetId(['activity_submission_id' => $submissionId, 'version_number' => 1]);
         $evidenceId = DB::table('submission_evidence')->insertGetId([
             'submission_version_id' => $versionId,
             'evidence_requirement_id' => $evidenceRequirement->id,

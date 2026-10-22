@@ -3,14 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\TrainingPath;
-use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\ValidationSubmission;
 use App\Support\FieldLimits;
 use App\Support\Markdown;
 use Database\Seeders\QaTrainingProgramSeeder;
@@ -200,13 +198,11 @@ class ActivityMarkdownRenderingTest extends TestCase
         $week = $program->weeks()->where('week_number', 2)->firstOrFail();
         $activity = $week->activities()->where('title', 'Validation Checklist')->firstOrFail();
         $participant = User::factory()->create();
-        ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-PREVIEW', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         $this->actingAs($participant)
             ->get(route('training.submission.edit', [$week, $activity]))
             ->assertOk()
-            ->assertSee('QA Validation Lab Record')
             ->assertSee('Issue Caught')
             ->assertSee('Action Taken')
             ->assertDontSee('AI / ARTIFACT CONTEXT')
@@ -238,23 +234,6 @@ class ActivityMarkdownRenderingTest extends TestCase
         $response = $this->actingAs($participant)->postJson(route('markdown.preview'), ['content' => ''])->assertOk();
 
         $this->assertSame('', $response->json('html'));
-    }
-
-    public function test_lab_activity_page_has_write_preview_toggle_for_prompt_and_artifact(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $participant = User::factory()->create(['role' => 'participant']);
-
-        $response = $this->actingAs($participant)->get(route('lab.activity'))->assertOk();
-
-        $content = $response->getContent();
-        $this->assertSame(2, substr_count($content, 'data-markdown-mode="write"'));
-        $this->assertSame(2, substr_count($content, 'data-markdown-mode="preview"'));
-        $this->assertSame(2, substr_count($content, 'data-markdown-source'));
-        $this->assertSame(2, substr_count($content, 'data-markdown-preview'));
-        $this->assertSame(2, substr_count($content, 'aria-label="Write or preview"'));
-        $response->assertSee('Paste the exact prompt you gave the AI.')
-            ->assertSee('Paste the exact AI-generated artifact or output you will validate.');
     }
 
     private function submittedWeekTwoVersion(): array

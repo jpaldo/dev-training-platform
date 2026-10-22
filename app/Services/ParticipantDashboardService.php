@@ -94,7 +94,6 @@ class ParticipantDashboardService
             ->groupBy('activity_id');
         $scoreMax = array_sum(array_column(ScoringService::DIMENSIONS, 'max'));
         $hasWeekFourPartner = null;
-        $hasValidationLabRecord = null;
 
         foreach ($weeks as $week) {
             foreach ($week->activities as $activity) {
@@ -107,8 +106,6 @@ class ParticipantDashboardService
                 $activity->participant_score = $activity->participant_submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $version): bool => $version->publishedActivityScore !== null)?->publishedActivityScore;
                 $activity->participant_score_max = $scoreMax;
                 $activity->week_four_partner_assigned = ! $this->requiresWeekFourPartner($week, $activity) || ($hasWeekFourPartner ??= (bool) WeekFourInterviewPair::forParticipant($user->id));
-                $activity->lab_prerequisite_met = ! $activity->isValidationChecklist($week)
-                    || ($hasValidationLabRecord ??= $user->validationSubmissions()->recorded()->exists());
             }
         }
     }

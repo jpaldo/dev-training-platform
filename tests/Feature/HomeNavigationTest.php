@@ -15,26 +15,11 @@ class HomeNavigationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_guest_sees_platform_home_and_auth_links(): void
-    {
-        $this->get('/')->assertOk()->assertSee('DEVELOPER TRAINING PLATFORM')->assertSee('Log in')->assertSee('Create account');
-    }
-
-    public function test_legal_pages_are_public_and_linked_from_home(): void
+    public function test_legal_pages_are_public_and_linked_from_the_login_page(): void
     {
         $this->get(route('privacy-policy'))->assertOk()->assertSee('Privacy Policy')->assertSee('Google Drive')->assertSee('drive.file');
         $this->get(route('terms-of-service'))->assertOk()->assertSee('Terms of Service')->assertSee('Acceptable use')->assertSee('Google Drive');
-        $this->get(route('home'))->assertOk()->assertSee(route('privacy-policy'))->assertSee(route('terms-of-service'));
-    }
-
-    public function test_authenticated_users_are_routed_to_role_homepages(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $participant = User::factory()->create();
-        $this->actingAs($participant)->get('/')->assertRedirect(route('dashboard'));
-        foreach (['coach', 'admin'] as $role) {
-            $this->actingAs(User::factory()->create(['role' => $role]))->get('/')->assertRedirect(route('coach.dashboard'));
-        }
+        $this->get(route('login'))->assertOk()->assertSee(route('privacy-policy'))->assertSee(route('terms-of-service'));
     }
 
     public function test_participant_sidebar_contains_daily_log_profile_and_logout(): void
@@ -107,11 +92,6 @@ class HomeNavigationTest extends TestCase
         $this->assertSame('https://qa.local.test/dashboard', $response->headers->get('Location'));
     }
 
-    public function test_lab_activity_remains_available_separately(): void
-    {
-        $this->get(route('lab.activity'))->assertOk()->assertSee('Start Activity 1');
-    }
-
     public function test_participant_dashboard_uses_configured_activities_and_needs_revision_feedback(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);
@@ -162,51 +142,6 @@ class HomeNavigationTest extends TestCase
             ->assertSee('TRAINING SESSION');
     }
 
-    public function test_both_participant_paths_see_the_shared_qa_application_link_in_a_new_tab(): void
-    {
-        config(['services.qa_application.url' => 'https://membership.example.test/dashboard']);
-        $this->seed(QaTrainingProgramSeeder::class);
-        foreach (['manual', 'automation'] as $path) {
-            $participant = User::factory()->create(['training_path' => $path]);
-            $this->actingAs($participant)->get(route('dashboard'))->assertOk()
-                ->assertSee('Open QA Application')
-                ->assertSee('href="'.e(config('services.qa_application.url')).'"', false)
-                ->assertSee('Fork QA Application')
-                ->assertSee('href="https://github.com/fs-ely/membership-app/fork" target="_blank" rel="noopener noreferrer"', false)
-                ->assertSee('target="_blank"', false)
-                ->assertSee('rel="noopener noreferrer"', false);
-        }
-    }
-
-    public function test_participant_dashboard_does_not_fallback_to_training_dashboard_when_qa_application_is_unconfigured(): void
-    {
-        config(['services.qa_application.url' => null]);
-        $this->seed(QaTrainingProgramSeeder::class);
-        $participant = User::factory()->create(['training_path' => 'manual']);
-
-        $this->actingAs($participant)->get(route('dashboard'))->assertOk()
-            ->assertSee('QA Application Not Configured')
-            ->assertDontSee('Open QA Application')
-            ->assertDontSee('href="'.e(config('app.url')).'/dashboard" target="_blank"', false);
-    }
-
-    public function test_activity_one_step_keeps_six_check_validation_but_not_application_link(): void
-    {
-        $response = $this->post(route('start'), ['trainee_name' => 'QA Participant']);
-
-        $response->assertOk()
-            ->assertSee('Run 6-Check Validation')
-            ->assertDontSee('Open QA Application')
-            ->assertSee('AI GENERATED · QA VALIDATION · AI-TC-014');
-    }
-
-    public function test_validation_lab_copy_applies_to_both_qa_paths(): void
-    {
-        $this->get(route('lab.activity'))->assertOk()
-            ->assertSee('Manual and Automation QA participants')
-            ->assertDontSee('for manual testers');
-    }
-
     public function test_participant_dashboard_and_gate_page_show_authoritative_gate_status_and_criteria(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);
@@ -252,17 +187,5 @@ class HomeNavigationTest extends TestCase
             ->assertSee('Partner Two')
             ->assertSee('Week 4: LOCKED')
             ->assertSee('follow up with your partners');
-    }
-
-    public function test_dashboard_contains_concise_qa_membership_feature_areas(): void
-    {
-        config(['services.qa_application.url' => 'https://membership.example.test']);
-        $this->seed(QaTrainingProgramSeeder::class);
-        $this->actingAs(User::factory()->create())->get(route('dashboard'))->assertOk()
-            ->assertSee('QA Membership feature areas')
-            ->assertSee('Authentication &amp; Login', false)
-            ->assertSee('OTP Verification')
-            ->assertSee('Security &amp; Access Control', false)
-            ->assertDontSee('JWT expiration');
     }
 }

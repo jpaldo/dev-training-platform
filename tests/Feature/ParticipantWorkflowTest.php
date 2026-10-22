@@ -7,7 +7,6 @@ use App\Enums\GateEvaluationStatus;
 use App\Enums\RecoveryRequestStatus;
 use App\Enums\SubmissionStatus;
 use App\Enums\TrainingPath;
-use App\Enums\ValidationSubmissionStatus;
 use App\Jobs\SyncTrainingDataJob;
 use App\Models\Activity;
 use App\Models\ActivityRecoveryRequest;
@@ -23,7 +22,6 @@ use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\ValidationSubmission;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
@@ -655,28 +653,6 @@ class ParticipantWorkflowTest extends TestCase
         $otherSubmission = ActivitySubmission::factory()->for($other, 'participant')->for($activity)->create();
         $otherVersion = SubmissionVersion::factory()->for($otherSubmission, 'submission')->create(['status' => 'approved']);
         $this->actingAs($participant)->get(route('training.submission.show', [$week2, $activity, $otherVersion]))->assertNotFound();
-    }
-
-    public function test_submitted_version_links_its_lab_record_only_when_the_participant_owns_it(): void
-    {
-        [$participant, $week2, $activity] = $this->trainingFixture();
-        $other = User::factory()->create();
-        $ownLab = ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-OWN', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
-        $foreignLab = ValidationSubmission::create(['user_id' => $other->id, 'trainee_name' => $other->name, 'artifact_code' => 'AI-TC-FOREIGN', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
-        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now(), 'validation_submission_id' => $ownLab->id]);
-
-        $this->actingAs($participant)->get(route('training.submission.show', [$week2, $activity, $version]))
-            ->assertOk()
-            ->assertSee('AI-TC-OWN')
-            ->assertSee(route('lab.records.show', $ownLab), false);
-
-        $version->update(['validation_submission_id' => $foreignLab->id]);
-
-        $this->actingAs($participant)->get(route('training.submission.show', [$week2, $activity, $version]))
-            ->assertOk()
-            ->assertDontSee('AI-TC-FOREIGN')
-            ->assertDontSee(route('lab.records.show', $foreignLab), false);
     }
 
     public function test_authorized_evidence_view_is_inline_and_download_is_attachment(): void

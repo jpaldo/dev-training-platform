@@ -142,7 +142,7 @@ class AttendanceTest extends TestCase
         $html = $response->getContent();
         $this->assertLessThan(strpos($html, 'role="tablist"'), strpos($html, 'TRAINING SESSION'));
         $this->assertLessThan(strpos($html, 'TRAINING OVERVIEW'), strpos($html, 'TRAINING SESSION'));
-        $response->assertSee('NOT CHECKED IN')->assertSee('CHECK IN')->assertSee('View attendance history')->assertSee('target="_blank"', false)->assertSee('rel="noopener noreferrer"', false);
+        $response->assertSee('NOT CHECKED IN')->assertSee('CHECK IN')->assertSee('View attendance history');
 
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subHours(2), 'check_out_at' => now()->subHour(), 'total_seconds' => 3600]);
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('LAST TRAINING SESSION')->assertSee('CHECK IN');

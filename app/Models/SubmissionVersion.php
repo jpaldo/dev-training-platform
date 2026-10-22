@@ -18,7 +18,7 @@ class SubmissionVersion extends Model
     /** @use HasFactory<SubmissionVersionFactory> */
     use HasFactory;
 
-    protected $fillable = ['activity_submission_id', 'validation_submission_id', 'version_number', 'status', 'field_values', 'participant_note', 'submitted_at'];
+    protected $fillable = ['activity_submission_id', 'version_number', 'status', 'field_values', 'participant_note', 'submitted_at'];
 
     /**
      * Get the attributes that should be cast.
@@ -38,11 +38,6 @@ class SubmissionVersion extends Model
     public function submission(): BelongsTo
     {
         return $this->belongsTo(ActivitySubmission::class, 'activity_submission_id');
-    }
-
-    public function validationSubmission(): BelongsTo
-    {
-        return $this->belongsTo(ValidationSubmission::class, 'validation_submission_id');
     }
 
     public function evidence(): HasMany

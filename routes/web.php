@@ -20,6 +20,7 @@ use App\Http\Controllers\EmployeeIdController;
 use App\Http\Controllers\GateReviewController;
 use App\Http\Controllers\GoogleDriveController;
 use App\Http\Controllers\GoogleDriveDestinationController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MarkdownPreviewController;
 use App\Http\Controllers\MentorBookingCalendarController;
 use App\Http\Controllers\MissingSubmissionReportController;
@@ -39,21 +40,15 @@ use App\Http\Controllers\TrainingActivityController;
 use App\Http\Controllers\TrainingGuideController;
 use App\Http\Controllers\TrainingSyncController;
 use App\Http\Controllers\TrainingWeekController;
-use App\Http\Controllers\ValidationLabController;
 use App\Http\Controllers\WeekFourMentorInterviewController;
 use App\Http\Controllers\WeekFourPeerInterviewController;
 use App\Http\Controllers\WeeklyVideoRecordingController;
 use App\Http\Controllers\WeekThreeWorkspaceController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', [ValidationLabController::class, 'index'])->name('home');
+Route::get('/', HomeController::class)->name('home');
 Route::view('/privacy-policy', 'legal.privacy-policy', ['title' => 'Privacy Policy'])->name('privacy-policy');
 Route::view('/terms-of-service', 'legal.terms-of-service', ['title' => 'Terms of Service'])->name('terms-of-service');
-Route::get('/lab/activity', [ValidationLabController::class, 'labHome'])->name('lab.activity');
-Route::post('/start', [ValidationLabController::class, 'artifact'])->name('start');
-Route::get('/checklist', [ValidationLabController::class, 'checklist'])->name('checklist');
-Route::post('/checklist', [ValidationLabController::class, 'submit'])->name('checklist.submit');
-Route::get('/result/{submission}', [ValidationLabController::class, 'result'])->name('result');
 Route::get('/interviews', [PublicInterviewController::class, 'index'])->name('interviews.index');
 Route::get('/interviews/logo', [PublicInterviewController::class, 'logo'])->name('interviews.logo');
 Route::get('/interviews/register', [PublicInterviewController::class, 'register'])->name('interviews.register');
@@ -132,8 +127,6 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::get('/attendance.csv', [AttendanceController::class, 'export'])->name('attendance.export');
     });
     Route::post('/training/submissions/{activitySubmission}/recovery-request', [RecoveryRequestController::class, 'store'])->middleware('role:participant')->name('training.recovery.store');
-    Route::get('/lab/records/{submission}', [ValidationLabController::class, 'ownedRecord'])->name('lab.records.show');
-    Route::post('/lab/records/{submission}/submit', [ValidationLabController::class, 'submitRecord'])->middleware('role:participant')->name('lab.records.submit');
 
     Route::middleware('role:coach,admin')->prefix('coach')->name('coach.')->group(function () {
         Route::get('/', [CoachOperationsController::class, 'dashboard'])->name('dashboard');
@@ -227,11 +220,4 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::post('/google-drive/sync', [TrainingSyncController::class, 'store'])->name('google-drive.sync');
         Route::get('/google-drive/sync/status', [TrainingSyncController::class, 'status'])->name('google-drive.sync.status');
     });
-});
-Route::prefix('lab')->group(function () {
-    Route::get('/login', [ValidationLabController::class, 'appLogin'])->name('lab.login');
-    Route::post('/login', [ValidationLabController::class, 'sendOtp'])->name('lab.send-otp');
-    Route::get('/otp', [ValidationLabController::class, 'otp'])->name('lab.otp');
-    Route::post('/otp', [ValidationLabController::class, 'verifyOtp'])->name('lab.verify-otp');
-    Route::get('/success', fn () => view('lab.success'))->name('lab.success');
 });

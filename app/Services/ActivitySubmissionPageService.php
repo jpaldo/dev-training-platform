@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\ReviewDecision;
 use App\Enums\SubmissionStatus;
-use App\Enums\ValidationCheckStatus;
 use App\Models\Activity;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
@@ -15,18 +14,13 @@ use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\ValidationSubmission;
 use App\Support\FieldLimits;
 use App\Support\Markdown;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
 
 class ActivitySubmissionPageService
 {
-    /** @var array<string, array{string, string}> The Validation Lab checks shown in the Lab record dialog: label => [status column, notes column]. */
-    private const LAB_RECORD_CHECKS = ['SOURCE' => ['source_status', 'source_notes'], 'SCOPE' => ['scope_status', 'scope_notes'], 'SPEC' => ['spec_status', 'spec_notes'], 'CROSS-CHECK' => ['cross_check_status', 'cross_check_notes'], 'RUN' => ['run_status', 'run_notes'], 'LOG' => ['log_status', 'log_notes']];
-
     /** @var array<string, string> Labels for answer keys that are no longer configured as submission fields. */
     private const LEGACY_LABELS = ['thread_drive_link' => 'Thread / Drive Link', 'ai_tool' => 'AI Tool', 'artifact_type' => 'Artifact Type', 'prompt' => 'Prompt', 'exact_ai_output' => 'Exact AI Output', 'ai_output' => 'AI Output', 'pre_acceptance_question' => 'Pre-acceptance Question', 'validation_performed' => 'Validation Performed'];
 
@@ -43,20 +37,16 @@ class ActivitySubmissionPageService
 
     /**
      * Data for the submission form: the latest attempt and version, the main action, the coach feedback, the field
-     * sections and evidence rows, the participant's Lab records with the one to preselect, the version history, the
-     * Week 3 workspace, and for Week 4 the activity guide and the mock interview context.
+     * sections and evidence rows, the version history, the Week 3 workspace, and for Week 4 the activity guide and the
+     * mock interview context.
      *
      * @return array<string, mixed>
      */
-    public function editData(User $participant, TrainingWeek $trainingWeek, Activity $activity, int $requestedLabRecordId): array
+    public function editData(User $participant, TrainingWeek $trainingWeek, Activity $activity): array
     {
-        $submission = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $participant->id)->with(['versions' => fn (Relation $query): Relation => $query->with(['evidence', 'reviews', 'validationSubmission', 'interactions'])->orderByDesc('version_number')])->orderByDesc('attempt_number')->first();
+        $submission = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $participant->id)->with(['versions' => fn (Relation $query): Relation => $query->with(['evidence', 'reviews', 'interactions'])->orderByDesc('version_number')])->orderByDesc('attempt_number')->first();
         $version = $submission?->versions->first();
         $fields = $this->workflow->fieldDefinitions($activity, $participant);
-        $labRecords = array_key_exists('validation_submission_id', $fields) ? $this->submittedLabRecords($participant) : collect();
-        $selectedLabRecord = $version?->validation_submission_id
-            ? $labRecords->firstWhere('id', $version->validation_submission_id)
-            : ($requestedLabRecordId ? $labRecords->firstWhere('id', $requestedLabRecordId) : $this->carryForwardLabRecord($activity, $participant, $submission, $labRecords));
         $isPeerInterview = $trainingWeek->week_number === 4 && $activity->position === 2;
         $showInteractions = collect($fields)->keys()->intersect(['prompt', 'exact_prompt', 'ai_output', 'exact_ai_output'])->isNotEmpty();
         /** @var ?SubmissionReview $coachFeedback */
@@ -80,11 +70,8 @@ class ActivitySubmissionPageService
             'showInteractions' => $showInteractions,
             'interactionRows' => $showInteractions ? $this->interactionRows($version) : [],
             'fieldSections' => $isPeerInterview ? [] : $this->fieldSections($fields),
-            'artifactTypes' => config('validation_lab.artifact_types'),
+            'artifactTypes' => config('training.artifact_types'),
             'evidenceRows' => $this->evidenceRows($this->workflow->evidenceRequirements($activity, $participant), $version),
-            'labRecords' => $labRecords,
-            'selectedLabRecord' => $selectedLabRecord,
-            'labRecordChecks' => $this->labRecordChecks($selectedLabRecord),
             'versionRows' => $this->versionRows($submission?->versions ?? collect(), $version),
             'weekThreeWorkspace' => $trainingWeek->week_number === 3 ? $this->weekThreeWorkspace->present($participant, $trainingWeek, $activity) : null,
             ...$weekFourInterview,
@@ -94,11 +81,10 @@ class ActivitySubmissionPageService
     }
 
     /**
-     * Data for a submitted version: the status summary, the labelled answers, the participant's own Lab record, the
-     * evidence, the coach reviews with the published score and its dimension rows, the Week 3 and Week 4 review blocks,
-     * and the submitted version history.
+     * Data for a submitted version: the status summary, the labelled answers, the evidence, the coach reviews with the
+     * published score and its dimension rows, the Week 3 and Week 4 review blocks, and the submitted version history.
      *
-     * @return array{pathLabel: string, statusLabel: string, statusTone: string, responses: Collection<int|string, array{label: string, value: mixed, text: mixed}>, labRecord: ?ValidationSubmission, evidenceItems: Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, reviewRows: list<array{decision_label: string, tone: string, comments: ?string}>, finalScore: ?ActivityScore, dimensionRows: list<array{dimension: string, points: int, evidence_reasoning: string}>, isAwaitingRevision: bool, weekThreeReview: ?array<string, mixed>, weekFourReview: ?array<string, mixed>, weekFourTitle: ?string, versionRows: list<array{version: SubmissionVersion, status_label: string, tone: string, is_current: bool}>}
+     * @return array{pathLabel: string, statusLabel: string, statusTone: string, responses: Collection<int|string, array{label: string, value: mixed, text: mixed}>, evidenceItems: Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, reviewRows: list<array{decision_label: string, tone: string, comments: ?string}>, finalScore: ?ActivityScore, dimensionRows: list<array{dimension: string, points: int, evidence_reasoning: string}>, isAwaitingRevision: bool, weekThreeReview: ?array<string, mixed>, weekFourReview: ?array<string, mixed>, weekFourTitle: ?string, versionRows: list<array{version: SubmissionVersion, status_label: string, tone: string, is_current: bool}>}
      */
     public function showData(User $participant, TrainingWeek $trainingWeek, Activity $activity, SubmissionVersion $version): array
     {
@@ -118,7 +104,6 @@ class ActivitySubmissionPageService
             'statusLabel' => $version->status->label(),
             'statusTone' => $version->status->tone(),
             'responses' => $responses,
-            'labRecord' => $version->validationSubmission?->user_id === $participant->id ? $version->validationSubmission : null,
             'evidenceItems' => $this->answers->evidenceItems($version->evidence),
             'reviewRows' => $version->reviews->map(fn (SubmissionReview $review): array => [
                 'decision_label' => $review->decision->label(),
@@ -137,42 +122,6 @@ class ActivitySubmissionPageService
             } : null,
             'versionRows' => $versions->count() > 1 ? $this->versionRows($versions->where('status', '!=', SubmissionStatus::Draft)->sortByDesc('version_number'), $version) : [],
         ];
-    }
-
-    /**
-     * The participant's submitted or completed Lab records, newest first.
-     *
-     * Always queried fresh and scoped to the owner on each form request; never derived from a draft, the session or an
-     * activity snapshot.
-     *
-     * @return Collection<int, ValidationSubmission>
-     */
-    private function submittedLabRecords(User $participant): Collection
-    {
-        return ValidationSubmission::query()->where('user_id', $participant->id)->recorded()->latest('submitted_at')->latest('id')->get();
-    }
-
-    /**
-     * For a first attempt at a later Week 2 activity, the Lab record used by the participant's most recent earlier Week 2 version.
-     *
-     * @param  Collection<int, ValidationSubmission>  $labRecords
-     */
-    private function carryForwardLabRecord(Activity $activity, User $participant, ?ActivitySubmission $submission, Collection $labRecords): ?ValidationSubmission
-    {
-        if ($activity->week?->week_number !== 2 || $activity->position <= 1 || $submission?->versions->isNotEmpty()) {
-            return null;
-        }
-
-        $previous = ActivitySubmission::query()
-            ->where('user_id', $participant->id)
-            ->whereHas('activity', fn (Builder $query): Builder => $query->where('training_week_id', $activity->training_week_id)->where('position', '<', $activity->position))
-            ->with(['versions' => fn (Relation $query): Relation => $query->orderByDesc('version_number')])
-            ->orderByDesc('attempt_number')
-            ->get()
-            ->flatMap(fn (ActivitySubmission $item): Collection => $item->versions)
-            ->first(fn (SubmissionVersion $version): bool => filled($version->validation_submission_id));
-
-        return $previous ? $labRecords->firstWhere('id', $previous->validation_submission_id) : null;
     }
 
     /**
@@ -212,7 +161,7 @@ class ActivitySubmissionPageService
     }
 
     /**
-     * The control a form field renders as: date, Lab record select, artifact type select, select, URL, text, Markdown
+     * The control a form field renders as: date, artifact type select, select, URL, text, Markdown
      * editor with preview, or plain textarea.
      *
      * @param  array<string, mixed>  $field
@@ -223,7 +172,6 @@ class ActivitySubmissionPageService
 
         return match (true) {
             $type === 'date' => 'date',
-            $key === 'validation_submission_id' => 'lab_record',
             $key === 'artifact_type' => 'artifact_type',
             in_array($type, ['select', 'url', 'text'], true) => $type,
             Markdown::editorPreview($key) => 'markdown',
@@ -282,36 +230,6 @@ class ActivitySubmissionPageService
                 'is_reusable_asset' => $isReusableAsset,
             ];
         })->values();
-    }
-
-    /**
-     * The six Validation Lab checks of the selected Lab record with their status text (upper case), its tone (success
-     * for a pass, warning for an issue, neutral when not provided) and the notes.
-     *
-     * @return list<array{label: string, status: string, tone: string, notes: string}>
-     */
-    private function labRecordChecks(?ValidationSubmission $record): array
-    {
-        if (! $record) {
-            return [];
-        }
-
-        $checks = [];
-        foreach (self::LAB_RECORD_CHECKS as $label => [$status, $notes]) {
-            $checkStatus = $record->{$status};
-            $checks[] = [
-                'label' => $label,
-                'status' => strtoupper($checkStatus?->label() ?? 'Not provided'),
-                'tone' => match ($checkStatus) {
-                    ValidationCheckStatus::Pass => 'success',
-                    ValidationCheckStatus::Issue => 'warning',
-                    null => 'neutral',
-                },
-                'notes' => $record->{$notes} ?: 'Not provided',
-            ];
-        }
-
-        return $checks;
     }
 
     /**

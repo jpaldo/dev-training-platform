@@ -30,6 +30,14 @@ return [
     'weekly_video_mime_types' => ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v', 'video/x-msvideo', 'video/avi', 'video/x-matroska', 'video/mpeg', 'video/mp2t', 'video/3gpp', 'video/3gpp2', 'video/ogg', 'video/x-ms-wmv', 'video/x-flv', 'video/x-f4v'],
     // A lost local/production worker must not leave the participant UI polling forever.
     'google_drive_sync_stale_after_seconds' => 600,
+    // Options of the artifact type select on activity forms.
+    'artifact_types' => [
+        'Test Case', 'Test Scenario', 'Test Plan', 'Test Script', 'Test Data',
+        'Acceptance Criteria', 'User Story', 'Bug Report', 'Defect Analysis',
+        'Regression Test Plan', 'Test Checklist', 'Test Automation Script',
+        'API Test', 'Test Report', 'Risk Assessment', 'Root Cause Analysis',
+        'Requirements Analysis', 'AI-generated test case', 'Other',
+    ],
     'week_four_mentor_interview_duration_minutes' => 60,
     'week_four_mentor_interview_timezone' => env('TRAINING_TIMEZONE', 'Asia/Manila'),
     'week_four_interview_questions' => [

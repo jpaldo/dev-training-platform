@@ -168,8 +168,7 @@
                                         </div>
                                         @if($item['available'] && $activity->week_four_partner_assigned)
                                             <div class="grid justify-items-start gap-1.5 sm:justify-items-end">
-                                                @if(! $activity->lab_prerequisite_met)<x-ui.button variant="secondary" :href="$activityUrl">{{ $activity->participant_action }}</x-ui.button><span class="text-xs text-muted">QA Validation Lab record required.</span>
-                                                @elseif($item['attendance_required'] && ! $activity->participant_submission)<x-ui.button variant="secondary" :href="$activityUrl" disabled>{{ $activity->participant_action }}</x-ui.button>
+                                                @if($item['attendance_required'] && ! $activity->participant_submission)<x-ui.button variant="secondary" :href="$activityUrl" disabled>{{ $activity->participant_action }}</x-ui.button>
                                                 @elseif($googleDriveReadinessEnforced && ! $googleDriveReady && ! $activity->participant_submission)<x-ui.button variant="secondary" :href="$activityUrl" disabled>Google Drive setup required</x-ui.button>
                                                 @else<x-ui.button variant="secondary" :href="$activityUrl">{{ $activity->participant_action }}</x-ui.button>@endif
                                             </div>
@@ -298,35 +297,6 @@
                         <div class="grid content-start gap-2 rounded-2xl border border-line bg-surface-sunken p-4.5"><x-ui.eyebrow>WEEK 4</x-ui.eyebrow><h3 class="m-0 text-base font-extrabold">Sustain, Reuse, Reassess</h3><p class="m-0 text-sm/relaxed text-muted">Turn repeated AI-assisted QA work into a reusable team asset, demonstrate Level 3 QA capability through a mock interview, and complete a formal reassessment.</p></div>
                     </div>
                     <x-ui.alert class="mt-2 grid gap-2"><strong class="text-cyan-200">Gates &amp; progression</strong><p class="m-0">Each week includes required activities, evidence, and daily logs. A Coach must review and pass the Gate before the next week becomes available.</p><p class="m-0">Your progress is based on demonstrated QA judgment and evidence — not simply completing AI-generated work.</p></x-ui.alert>
-                </x-ui.card>
-
-                <x-ui.card as="section" class="grid gap-3.5" aria-labelledby="qa-application-title">
-                    <x-ui.eyebrow>QA APPLICATION</x-ui.eyebrow>
-                    <h2 id="qa-application-title" class="m-0 text-xl font-extrabold">Practice in the controlled QA application</h2>
-                    <p class="m-0 leading-relaxed text-muted">Use the application to execute tests, observe actual behavior, validate AI-generated output, and collect evidence for your training activities.</p>
-                    <p class="m-0 leading-relaxed text-muted">Fork the QA application repository so you can use your own copy for AI-assisted source analysis and training exercises.</p>
-                    <div class="flex flex-wrap gap-6">
-                        <div class="grid justify-items-start gap-2">
-                            <x-ui.eyebrow>LIVE APPLICATION</x-ui.eyebrow>
-                            @if($qaApplicationUrl)
-                                <x-ui.button :href="$qaApplicationUrl" target="_blank" rel="noopener noreferrer">Open QA Application ↗</x-ui.button>
-                            @else
-                                <x-ui.button variant="secondary" href="#" disabled>QA Application Not Configured</x-ui.button>
-                                <p class="m-0 text-sm text-muted">The live QA Application is not currently configured.</p>
-                            @endif
-                        </div>
-                        <div class="grid justify-items-start gap-2">
-                            <x-ui.eyebrow>SOURCE REPOSITORY</x-ui.eyebrow>
-                            <x-ui.button variant="secondary" href="https://github.com/fs-ely/membership-app/fork" target="_blank" rel="noopener noreferrer">Fork QA Application ↗</x-ui.button>
-                        </div>
-                    </div>
-                    <h3 class="m-0 mt-2 text-base font-extrabold">QA Membership feature areas</h3>
-                    <p class="m-0 text-muted">Explore these areas in the QA Membership application and identify the scenarios and coverage that matter.</p>
-                    <div class="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
-                        @foreach($qaMembershipFeatures as $feature)
-                            <div class="grid content-start gap-1.5 rounded-2xl border border-line bg-surface-sunken p-4.5"><h3 class="m-0 text-base font-extrabold">{{ $feature['name'] }}</h3><p class="m-0 text-sm/relaxed text-muted">{{ $feature['description'] }}</p></div>
-                        @endforeach
-                    </div>
                 </x-ui.card>
 
                 <x-ui.card class="grid justify-items-start gap-2">

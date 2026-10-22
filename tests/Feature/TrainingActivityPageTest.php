@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\GoogleDriveSyncStatus;
-use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivityRequirement;
@@ -17,7 +16,6 @@ use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\ValidationSubmission;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -27,9 +25,9 @@ class TrainingActivityPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_activity_with_a_lab_shows_all_four_tabs(): void
+    public function test_activity_page_shows_the_instructions_requirements_and_submission_tabs(): void
     {
-        [$participant, $week, $activity] = $this->activityFixture(['lab_route' => 'lab.activity']);
+        [$participant, $week, $activity] = $this->activityFixture();
 
         $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))
             ->assertOk()
@@ -37,26 +35,9 @@ class TrainingActivityPageTest extends TestCase
             ->assertSeeInOrder([
                 'id="activity-tab-instructions"',
                 'id="activity-tab-requirements"',
-                'id="activity-tab-validation-lab"',
                 'id="activity-tab-submission"',
             ], false)
-            ->assertSee('id="activity-panel-validation-lab"', false)
-            ->assertSee('Open QA Lab · Complete Validation Lab →');
-    }
-
-    public function test_activity_without_a_lab_hides_the_validation_lab_tab(): void
-    {
-        [$participant, $week, $activity] = $this->activityFixture();
-
-        $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'id="activity-tab-instructions"',
-                'id="activity-tab-requirements"',
-                'id="activity-tab-submission"',
-            ], false)
-            ->assertDontSee('activity-tab-validation-lab', false)
-            ->assertDontSee('activity-panel-validation-lab', false);
+            ->assertDontSee('activity-tab-validation-lab', false);
     }
 
     #[DataProvider('submissionStates')]
@@ -103,17 +84,16 @@ class TrainingActivityPageTest extends TestCase
         $this->assertSame($linkCount, substr_count($html, 'href="'.route('training.submission.show', [$week, $activity, $version]).'"'));
     }
 
-    public function test_validation_checklist_without_a_lab_route_is_unlocked_by_a_recorded_lab_record(): void
+    public function test_the_week_two_validation_checklist_opens_without_a_lab_record(): void
     {
         [$participant, $week] = $this->activityFixture();
-        $activity = Activity::factory()->for($week, 'week')->create(['position' => 1, 'title' => 'Validation Checklist', 'configuration' => []]);
-        ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-001', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
+        $activity = Activity::factory()->for($week, 'week')->create(['position' => 1, 'title' => 'Validation Checklist']);
 
         $html = $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))->assertOk()->getContent();
 
         $this->assertSame(1, preg_match('/<div id="activity-main-action"[^>]*>(.*?)<\/div>/s', $html, $mainAction));
-        $this->assertStringNotContainsString('Start submission locked', $mainAction[1]);
         $this->assertStringContainsString('href="'.route('training.submission.edit', [$week, $activity]).'"', $mainAction[1]);
+        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))->assertOk();
     }
 
     /**
@@ -247,12 +227,12 @@ class TrainingActivityPageTest extends TestCase
     }
 
     /**
-     * Build a Lab activity with the given number of requirements and failed attempts (each with evidence, a coach
+     * Build an activity with the given number of requirements and failed attempts (each with evidence, a coach
      * review and a review request), and count the queries of an activity page request after a warm-up request.
      */
     private function activityPageQueryCount(int $rows): int
     {
-        [$participant, $week, $activity] = $this->activityFixture(['lab_route' => 'lab.activity']);
+        [$participant, $week, $activity] = $this->activityFixture();
 
         foreach (range(1, $rows) as $position) {
             $requirement = ActivityRequirement::factory()->for($activity)->create(['position' => $position]);
@@ -275,16 +255,15 @@ class TrainingActivityPageTest extends TestCase
     }
 
     /**
-     * A checked-in manual participant and a Week 2 activity that is not the Validation Checklist.
+     * A checked-in manual participant and a Week 2 activity in position 2.
      *
-     * @param  array<string, mixed>  $configuration
      * @return array{User, TrainingWeek, Activity}
      */
-    private function activityFixture(array $configuration = []): array
+    private function activityFixture(): array
     {
         $participant = User::factory()->create(['training_path' => 'manual']);
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
-        $activity = Activity::factory()->for($week, 'week')->create(['position' => 2, 'configuration' => $configuration]);
+        $activity = Activity::factory()->for($week, 'week')->create(['position' => 2]);
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         return [$participant, $week, $activity];

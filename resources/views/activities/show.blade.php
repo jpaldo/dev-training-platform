@@ -12,21 +12,8 @@
             <p class="m-0 leading-relaxed text-muted">{{ $activity->description }}</p>
         </header>
 
-        @if($errors->has('lab_prerequisite'))
-            <x-ui.alert tone="error" role="status" class="grid justify-items-start gap-2 lg:col-span-2">
-                <strong>Prerequisite incomplete</strong>
-                <p class="m-0">{{ $errors->first('lab_prerequisite') }}</p>
-                <x-ui.button variant="secondary" :href="route('lab.activity')">Open QA Validation Lab →</x-ui.button>
-            </x-ui.alert>
-        @endif
-
         <x-ui.main-action id="activity-main-action">
-            @if(! $labPrerequisiteMet)
-                <x-ui.button variant="secondary" href="#" disabled>Start submission locked</x-ui.button>
-                @if($latestVersion && ! $latestVersion->isDraft())
-                    <x-ui.button variant="secondary" :href="route('training.submission.show', [$trainingWeek, $activity, $latestVersion])">View Submission</x-ui.button>
-                @endif
-            @elseif($submission?->needsRevision())
+            @if($submission?->needsRevision())
                 <form method="POST" action="{{ route('training.submission.revise', [$trainingWeek, $activity]) }}" class="m-0" data-revise-submission>
                     @csrf
                     <x-ui.button type="submit">Revise submission →</x-ui.button>
@@ -71,39 +58,12 @@
                 </x-ui.card>
             </x-ui.tab-panel>
 
-            @if($labUrl)
-                <x-ui.tab-panel name="validation-lab" :selected="$selectedTab" id-prefix="activity">
-                    <x-ui.card class="grid justify-items-start gap-3">
-                        <h2 class="m-0 text-xl font-extrabold">QA Validation Lab</h2>
-                        <p class="m-0 leading-relaxed text-muted">Complete the Lab first. It is saved separately from this training submission; Lab completion does not automatically create the platform submission.</p>
-                        <p class="m-0">Participant-owned Lab records: <strong>{{ $labRecords->count() ? 'Completed' : 'None yet' }}</strong></p>
-                        <x-ui.button variant="secondary" :href="$labUrl">Open QA Lab · {{ $labRecords->count() ? 'Review saved record' : 'Complete Validation Lab' }} →</x-ui.button>
-                        @if ($labRecords->count())
-                            <h3 class="m-0 mt-3 text-base font-extrabold">My Validation Lab Records</h3>
-                            <p class="m-0 text-sm/relaxed text-muted">Review each saved run and select the qualifying run for this submission. If no issue was found, record that result honestly and validate another real AI-generated artifact.</p>
-                            <ul class="m-0 grid w-full list-none gap-3 p-0">
-                                @foreach ($labRecords as $record)
-                                    <li class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-field px-4 py-3.5">
-                                        <div class="grid min-w-0 gap-1">
-                                            <strong>Lab Record #{{ $record->id }}</strong>
-                                            <span class="wrap-anywhere">{{ $record->artifact_name ?: 'Artifact name not provided' }}</span>
-                                            <span class="text-sm text-muted">{{ $record->artifact_code }} · {{ $record->created_at->format('Y-m-d H:i') }}</span>
-                                        </div>
-                                        <x-ui.button variant="secondary" :href="route('lab.records.show', $record)">View record</x-ui.button>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        @endif
-                    </x-ui.card>
-                </x-ui.tab-panel>
-            @endif
-
             <x-ui.tab-panel name="submission" :selected="$selectedTab" id-prefix="activity">
                 <div class="grid grid-cols-1 gap-6">
                     <x-ui.card as="section" class="grid justify-items-start gap-3" aria-labelledby="activity-submission-title">
                         <h2 id="activity-submission-title" class="m-0 text-xl font-extrabold">Training-platform submission</h2>
                         <p class="m-0 text-muted">Status: <strong class="text-slate-100">{{ $submission?->status->label() ?? 'Not started' }}</strong></p>
-                        <p class="m-0 leading-relaxed text-muted">Select your Lab record where applicable, add required evidence, and submit for coach review. The existing Gate rules determine completion.</p>
+                        <p class="m-0 leading-relaxed text-muted">Add required evidence and submit for coach review. The existing Gate rules determine completion.</p>
                         @if($submission?->needsRevision())
                             <x-ui.alert tone="error">Your coach requested changes. Create a new revision; the previous submitted version remains unchanged.</x-ui.alert>
                             @if($revisionFeedback !== null)

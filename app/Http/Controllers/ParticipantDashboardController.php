@@ -41,26 +41,6 @@ class ParticipantDashboardController extends Controller
         $weeks = $dashboard->weeks($user, $program, $activeAttendance);
 
         $programCompleted = $progression->isProgramCompleted($user, $program);
-        $configuredQaApplicationUrl = config('services.qa_application.url');
-        $qaApplicationUrl = is_string($configuredQaApplicationUrl)
-            && filter_var($configuredQaApplicationUrl, FILTER_VALIDATE_URL)
-            && in_array(parse_url($configuredQaApplicationUrl, PHP_URL_SCHEME), ['http', 'https'], true)
-            ? $configuredQaApplicationUrl
-            : null;
-        $qaMembershipFeatures = [
-            ['name' => 'Authentication & Login', 'description' => 'Registration, login, password recovery, and session-related functionality.'],
-            ['name' => 'OTP Verification', 'description' => 'OTP verification and related user interactions.'],
-            ['name' => 'User Profile', 'description' => 'Profile information and account settings.'],
-            ['name' => 'Member Records', 'description' => 'Create and manage membership records.'],
-            ['name' => 'Search & Filtering', 'description' => 'Search and filtering capabilities for membership records.'],
-            ['name' => 'Location Selection', 'description' => 'Location selection and related workflows.'],
-            ['name' => 'Navigation', 'description' => 'Navigation across the application areas.'],
-            ['name' => 'Admin Functions', 'description' => 'Administrative workflows and management tools.'],
-            ['name' => 'File/Image Uploads', 'description' => 'File and image upload workflows.'],
-            ['name' => 'API Operations', 'description' => 'Application API interactions and data operations.'],
-            ['name' => 'Security & Access Control', 'description' => 'Authentication, authorization, and protected access.'],
-            ['name' => 'Demo/Test Data', 'description' => 'Demo and test data used for exploration.'],
-        ];
         $recentAttendance = $user->attendanceSessions()->whereNotNull('check_out_at')->latest('check_in_at')->limit(5)->get();
         $gates = $dashboard->gates($user, $program);
 
@@ -68,6 +48,6 @@ class ParticipantDashboardController extends Controller
         $googleDriveReadinessEnforced = $driveReadiness->enforced();
         $notificationSummary = $notifications->dashboard($user);
 
-        return view('participant.dashboard', compact('user', 'program', 'weeks', 'programCompleted', 'gates', 'activeAttendance', 'recentAttendance', 'qaApplicationUrl', 'qaMembershipFeatures', 'googleDriveReady', 'googleDriveReadinessEnforced', 'notificationSummary', 'mockInterviewPartners', 'assignedMentor', 'mentorInterviewSchedule', 'mentorBooking'));
+        return view('participant.dashboard', compact('user', 'program', 'weeks', 'programCompleted', 'gates', 'activeAttendance', 'recentAttendance', 'googleDriveReady', 'googleDriveReadinessEnforced', 'notificationSummary', 'mockInterviewPartners', 'assignedMentor', 'mentorInterviewSchedule', 'mentorBooking'));
     }
 }

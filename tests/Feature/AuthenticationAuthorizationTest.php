@@ -346,15 +346,11 @@ class AuthenticationAuthorizationTest extends TestCase
         $this->assertFalse($otherParticipant->canManageParticipant($participant));
     }
 
-    public function test_existing_qa_validation_lab_otp_exercise_remains_available_without_platform_authentication(): void
+    public function test_validation_lab_pages_are_gone(): void
     {
-        $this->get(route('lab.login'))->assertOk();
-
-        $this->post(route('lab.send-otp'))->assertRedirect(route('lab.otp'));
-
-        $this->post(route('lab.verify-otp'), ['otp' => '248163'])
-            ->assertOk()
-            ->assertSee('Authenticated');
+        $this->get('/lab/login')->assertNotFound();
+        $this->get('/checklist')->assertNotFound();
+        $this->get('/result/1')->assertNotFound();
     }
 
     /**

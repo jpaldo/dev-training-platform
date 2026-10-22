@@ -26,7 +26,7 @@ class StoreSubmissionEvidenceRequest extends FormRequest
     public function rules(): array
     {
         $policy = app(EvidenceFilePolicy::class);
-        $fileRules = $this->isVideoEvidence() ? $policy->videoRules() : ($this->isReusableAsset() ? $policy->reusableAssetRules() : $policy->generalRules());
+        $fileRules = $this->isVideoEvidence() ? $policy->videoRules() : $policy->generalRules();
 
         return [
             'evidence_requirement_id' => ['required', 'integer', 'exists:evidence_requirements,id'],
@@ -45,10 +45,5 @@ class StoreSubmissionEvidenceRequest extends FormRequest
             ->whereKey($this->integer('evidence_requirement_id'))
             ->where('evidence_type', 'video')
             ->exists();
-    }
-
-    private function isReusableAsset(): bool
-    {
-        return EvidenceRequirement::query()->whereKey($this->integer('evidence_requirement_id'))->where('evidence_type', 'asset')->exists();
     }
 }

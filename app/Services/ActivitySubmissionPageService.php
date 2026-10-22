@@ -200,7 +200,6 @@ class ActivitySubmissionPageService
                     default => 'File',
                 },
                 'accept' => match (true) {
-                    $isReusableAsset => $this->evidenceFiles->reusableAssetAcceptAttribute(),
                     $isVideo => 'video/*',
                     default => $this->evidenceFiles->acceptAttribute(),
                 },

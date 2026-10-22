@@ -84,30 +84,6 @@ class EvidenceFilePolicy
         ];
     }
 
-    public function reusableAssetRules(): array
-    {
-        return ['file', 'max:'.(int) config('training.evidence_max_kb', 307200), function (string $attribute, mixed $value, \Closure $fail): void {
-            if (! $value instanceof UploadedFile || ! in_array(strtolower($value->getClientOriginalExtension()), ['txt', 'md', 'markdown', 'csv', 'json', 'xml', 'log', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'zip', 'tar'], true)) {
-                $fail('Please upload a supported Reusable AI Asset file.');
-
-                return;
-            }
-            $extension = strtolower($value->getClientOriginalExtension());
-            $mime = strtolower((string) $value->getMimeType());
-            $safeMime = in_array($mime, $this->mimeTypes(), true) || $mime === 'application/x-tar';
-            $signature = @file_get_contents($value->getRealPath(), false, null, 0, 512) ?: '';
-            $archive = ($extension === 'zip' && str_starts_with($signature, 'PK')) || ($extension === 'tar' && substr($signature, 257, 5) === 'ustar');
-            if (! $safeMime && ! $archive) {
-                $fail('The uploaded file does not match a supported Reusable AI Asset format.');
-            }
-        }];
-    }
-
-    public function reusableAssetAcceptAttribute(): string
-    {
-        return implode(',', array_map(static fn (string $extension): string => '.'.$extension, ['txt', 'md', 'markdown', 'csv', 'json', 'xml', 'log', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'zip', 'tar']));
-    }
-
     /**
      * Confirm a video container when Fileinfo reports a generic/unsupported
      * MIME. Only narrowly recognised signatures are accepted; arbitrary

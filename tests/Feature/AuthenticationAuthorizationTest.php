@@ -402,6 +402,14 @@ class AuthenticationAuthorizationTest extends TestCase
         $this->actingAs($admin)->get('/admin/settings/google/verification/callback?state=state&code=code')->assertNotFound();
     }
 
+    public function test_reusable_asset_library_routes_are_gone(): void
+    {
+        $participant = User::factory()->create();
+
+        $this->actingAs($participant)->get('/training/reusable-assets')->assertNotFound();
+        $this->actingAs($participant)->get('/training/reusable-assets/1/download')->assertNotFound();
+    }
+
     /**
      * A complete, valid self-registration.
      *

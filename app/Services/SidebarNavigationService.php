@@ -71,9 +71,6 @@ class SidebarNavigationService
                     ['label' => 'Attendance', 'route' => 'participant.attendance.index', 'active' => ['participant.attendance.*']],
                     ['label' => 'Notifications', 'route' => 'participant.notifications', 'active' => ['participant.notifications'], 'count' => $this->notifications->unreadCount($user)],
                 ],
-                'Resources' => [
-                    ['label' => 'Reusable Asset Library', 'route' => 'training.reusable-assets.index', 'active' => ['training.reusable-assets.*']],
-                ],
             ];
         }
 
@@ -91,9 +88,6 @@ class SidebarNavigationService
                 ['label' => 'Scoring', 'route' => 'coach.scoring.index', 'active' => ['coach.scoring.*']],
                 ['label' => 'Recovery Requests', 'route' => 'coach.recovery.index', 'active' => ['coach.recovery.*']],
                 ['label' => 'Reports', 'route' => 'coach.reports', 'active' => ['coach.reports', 'coach.reports.*']],
-            ],
-            'Resources' => [
-                ['label' => 'Reusable Asset Library', 'route' => 'training.reusable-assets.index', 'active' => ['training.reusable-assets.*']],
             ],
         ];
 

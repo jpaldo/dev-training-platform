@@ -64,12 +64,11 @@ class AppLayoutTest extends TestCase
         $response = $this->actingAs($participant)->get(route('participant.notifications'))->assertOk();
         $sidebar = $this->sidebar($response);
 
-        $this->assertSame(['Training', 'Resources'], $this->groupLabels($sidebar));
+        $this->assertSame(['Training'], $this->groupLabels($sidebar));
         $this->assertSame([
             ['Dashboard', route('dashboard'), false, 0],
             ['Attendance', route('participant.attendance.index'), false, 0],
             ['Notifications', route('participant.notifications'), true, 2],
-            ['Reusable Asset Library', route('training.reusable-assets.index'), false, 0],
             ['Profile', route('profile.show'), false, 0],
         ], $this->sidebarLinks($sidebar));
         $this->assertStringContainsString('<strong class="text-slate-100">Pat Participant</strong>', $sidebar);
@@ -91,7 +90,7 @@ class AppLayoutTest extends TestCase
 
         $sidebar = $this->sidebar($this->actingAs($coach)->get(route('coach.reviews'))->assertOk());
 
-        $this->assertSame(['Overview', 'People', 'Review', 'Resources'], $this->groupLabels($sidebar));
+        $this->assertSame(['Overview', 'People', 'Review'], $this->groupLabels($sidebar));
         $this->assertSame([
             ['Coach Dashboard', route('coach.dashboard'), false, 0],
             ['Participants', route('coach.participants'), false, 0],
@@ -101,7 +100,6 @@ class AppLayoutTest extends TestCase
             ['Scoring', route('coach.scoring.index'), false, 0],
             ['Recovery Requests', route('coach.recovery.index'), false, 0],
             ['Reports', route('coach.reports'), false, 0],
-            ['Reusable Asset Library', route('training.reusable-assets.index'), false, 0],
             ['Profile', route('profile.show'), false, 0],
         ], $this->sidebarLinks($sidebar));
         $this->assertStringContainsString('>Coach</span>', $sidebar);
@@ -113,7 +111,7 @@ class AppLayoutTest extends TestCase
 
         $sidebar = $this->sidebar($this->actingAs($admin)->get(route('admin.settings.google-drive'))->assertOk());
 
-        $this->assertSame(['Overview', 'People', 'Review', 'Resources', 'Admin'], $this->groupLabels($sidebar));
+        $this->assertSame(['Overview', 'People', 'Review', 'Admin'], $this->groupLabels($sidebar));
         $this->assertSame([
             ['Admin Dashboard', route('admin.dashboard'), false, 0],
             ['Users / Participants', route('admin.users.index'), false, 0],

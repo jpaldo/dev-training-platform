@@ -251,12 +251,6 @@
                     </div>
                     <x-ui.alert class="mt-2 grid gap-2"><strong class="text-cyan-200">Gates &amp; progression</strong><p class="m-0">Each week includes required activities and evidence. A Coach must review and pass the Gate before the next week becomes available.</p><p class="m-0">Your progress is based on demonstrated QA judgment and evidence — not simply completing AI-generated work.</p></x-ui.alert>
                 </x-ui.card>
-
-                <x-ui.card class="grid justify-items-start gap-2">
-                    <strong>Reusable AI Asset Library</strong>
-                    <p class="m-0 text-sm text-muted">Explore reusable assets created and validated by participants.</p>
-                    <x-ui.button variant="secondary" :href="route('training.reusable-assets.index')">Browse Library</x-ui.button>
-                </x-ui.card>
                 </div>
             </x-ui.tab-panel>
         </div>

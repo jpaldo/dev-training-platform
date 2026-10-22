@@ -54,7 +54,6 @@ class AdminDashboardPageService
                 ['label' => 'Coach Reviews', 'url' => route('coach.reviews')],
                 ['label' => 'Manage Gates', 'url' => route('coach.gates')],
                 ['label' => 'Reports', 'url' => route('coach.reports')],
-                ['label' => 'Reusable Asset Library', 'url' => route('training.reusable-assets.index')],
                 ['label' => 'Coach Tools', 'url' => route('coach.dashboard')],
                 ['label' => 'Settings', 'url' => route('admin.settings.index')],
             ],

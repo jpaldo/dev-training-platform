@@ -57,7 +57,6 @@ class AdminDashboardPageTest extends TestCase
                 'href="'.route('coach.reviews').'"', 'Coach Reviews',
                 'href="'.route('coach.gates').'"', 'Manage Gates',
                 'href="'.route('coach.reports').'"', 'Reports',
-                'href="'.route('training.reusable-assets.index').'"', 'Reusable Asset Library',
                 'href="'.route('coach.dashboard').'"', 'Coach Tools',
                 'href="'.route('admin.settings.index').'"', 'Settings',
             ], false)

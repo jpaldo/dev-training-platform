@@ -21,6 +21,7 @@ use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Services\EvidenceFilePolicy;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
@@ -346,6 +347,31 @@ class ParticipantWorkflowTest extends TestCase
             ['png', 'image/png'], ['jpg', 'image/jpeg'], ['jpeg', 'image/jpeg'], ['gif', 'image/gif'], ['webp', 'image/webp'],
             ['mp4', 'video/mp4'], ['mov', 'video/quicktime'], ['webm', 'video/webm'], ['m4v', 'video/x-m4v'],
         ];
+    }
+
+    public function test_asset_evidence_accepts_and_validates_the_general_evidence_formats(): void
+    {
+        Storage::fake('local');
+        [$participant, $week2, $activity] = $this->trainingFixture();
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+        $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'asset', 'is_required' => true]);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$week2, $activity]))
+            ->assertOk()
+            ->assertSee('accept="'.app(EvidenceFilePolicy::class)->acceptAttribute().'"', false);
+
+        $this->actingAs($participant)->postJson(route('training.evidence.store', [$week2, $activity, $version]), [
+            'evidence_requirement_id' => $requirement->id,
+            'file' => UploadedFile::fake()->create('asset-screenshot.png', 20, 'image/png'),
+        ])->assertOk()->assertJson(['uploaded' => true]);
+
+        $version->refresh();
+        $this->actingAs($participant)->postJson(route('training.evidence.store', [$week2, $activity, $version]), [
+            'evidence_requirement_id' => $requirement->id,
+            'file' => UploadedFile::fake()->create('asset.markdown', 20, 'text/markdown'),
+        ])->assertUnprocessable()->assertJsonValidationErrors('file');
     }
 
     public function test_evidence_upload_script_captures_file_before_disabling_input(): void

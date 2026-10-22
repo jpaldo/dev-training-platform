@@ -17,6 +17,7 @@ use Illuminate\Routing\Route as IlluminateRoute;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 use TypeError;
 use ValueError;
@@ -31,23 +32,60 @@ class AuthenticationAuthorizationTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
-    public function test_registration_creates_a_participant_without_honoring_a_supplied_privileged_role(): void
+    public function test_registration_creates_a_participant_with_their_identity_without_honoring_a_supplied_privileged_role(): void
     {
         $this->post(route('register.store'), [
-            'name' => 'Manual Participant',
-            'email' => 'manual@example.test',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
-            'training_path' => 'manual',
+            ...$this->registrationFields(),
             'role' => 'admin',
         ])->assertRedirect(route('profile.show'));
 
         $this->assertAuthenticated();
         $this->assertDatabaseHas('users', [
             'email' => 'manual@example.test',
+            'employee_id' => 'FS-2001',
+            'first_name' => 'Ana Maria',
+            'last_name' => 'Cruz',
+            'name' => 'Ana Maria Cruz',
+            'job_role' => 'qa_tester',
             'role' => 'participant',
             'training_path' => 'manual',
         ]);
+    }
+
+    public function test_registration_with_a_taken_employee_id_creates_nothing(): void
+    {
+        User::factory()->create(['employee_id' => 'FS-2001']);
+
+        $this->post(route('register.store'), $this->registrationFields())
+            ->assertSessionHasErrors(['employee_id' => 'The employee ID has already been taken.']);
+
+        $this->assertGuest();
+        $this->assertDatabaseMissing('users', ['email' => 'manual@example.test']);
+    }
+
+    /**
+     * @param  array<string, string>  $fieldOverrides
+     */
+    #[DataProvider('missingOrInvalidIdentityFields')]
+    public function test_registration_requires_a_valid_employee_id_and_job_role(array $fieldOverrides, string $field, string $error): void
+    {
+        $this->post(route('register.store'), [...$this->registrationFields(), ...$fieldOverrides])
+            ->assertSessionHasErrors([$field => $error]);
+
+        $this->assertGuest();
+        $this->assertDatabaseMissing('users', ['email' => 'manual@example.test']);
+    }
+
+    /**
+     * @return array<string, array{array<string, string>, string, string}>
+     */
+    public static function missingOrInvalidIdentityFields(): array
+    {
+        return [
+            'missing employee ID' => [['employee_id' => ''], 'employee_id', 'The employee ID field is required.'],
+            'missing job role' => [['job_role' => ''], 'job_role', 'The job role field is required.'],
+            'invalid job role' => [['job_role' => 'designer'], 'job_role', 'The selected job role is invalid.'],
+        ];
     }
 
     public function test_authenticated_participants_can_update_only_their_own_profile_fields(): void
@@ -90,13 +128,8 @@ class AuthenticationAuthorizationTest extends TestCase
 
     public function test_registration_and_profile_updates_reject_an_unknown_training_path(): void
     {
-        $this->post(route('register.store'), [
-            'name' => 'Unknown Path',
-            'email' => 'unknown-path@example.test',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
-            'training_path' => 'performance',
-        ])->assertSessionHasErrors(['training_path' => 'The selected training path is invalid.']);
+        $this->post(route('register.store'), [...$this->registrationFields(), 'training_path' => 'performance'])
+            ->assertSessionHasErrors(['training_path' => 'The selected training path is invalid.']);
         $this->assertGuest();
 
         $participant = User::factory()->create(['training_path' => 'manual']);
@@ -321,5 +354,24 @@ class AuthenticationAuthorizationTest extends TestCase
         $this->post(route('lab.verify-otp'), ['otp' => '248163'])
             ->assertOk()
             ->assertSee('Authenticated');
+    }
+
+    /**
+     * A complete, valid self-registration.
+     *
+     * @return array<string, string>
+     */
+    private function registrationFields(): array
+    {
+        return [
+            'employee_id' => 'FS-2001',
+            'first_name' => 'Ana Maria',
+            'last_name' => 'Cruz',
+            'email' => 'manual@example.test',
+            'job_role' => 'qa_tester',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'training_path' => 'manual',
+        ];
     }
 }

@@ -36,8 +36,11 @@ class ParticipantNotificationTriggersTest extends TestCase
         Queue::fake();
 
         $this->post(route('register.store'), [
-            'name' => 'Registered Participant',
+            'employee_id' => 'FS-3001',
+            'first_name' => 'Registered',
+            'last_name' => 'Participant',
             'email' => 'registered@example.test',
+            'job_role' => 'developer',
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'training_path' => 'manual',

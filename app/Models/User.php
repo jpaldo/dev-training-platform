@@ -45,11 +45,19 @@ class User extends Authenticatable
 
     /**
      * Keeps `name` equal to "first last" whenever the first or last name changes, so every screen, sort and export
-     * that reads `name` stays correct. Changing only `name` leaves the first and last name as they are.
+     * that reads `name` stays correct. A user saved with a `name` but neither a first nor a last name (such as one
+     * created from `name` alone) gets them by splitting `name`. Changing only `name` on a user who already has a
+     * first or last name leaves them as they are.
      */
     protected static function booted(): void
     {
         static::saving(function (User $user): void {
+            if (blank($user->first_name) && blank($user->last_name) && filled($user->name)) {
+                [$user->first_name, $user->last_name] = self::splitFullName($user->name);
+
+                return;
+            }
+
             if (! $user->isDirty(['first_name', 'last_name'])) {
                 return;
             }
@@ -60,6 +68,20 @@ class User extends Authenticatable
                 $user->name = $fullName;
             }
         });
+    }
+
+    /**
+     * Splits a full name at its first space: the first word is the first name and the rest the last name (empty for a
+     * one-word name), so "Ana Maria Cruz" becomes "Ana" and "Maria Cruz". The 1.1 identity migration backfilled
+     * existing users with the same split.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private static function splitFullName(string $fullName): array
+    {
+        [$firstName, $lastName] = array_pad(explode(' ', trim($fullName), 2), 2, '');
+
+        return [$firstName, trim($lastName)];
     }
 
     /**

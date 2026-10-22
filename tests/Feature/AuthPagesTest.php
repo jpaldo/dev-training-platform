@@ -57,7 +57,7 @@ class AuthPagesTest extends TestCase
             ->assertDontSee('wrong-password');
     }
 
-    public function test_guest_sees_the_registration_form_with_every_training_path_and_sign_in_link(): void
+    public function test_guest_sees_the_registration_form_with_every_job_role_and_training_path_and_sign_in_link(): void
     {
         $response = $this->get(route('register'))
             ->assertOk()
@@ -66,10 +66,20 @@ class AuthPagesTest extends TestCase
                 '>Create participant account</h1>',
                 'method="post" action="'.route('register.store').'"',
                 'name="_token"',
-                '<label for="name"',
-                'id="name" name="name" value="" autocomplete="name" required autofocus',
+                '<label for="employee_id"',
+                'id="employee_id" name="employee_id" value="" autocomplete="off" required autofocus',
+                '<label for="first_name"',
+                'id="first_name" name="first_name" value="" autocomplete="given-name" required',
+                '<label for="last_name"',
+                'id="last_name" name="last_name" value="" autocomplete="family-name" required',
                 '<label for="email"',
                 'id="email" name="email" type="email" value="" autocomplete="email" required',
+                '<label for="job_role"',
+                'id="job_role" name="job_role" required',
+                '<option value="">Select a job role…</option>',
+                '<option value="project_manager" >Project Manager (PM)</option>',
+                '<option value="qa_tester" >QA Tester</option>',
+                '<option value="developer" >Developer</option>',
                 '<label for="training_path"',
                 'id="training_path" name="training_path" required',
                 '<option value="">Select a path…</option>',
@@ -86,7 +96,8 @@ class AuthPagesTest extends TestCase
                 'href="'.route('login').'"',
                 'Sign in.',
             ], false)
-            ->assertDontSee('role="alert"', false);
+            ->assertDontSee('role="alert"', false)
+            ->assertDontSee('id="name"', false);
 
         $this->assertStringStartsWith('<!doctype html>', ltrim($response->getContent()));
         $this->assertSame(1, substr_count($response->getContent(), '<button'));
@@ -94,12 +105,15 @@ class AuthPagesTest extends TestCase
 
     public function test_rejected_registration_shows_field_errors_and_keeps_the_entered_values(): void
     {
-        User::factory()->create(['email' => 'taken@example.test']);
+        User::factory()->create(['email' => 'taken@example.test', 'employee_id' => 'FS-1001']);
 
         $this->from(route('register'))
             ->post(route('register.store'), [
-                'name' => 'Pat Participant',
+                'employee_id' => 'FS-1001',
+                'first_name' => 'Pat',
+                'last_name' => 'Participant',
                 'email' => 'taken@example.test',
+                'job_role' => 'qa_tester',
                 'training_path' => 'automation',
                 'password' => 'short',
                 'password_confirmation' => 'short',
@@ -109,9 +123,13 @@ class AuthPagesTest extends TestCase
         $this->get(route('register'))
             ->assertOk()
             ->assertSeeInOrder([
-                'id="name" name="name" value="Pat Participant"',
+                'id="employee_id" name="employee_id" value="FS-1001"',
+                'role="alert">The employee ID has already been taken.</p>',
+                'id="first_name" name="first_name" value="Pat"',
+                'id="last_name" name="last_name" value="Participant"',
                 'id="email" name="email" type="email" value="taken@example.test"',
                 'role="alert">The email has already been taken.</p>',
+                '<option value="qa_tester" selected>QA Tester</option>',
                 '<option value="automation" selected>Automation</option>',
                 'id="password" name="password" type="password"',
                 'role="alert">The password field must be at least 8 characters.</p>',

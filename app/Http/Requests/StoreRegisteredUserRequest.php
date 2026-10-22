@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\JobRole;
 use App\Enums\TrainingPath;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -24,10 +25,25 @@ class StoreRegisteredUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
+            'employee_id' => ['required', 'string', 'max:50', Rule::unique('users')],
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users')],
+            'job_role' => ['required', Rule::enum(JobRole::class)],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'training_path' => ['required', Rule::enum(TrainingPath::class)],
+        ];
+    }
+
+    /**
+     * Get the readable names of the registration fields.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'employee_id' => 'employee ID',
         ];
     }
 }

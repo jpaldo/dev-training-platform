@@ -98,7 +98,17 @@ class DevelopmentAccountProvisioningTest extends TestCase
 
     public function test_public_registration_remains_participant_only(): void
     {
-        $this->post(route('register.store'), ['name' => 'Attempted Coach', 'email' => 'attempt@example.test', 'password' => 'password123', 'password_confirmation' => 'password123', 'training_path' => 'manual', 'role' => 'coach'])->assertRedirect(route('profile.show'));
+        $this->post(route('register.store'), [
+            'employee_id' => 'FS-4001',
+            'first_name' => 'Attempted',
+            'last_name' => 'Coach',
+            'email' => 'attempt@example.test',
+            'job_role' => 'developer',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'training_path' => 'manual',
+            'role' => 'coach',
+        ])->assertRedirect(route('profile.show'));
         $this->assertDatabaseHas('users', ['email' => 'attempt@example.test', 'role' => 'participant']);
     }
 

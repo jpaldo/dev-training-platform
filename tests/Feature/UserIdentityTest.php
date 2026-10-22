@@ -44,6 +44,38 @@ class UserIdentityTest extends TestCase
         $this->assertSame('Cruz', $user->last_name);
     }
 
+    public function test_a_user_created_with_only_a_name_gets_a_first_and_last_name_from_it(): void
+    {
+        $user = User::factory()->create(['name' => 'Ana Maria Cruz', 'first_name' => null, 'last_name' => null]);
+
+        $user->refresh();
+        $this->assertSame('Ana', $user->first_name);
+        $this->assertSame('Maria Cruz', $user->last_name);
+        $this->assertSame('Ana Maria Cruz', $user->name);
+    }
+
+    public function test_a_user_created_with_a_one_word_name_gets_an_empty_last_name(): void
+    {
+        $user = User::factory()->create(['name' => 'Prince', 'first_name' => '', 'last_name' => '']);
+
+        $user->refresh();
+        $this->assertSame('Prince', $user->first_name);
+        $this->assertSame('', $user->last_name);
+        $this->assertSame('Prince', $user->name);
+    }
+
+    public function test_changing_the_name_of_a_user_with_only_a_first_name_does_not_split_it_again(): void
+    {
+        $user = User::factory()->create(['first_name' => 'Prince', 'last_name' => '']);
+
+        $user->update(['name' => 'Prince Charles Reyes']);
+
+        $user->refresh();
+        $this->assertSame('Prince Charles Reyes', $user->name);
+        $this->assertSame('Prince', $user->first_name);
+        $this->assertSame('', $user->last_name);
+    }
+
     public function test_two_users_cannot_share_an_employee_id(): void
     {
         User::factory()->create(['employee_id' => 'FS-1001']);

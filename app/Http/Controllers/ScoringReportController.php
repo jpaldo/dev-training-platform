@@ -28,7 +28,7 @@ class ScoringReportController extends Controller
         $versions = $reports->versions($request->validated())->get();
 
         return $this->csv('activity-scores.csv', ['Participant', 'Email', 'QA Path', 'Week', 'Activity', 'Attempt/Version', 'Submission Status', 'Scoring Status', 'D1', 'D2', 'D3', 'D4', 'D5', 'Total Score', 'Performance Band', 'Scorer', 'Scored At', 'Second Reader', 'Second Reader Status', 'Assigned Coach'], $versions->map(function (SubmissionVersion $v): array {
-            $score = $v->activityScore;
+            $score = $v->publishedActivityScore;
             $dims = $score?->dimensions?->keyBy('dimension') ?? collect();
 
             return [$v->submission->participant->name, $v->submission->participant->email, $v->submission->participant->trainingPathLabel(), $v->submission->activity->week->week_number, $v->submission->activity->title, $v->submission->attempt_number.' / '.$v->version_number, $v->submission->status->value, $score?->status->value ?? 'unscored', $dims->get('D1')?->points, $dims->get('D2')?->points, $dims->get('D3')?->points, $dims->get('D4')?->points, $dims->get('D5')?->points, $score?->total_score, $score?->performance_band, $score?->scorer?->name, $score?->updated_at, $score?->secondReader?->name, $score?->secondReaderStatus() ?? 'Not required', $v->submission->participant->assignedCoaches->pluck('name')->implode('; ')];
@@ -47,7 +47,7 @@ class ScoringReportController extends Controller
             $flat = $s['weeks'];
             $activityRows = $flat->flatMap(fn (array $w): Collection => $w['rows']);
             $scores = $activityRows->filter(fn (array $x): ?ActivityScore => $x['score']);
-            $scoredCompletedCount = $activityRows->filter(fn (array $x): bool => $x['submission']?->isHandedIn() === true && $x['score']?->isPublished() && $x['score']->total_score !== null)->count();
+            $scoredCompletedCount = $activityRows->filter(fn (array $x): bool => $x['submission']?->isHandedIn() === true && $x['score']?->total_score !== null)->count();
 
             return [$r[0], $r[1], $r[2], $r[3], $s['completed'], $s['scored'], $s['completed'] - $scoredCompletedCount, $flat[2]['average'] ?? null, $flat[3]['average'] ?? null, $flat[4]['average'] ?? null, $s['average'], $s['average'] === null ? 'Not Scored' : app(ScoringService::class)->band($s['average']), $scores->max(fn (array $x): ?CarbonInterface => $x['score']->updated_at)?->toDateTimeString()];
         }));

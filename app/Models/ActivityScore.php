@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ActivityScoreStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -46,9 +47,16 @@ class ActivityScore extends Model
         return $this->hasMany(ActivityScoreHistory::class);
     }
 
-    public function isPublished(): bool
+    /**
+     * Only published scores, the ones that count: a score in any other status (a `Draft`) counts as no score on every
+     * surface and export.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopePublished(Builder $query): Builder
     {
-        return $this->status === ActivityScoreStatus::Published;
+        return $query->where('status', ActivityScoreStatus::Published);
     }
 
     public function secondReaderStatus(): string

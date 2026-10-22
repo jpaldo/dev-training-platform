@@ -26,7 +26,7 @@ class ScoringOverviewPageTest extends TestCase
         $ben = User::factory()->create(['name' => 'Ben Both', 'email' => 'ben@example.com', 'training_path' => 'automation_manual']);
         $coach->assignedParticipants()->attach($ada->id);
         $mentor->assignedParticipants()->attach($ada->id);
-        $this->publishedScore($ada, $activities[2][0], 83, 'Proficient');
+        $this->score($ada, $activities[2][0], 83, 'Proficient');
 
         $response = $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk();
 
@@ -61,8 +61,8 @@ class ScoringOverviewPageTest extends TestCase
         $unassigned = User::factory()->create(['name' => 'Ada Unassigned', 'training_path' => 'automation']);
         User::factory()->create(['name' => 'Ada Manual', 'training_path' => 'manual']);
         $coach->assignedParticipants()->attach($assigned->id);
-        $this->publishedScore($assigned, $activities[2][0], 83, 'Proficient');
-        $this->publishedScore($unassigned, $activities[2][0], 84, 'Proficient');
+        $this->score($assigned, $activities[2][0], 83, 'Proficient');
+        $this->score($unassigned, $activities[2][0], 84, 'Proficient');
         $filters = ['search' => 'Ada', 'path' => 'automation', 'week' => 2, 'score_status' => 'scored', 'band' => 'Proficient', 'assigned_to_me' => 1];
 
         $this->actingAs($coach)->get(route('coach.scoring.index', $filters))
@@ -82,6 +82,28 @@ class ScoringOverviewPageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder(['>Ada Assigned</strong>', '>Ada Unassigned</strong>'], false)
             ->assertDontSee('>Ada Manual</strong>', false);
+    }
+
+    public function test_a_participant_with_only_a_draft_score_is_matched_by_the_unscored_filter_and_not_by_scored_or_band(): void
+    {
+        $activities = $this->program();
+        $drafted = User::factory()->create(['name' => 'Dana Draft']);
+        $scored = User::factory()->create(['name' => 'Sam Scored']);
+        $this->score($drafted, $activities[2][0], 83, 'Proficient', 'draft');
+        $this->score($scored, $activities[2][0], 84, 'Proficient');
+        $coach = User::factory()->create(['role' => 'coach']);
+
+        $this->actingAs($coach)->get(route('coach.scoring.index', ['score_status' => 'unscored']))
+            ->assertOk()
+            ->assertSee('>Dana Draft</strong>', false)
+            ->assertDontSee('>Sam Scored</strong>', false);
+
+        foreach ([['score_status' => 'scored'], ['band' => 'Proficient']] as $filters) {
+            $this->actingAs($coach)->get(route('coach.scoring.index', $filters))
+                ->assertOk()
+                ->assertSee('>Sam Scored</strong>', false)
+                ->assertDontSee('>Dana Draft</strong>', false);
+        }
     }
 
     public function test_participants_are_paginated_by_25_and_the_page_links_keep_the_filters(): void
@@ -174,7 +196,7 @@ class ScoringOverviewPageTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
 
         foreach (User::factory()->count($participantCount)->create() as $participant) {
-            $this->publishedScore($participant, $activities[2][0], 83, 'Proficient');
+            $this->score($participant, $activities[2][0], 83, 'Proficient');
         }
 
         $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk();
@@ -186,14 +208,14 @@ class ScoringOverviewPageTest extends TestCase
         return count(DB::getQueryLog());
     }
 
-    private function publishedScore(User $participant, Activity $activity, int $total, string $band): void
+    private function score(User $participant, Activity $activity, int $total, string $band, string $status = 'published'): void
     {
         $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted', 'submitted_at' => now()]);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
         ActivityScore::create([
             'submission_version_id' => $version->id,
             'scorer_id' => User::factory()->create(['role' => 'coach'])->id,
-            'status' => 'published',
+            'status' => $status,
             'total_score' => $total,
             'performance_band' => $band,
         ]);

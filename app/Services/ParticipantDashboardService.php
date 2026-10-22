@@ -88,7 +88,7 @@ class ParticipantDashboardService
     {
         $attemptsByActivity = $user->activitySubmissions()
             ->whereIn('activity_id', $weeks->pluck('activities')->collapse()->pluck('id'))
-            ->with('versions.activityScore')
+            ->with('versions.publishedActivityScore')
             ->orderBy('attempt_number')
             ->get()
             ->groupBy('activity_id');
@@ -104,7 +104,7 @@ class ParticipantDashboardService
                 $activity->participant_status_label = $activity->participant_submission?->status->label() ?? 'Not Started';
                 $activity->participant_status_tone = $activity->participant_submission?->status->tone() ?? 'neutral';
                 $activity->participant_action = $this->activityAction($activity->participant_submission?->status);
-                $activity->participant_score = $activity->participant_submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $version): bool => $version->activityScore?->isPublished() === true)?->activityScore;
+                $activity->participant_score = $activity->participant_submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $version): bool => $version->publishedActivityScore !== null)?->publishedActivityScore;
                 $activity->participant_score_max = $scoreMax;
                 $activity->week_four_partner_assigned = ! $this->requiresWeekFourPartner($week, $activity) || ($hasWeekFourPartner ??= (bool) WeekFourInterviewPair::forParticipant($user->id));
                 $activity->lab_prerequisite_met = ! $activity->isValidationChecklist($week)

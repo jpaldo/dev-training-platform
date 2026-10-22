@@ -40,10 +40,10 @@ class ScoringReportsPageTest extends TestCase
             '>Score-band distribution</h2>',
             '>Exemplary</th>', '>0</td>',
             '>Proficient</th>', '>1</td>',
-            '>Developing</th>', '>1</td>',
+            '>Developing</th>', '>0</td>',
             '>Beginning</th>', '>0</td>',
             '>Minimal</th>', '>0</td>',
-            '>Not Scored</th>', '>1</td>',
+            '>Not Scored</th>', '>2</td>',
         ], false);
         $response->assertDontSee('from-brand to-brand-deep', false);
     }
@@ -94,6 +94,24 @@ class ScoringReportsPageTest extends TestCase
                 '>SCORED ACTIVITIES</dt>', '>0</dd>',
                 '>SCORING COMPLETION</dt>', '>0%</dd>',
             ], false);
+    }
+
+    public function test_a_draft_score_is_matched_by_the_unscored_filter_and_not_by_the_scored_or_band_filters(): void
+    {
+        $this->submittedVersions();
+        $coach = User::factory()->create(['role' => 'coach']);
+
+        $this->actingAs($coach)->get(route('coach.reports.scoring-completion', ['score_status' => 'unscored']))
+            ->assertOk()
+            ->assertSeeInOrder(['>COMPLETED ACTIVITIES</dt>', '>2</dd>', '>SCORED ACTIVITIES</dt>', '>0</dd>'], false);
+
+        $this->actingAs($coach)->get(route('coach.reports.scoring-completion', ['score_status' => 'scored', 'week' => 3]))
+            ->assertOk()
+            ->assertSeeInOrder(['>COMPLETED ACTIVITIES</dt>', '>0</dd>'], false);
+
+        $this->actingAs($coach)->get(route('coach.reports.scoring-completion', ['band' => 'Developing']))
+            ->assertOk()
+            ->assertSeeInOrder(['>COMPLETED ACTIVITIES</dt>', '>0</dd>'], false);
     }
 
     public function test_participant_cannot_open_the_scoring_report_pages(): void

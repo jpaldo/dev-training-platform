@@ -39,7 +39,7 @@ class TrainingActivityPageService
         return ActivitySubmission::query()
             ->where('activity_id', $activity->id)
             ->where('user_id', $user->id)
-            ->with(['versions' => fn (Relation $query): Relation => $query->with(['evidence', 'reviews', 'activityScore'])->orderByDesc('version_number')])
+            ->with(['versions' => fn (Relation $query): Relation => $query->with(['evidence', 'reviews', 'publishedActivityScore'])->orderByDesc('version_number')])
             ->orderBy('attempt_number')
             ->get();
     }
@@ -162,7 +162,7 @@ class TrainingActivityPageService
                 'has_later_attempt' => $attempts->contains(fn (ActivitySubmission $candidate): bool => $candidate->attempt_number > $attempt->attempt_number),
                 'feedback' => $latestReview?->comments ? $this->markdown->render($latestReview->comments) : null,
                 'recovery_request' => $recoveryRequests->firstWhere('activity_submission_id', $attempt->id),
-                'published_score' => $latestAttemptVersion?->activityScore?->isPublished() ? $latestAttemptVersion->activityScore : null,
+                'published_score' => $latestAttemptVersion?->publishedActivityScore,
             ];
         });
     }

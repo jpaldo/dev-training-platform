@@ -77,6 +77,34 @@ class ScoringParticipantPageTest extends TestCase
             ->assertDontSee(route('coach.scoring.edit', $draftVersion), false);
     }
 
+    public function test_a_draft_score_shows_as_unscored(): void
+    {
+        $program = Program::factory()->create();
+        $activity = Activity::factory()->for($this->week($program, 2), 'week')->create(['title' => 'Exploratory charter', 'position' => 1]);
+        $participant = User::factory()->create();
+        $version = $this->version($participant, $activity, 'submitted');
+        ActivityScore::create([
+            'submission_version_id' => $version->id,
+            'scorer_id' => User::factory()->create(['role' => 'coach'])->id,
+            'status' => 'draft',
+            'total_score' => 41,
+            'performance_band' => 'Beginning',
+        ]);
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))
+            ->get(route('coach.scoring.participant', $participant))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'OVERALL SCORE</dt>', '>— / 100</dd>', '>100% complete · 0 scored</dd>',
+                '>Average not yet scored</h2>', 'Scored: 0 / 1',
+                '>Exploratory charter</th>', '>—</td>', '>Awaiting scoring</td>',
+                'href="'.route('coach.scoring.edit', $version).'"', '>Score activity</a>',
+            ], false)
+            ->assertDontSee('>41</td>', false)
+            ->assertDontSee('Beginning')
+            ->assertDontSee('>View score</a>', false);
+    }
+
     public function test_a_saved_score_returns_to_the_page_with_the_saved_status(): void
     {
         Queue::fake();

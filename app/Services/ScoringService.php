@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\ActivityScoreStatus;
 use App\Enums\SubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityScore;
@@ -90,7 +89,7 @@ class ScoringService
         $attemptsByParticipantAndActivity = ActivitySubmission::query()
             ->whereIn('activity_id', $activities->modelKeys())
             ->whereIn('user_id', $participants->pluck('id'))
-            ->with('versions.activityScore.dimensions')
+            ->with('versions.publishedActivityScore.dimensions')
             ->latest('attempt_number')
             ->get()
             ->groupBy(['user_id', 'activity_id']);
@@ -113,7 +112,7 @@ class ScoringService
         $submission = $attempts->first();
         $version = $submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $v): bool => in_array($v->status, SubmissionStatus::handedIn(), true)) ?? $submission?->versions->sortByDesc('version_number')->first();
 
-        return ['activity' => $activity, 'submission' => $submission, 'version' => $version, 'score' => $version?->activityScore];
+        return ['activity' => $activity, 'submission' => $submission, 'version' => $version, 'score' => $version?->publishedActivityScore];
     }
 
     /**
@@ -133,7 +132,7 @@ class ScoringService
      */
     private function totals(Collection $rows): array
     {
-        $scored = $rows->filter(fn (array $row): bool => $row['score']?->isPublished() && $row['score']->total_score !== null);
+        $scored = $rows->filter(fn (array $row): bool => $row['score']?->total_score !== null);
         $completed = $rows->filter(fn (array $row): bool => $row['submission']?->isHandedIn() === true)->count();
 
         return ['completed' => $completed, 'total' => $rows->count(), 'scored' => $scored->count(), 'average' => $scored->isEmpty() ? null : (int) round($scored->avg(fn (array $row): int => $row['score']->total_score))];
@@ -145,7 +144,7 @@ class ScoringService
      */
     public function runningAverage(User $participant, ?int $exceptVersion = null): ?int
     {
-        $scores = ActivityScore::query()->where('status', ActivityScoreStatus::Published)->whereHas('version.submission', fn (Builder $q): Builder => $q->where('user_id', $participant->id))->when($exceptVersion, fn (Builder $q): Builder => $q->where('submission_version_id', '!=', $exceptVersion))->pluck('total_score');
+        $scores = ActivityScore::query()->published()->whereHas('version.submission', fn (Builder $q): Builder => $q->where('user_id', $participant->id))->when($exceptVersion, fn (Builder $q): Builder => $q->where('submission_version_id', '!=', $exceptVersion))->pluck('total_score');
 
         return $scores->isEmpty() ? null : (int) round($scores->avg());
     }

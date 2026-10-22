@@ -60,6 +60,17 @@ class SubmissionVersion extends Model
         return $this->hasOne(ActivityScore::class);
     }
 
+    /**
+     * The version's published score, the one every score surface and export reads; a draft score counts as no score.
+     * The scoring form edits the stored row through `activityScore()`.
+     *
+     * @return HasOne<ActivityScore, $this>
+     */
+    public function publishedActivityScore(): HasOne
+    {
+        return $this->hasOne(ActivityScore::class)->published();
+    }
+
     public function interactions(): HasMany
     {
         return $this->hasMany(SubmissionInteraction::class)->orderBy('sequence');

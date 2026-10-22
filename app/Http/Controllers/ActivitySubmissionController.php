@@ -26,7 +26,7 @@ class ActivitySubmissionController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $submissionVersion->load(['submission.participant', 'submission.activity', 'submission.versions', 'evidence', 'reviews', 'activityScore.dimensions', 'validationSubmission', 'interactions']);
+        $submissionVersion->load(['submission.participant', 'submission.activity', 'submission.versions', 'evidence', 'reviews', 'publishedActivityScore.dimensions', 'validationSubmission', 'interactions']);
         abort_unless($submissionVersion->submission->user_id === $user->id && $submissionVersion->submission->activity_id === $activity->id && $submissionVersion->submission->activity->training_week_id === $trainingWeek->id, 404);
         abort_unless(! $submissionVersion->isDraft(), 404);
 

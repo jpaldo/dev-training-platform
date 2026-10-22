@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\ActivityScoreStatus;
 use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\ActivityScore;
@@ -200,7 +199,7 @@ class ScoringPageService
     public function reportsData(array $filters, array $query): array
     {
         $versions = $this->reports->versions($filters)->get();
-        $bandCounts = $versions->countBy(fn (SubmissionVersion $version): string => $version->activityScore?->performance_band ?? self::NOT_SCORED_BAND);
+        $bandCounts = $versions->countBy(fn (SubmissionVersion $version): string => $version->publishedActivityScore?->performance_band ?? self::NOT_SCORED_BAND);
 
         return [
             'scoresExportUrl' => route('coach.reports.scores', $query),
@@ -259,13 +258,10 @@ class ScoringPageService
                 'assignedCoaches',
                 fn (Builder $coachQuery): Builder => $coachQuery->whereKey($viewer->id),
             ))
-            ->when(($filters['score_status'] ?? null) === 'scored', fn (Builder $query): Builder => $query->whereHas(
-                'activitySubmissions.versions.activityScore',
-                fn (Builder $scoreQuery): Builder => $scoreQuery->where('status', ActivityScoreStatus::Published),
-            ))
-            ->when(($filters['score_status'] ?? null) === 'unscored', fn (Builder $query): Builder => $query->whereDoesntHave('activitySubmissions.versions.activityScore'))
+            ->when(($filters['score_status'] ?? null) === 'scored', fn (Builder $query): Builder => $query->whereHas('activitySubmissions.versions.publishedActivityScore'))
+            ->when(($filters['score_status'] ?? null) === 'unscored', fn (Builder $query): Builder => $query->whereDoesntHave('activitySubmissions.versions.publishedActivityScore'))
             ->when($filters['band'] ?? null, fn (Builder $query, string $band): Builder => $query->whereHas(
-                'activitySubmissions.versions.activityScore',
+                'activitySubmissions.versions.publishedActivityScore',
                 fn (Builder $scoreQuery): Builder => $scoreQuery->where('performance_band', $band),
             ))
             ->with('assignedCoaches')
@@ -327,7 +323,7 @@ class ScoringPageService
     private function scoringCompletionStats(Collection $versions): array
     {
         $completed = $versions->count();
-        $scored = $versions->filter(fn (SubmissionVersion $version): bool => $version->activityScore?->isPublished() === true)->count();
+        $scored = $versions->filter(fn (SubmissionVersion $version): bool => $version->publishedActivityScore !== null)->count();
 
         return [
             ['label' => 'COMPLETED ACTIVITIES', 'value' => (string) $completed],

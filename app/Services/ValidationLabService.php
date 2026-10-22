@@ -123,27 +123,6 @@ class ValidationLabService
     }
 
     /**
-     * The first required artifact field that is blank after resolving the input, keyed by the form field.
-     *
-     * @param  array<string, mixed>  $data  Input returned by resolveArtifactInput().
-     * @return array<string, string>
-     */
-    public function blankArtifactInputErrors(array $data): array
-    {
-        if ($data['feature_area'] === '') {
-            return ['other_feature_area' => 'Please enter the feature or area.'];
-        }
-        if ($data['artifact_type'] === '') {
-            return ['other_artifact_type' => 'Please enter the artifact type.'];
-        }
-        if ($data['artifact_name'] === '') {
-            return ['artifact_name' => 'Artifact name is required.'];
-        }
-
-        return [];
-    }
-
-    /**
      * Fill the artifact from the Lab defaults and give it its artifact code.
      *
      * @param  array<string, mixed>  $data

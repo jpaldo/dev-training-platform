@@ -37,7 +37,7 @@ class CoachProgressReportPageService
      */
     public function indexData(array $filters, array $query, int $atRiskPage): array
     {
-        $atRiskRows = $this->reports->reportAtRiskRows($filters);
+        $atRiskRows = $this->reports->atRiskRows($filters);
         $summary = $this->reports->reportSummary($filters, $atRiskRows);
 
         $atRiskPaginator = new LengthAwarePaginator(

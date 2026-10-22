@@ -31,12 +31,12 @@ class CoachGateOverviewService
      * Build the coach Gate board: one row per active Gate and participant, sorted by status, with summary counts.
      *
      * @param  array{week?: int|string|null, path?: string|null, search?: string|null, status?: GateEvaluationStatus|null}  $filters
-     * @return array{gates: Collection<int, TrainingGate>, rows: Collection<int, array{gate: TrainingGate, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, daily_log_count: int, criteria_met: int, criteria_total: int, loom: array<string, mixed>}>, summary: array{total: int, ready: int, awaiting: int, passed: int, not_ready: int}}
+     * @return array{rows: Collection<int, array{gate: TrainingGate, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, daily_log_count: int, criteria_met: int, criteria_total: int, loom: array<string, mixed>}>, summary: array{total: int, ready: int, awaiting: int, passed: int, not_ready: int}}
      */
     public function board(array $filters): array
     {
-        $gates = TrainingGate::query()->where('is_active', true)->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('week', fn (Builder $w): Builder => $w->where('week_number', $v)))->with(['week', 'criteria', 'evaluations' => fn (Relation $q): Relation => $q->with(['participant', 'criterionEvaluations'])])->get();
-        $participants = User::query()->where('role', UserRole::Participant)->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $s): Builder => $s->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))->with(['activitySubmissions', 'dailyLogs.activity'])->get();
+        $gates = TrainingGate::query()->where('is_active', true)->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('week', fn (Builder $w): Builder => $w->where('week_number', $v)))->with(['week', 'criteria', 'evaluations' => fn (Relation $q): Relation => $q->with('criterionEvaluations')])->get();
+        $participants = User::query()->where('role', UserRole::Participant)->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $s): Builder => $s->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))->with('dailyLogs.activity')->get();
         $readinessByParticipant = $this->readiness->readinessForParticipants($participants, $gates);
         $weeklyVideosByParticipant = $this->readiness->weeklyVideosForParticipants($participants, $gates);
         $rows = collect();
@@ -64,7 +64,6 @@ class CoachGateOverviewService
         $rows = $rows->sortBy(fn (array $row): int => self::STATUS_ORDER[$row['status']->value])->values();
 
         return [
-            'gates' => $gates,
             'rows' => $rows,
             'summary' => [
                 'total' => $rows->count(),

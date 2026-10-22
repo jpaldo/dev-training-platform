@@ -7,7 +7,13 @@ use App\Models\Activity;
 
 class WeekFourReviewPresenter
 {
-    /** @return array<string, mixed>|null */
+    /**
+     * The Week 4 review block of a submission, or null outside Week 4. With `$includeOfficialQuestionnaire` (the coach
+     * review) a Week 4 Activity 2 question snapshot shows each question's title and prompt; otherwise it shows
+     * "Practice question" without a prompt.
+     *
+     * @return array<string, mixed>|null
+     */
     public function present(Activity $activity, array $values, bool $includeOfficialQuestionnaire = false): ?array
     {
         if ($activity->week?->week_number !== 4) {
@@ -36,7 +42,7 @@ class WeekFourReviewPresenter
      * by the participant, then by the partner); older submissions give one group of historical responses.
      *
      * @param  array<string, mixed>  $values
-     * @return array{type: string, partner: mixed, partner_email: mixed, partner_path_label: ?string, date: mixed, mentor_schedule: mixed, question_groups: list<array{label: string, answer_label: string, feedback_label: string, questions: array<int|string, mixed>}>, official_questions: mixed}
+     * @return array{type: string, partner: mixed, partner_email: mixed, partner_path_label: ?string, date: mixed, mentor_schedule: mixed, question_groups: list<array{label: string, answer_label: string, feedback_label: string, questions: array<int|string, mixed>}>}
      */
     private function interview(array $values, bool $includeOfficialQuestionnaire): array
     {
@@ -56,7 +62,6 @@ class WeekFourReviewPresenter
             ] : [
                 ['label' => 'Historical Interview Responses', 'answer_label' => 'Participant Answer', 'feedback_label' => 'Partner Feedback', 'questions' => $questions],
             ],
-            'official_questions' => $includeOfficialQuestionnaire ? config('training.week_four_interview_questions', []) : [],
         ];
     }
 

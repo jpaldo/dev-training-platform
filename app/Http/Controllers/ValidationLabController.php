@@ -43,16 +43,12 @@ class ValidationLabController extends Controller
         return view('lab.activity', $lab->activityFormData($user));
     }
 
-    public function artifact(StoreValidationArtifactRequest $request, ValidationLabService $lab): RedirectResponse|View
+    public function artifact(StoreValidationArtifactRequest $request, ValidationLabService $lab): View
     {
         $data = $request->validated();
         $isLegacyArtifact = $request->isLegacyArtifact();
         if (! $isLegacyArtifact) {
             $data = $lab->resolveArtifactInput($data);
-            $blankInputErrors = $lab->blankArtifactInputErrors($data);
-            if ($blankInputErrors !== []) {
-                return back()->withErrors($blankInputErrors)->withInput();
-            }
         }
         $artifact = $lab->startArtifact($data, $isLegacyArtifact);
         session(['trainee_name' => $artifact['trainee_name'], 'validation_artifact' => $artifact]);

@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\UserRole;
 use App\Http\Requests\ExportParticipantScoreSummaryRequest;
 use App\Http\Requests\FilterScoringReportRequest;
 use App\Models\ActivityScore;
@@ -19,15 +18,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ScoringReportController extends Controller
 {
-    public function index(FilterScoringReportRequest $request, ScoringPageService $page, ScoringReportService $reports): View
+    public function index(FilterScoringReportRequest $request, ScoringPageService $page): View
     {
-        $filters = $request->validated();
-
-        return view('scoring.reports', [
-            ...$page->reportsData($filters, $request->query()),
-            'participants' => $reports->participants($filters),
-            'coaches' => User::query()->where('role', UserRole::Coach)->where('is_active', true)->orderBy('name')->get(),
-        ]);
+        return view('scoring.reports', $page->reportsData($request->validated(), $request->query()));
     }
 
     public function scores(FilterScoringReportRequest $request, ScoringReportService $reports): StreamedResponse

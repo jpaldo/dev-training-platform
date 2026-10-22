@@ -97,11 +97,6 @@ class MissingSubmissionReportService
             ->values();
     }
 
-    public function generalTrainingConfigured(): bool
-    {
-        return config('training.general_training_daily_logs_expected') !== null;
-    }
-
     private function addDailyRow(Collection $rows, User $participant, string $mentor, string $category, ?int $week, string $requirement, ?int $expected, Collection $logs, bool $alwaysShow = false, ?int $evidences = null): void
     {
         $submitted = $logs->count();

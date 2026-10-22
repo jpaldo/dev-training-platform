@@ -9,7 +9,6 @@ use App\Models\InterviewScheduler;
 use App\Services\InterviewBookingLinkService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Foundation\Vite;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -182,27 +181,6 @@ class PublicInterviewPagesTest extends TestCase
                 'name="final_booking_url" type="url" value=""',
             ], false)
             ->assertDontSee('role="status"', false);
-    }
-
-    public function test_rate_limited_registration_shows_the_limit_message_and_keeps_the_old_input(): void
-    {
-        foreach (range(1, 5) as $attempt) {
-            RateLimiter::hit('public-interviewer-registration|127.0.0.1', 600);
-        }
-
-        $this->from(route('interviews.register'))->post(route('interviews.register.store'), [
-            'full_name' => 'Ada Interviewer',
-            'interview_type' => 'mock',
-            'mock_booking_url' => 'https://calendar.app.google/ada-mock',
-        ])->assertRedirect(route('interviews.register'));
-
-        $this->get(route('interviews.register'))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'role="alert">Too many submissions. Please try again later.</div>',
-                'name="full_name" value="Ada Interviewer"',
-                '<option value="mock" selected>Mock Interview</option>',
-            ], false);
     }
 
     /**

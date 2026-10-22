@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Enums\MentorInterviewScheduleStatus;
-use App\Models\GoogleDriveExport;
 use App\Models\Program;
 use App\Models\User;
 use App\Models\WeekFourInterviewPair;
@@ -63,13 +62,12 @@ class ParticipantDashboardController extends Controller
             ['name' => 'Demo/Test Data', 'description' => 'Demo and test data used for exploration.'],
         ];
         $recentAttendance = $user->attendanceSessions()->whereNotNull('check_out_at')->latest('check_in_at')->limit(5)->get();
-        $summaryExports = GoogleDriveExport::query()->where('user_id', $user->id)->where('export_type', 'summary')->get()->keyBy('scope_key');
         $gates = $dashboard->gates($user, $program);
 
         $googleDriveReady = $driveReadiness->isReady($user);
         $googleDriveReadinessEnforced = $driveReadiness->enforced();
         $notificationSummary = $notifications->dashboard($user);
 
-        return view('participant.dashboard', compact('user', 'program', 'weeks', 'programCompleted', 'gates', 'activeAttendance', 'recentAttendance', 'qaApplicationUrl', 'qaMembershipFeatures', 'summaryExports', 'googleDriveReady', 'googleDriveReadinessEnforced', 'notificationSummary', 'mockInterviewPartners', 'assignedMentor', 'mentorInterviewSchedule', 'mentorBooking'));
+        return view('participant.dashboard', compact('user', 'program', 'weeks', 'programCompleted', 'gates', 'activeAttendance', 'recentAttendance', 'qaApplicationUrl', 'qaMembershipFeatures', 'googleDriveReady', 'googleDriveReadinessEnforced', 'notificationSummary', 'mockInterviewPartners', 'assignedMentor', 'mentorInterviewSchedule', 'mentorBooking'));
     }
 }

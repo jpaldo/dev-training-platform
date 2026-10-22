@@ -7,7 +7,6 @@ use App\Enums\SubmissionStatus;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\AttendanceSession;
-use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
@@ -60,21 +59,20 @@ class ParticipantDashboardService
      * Build the Gate rows of the program's active weeks with the participant's evaluation, readiness and status label
      * (the saved evaluation status, or whether the Gate is ready for Coach review while it has none).
      *
-     * @return Collection<int, array{week: TrainingWeek, gate: TrainingGate, evaluation: ?GateEvaluation, readiness: array<string, string>, criterionEvaluations: Collection<int, GateCriterionEvaluation>, status_label: string}>
+     * @return Collection<int, array{week: TrainingWeek, gate: TrainingGate, evaluation: ?GateEvaluation, readiness: array<string, string>, status_label: string}>
      */
     public function gates(User $user, Program $program): Collection
     {
-        $weeks = $program->weeks()->where('is_active', true)->with(['gates' => fn (Relation $query): Relation => $query->where('is_active', true)->with(['criteria', 'evaluations' => fn (Relation $evaluation): Relation => $evaluation->where('user_id', $user->id)->with('criterionEvaluations')])])->get();
+        $weeks = $program->weeks()->where('is_active', true)->with(['gates' => fn (Relation $query): Relation => $query->where('is_active', true)->with(['criteria', 'evaluations' => fn (Relation $evaluation): Relation => $evaluation->where('user_id', $user->id)])])->get();
         $readinessByGate = $this->gateService->readinessForGates($user, $weeks->pluck('gates')->collapse());
 
         return $weeks->flatMap(function (TrainingWeek $week) use ($readinessByGate): array {
             return $week->gates->map(function (TrainingGate $gate) use ($week, $readinessByGate): array {
                 $evaluation = $gate->evaluations->first();
                 $readiness = $readinessByGate->get($gate->id);
-                $criterionEvaluations = $evaluation?->criterionEvaluations->keyBy('gate_criterion_id') ?? collect();
 
                 return [
-                    ...compact('week', 'gate', 'evaluation', 'readiness', 'criterionEvaluations'),
+                    ...compact('week', 'gate', 'evaluation', 'readiness'),
                     'status_label' => ($evaluation?->status ?? GateEvaluationStatus::fromReadiness($readiness))->label(),
                 ];
             })->all();

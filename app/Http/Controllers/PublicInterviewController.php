@@ -27,10 +27,6 @@ class PublicInterviewController extends Controller
 
     public function storeRegistration(StoreInterviewerRegistrationRequest $request): RedirectResponse
     {
-        if ($request->isRateLimited()) {
-            return back()->withErrors(['registration' => 'Too many submissions. Please try again later.'])->withInput();
-        }
-
         $data = $request->validated();
         $name = trim($data['full_name']);
         $mockUrl = isset($data['mock_booking_url']) ? $this->normalizeBookingUrl((string) $data['mock_booking_url']) : null;

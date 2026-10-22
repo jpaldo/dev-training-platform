@@ -99,7 +99,7 @@ class ActivitySubmissionPageService
      * evidence, the coach reviews with the published score and its dimension rows, the Week 3 and Week 4 review blocks,
      * and the submitted version history.
      *
-     * @return array{pathLabel: string, statusLabel: string, statusTone: string, responses: Collection<int|string, array{label: string, value: mixed, text: mixed, markdown: bool}>, labRecord: ?ValidationSubmission, evidenceItems: Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, reviewRows: list<array{decision_label: string, tone: string, comments: ?string}>, finalScore: ?ActivityScore, dimensionRows: list<array{dimension: string, points: int, evidence_reasoning: string}>, isAwaitingRevision: bool, weekThreeReview: ?array<string, mixed>, weekFourReview: ?array<string, mixed>, weekFourTitle: ?string, versionRows: list<array{version: SubmissionVersion, status_label: string, tone: string, is_current: bool}>}
+     * @return array{pathLabel: string, statusLabel: string, statusTone: string, responses: Collection<int|string, array{label: string, value: mixed, text: mixed}>, labRecord: ?ValidationSubmission, evidenceItems: Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, reviewRows: list<array{decision_label: string, tone: string, comments: ?string}>, finalScore: ?ActivityScore, dimensionRows: list<array{dimension: string, points: int, evidence_reasoning: string}>, isAwaitingRevision: bool, weekThreeReview: ?array<string, mixed>, weekFourReview: ?array<string, mixed>, weekFourTitle: ?string, versionRows: list<array{version: SubmissionVersion, status_label: string, tone: string, is_current: bool}>}
      */
     public function showData(User $participant, TrainingWeek $trainingWeek, Activity $activity, SubmissionVersion $version): array
     {
@@ -108,7 +108,6 @@ class ActivitySubmissionPageService
             'label' => $configured[$key] ?? self::LEGACY_LABELS[$key] ?? ucwords(str_replace('_', ' ', $key)),
             'value' => $value,
             'text' => is_scalar($value) ? $value : json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-            'markdown' => in_array($key, Markdown::OUTPUT_FIELDS, true),
         ]);
         $finalScore = $version->activityScore?->isPublished() ? $version->activityScore : null;
         $weekThreeSnapshot = $trainingWeek->week_number === 3 ? ($version->field_values['week_three_snapshot'] ?? null) : null;

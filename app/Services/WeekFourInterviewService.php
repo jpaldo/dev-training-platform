@@ -200,7 +200,11 @@ class WeekFourInterviewService
         return ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $participant->id)->latest('attempt_number')->with(['versions' => fn (Relation $query): Relation => $query->orderByDesc('version_number')])->first()?->versions->first();
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * The practice question and answer slots of the participant and their partner, each keyed by question number.
+     *
+     * @return array{own_questions: array<int|string, mixed>, partner_questions: array<int|string, mixed>, answers_to_partner: array<int|string, mixed>, partner_answers: array<int|string, mixed>}
+     */
     public function participantPracticeState(User $participant, ?User $partner): array
     {
         $ownVersion = $this->currentVersion($participant);
@@ -213,8 +217,6 @@ class WeekFourInterviewService
             'partner_questions' => array_replace(array_fill_keys($this->practiceSlots(), ''), $partnerValues['practice_questions'] ?? []),
             'answers_to_partner' => array_replace(array_fill_keys($this->practiceSlots(), ''), $ownValues['practice_answers'] ?? []),
             'partner_answers' => array_replace(array_fill_keys($this->practiceSlots(), ''), $partnerValues['practice_answers'] ?? []),
-            'own_version_status' => $ownVersion?->status,
-            'partner_version_status' => $partnerVersion?->status,
         ];
     }
 

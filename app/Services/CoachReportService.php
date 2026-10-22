@@ -85,7 +85,7 @@ class CoachReportService
 
     public function gateResults(): Builder
     {
-        return GateEvaluation::query()->with(['participant', 'gate.week', 'criterionEvaluations.criterion'])->latest('evaluated_at');
+        return GateEvaluation::query()->with(['participant', 'gate.week'])->latest('evaluated_at');
     }
 
     public function filteredGateResults(?array $filters = null): Builder
@@ -101,17 +101,6 @@ class CoachReportService
 
             return compact('submission', 'version', 'review');
         });
-    }
-
-    /**
-     * At-risk rows for the reports page, limited to the participants of the selected mentor.
-     *
-     * @param  array<string, mixed>  $filters
-     * @return Collection<int, array{participant: User, reasons: list<string>}>
-     */
-    public function reportAtRiskRows(array $filters): Collection
-    {
-        return $this->atRiskRows($filters)->when($filters['mentor'] ?? null, fn (Collection $rows): Collection => $rows->filter(fn (array $row): bool => $row['participant']->assignedCoaches->contains('id', (int) $filters['mentor']))->values());
     }
 
     /**

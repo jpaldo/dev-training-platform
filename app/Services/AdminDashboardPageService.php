@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\GateEvaluationStatus;
 use App\Enums\InterviewPairStatus;
 use App\Enums\MentorInterviewScheduleStatus;
+use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
@@ -44,8 +45,8 @@ class AdminDashboardPageService
                 ['label' => 'WEEK4', 'value' => $this->participantsWithWeek($program, 4)],
             ],
             'reviewStats' => [
-                ['label' => 'AWAITING REVIEW', 'value' => ActivitySubmission::query()->whereIn('status', ['submitted', 'resubmitted', 'under_review'])->count()],
-                ['label' => 'NEEDS REVISION', 'value' => ActivitySubmission::query()->where('status', 'needs_revision')->count()],
+                ['label' => 'AWAITING REVIEW', 'value' => ActivitySubmission::query()->whereIn('status', SubmissionStatus::awaitingReview())->count()],
+                ['label' => 'NEEDS REVISION', 'value' => ActivitySubmission::query()->where('status', SubmissionStatus::NeedsRevision)->count()],
                 ['label' => 'PENDING GATES', 'value' => GateEvaluation::query()->whereNotIn('status', [GateEvaluationStatus::Passed])->count()],
             ],
             'weekFourStats' => [

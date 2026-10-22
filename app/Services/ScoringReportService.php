@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ActivityScoreStatus;
+use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\SubmissionVersion;
 use App\Models\User;
@@ -17,7 +18,7 @@ class ScoringReportService
      */
     public function versions(array $filters): Builder
     {
-        return SubmissionVersion::query()->where('status', '!=', 'draft')
+        return SubmissionVersion::query()->where('status', '!=', SubmissionStatus::Draft)
             ->with(['submission.participant.assignedCoaches', 'submission.activity.week', 'activityScore.scorer', 'activityScore.secondReader', 'activityScore.dimensions'])
             ->when($filters['participant'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('submission', fn (Builder $s): Builder => $s->where('user_id', $v)))
             ->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->whereHas('submission.participant', fn (Builder $p): Builder => $p->where('training_path', $v)))

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\MentorInterviewScheduleStatus;
+use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
@@ -88,11 +89,11 @@ class SubmissionWorkflowService
         return DB::transaction(function () use ($activity, $allowed, $note, $user, $interactions): SubmissionVersion {
             $submission = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $user->id)->latest('attempt_number')->lockForUpdate()->first();
             if (! $submission) {
-                $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $user->id, 'status' => 'draft']);
+                $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $user->id, 'status' => SubmissionStatus::Draft]);
             }
             $latest = $submission->versions()->lockForUpdate()->orderByDesc('version_number')->first();
             if (! $latest) {
-                $version = $submission->versions()->create(['version_number' => 1, 'validation_submission_id' => $allowed['validation_submission_id'] ?? null, 'status' => 'draft', 'field_values' => $allowed, 'participant_note' => $note]);
+                $version = $submission->versions()->create(['version_number' => 1, 'validation_submission_id' => $allowed['validation_submission_id'] ?? null, 'status' => SubmissionStatus::Draft, 'field_values' => $allowed, 'participant_note' => $note]);
                 $this->syncInteractions($version, $interactions);
 
                 return $version;
@@ -106,9 +107,9 @@ class SubmissionWorkflowService
             if (! $submission->needsRevision()) {
                 throw ValidationException::withMessages(['submission' => 'This submission is already submitted and cannot be edited.']);
             }
-            $submission->update(['status' => 'draft']);
+            $submission->update(['status' => SubmissionStatus::Draft]);
 
-            $version = $submission->versions()->create(['version_number' => $latest->version_number + 1, 'validation_submission_id' => $allowed['validation_submission_id'] ?? null, 'status' => 'draft', 'field_values' => $allowed, 'participant_note' => $note]);
+            $version = $submission->versions()->create(['version_number' => $latest->version_number + 1, 'validation_submission_id' => $allowed['validation_submission_id'] ?? null, 'status' => SubmissionStatus::Draft, 'field_values' => $allowed, 'participant_note' => $note]);
             $this->syncInteractions($version, $interactions);
 
             return $version;
@@ -177,8 +178,8 @@ class SubmissionWorkflowService
                 }
             }
             $resubmission = $submission->versions()->whereNotNull('submitted_at')->where('id', '<>', $version->id)->exists();
-            $version->update(['status' => 'submitted', 'submitted_at' => now()]);
-            $submission->update(['status' => $resubmission ? 'resubmitted' : 'submitted', 'submitted_at' => now()]);
+            $version->update(['status' => SubmissionStatus::Submitted, 'submitted_at' => now()]);
+            $submission->update(['status' => $resubmission ? SubmissionStatus::Resubmitted : SubmissionStatus::Submitted, 'submitted_at' => now()]);
         });
     }
 

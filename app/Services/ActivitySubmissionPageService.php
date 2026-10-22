@@ -136,7 +136,7 @@ class ActivitySubmissionPageService
                 2 => 'Mock Level 3 Interview',
                 default => 'Strict-mode Leveling Assessment',
             } : null,
-            'versionRows' => $versions->count() > 1 ? $this->versionRows($versions->where('status', '!=', 'draft')->sortByDesc('version_number'), $version) : [],
+            'versionRows' => $versions->count() > 1 ? $this->versionRows($versions->where('status', '!=', SubmissionStatus::Draft)->sortByDesc('version_number'), $version) : [],
         ];
     }
 

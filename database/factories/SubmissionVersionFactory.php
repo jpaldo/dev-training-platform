@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\SubmissionStatus;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionVersion;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -21,7 +22,7 @@ class SubmissionVersionFactory extends Factory
         return [
             'activity_submission_id' => ActivitySubmission::factory(),
             'version_number' => 1,
-            'status' => 'draft',
+            'status' => SubmissionStatus::Draft,
             'field_values' => [],
             'participant_note' => null,
             'submitted_at' => null,

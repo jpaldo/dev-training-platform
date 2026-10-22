@@ -10,6 +10,7 @@ use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class CoachReviewQueuePageTest extends TestCase
@@ -66,6 +67,54 @@ class CoachReviewQueuePageTest extends TestCase
             ->assertOk()
             ->assertSee('>Revision 26</h2>', false)
             ->assertDontSee('>Revision 1</h2>', false);
+    }
+
+    #[DataProvider('statusFilterValues')]
+    public function test_status_filter_accepts_the_review_statuses_and_the_gate_statuses_it_lists(string $status, bool $isAccepted): void
+    {
+        $response = $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.reviews', ['status' => $status]));
+
+        if ($isAccepted) {
+            $response->assertOk()->assertSessionHasNoErrors();
+        } else {
+            $response->assertSessionHasErrors(['status' => 'The selected status is invalid.']);
+        }
+    }
+
+    #[DataProvider('statusFilterValues')]
+    public function test_report_export_status_filter_accepts_the_same_statuses_as_the_queue(string $status, bool $isAccepted): void
+    {
+        $response = $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.reports.export', ['type' => 'reviews', 'status' => $status]));
+
+        if ($isAccepted) {
+            $response->assertOk()->assertSessionHasNoErrors();
+        } else {
+            $response->assertSessionHasErrors(['status' => 'The selected status is invalid.']);
+        }
+    }
+
+    /**
+     * Every submission and Gate status value and whether the mixed `status` filter accepts it: the four submission
+     * statuses of the queue and the three Gate statuses of the Gate export.
+     *
+     * @return array<string, array{string, bool}>
+     */
+    public static function statusFilterValues(): array
+    {
+        return [
+            'submitted' => ['submitted', true],
+            'resubmitted' => ['resubmitted', true],
+            'under review' => ['under_review', true],
+            'needs revision' => ['needs_revision', true],
+            'gate not ready' => ['not_ready', true],
+            'failed' => ['failed', true],
+            'gate passed' => ['passed', true],
+            'draft' => ['draft', false],
+            'approved' => ['approved', false],
+            'completed' => ['completed', false],
+            'gate ready for review' => ['ready_for_review', false],
+            'gate awaiting review' => ['awaiting_review', false],
+        ];
     }
 
     public function test_empty_queue_shows_a_notice_instead_of_the_list(): void

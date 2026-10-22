@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
+use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
@@ -32,8 +33,8 @@ class CoachReportService
         return [
             'participants' => $participants->count(),
             'completed' => $this->progression->completedParticipantIds($participants, $program)->count(),
-            'needs_review' => $this->reviewQueue()->whereIn('status', ['submitted', 'resubmitted', 'under_review'])->count(),
-            'needs_revision' => $this->reviewQueue()->where('status', 'needs_revision')->count(),
+            'needs_review' => $this->reviewQueue()->whereIn('status', SubmissionStatus::awaitingReview())->count(),
+            'needs_revision' => $this->reviewQueue()->where('status', SubmissionStatus::NeedsRevision)->count(),
             'at_risk' => $this->atRisk()->count(),
         ];
     }
@@ -59,7 +60,7 @@ class CoachReportService
 
     public function reviewQueue(?array $filters = null): Builder
     {
-        return ActivitySubmission::query()->whereIn('status', ['submitted', 'resubmitted', 'under_review', 'needs_revision'])
+        return ActivitySubmission::query()->whereIn('status', [...SubmissionStatus::awaitingReview(), SubmissionStatus::NeedsRevision])
             ->when($filters['status'] ?? null, fn (Builder $q, string $v): Builder => $q->where('status', $v))
             ->when($filters['participant'] ?? null, fn (Builder $q, int|string $v): Builder => $q->where('user_id', $v))
             ->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('activity.week', fn (Builder $w): Builder => $w->where('week_number', $v)))

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
@@ -107,7 +108,7 @@ class TrainingExportService
         if ($program) {
             foreach ($program->weeks->whereIn('week_number', [2, 3, 4]) as $week) {
                 $required = $week->activities()->where('is_active', true)->count();
-                $completed = $participant->activitySubmissions()->whereHas('activity', fn (Builder $q): Builder => $q->where('training_week_id', $week->id))->whereIn('status', ['submitted', 'resubmitted', 'approved', 'completed'])->count();
+                $completed = $participant->activitySubmissions()->whereHas('activity', fn (Builder $q): Builder => $q->where('training_week_id', $week->id))->whereIn('status', SubmissionStatus::handedIn())->count();
                 $logs = $participant->dailyLogs()->whereHas('activity', fn (Builder $q): Builder => $q->where('training_week_id', $week->id))->count();
                 $gateStatus = $progression->isWeekPassed($participant, $week) ? 'passed' : ($progression->canAccessWeek($participant, $week) ? 'in progress' : 'locked');
                 $weekStatus = $gateStatus === 'passed' ? 'Completed' : ($gateStatus === 'locked' ? 'Locked' : 'In progress');

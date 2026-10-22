@@ -17,13 +17,13 @@ class ReusableAssetLibraryService
     public function approvedSubmissions(array $filters = []): Builder
     {
         return ActivitySubmission::query()
-            ->whereIn('status', ['approved', 'completed'])
+            ->whereIn('status', SubmissionStatus::accepted())
             ->whereNotExists(fn (QueryBuilder $query): QueryBuilder => $query->select(DB::raw('1'))
                 ->from('activity_submissions as newer_submissions')
                 ->whereColumn('newer_submissions.activity_id', 'activity_submissions.activity_id')
                 ->whereColumn('newer_submissions.user_id', 'activity_submissions.user_id')
                 ->whereColumn('newer_submissions.attempt_number', '>', 'activity_submissions.attempt_number')
-                ->whereIn('newer_submissions.status', ['approved', 'completed']))
+                ->whereIn('newer_submissions.status', SubmissionStatus::accepted()))
             ->whereHas('activity', fn (Builder $activity): Builder => $activity
                 ->where('position', 1)
                 ->whereHas('week', fn (Builder $week): Builder => $week->where('week_number', 4)))

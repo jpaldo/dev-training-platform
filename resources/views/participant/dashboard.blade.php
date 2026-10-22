@@ -10,7 +10,6 @@
             'state' => $item['passed'] ? 'passed' : ($item['is_current'] ? 'current' : ($item['available'] ? null : 'locked')),
         ])->push(['key' => 'mentoring', 'label' => 'Mentoring', 'state' => null])
             ->push(['key' => 'overview', 'label' => 'Overview & Resources', 'state' => null]);
-        $activityStatusTones = ['draft' => 'brand', 'submitted' => 'accent', 'resubmitted' => 'accent', 'under_review' => 'accent', 'needs_revision' => 'warning', 'approved' => 'success', 'completed' => 'success', 'failed' => 'danger'];
     @endphp
 
     <div class="grid grid-cols-1 gap-6">
@@ -155,26 +154,24 @@
                             <ol class="m-0 grid list-none gap-3 p-0">
                                 @foreach ($item['week']->activities as $activity)
                                     @php
-                                        $activityStatus = $activity->participant_submission?->status->value;
-                                        $activityAction = match ($activityStatus) { 'needs_revision' => 'Revise', 'draft' => 'Continue', 'failed' => 'View attempts', 'submitted', 'resubmitted', 'under_review', 'approved', 'completed' => 'View', default => 'Start' };
                                         $activityUrl = route('training.activities.show', [$item['week'], $activity]);
                                     @endphp
                                     <li class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-field px-4 py-3.5">
                                         <div class="grid min-w-0 flex-[1_1_260px] gap-1.5">
                                             <strong>{{ $activity->title }}</strong>
                                             <div class="flex flex-wrap items-center gap-2.5 text-sm">
-                                                <x-ui.badge :tone="$activityStatusTones[$activityStatus] ?? 'neutral'">{{ $activityStatus ? ucfirst(str_replace('_', ' ', $activityStatus)) : 'Not Started' }}</x-ui.badge>
+                                                <x-ui.badge :tone="$activity->participant_status_tone">{{ $activity->participant_status_label }}</x-ui.badge>
                                                 @if($activity->participant_score)<span class="text-muted">Score: <strong class="text-slate-100">{{ $activity->participant_score->total_score }} / {{ $activity->participant_score_max }}</strong></span>@endif
                                                 @if(!$activity->week_four_partner_assigned)<span class="text-muted">Waiting for Partner Assignment</span>@endif
                                             </div>
-                                            @if($activityStatus === 'failed')<span class="text-sm text-muted">Attempt {{ $activity->participant_submission->attempt_number }} is closed. {{ $activity->participant_attempts->count() > 1 ? 'Retry available.' : 'Waiting for coach to create a retry.' }}</span>@endif
+                                            @if($activity->participant_submission?->isFailed())<span class="text-sm text-muted">Attempt {{ $activity->participant_submission->attempt_number }} is closed. {{ $activity->participant_attempts->count() > 1 ? 'Retry available.' : 'Waiting for coach to create a retry.' }}</span>@endif
                                         </div>
                                         @if($item['available'] && $activity->week_four_partner_assigned)
                                             <div class="grid justify-items-start gap-1.5 sm:justify-items-end">
-                                                @if(! $activity->lab_prerequisite_met)<x-ui.button variant="secondary" :href="$activityUrl">{{ $activityAction }}</x-ui.button><span class="text-xs text-muted">QA Validation Lab record required.</span>
-                                                @elseif($item['attendance_required'] && ! $activity->participant_submission)<x-ui.button variant="secondary" :href="$activityUrl" disabled>{{ $activityAction }}</x-ui.button>
+                                                @if(! $activity->lab_prerequisite_met)<x-ui.button variant="secondary" :href="$activityUrl">{{ $activity->participant_action }}</x-ui.button><span class="text-xs text-muted">QA Validation Lab record required.</span>
+                                                @elseif($item['attendance_required'] && ! $activity->participant_submission)<x-ui.button variant="secondary" :href="$activityUrl" disabled>{{ $activity->participant_action }}</x-ui.button>
                                                 @elseif($googleDriveReadinessEnforced && ! $googleDriveReady && ! $activity->participant_submission)<x-ui.button variant="secondary" :href="$activityUrl" disabled>Google Drive setup required</x-ui.button>
-                                                @else<x-ui.button variant="secondary" :href="$activityUrl">{{ $activityAction }}</x-ui.button>@endif
+                                                @else<x-ui.button variant="secondary" :href="$activityUrl">{{ $activity->participant_action }}</x-ui.button>@endif
                                             </div>
                                         @endif
                                     </li>

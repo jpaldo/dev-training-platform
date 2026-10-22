@@ -126,7 +126,7 @@ class ParticipantNotificationService
         if (! $submission) {
             return false;
         }
-        $version = $submission->versions()->whereIn('status', ['draft', 'submitted', 'resubmitted', 'needs_revision', 'approved', 'completed'])->latest('version_number')->first();
+        $version = $submission->versions()->whereIn('status', [SubmissionStatus::Draft, ...SubmissionStatus::handedIn(), SubmissionStatus::NeedsRevision])->latest('version_number')->first();
         foreach ($activity->requirements()->where('is_required', true)->where('requirement_type', '!=', 'gate_evidence')->with('evidenceRequirements')->get() as $requirement) {
             foreach ($requirement->evidenceRequirements as $evidence) {
                 if ($evidence->is_required && (! $version || $version->evidence()->where('evidence_requirement_id', $evidence->id)->count() < $evidence->minimum_count)) {

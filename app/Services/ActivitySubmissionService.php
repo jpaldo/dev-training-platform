@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Enums\ValidationSubmissionStatus;
 use App\Jobs\ExportActivityJob;
@@ -77,7 +78,7 @@ class ActivitySubmissionService
 
     public function hasDraftVersion(ActivitySubmission $submission): bool
     {
-        return $submission->versions->contains('status', 'draft');
+        return $submission->versions->contains('status', SubmissionStatus::Draft);
     }
 
     /**

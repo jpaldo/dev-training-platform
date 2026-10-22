@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
+use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\Program;
@@ -149,7 +150,7 @@ class WeekProgressionService
 
         $priorActivities = $week->activities()->where('position', '<', $activity->position)->orderBy('position')->get();
         foreach ($priorActivities as $prior) {
-            $completed = $prior->submissions()->where('user_id', $user->id)->whereIn('status', ['submitted', 'resubmitted', 'approved', 'completed', 'under_review'])->exists();
+            $completed = $prior->submissions()->where('user_id', $user->id)->whereIn('status', [...SubmissionStatus::handedIn(), SubmissionStatus::UnderReview])->exists();
             if (! $completed) {
                 throw new AuthorizationException("Complete and submit Activity {$prior->position} before starting Activity {$activity->position}.");
             }

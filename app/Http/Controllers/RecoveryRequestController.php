@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RecoveryRequestStatus;
+use App\Enums\SubmissionStatus;
 use App\Http\Requests\DecideRecoveryRequestRequest;
 use App\Http\Requests\StoreRecoveryRequestRequest;
 use App\Models\ActivityRecoveryRequest;
@@ -38,8 +39,8 @@ class RecoveryRequestController extends Controller
             if ($decision === RecoveryRequestStatus::Approved) {
                 $submission = $recoveryRequest->submission;
                 $attempt = ActivitySubmission::where('activity_id', $submission->activity_id)->where('user_id', $submission->user_id)->max('attempt_number') + 1;
-                $retry = ActivitySubmission::create(['activity_id' => $submission->activity_id, 'user_id' => $submission->user_id, 'attempt_number' => $attempt, 'status' => 'draft']);
-                $retry->versions()->create(['version_number' => 1, 'status' => 'draft', 'field_values' => []]);
+                $retry = ActivitySubmission::create(['activity_id' => $submission->activity_id, 'user_id' => $submission->user_id, 'attempt_number' => $attempt, 'status' => SubmissionStatus::Draft]);
+                $retry->versions()->create(['version_number' => 1, 'status' => SubmissionStatus::Draft, 'field_values' => []]);
             }
             $recoveryRequest->update(['status' => $decision, 'coach_response' => $coachResponse, 'reviewed_by' => $request->user()->id, 'reviewed_at' => now()]);
         });

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\InterviewPairStatus;
 use App\Enums\MentorInterviewScheduleStatus;
+use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
@@ -136,7 +137,7 @@ class WeekFourInterviewService
     {
         abort_unless($authorizer->canManageParticipant($participant), 403);
         $scheduleExists = WeekFourMentorInterviewSchedule::query()->where('participant_id', $participant->id)->where('activity_id', $activity->id)->where('status', MentorInterviewScheduleStatus::Scheduled)->exists();
-        $submittedExists = ActivitySubmission::query()->where('user_id', $participant->id)->where('activity_id', $activity->id)->whereIn('status', ['submitted', 'under_review', 'approved', 'completed'])->exists();
+        $submittedExists = ActivitySubmission::query()->where('user_id', $participant->id)->where('activity_id', $activity->id)->whereIn('status', [SubmissionStatus::Submitted, SubmissionStatus::UnderReview, ...SubmissionStatus::accepted()])->exists();
         if ($scheduleExists || $submittedExists) {
             throw ValidationException::withMessages(['waiver' => 'This waiver cannot be reversed after the participant has relied on it.']);
         }
@@ -160,7 +161,7 @@ class WeekFourInterviewService
     public function unpair(User $actor, WeekFourInterviewPair $pair): void
     {
         abort_unless($actor->canManageParticipant($pair->participantOne) && $actor->canManageParticipant($pair->participantTwo), 403);
-        $hasHistory = $pair->feedback()->exists() || ActivitySubmission::query()->whereIn('user_id', [$pair->participant_one_id, $pair->participant_two_id])->whereHas('activity', fn (Builder $query): Builder => $query->where('position', 2)->whereHas('week', fn (Builder $week): Builder => $week->where('week_number', 4)))->whereIn('status', ['submitted', 'under_review', 'approved', 'completed'])->exists();
+        $hasHistory = $pair->feedback()->exists() || ActivitySubmission::query()->whereIn('user_id', [$pair->participant_one_id, $pair->participant_two_id])->whereHas('activity', fn (Builder $query): Builder => $query->where('position', 2)->whereHas('week', fn (Builder $week): Builder => $week->where('week_number', 4)))->whereIn('status', [SubmissionStatus::Submitted, SubmissionStatus::UnderReview, ...SubmissionStatus::accepted()])->exists();
         $pair->update(['status' => $hasHistory ? InterviewPairStatus::Closed : InterviewPairStatus::Inactive]);
     }
 

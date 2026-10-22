@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
+use App\Enums\SubmissionStatus;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\AttendanceSession;
@@ -80,7 +81,8 @@ class ParticipantDashboardService
     }
 
     /**
-     * Attach the participant's latest submission, attempts, published score and activity prerequisites to every activity.
+     * Attach the participant's latest submission with its status label, badge tone and next action, the attempts, the
+     * published score and the activity prerequisites to every activity.
      *
      * @param  EloquentCollection<int, TrainingWeek>  $weeks  weeks with their activities loaded
      */
@@ -101,6 +103,9 @@ class ParticipantDashboardService
                 $attempts = $attemptsByActivity->get($activity->id, new EloquentCollection);
                 $activity->participant_submission = $attempts->last();
                 $activity->participant_attempts = $attempts->values();
+                $activity->participant_status_label = $activity->participant_submission?->status->label() ?? 'Not Started';
+                $activity->participant_status_tone = $this->activityStatusTone($activity->participant_submission?->status);
+                $activity->participant_action = $this->activityAction($activity->participant_submission?->status);
                 $activity->participant_score = $activity->participant_submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $version): bool => $version->activityScore?->isPublished() === true)?->activityScore;
                 $activity->participant_score_max = $scoreMax;
                 $activity->week_four_partner_assigned = ! $this->requiresWeekFourPartner($week, $activity) || ($hasWeekFourPartner ??= (bool) WeekFourInterviewPair::forParticipant($user->id));
@@ -108,6 +113,35 @@ class ParticipantDashboardService
                     || ($hasValidationLabRecord ??= $user->validationSubmissions()->whereIn('status', ValidationSubmissionStatus::recorded())->exists());
             }
         }
+    }
+
+    /**
+     * The badge tone of the latest attempt's status (neutral before the first attempt).
+     */
+    private function activityStatusTone(?SubmissionStatus $status): string
+    {
+        return match ($status) {
+            SubmissionStatus::Draft => 'brand',
+            SubmissionStatus::Submitted, SubmissionStatus::Resubmitted, SubmissionStatus::UnderReview => 'accent',
+            SubmissionStatus::NeedsRevision => 'warning',
+            SubmissionStatus::Approved, SubmissionStatus::Completed => 'success',
+            SubmissionStatus::Failed => 'danger',
+            null => 'neutral',
+        };
+    }
+
+    /**
+     * The text of the activity's action button for the latest attempt's status.
+     */
+    private function activityAction(?SubmissionStatus $status): string
+    {
+        return match ($status) {
+            SubmissionStatus::NeedsRevision => 'Revise',
+            SubmissionStatus::Draft => 'Continue',
+            SubmissionStatus::Failed => 'View attempts',
+            SubmissionStatus::Submitted, SubmissionStatus::Resubmitted, SubmissionStatus::UnderReview, SubmissionStatus::Approved, SubmissionStatus::Completed => 'View',
+            null => 'Start',
+        };
     }
 
     private function requiresWeekFourPartner(TrainingWeek $week, Activity $activity): bool

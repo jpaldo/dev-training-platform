@@ -23,7 +23,7 @@ class SubmissionReviewService
         DB::transaction(function () use ($submissionVersion): void {
             $submission = $submissionVersion->submission()->lockForUpdate()->firstOrFail();
             if ($submission->isClaimable()) {
-                $submission->update(['status' => 'under_review']);
+                $submission->update(['status' => SubmissionStatus::UnderReview]);
             }
         });
     }
@@ -47,7 +47,7 @@ class SubmissionReviewService
      */
     public function existingRetry(ActivitySubmission $submission): ?ActivitySubmission
     {
-        return ActivitySubmission::query()->where('activity_id', $submission->activity_id)->where('user_id', $submission->user_id)->where('attempt_number', '>', $submission->attempt_number)->whereIn('status', ['draft', 'submitted', 'under_review', 'needs_revision', 'approved', 'completed'])->first();
+        return ActivitySubmission::query()->where('activity_id', $submission->activity_id)->where('user_id', $submission->user_id)->where('attempt_number', '>', $submission->attempt_number)->whereIn('status', [SubmissionStatus::Draft, SubmissionStatus::Submitted, SubmissionStatus::UnderReview, SubmissionStatus::NeedsRevision, ...SubmissionStatus::accepted()])->first();
     }
 
     /**
@@ -57,8 +57,8 @@ class SubmissionReviewService
     {
         return DB::transaction(function () use ($submission): ActivitySubmission {
             $attempt = ActivitySubmission::query()->where('activity_id', $submission->activity_id)->where('user_id', $submission->user_id)->max('attempt_number') + 1;
-            $retry = ActivitySubmission::create(['activity_id' => $submission->activity_id, 'user_id' => $submission->user_id, 'attempt_number' => $attempt, 'status' => 'draft']);
-            $retry->versions()->create(['version_number' => 1, 'status' => 'draft', 'field_values' => []]);
+            $retry = ActivitySubmission::create(['activity_id' => $submission->activity_id, 'user_id' => $submission->user_id, 'attempt_number' => $attempt, 'status' => SubmissionStatus::Draft]);
+            $retry->versions()->create(['version_number' => 1, 'status' => SubmissionStatus::Draft, 'field_values' => []]);
 
             return $retry;
         });

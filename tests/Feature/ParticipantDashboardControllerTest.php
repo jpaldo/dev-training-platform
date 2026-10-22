@@ -21,6 +21,7 @@ use App\Models\User;
 use App\Models\WeeklyVideoRecording;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ParticipantDashboardControllerTest extends TestCase
@@ -56,6 +57,53 @@ class ParticipantDashboardControllerTest extends TestCase
         $this->assertSame(1, substr_count($html, 'Score: <strong'));
         $this->assertStringContainsString('>88 / 100</strong>', $html);
         $this->assertStringNotContainsString('41 / 100', $html);
+    }
+
+    #[DataProvider('latestAttemptStatuses')]
+    public function test_activity_row_shows_the_label_tone_and_action_of_the_latest_attempt_status(?string $status, string $label, string $badgeClasses, string $action, bool $isClosed): void
+    {
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
+        $activity = Activity::factory()->for($week, 'week')->create(['title' => 'Exploratory charter', 'position' => 1]);
+        if ($status !== null) {
+            $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => $status]);
+            SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => $status === 'draft' ? 'draft' : 'submitted']);
+        }
+
+        $response = $this->actingAs($participant)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '<strong>Exploratory charter</strong>',
+                '<span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold '.$badgeClasses.'">'.$label.'</span>',
+                '>'.$action.'</',
+            ], false);
+
+        if ($isClosed) {
+            $response->assertSee('Attempt 1 is closed. Waiting for coach to create a retry.');
+        } else {
+            $response->assertDontSee('is closed.');
+        }
+    }
+
+    /**
+     * The latest attempt status (none before the first attempt), its badge label and tone classes, the action button
+     * text and whether the closed-attempt note shows.
+     *
+     * @return array<string, array{?string, string, string, string, bool}>
+     */
+    public static function latestAttemptStatuses(): array
+    {
+        return [
+            'not started' => [null, 'Not Started', 'border-line text-muted', 'Start', false],
+            'draft' => ['draft', 'Draft', 'border-brand text-violet-200', 'Continue', false],
+            'submitted' => ['submitted', 'Submitted', 'border-accent text-cyan-200', 'View', false],
+            'resubmitted' => ['resubmitted', 'Resubmitted', 'border-accent text-cyan-200', 'View', false],
+            'under review' => ['under_review', 'Under review', 'border-accent text-cyan-200', 'View', false],
+            'needs revision' => ['needs_revision', 'Needs revision', 'border-amber-500 text-amber-200', 'Revise', false],
+            'approved' => ['approved', 'Approved', 'border-emerald-400 text-emerald-200', 'View', false],
+            'completed' => ['completed', 'Completed', 'border-emerald-400 text-emerald-200', 'View', false],
+            'failed' => ['failed', 'Failed', 'border-danger text-rose-200', 'View attempts', true],
+        ];
     }
 
     public function test_gate_card_shows_the_saved_evaluation_status_or_the_readiness_status(): void

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\SubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\User;
@@ -22,7 +23,7 @@ class ActivitySubmissionFactory extends Factory
         return [
             'activity_id' => Activity::factory(),
             'user_id' => User::factory(),
-            'status' => 'draft',
+            'status' => SubmissionStatus::Draft,
             'submitted_at' => null,
             'completed_at' => null,
         ];

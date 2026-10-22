@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
@@ -18,8 +19,6 @@ use Illuminate\Support\Collection;
 
 class WeekTwoGateService
 {
-    private const SUBMITTED_STATUSES = ['submitted', 'resubmitted', 'approved', 'completed'];
-
     /** @return array<string, string> */
     public function readiness(User $participant, TrainingGate $gate): array
     {
@@ -64,7 +63,7 @@ class WeekTwoGateService
         $latestSubmissions = ActivitySubmission::query()
             ->whereIn('user_id', $participantIds)
             ->whereIn('activity_id', $activitiesByWeek->collapse()->pluck('id'))
-            ->with(['versions' => fn (Relation $query): Relation => $query->whereIn('status', self::SUBMITTED_STATUSES)])
+            ->with(['versions' => fn (Relation $query): Relation => $query->whereIn('status', SubmissionStatus::handedIn())])
             ->orderByDesc('attempt_number')
             ->get()
             ->groupBy('user_id')
@@ -281,7 +280,7 @@ class WeekTwoGateService
         $submissions = $activitiesByWeek->isEmpty() ? collect() : ActivitySubmission::query()
             ->whereIn('user_id', $participantIds)
             ->whereIn('activity_id', $activitiesByWeek->pluck('id'))
-            ->with(['versions' => fn (Relation $query): Relation => $query->whereIn('status', self::SUBMITTED_STATUSES)->latest('version_number')])
+            ->with(['versions' => fn (Relation $query): Relation => $query->whereIn('status', SubmissionStatus::handedIn())->latest('version_number')])
             ->latest('attempt_number')
             ->get()
             ->unique(fn (ActivitySubmission $submission): string => $submission->user_id.':'.$submission->activity_id)

@@ -28,12 +28,6 @@ class UpdateProfileRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users')->ignore($this->user())],
             'training_path' => [Rule::requiredIf($this->user()?->role === UserRole::Participant), 'nullable', Rule::enum(TrainingPath::class)],
-            'drive_link' => ['nullable', 'string', 'max:2048', 'url', 'regex:#^https://(?:www\.)?drive\.google\.com/drive/(?:u/\d+/)?folders/[A-Za-z0-9_-]+(?:\?.*)?$#'],
         ];
-    }
-
-    protected function prepareForValidation(): void
-    {
-        $this->merge(['drive_link' => filled($this->input('drive_link')) ? trim((string) $this->input('drive_link')) : null]);
     }
 }

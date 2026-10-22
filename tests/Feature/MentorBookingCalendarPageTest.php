@@ -22,10 +22,10 @@ class MentorBookingCalendarPageTest extends TestCase
                 'MENTOR BOOKING CALENDAR',
                 '>Mentor Mock Interview Booking</h1>',
                 'form="mentor-booking-form"', '>Save Booking Link</button>',
-                '>Optional</h2>',
+                '>Step 1 · Create a booking page (optional)</h2>',
                 'href="https://calendar.google.com/calendar/u/0/r/appointment" target="_blank" rel="noopener noreferrer"', '>Configure with Google Calendar</a>',
-                '>Copy your public booking page link</h2>',
-                '>Step 3</h2>',
+                '>Step 2 · Copy your public booking link</h2>',
+                '>Step 3 · Save it here</h2>',
                 'id="mentor-booking-form" method="POST" action="'.route('coach.mentor-booking-calendar.store').'"',
                 'id="booking_url" name="booking_url" type="url" value=""',
             ], false)

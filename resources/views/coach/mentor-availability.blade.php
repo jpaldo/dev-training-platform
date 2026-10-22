@@ -32,19 +32,19 @@
 
                 <ol class="m-0 grid list-none grid-cols-1 gap-3.5 p-0">
                     <li class="{{ $stepClasses }}">
-                        <h2 class="{{ $stepTitleClasses }}">Optional</h2>
-                        <p class="{{ $hintClasses }}">Need a booking page? You can create one with Google Calendar or use another scheduling service.</p>
+                        <h2 class="{{ $stepTitleClasses }}">Step 1 · Create a booking page (optional)</h2>
+                        <p class="{{ $hintClasses }}">Skip this step if you already have one. You can create a booking page with Google Calendar or any other scheduling service.</p>
                         <x-ui.button variant="secondary" href="https://calendar.google.com/calendar/u/0/r/appointment" target="_blank" rel="noopener noreferrer">Configure with Google Calendar</x-ui.button>
                     </li>
 
                     <li class="{{ $stepClasses }}">
-                        <h2 class="{{ $stepTitleClasses }}">Copy your public booking page link</h2>
-                        <p class="{{ $hintClasses }}">Paste the public booking page URL provided by your scheduling service.</p>
+                        <h2 class="{{ $stepTitleClasses }}">Step 2 · Copy your public booking link</h2>
+                        <p class="{{ $hintClasses }}">Copy the public booking page URL from your scheduling service.</p>
                     </li>
 
                     <li class="{{ $stepClasses }}">
-                        <h2 class="{{ $stepTitleClasses }}">Step 3</h2>
-                        <p class="{{ $hintClasses }}">Paste the booking link below so assigned participants can schedule with you.</p>
+                        <h2 class="{{ $stepTitleClasses }}">Step 3 · Save it here</h2>
+                        <p class="{{ $hintClasses }}">Paste the link below and save it so your assigned participants can book a Mock Interview with you.</p>
 
                         <form id="mentor-booking-form" method="POST" action="{{ route('coach.mentor-booking-calendar.store') }}" class="mt-2 grid w-full grid-cols-1 gap-4">
                             @csrf

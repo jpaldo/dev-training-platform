@@ -426,9 +426,10 @@ const initializeAlertButtons = () => {
 };
 
 /**
- * On the AI scoring settings page, show the selected provider's model label and hint (from the option's data
- * attributes), update the "API key:" part of the status summary to whether that provider has a stored key, and copy
- * the current provider, model and API key into the `[data-ai-test-form]` before it submits.
+ * On the AI scoring settings page, show the selected provider's model label and hint and its API key placeholder and
+ * hint (from the option's data attributes), update the "API key:" part of the status summary to whether that provider
+ * has an effective key (Admin-saved or from the environment), and copy the current provider, model and API key into
+ * the `[data-ai-test-form]` before it submits.
  */
 const initializeAiProviderSettings = () => {
     const settingsForm = document.querySelector('[data-ai-settings-form]');
@@ -442,6 +443,7 @@ const initializeAiProviderSettings = () => {
     const apiKey = settingsForm.elements.api_key;
     const modelLabel = document.getElementById('model-label');
     const modelHelp = document.getElementById('model-help');
+    const apiKeyHint = document.getElementById('api-key-hint');
     const status = document.getElementById('ai-status');
     const testForm = document.querySelector('[data-ai-test-form]');
 
@@ -451,6 +453,8 @@ const initializeAiProviderSettings = () => {
 
         modelLabel.textContent = option.dataset.modelLabel;
         modelHelp.textContent = option.dataset.modelHelp;
+        apiKey.placeholder = option.dataset.apiKeyPlaceholder;
+        apiKeyHint.textContent = option.dataset.apiKeyHint;
         status.textContent = status.textContent.replace(/API key: (Configured|Not configured)/, `API key: ${apiKeyStatus}`);
     };
 

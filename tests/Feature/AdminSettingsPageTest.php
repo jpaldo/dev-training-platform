@@ -284,10 +284,10 @@ class AdminSettingsPageTest extends TestCase
                 'id="ai-settings-main-action"', 'form="ai-settings-form"', 'Save AI Settings',
                 'id="ai-settings-form" method="POST" action="'.route('admin.settings.ai.update').'"', 'name="_method" value="PUT"',
                 'name="enabled" value="0"', 'name="enabled" value="1" checked', 'Enable AI-assisted scoring',
-                '<option value="openrouter" data-model-label="OpenRouter model" data-model-help="Enter the OpenRouter model slug." data-api-key-configured="false"', '>OpenRouter</option>',
-                '<option value="openai" data-model-label="OpenAI model ID" data-model-help="Enter the OpenAI model ID." data-api-key-configured="true" selected>OpenAI</option>',
-                '<option value="anthropic" data-model-label="Anthropic model ID" data-model-help="Enter the Anthropic model ID." data-api-key-configured="false"', '>Anthropic</option>',
-                '<option value="gemini" data-model-label="Gemini model ID" data-model-help="Enter the Gemini model ID." data-api-key-configured="false"', '>Google Gemini</option>',
+                'value="openrouter"', 'data-model-label="OpenRouter model"', 'data-model-help="Enter the OpenRouter model slug."', 'data-api-key-configured="false"', 'data-api-key-placeholder="Enter API key"', 'data-api-key-hint="Stored encrypted. It is never returned to the browser."', '>OpenRouter</option>',
+                'value="openai"', 'data-model-label="OpenAI model ID"', 'data-model-help="Enter the OpenAI model ID."', 'data-api-key-configured="true"', 'data-api-key-placeholder="Configured — enter a new key to replace it"', 'data-api-key-hint="Configured for this provider. Leave blank to retain it."', 'selected', '>OpenAI</option>',
+                'value="anthropic"', 'data-model-label="Anthropic model ID"', 'data-model-help="Enter the Anthropic model ID."', 'data-api-key-configured="false"', 'data-api-key-placeholder="Enter API key"', 'data-api-key-hint="Stored encrypted. It is never returned to the browser."', '>Anthropic</option>',
+                'value="gemini"', 'data-model-label="Gemini model ID"', 'data-model-help="Enter the Gemini model ID."', 'data-api-key-configured="false"', 'data-api-key-placeholder="Enter API key"', 'data-api-key-hint="Stored encrypted. It is never returned to the browser."', '>Google Gemini</option>',
                 'id="model-label" for="model"', 'id="model" name="model" value="gpt-4o-mini" required',
                 'id="api_key" name="api_key" type="password" autocomplete="new-password" placeholder="Configured — enter a new key to replace it"',
                 'Configured for this provider. Leave blank to retain it.',
@@ -306,13 +306,30 @@ class AdminSettingsPageTest extends TestCase
         $this->actingAs($this->admin())->get(route('admin.settings.ai'))
             ->assertOk()
             ->assertSeeInOrder([
-                '<option value="openrouter"', 'selected>OpenRouter</option>',
+                'value="openrouter"', 'selected', '>OpenRouter</option>',
                 'id="model" name="model" value="" required',
                 'placeholder="Enter API key"',
                 'Stored encrypted. It is never returned to the browser.',
                 'Status: Disabled · Provider: OpenRouter · Model: Not configured · Configuration source: Environment · API key: Not configured',
             ], false)
             ->assertDontSee('name="enabled" value="1" checked', false);
+    }
+
+    public function test_ai_page_reports_an_environment_api_key_as_configured_for_its_provider_only(): void
+    {
+        $this->configureAiEnvironment();
+        config(['services.ai_scoring.api_key' => 'sk-environment-secret']);
+
+        $this->actingAs($this->admin())->get(route('admin.settings.ai'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'value="openrouter"', 'data-api-key-configured="true"', 'data-api-key-placeholder="Configured — enter a new key to replace it"', 'data-api-key-hint="Configured for this provider. Leave blank to retain it."', 'selected', '>OpenRouter</option>',
+                'value="openai"', 'data-api-key-configured="false"', 'data-api-key-placeholder="Enter API key"', 'data-api-key-hint="Stored encrypted. It is never returned to the browser."', '>OpenAI</option>',
+                'placeholder="Configured — enter a new key to replace it"',
+                'Configured for this provider. Leave blank to retain it.',
+                'Configuration source: Environment · API key: Configured',
+            ], false)
+            ->assertDontSee('sk-environment-secret');
     }
 
     public function test_ai_page_shows_the_saved_status_and_a_rejected_save_with_the_old_input(): void
@@ -334,7 +351,7 @@ class AdminSettingsPageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 'role="alert"', 'The model field format is invalid.',
-                'data-api-key-configured="false" selected>Anthropic</option>',
+                'value="anthropic"', 'data-api-key-configured="false"', 'selected', '>Anthropic</option>',
                 'value="bad model!"', 'The model field format is invalid.',
             ], false)
             ->assertDontSee('name="enabled" value="1" checked', false)
@@ -358,7 +375,7 @@ class AdminSettingsPageTest extends TestCase
             ->assertSeeInOrder([
                 'ADMIN SETTINGS',
                 'Google Drive Integration',
-                'Configure the OAuth foundation for future participant training exports.',
+                'Participants connect their own Google Drive and choose a folder. The app syncs a workbook for each training week and their submitted evidence into that folder whenever their training data changes.',
                 'id="google-drive-settings-main-action"', 'form="google-drive-settings-form"', 'Save Google Configuration',
                 'STATUS', 'border-emerald-400', 'Configured',
                 'OAUTH', 'border-emerald-400', 'Configured',

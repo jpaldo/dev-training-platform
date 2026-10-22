@@ -165,11 +165,11 @@ class AdminSettingsPageService
     }
 
     /**
-     * The AI scoring settings page: the saved form values, each provider with its model field copy and whether it
-     * has a stored API key and model, the API key placeholder and hint, and the status summary. The API key itself
-     * is never returned.
+     * The AI scoring settings page: the saved form values, each provider with its model field copy, whether it has
+     * an effective API key (Admin-saved or from the environment) and the matching API key placeholder and hint, the
+     * saved provider's placeholder and hint, and the status summary. The API key itself is never returned.
      *
-     * @return array{settings: array{enabled: bool, provider: string, model: string}, providers: list<array{value: string, label: string, modelLabel: string, modelHelp: string, hasStoredApiKey: bool}>, apiKeyPlaceholder: string, apiKeyHint: string, statusSummary: string}
+     * @return array{settings: array{enabled: bool, provider: string, model: string}, providers: list<array{value: string, label: string, modelLabel: string, modelHelp: string, hasApiKey: bool, apiKeyPlaceholder: string, apiKeyHint: string}>, apiKeyPlaceholder: string, apiKeyHint: string, statusSummary: string}
      */
     public function aiData(): array
     {
@@ -177,12 +177,16 @@ class AdminSettingsPageService
         $providers = [];
 
         foreach (AiProviderConfigurationService::PROVIDERS as $provider => $label) {
+            $hasApiKey = (bool) $ai['providers_with_api_key'][$provider];
+
             $providers[] = [
                 'value' => $provider,
                 'label' => $label,
                 'modelLabel' => self::AI_MODEL_FIELDS[$provider]['label'],
                 'modelHelp' => self::AI_MODEL_FIELDS[$provider]['help'],
-                'hasStoredApiKey' => (bool) $ai['configured_providers'][$provider],
+                'hasApiKey' => $hasApiKey,
+                'apiKeyPlaceholder' => $this->apiKeyPlaceholder($hasApiKey),
+                'apiKeyHint' => $this->apiKeyHint($hasApiKey),
             ];
         }
 
@@ -193,8 +197,8 @@ class AdminSettingsPageService
                 'model' => (string) $ai['model'],
             ],
             'providers' => $providers,
-            'apiKeyPlaceholder' => $ai['has_api_key'] ? 'Configured — enter a new key to replace it' : 'Enter API key',
-            'apiKeyHint' => $ai['has_api_key'] ? 'Configured for this provider. Leave blank to retain it.' : 'Stored encrypted. It is never returned to the browser.',
+            'apiKeyPlaceholder' => $this->apiKeyPlaceholder($ai['has_api_key']),
+            'apiKeyHint' => $this->apiKeyHint($ai['has_api_key']),
             'statusSummary' => implode(' · ', [
                 'Status: '.$ai['status'],
                 'Provider: '.$ai['provider_label'],
@@ -317,6 +321,16 @@ class AdminSettingsPageService
     /**
      * The number of participants with a Google Drive connection.
      */
+    private function apiKeyPlaceholder(bool $hasApiKey): string
+    {
+        return $hasApiKey ? 'Configured — enter a new key to replace it' : 'Enter API key';
+    }
+
+    private function apiKeyHint(bool $hasApiKey): string
+    {
+        return $hasApiKey ? 'Configured for this provider. Leave blank to retain it.' : 'Stored encrypted. It is never returned to the browser.';
+    }
+
     private function participantDriveConnectionCount(): int
     {
         return GoogleDriveConnection::query()

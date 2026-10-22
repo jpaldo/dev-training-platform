@@ -15,8 +15,8 @@
 
         <x-ui.card as="section" class="grid justify-items-start gap-3" aria-labelledby="coach-calendar-title">
             <x-ui.eyebrow>MENTOR INTERVIEW AVAILABILITY</x-ui.eyebrow>
-            <h2 id="coach-calendar-title" class="m-0 text-xl font-extrabold">Configure your interview calendar</h2>
-            <p class="m-0 leading-relaxed text-muted">Configure the future dates and times when participants can schedule a Mentor Mock Interview with you.</p>
+            <h2 id="coach-calendar-title" class="m-0 text-xl font-extrabold">Share your Mock Interview booking link</h2>
+            <p class="m-0 leading-relaxed text-muted">Save the public booking link from your scheduling service so assigned participants can book a Mentor Mock Interview with you.</p>
             <x-ui.button variant="secondary" :href="$calendarUrl">Manage Booking Calendar</x-ui.button>
         </x-ui.card>
 

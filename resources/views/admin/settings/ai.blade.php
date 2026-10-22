@@ -46,7 +46,15 @@
                             <label for="provider" class="{{ $labelClasses }}">Provider</label>
                             <select id="provider" name="provider" class="{{ $controlClasses }}">
                                 @foreach($providers as $provider)
-                                    <option value="{{ $provider['value'] }}" data-model-label="{{ $provider['modelLabel'] }}" data-model-help="{{ $provider['modelHelp'] }}" data-api-key-configured="{{ $provider['hasStoredApiKey'] ? 'true' : 'false' }}" @selected(old('provider', $settings['provider']) === $provider['value'])>{{ $provider['label'] }}</option>
+                                    <option
+                                        value="{{ $provider['value'] }}"
+                                        data-model-label="{{ $provider['modelLabel'] }}"
+                                        data-model-help="{{ $provider['modelHelp'] }}"
+                                        data-api-key-configured="{{ $provider['hasApiKey'] ? 'true' : 'false' }}"
+                                        data-api-key-placeholder="{{ $provider['apiKeyPlaceholder'] }}"
+                                        data-api-key-hint="{{ $provider['apiKeyHint'] }}"
+                                        @selected(old('provider', $settings['provider']) === $provider['value'])
+                                    >{{ $provider['label'] }}</option>
                                 @endforeach
                             </select>
                         </div>

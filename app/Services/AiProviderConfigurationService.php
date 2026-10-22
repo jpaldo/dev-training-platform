@@ -38,7 +38,7 @@ class AiProviderConfigurationService
             ? trim((string) $overrides['api_key'])
             : ($adminKey ?? config("services.ai_scoring.{$environmentKey}"));
         if (array_key_exists('api_key', $overrides) && blank($overrides['api_key'])) {
-            $key = $this->secretForProvider($provider) ?? config("services.ai_scoring.{$environmentKey}");
+            $key = $this->effectiveKeyForProvider($provider);
         }
         $enabled = array_key_exists('enabled', $overrides)
             ? (bool) $overrides['enabled']
@@ -64,7 +64,7 @@ class AiProviderConfigurationService
             'model' => $resolved['model'] ?: '',
             'has_api_key' => filled($resolved['api_key']),
             'provider_label' => self::PROVIDERS[$resolved['provider'] ?? 'openrouter'] ?? 'OpenRouter',
-            'configured_providers' => collect(self::PROVIDERS)->mapWithKeys(fn (string $label, string $provider): array => [$provider => filled($this->secretForProvider($provider)) && filled($this->modelForProvider($provider))])->all(),
+            'providers_with_api_key' => collect(self::PROVIDERS)->mapWithKeys(fn (string $label, string $provider): array => [$provider => filled($this->effectiveKeyForProvider($provider))])->all(),
             'source' => $resolved['source'],
             'status' => ! $resolved['enabled'] ? 'Disabled' : ($resolved['configured'] ? 'Configured' : 'Not Configured'),
         ];
@@ -110,6 +110,14 @@ class AiProviderConfigurationService
         }
 
         return $setting->is_encrypted ? Crypt::decryptString($setting->value) : $setting->value;
+    }
+
+    /**
+     * The key the provider would use: the Admin-saved key, else the environment key.
+     */
+    private function effectiveKeyForProvider(string $provider): ?string
+    {
+        return $this->secretForProvider($provider) ?? config('services.ai_scoring.'.$this->environmentKey($provider));
     }
 
     private function modelForProvider(string $provider): ?string

@@ -6,7 +6,7 @@
         $labelClasses = 'text-sm font-extrabold';
     @endphp
 
-    {{-- Participants test this controlled QA application: keep its fields as they are (no name, id or label "for"); see the Open decisions in docs/CODE_QUALITY_PLAN.md. --}}
+    {{-- Participants test this controlled QA application: keep its fields as they are (no name, id or label "for"); the intentional defects are listed on ValidationLabController. --}}
     <div class="mx-auto grid w-full max-w-xl grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>CONTROLLED QA APPLICATION</x-ui.eyebrow>

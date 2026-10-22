@@ -14,6 +14,22 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
+/**
+ * The QA Validation Lab and its controlled mock application (`lab.login`, `lab.send-otp`, `lab.otp`, `lab.verify-otp`,
+ * `lab.success`), which Week 2 participants test for defects.
+ *
+ * The mock application's defects are intentional training defects. Do not fix them in a cleanup; the list is kept
+ * here, not in the Week 2 seeder guidance, because participants read that guidance and it would give the answers away:
+ *
+ * - The login Email and Password fields have no `name` or `id` and their labels no `for`, so `sendOtp()` accepts any
+ *   (or no) credentials.
+ * - `/lab/otp` and `GET /lab/success` open without signing in or verifying an OTP.
+ * - "After 3 failed attempts, the account is temporarily blocked." is never enforced, nor is the 2-minute OTP
+ *   validity window.
+ * - Resend OTP only shows an alert; no new OTP is issued.
+ * - The OTP input has no `id` and its label no `for`.
+ * - Return to Checklist on the success page returns 403 without a `trainee_name` session.
+ */
 class ValidationLabController extends Controller
 {
     public function index(): RedirectResponse|View

@@ -1,9 +1,6 @@
 @if($googleDrive)
     @php
-        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
-        $labelClasses = 'text-sm font-extrabold';
         $hintClasses = 'm-0 text-sm/relaxed text-muted';
-        $fieldErrorClasses = 'm-0 text-sm text-rose-200';
         $subsectionTitleClasses = 'm-0 text-base font-extrabold';
         $connection = $googleDrive['connection'];
         $sync = $googleDrive['sync'];
@@ -14,15 +11,6 @@
         <div class="grid gap-2">
             <h2 id="profile-drive-title" class="m-0 text-xl font-extrabold">Google Drive Settings</h2>
             <p class="{{ $hintClasses }}">Connect your Google account so the training platform can securely save your detailed training exports and other supported files to your selected Google Drive folder.</p>
-        </div>
-
-        <div class="grid min-w-0 gap-2">
-            <label for="drive_link" class="{{ $labelClasses }}">Google Drive Link (legacy, optional)</label>
-            <input id="drive_link" name="drive_link" type="url" value="{{ old('drive_link', $user->drive_link) }}" placeholder="https://drive.google.com/drive/folders/..." maxlength="2048" aria-describedby="drive-link-hint" class="{{ $controlClasses }}">
-            <p id="drive-link-hint" class="{{ $hintClasses }}">Use Choose Google Drive Folder above for the authorized export destination. Existing links are retained for compatibility and are not treated as Picker authorization.</p>
-            @error('drive_link')
-                <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
-            @enderror
         </div>
 
         @if($errors->has('google_drive'))
@@ -112,7 +100,7 @@
                         class="disabled:cursor-not-allowed disabled:opacity-55"
                     >{{ $picker['label'] }}</x-ui.button>
 
-                    <form method="post" action="{{ route('profile.google-drive.disconnect') }}" data-confirm="Disconnect Google Drive? Your existing Training Drive Link will not be changed." class="m-0 max-w-full">
+                    <form method="post" action="{{ route('profile.google-drive.disconnect') }}" data-confirm="Disconnect Google Drive? Files already synced stay in your Drive folder." class="m-0 max-w-full">
                         @csrf
                         <x-ui.button variant="secondary" type="submit">Disconnect Google Drive</x-ui.button>
                     </form>

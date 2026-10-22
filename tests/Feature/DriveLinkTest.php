@@ -10,35 +10,20 @@ class DriveLinkTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_participant_can_save_optional_drive_link_and_it_is_trimmed(): void
+    public function test_profile_update_ignores_a_posted_drive_link_and_keeps_the_stored_one(): void
     {
-        $participant = User::factory()->create();
-        $this->actingAs($participant)->get(route('profile.show'))->assertOk()->assertSee('Drive Link')->assertSee('Google Drive folder');
-        $this->actingAs($participant)->patch(route('profile.update'), ['name' => $participant->name, 'email' => $participant->email, 'training_path' => 'manual', 'drive_link' => '  https://drive.google.com/drive/folders/example  '])->assertRedirect();
-        $this->assertSame('https://drive.google.com/drive/folders/example', $participant->fresh()->drive_link);
-        $this->actingAs($participant)->patch(route('profile.update'), ['name' => $participant->name, 'email' => $participant->email, 'training_path' => 'manual', 'drive_link' => ''])->assertRedirect();
-        $this->assertNull($participant->fresh()->drive_link);
-    }
-
-    public function test_invalid_or_excessively_long_drive_link_is_rejected(): void
-    {
-        $participant = User::factory()->create();
-        $payload = ['name' => $participant->name, 'email' => $participant->email, 'training_path' => 'manual', 'drive_link' => 'not-a-url'];
-        $this->actingAs($participant)->patch(route('profile.update'), $payload)->assertSessionHasErrors('drive_link');
-        $payload['drive_link'] = 'https://example.com/'.str_repeat('a', 2048);
-        $this->actingAs($participant)->patch(route('profile.update'), $payload)->assertSessionHasErrors('drive_link');
-    }
-
-    public function test_non_folder_google_drive_links_are_rejected(): void
-    {
-        $participant = User::factory()->create();
+        $participant = User::factory()->create(['drive_link' => 'https://drive.google.com/drive/folders/stored']);
 
         $this->actingAs($participant)->patch(route('profile.update'), [
-            'name' => $participant->name,
+            'name' => 'Renamed Participant',
             'email' => $participant->email,
             'training_path' => 'manual',
-            'drive_link' => 'https://drive.google.com/file/d/file-id/view',
-        ])->assertSessionHasErrors('drive_link');
+            'drive_link' => 'not-a-url',
+        ])->assertSessionHasNoErrors()->assertRedirect(route('profile.show'));
+
+        $participant->refresh();
+        $this->assertSame('Renamed Participant', $participant->name);
+        $this->assertSame('https://drive.google.com/drive/folders/stored', $participant->drive_link);
     }
 
     public function test_coach_and_admin_can_view_drive_link_but_participant_cannot_view_other_profiles(): void

@@ -59,7 +59,6 @@ class ProfilePageTest extends TestCase
                 'action="'.route('logout').'" class="m-0"',
                 'Sign out',
                 '>Google Drive Settings</h2>',
-                'id="drive_link" name="drive_link" type="url" value="https://drive.google.com/drive/folders/legacy-folder"',
                 'Not connected',
                 'Connect Google Drive</h3>',
                 'href="'.route('profile.google-drive.connect').'"',
@@ -67,7 +66,9 @@ class ProfilePageTest extends TestCase
             ], false)
             ->assertDontSee('data-drive-picker', false)
             ->assertDontSee('apis.google.com/js/api.js', false)
-            ->assertDontSee('Google Drive Sync');
+            ->assertDontSee('Google Drive Sync')
+            ->assertDontSee('name="drive_link"', false)
+            ->assertDontSee('legacy-folder');
 
         $this->assertSame(1, substr_count($response->getContent(), 'Save profile'));
     }
@@ -167,7 +168,7 @@ class ProfilePageTest extends TestCase
                 'SYNC TO GOOGLE DRIVE',
                 'data-drive-picker="data-drive-picker" data-token-url="'.route('profile.google-drive.picker-token').'" data-save-url="'.route('profile.google-drive.destination').'" data-api-key="picker-key" data-app-id="1068406488956"',
                 'Change Folder',
-                'action="'.route('profile.google-drive.disconnect').'" data-confirm="Disconnect Google Drive? Your existing Training Drive Link will not be changed."',
+                'action="'.route('profile.google-drive.disconnect').'" data-confirm="Disconnect Google Drive? Files already synced stay in your Drive folder."',
                 'Disconnect Google Drive',
                 'data-drive-picker-error="data-drive-picker-error" hidden="hidden"></div>',
                 '<script src="https://apis.google.com/js/api.js" async defer></script>',

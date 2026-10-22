@@ -16,7 +16,7 @@
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>ADMIN SETTINGS</x-ui.eyebrow>
             <x-ui.page-title>Google Drive Integration</x-ui.page-title>
-            <p class="m-0 leading-relaxed text-muted">Configure the OAuth foundation for future participant training exports. No files are created or synchronized by this setting.</p>
+            <p class="m-0 leading-relaxed text-muted">Participants connect their own Google Drive and choose a folder. The app syncs a workbook for each training week and their submitted evidence into that folder whenever their training data changes.</p>
         </header>
 
         <x-ui.main-action id="google-drive-settings-main-action">
@@ -118,13 +118,13 @@
                             <input type="checkbox" name="automatic_export" value="1" @checked(old('automatic_export', $settings['automatic_export'])) aria-describedby="automatic-export-hint" class="{{ $checkboxClasses }}">
                             Automatic Training Export enabled
                         </label>
-                        <p id="automatic-export-hint" class="{{ $hintClasses }}">Reserved for a future export feature. Automatic exports are not implemented yet.</p>
+                        <p id="automatic-export-hint" class="{{ $hintClasses }}">Not used yet. Training data already syncs automatically when participants save work, whether or not this is checked.</p>
                     </div>
 
                     <section class="{{ $panelClasses }}" aria-labelledby="google-drive-scope-title">
                         <h3 id="google-drive-scope-title" class="{{ $panelTitleClasses }}">Configured scope</h3>
                         <p class="{{ $hintClasses }} wrap-anywhere">{{ $scopes }}</p>
-                        <p class="{{ $hintClasses }}">The application uses the narrowest configured Drive scope needed for future app-created training files. Gmail, Calendar, and Contacts are not requested.</p>
+                        <p class="{{ $hintClasses }}">Participant connections request only these scopes. The Drive scope gives the app access only to the files it creates and the folder the participant picks. Gmail, Calendar, and Contacts are not requested.</p>
                     </section>
                 </form>
 

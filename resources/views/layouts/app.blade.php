@@ -31,8 +31,16 @@
             <header class="mb-9 flex flex-wrap items-start justify-between gap-3 sm:items-center">
                 <a class="rounded font-black tracking-[0.08em] focus-visible:outline-3 focus-visible:outline-accent/50" href="{{ route('home') }}">⚡ DEVELOPER TRAINING PLATFORM</a>
                 <nav class="flex w-full flex-wrap items-center gap-2 sm:w-auto" aria-label="Account">
-                    <a class="rounded-full border border-line px-2.75 py-1.75 text-xs text-muted hover:border-brand hover:text-slate-100 focus-visible:outline-3 focus-visible:outline-accent/50" href="{{ route('login') }}">Login</a>
-                    <a class="rounded-full border border-line px-2.75 py-1.75 text-xs text-muted hover:border-brand hover:text-slate-100 focus-visible:outline-3 focus-visible:outline-accent/50" href="{{ route('register') }}">Register</a>
+                    @foreach($guestLinks as $link)
+                        <a
+                            @if($link['is_current']) aria-current="page" @endif
+                            @class([
+                                'rounded-full border px-2.75 py-1.75 text-xs focus-visible:outline-3 focus-visible:outline-accent/50',
+                                'border-brand bg-brand-soft font-bold text-white' => $link['is_current'],
+                                'border-line text-muted hover:border-brand hover:text-slate-100' => ! $link['is_current'],
+                            ])
+                            href="{{ $link['url'] }}">{{ $link['label'] }}</a>
+                    @endforeach
                 </nav>
             </header>
             <main>

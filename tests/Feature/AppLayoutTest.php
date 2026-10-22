@@ -36,6 +36,24 @@ class AppLayoutTest extends TestCase
             ->assertDontSee('style="', false);
     }
 
+    public function test_guest_account_links_mark_only_the_current_page(): void
+    {
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSeeInOrder(['aria-current="page"', 'border-brand bg-brand-soft', 'href="'.route('login').'">Login</a>', 'border-line text-muted', 'href="'.route('register').'">Register</a>'], false);
+        $this->assertSame(1, substr_count($this->get(route('login'))->getContent(), 'aria-current="page"'));
+
+        $this->get(route('register'))
+            ->assertOk()
+            ->assertSeeInOrder(['border-line text-muted', 'href="'.route('login').'">Login</a>', 'aria-current="page"', 'border-brand bg-brand-soft', 'href="'.route('register').'">Register</a>'], false);
+        $this->assertSame(1, substr_count($this->get(route('register'))->getContent(), 'aria-current="page"'));
+
+        $this->get(route('privacy-policy'))
+            ->assertOk()
+            ->assertSee('href="'.route('login').'">Login</a>', false)
+            ->assertDontSee('aria-current="page"', false);
+    }
+
     public function test_participant_sidebar_lists_the_training_links_with_the_unread_count_and_marks_the_current_page(): void
     {
         $participant = User::factory()->create(['name' => 'Pat Participant']);

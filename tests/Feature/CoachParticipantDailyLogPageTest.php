@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\DailyLog;
+use App\Models\Program;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
@@ -20,9 +21,10 @@ class CoachParticipantDailyLogPageTest extends TestCase
         $this->travelTo('2026-09-20 10:00:00');
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create(['name' => 'Ada Alpha', 'email' => 'ada@example.test', 'training_path' => 'manual']);
-        $week = TrainingWeek::factory()->create(['week_number' => 3]);
-        TrainingWeek::factory()->create(['week_number' => 2]);
-        TrainingWeek::factory()->create(['week_number' => 5, 'is_active' => false]);
+        $program = Program::factory()->create();
+        $week = TrainingWeek::factory()->for($program)->create(['week_number' => 3]);
+        TrainingWeek::factory()->for($program)->create(['week_number' => 2]);
+        TrainingWeek::factory()->for($program)->create(['week_number' => 5, 'is_active' => false]);
         $activity = Activity::factory()->for($week, 'week')->create(['title' => 'Explore checkout']);
         DailyLog::factory()->for($participant, 'participant')->for($activity)->create([
             'logged_on' => '2026-09-14',
@@ -68,8 +70,9 @@ class CoachParticipantDailyLogPageTest extends TestCase
         $this->travelTo('2026-09-20 10:00:00');
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create();
-        $week = TrainingWeek::factory()->create(['week_number' => 2]);
-        $otherWeek = TrainingWeek::factory()->create(['week_number' => 3]);
+        $program = Program::factory()->create();
+        $week = TrainingWeek::factory()->for($program)->create(['week_number' => 2]);
+        $otherWeek = TrainingWeek::factory()->for($program)->create(['week_number' => 3]);
         $activity = Activity::factory()->for($week, 'week')->create();
         DailyLog::factory()->count(26)->for($participant, 'participant')->for($activity)
             ->sequence(fn (Sequence $sequence): array => ['content' => sprintf('Filtered log %02d', $sequence->index + 1)])
@@ -103,7 +106,60 @@ class CoachParticipantDailyLogPageTest extends TestCase
             ->assertOk()
             ->assertSee('0 total logs')
             ->assertSee('No Daily Logs have been submitted by this participant yet.')
+            ->assertDontSee('Go to the last page')
             ->assertDontSee('Showing')
+            ->assertDontSee('<table', false);
+    }
+
+    public function test_week_options_come_from_the_active_program_and_filter_by_its_week(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create();
+        $activeProgram = Program::factory()->create();
+        $laterProgram = Program::factory()->create();
+        Program::factory()->create(['is_active' => false]);
+        $activeWeek = TrainingWeek::factory()->for($activeProgram)->create(['week_number' => 2]);
+        $laterWeek = TrainingWeek::factory()->for($laterProgram)->create(['week_number' => 2]);
+        DailyLog::factory()->for($participant, 'participant')->for(Activity::factory()->for($activeWeek, 'week'))->create(['content' => 'Active program log']);
+        DailyLog::factory()->for($participant, 'participant')->for(Activity::factory()->for($laterWeek, 'week'))->create(['content' => 'Later program log']);
+
+        $response = $this->actingAs($coach)->get(route('coach.participants.daily-logs', [$participant, 'week' => 2]))
+            ->assertOk()
+            ->assertSee('Active program log')
+            ->assertDontSee('Later program log');
+
+        $this->assertSame(1, substr_count($this->weekSelectMarkup($response->getContent()), '>Week 2</option>'));
+    }
+
+    public function test_a_filter_without_matches_says_so_instead_of_no_logs_yet(): void
+    {
+        $this->travelTo('2026-09-20 10:00:00');
+        $coach = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create();
+        DailyLog::factory()->for($participant, 'participant')->create(['logged_on' => '2026-09-14']);
+
+        $this->actingAs($coach)->get(route('coach.participants.daily-logs', [$participant, 'date' => '2026-09-15']))
+            ->assertOk()
+            ->assertSee('1 total logs')
+            ->assertSee('No Daily Logs match the selected filters.')
+            ->assertDontSee('No Daily Logs have been submitted by this participant yet.')
+            ->assertDontSee('Showing')
+            ->assertDontSee('<table', false);
+    }
+
+    public function test_a_page_past_the_last_one_links_to_the_last_page(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create();
+        DailyLog::factory()->count(26)->for($participant, 'participant')->create(['activity_id' => null]);
+
+        $this->actingAs($coach)->get(route('coach.participants.daily-logs', [$participant, 'page' => 5]))
+            ->assertOk()
+            ->assertSee('· 26 total')
+            ->assertSee('There are no Daily Logs on this page.')
+            ->assertSeeInOrder(['href="'.e(route('coach.participants.daily-logs', [$participant, 'page' => 2])).'"', '>Go to the last page</a>'], false)
+            ->assertDontSee('Showing')
+            ->assertDontSee('No Daily Logs have been submitted by this participant yet.')
             ->assertDontSee('<table', false);
     }
 

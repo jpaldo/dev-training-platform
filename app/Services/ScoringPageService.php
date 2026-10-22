@@ -50,12 +50,12 @@ class ScoringPageService
 
     /**
      * Everything the coach scoring page of a submission version renders: the header, the immutable submission (answers,
-     * Week 3 checkpoint, prompt / output history, evidence), the AI suggestions, the scoring fields with their values
+     * Week 3 snapshot, prompt / output history, evidence), the AI suggestions, the scoring fields with their values
      * (a suggestion draft kept from the page, otherwise the saved score, otherwise the suggestion when nothing is saved
      * yet), the live score context and the second-reader review. The single main action is Save / Publish Score.
      *
      * @param  array<string, mixed>|null  $draft  The scoring form values flashed when a suggestion was generated.
-     * @return array{version: SubmissionVersion, activityTitle: string, participantName: string, weekNumber: int, submissionStatus: string, submittedAt: string, answers: list<array{label: string, text: mixed}>, weekThreeCheckpoint: ?array{findings: list<array{heading: string, description: mixed, actual_result: mixed, human_validation: mixed, tests: list<array{label: string, name: mixed, execution_result: mixed, fix_validation: ?array{status: mixed, bug_free_result: mixed}}>}>, conclusion: ?array{final_conclusion: mixed, coverage_gaps: mixed}}, evidenceRows: list<array{title: string, detail: ?string}>, suggestion: ?ActivityScoreSuggestion, suggestionRows: list<array{heading: string, feedback: mixed, evidence_basis: mixed}>, evidenceProcessing: list<string>, suggestionData: ?array{dimensions: mixed, overall_feedback: ?string}, aiStatus: string, isAiConfigured: bool, canManage: bool, scoreFields: list<array{key: string, label: string, max: int, evidence_id: string, points_id: string, points: mixed, evidence_reasoning: mixed}>, overallFeedback: mixed, previousAverage: ?int, score: ?ActivityScore, canManageSecondReader: bool, readers: Collection<int, User>}
+     * @return array{version: SubmissionVersion, activityTitle: string, participantName: string, weekNumber: int, submissionStatus: string, submittedAt: string, answers: list<array{label: string, text: mixed}>, weekThreeReview: ?array<string, mixed>, evidenceRows: list<array{title: string, detail: ?string}>, suggestion: ?ActivityScoreSuggestion, suggestionRows: list<array{heading: string, feedback: mixed, evidence_basis: mixed}>, evidenceProcessing: list<string>, suggestionData: ?array{dimensions: mixed, overall_feedback: ?string}, aiStatus: string, isAiConfigured: bool, canManage: bool, scoreFields: list<array{key: string, label: string, max: int, evidence_id: string, points_id: string, points: mixed, evidence_reasoning: mixed}>, overallFeedback: mixed, previousAverage: ?int, score: ?ActivityScore, canManageSecondReader: bool, readers: Collection<int, User>}
      */
     public function editData(SubmissionVersion $version, User $viewer, ?array $draft): array
     {
@@ -75,7 +75,7 @@ class ScoringPageService
             'submissionStatus' => $submission->status->value,
             'submittedAt' => $version->submitted_at?->format('M j, Y g:i A') ?? '—',
             'answers' => $this->answerRows($version),
-            'weekThreeCheckpoint' => $this->weekThreeCheckpoint($version),
+            'weekThreeReview' => $this->answers->versionWeekThreeReview($version),
             'evidenceRows' => $this->evidenceRows($version->evidence),
             'suggestion' => $suggestion,
             'suggestionRows' => $this->suggestionRows($suggestion),
@@ -387,44 +387,6 @@ class ScoringPageService
     }
 
     /**
-     * The Week 3 workspace checkpoint saved with a Week 3 version (findings with their tests, and the regression
-     * conclusion), or null on other weeks or without a snapshot.
-     *
-     * @return ?array{findings: list<array{heading: string, description: mixed, actual_result: mixed, human_validation: mixed, tests: list<array{label: string, name: mixed, execution_result: mixed, fix_validation: ?array{status: mixed, bug_free_result: mixed}}>}>, conclusion: ?array{final_conclusion: mixed, coverage_gaps: mixed}}
-     */
-    private function weekThreeCheckpoint(SubmissionVersion $version): ?array
-    {
-        $snapshot = $version->submission->activity->week->week_number === 3 ? ($version->field_values['week_three_snapshot'] ?? null) : null;
-
-        if (! $snapshot) {
-            return null;
-        }
-
-        $findings = collect($snapshot['findings'] ?? [])->values()->map(fn (array $finding, int $index): array => [
-            'heading' => 'Finding '.($finding['position'] ?? $index + 1).' · '.($finding['title'] ?? 'Untitled'),
-            'description' => $finding['description'] ?? '',
-            'actual_result' => $finding['actual_result'] ?? '',
-            'human_validation' => $finding['human_validation'] ?? '',
-            'tests' => collect($finding['tests'] ?? [])->map(fn (array $test): array => [
-                'label' => ucfirst($test['path'] ?? 'Test').' test:',
-                'name' => $test['name'] ?? '',
-                'execution_result' => $test['execution_result'] ?? '',
-                'fix_validation' => empty($test['fix_validation']) ? null : [
-                    'status' => $test['fix_validation']['status'] ?? '',
-                    'bug_free_result' => $test['fix_validation']['bug_free_result'] ?? '',
-                ],
-            ])->values()->all(),
-        ]);
-
-        return [
-            'findings' => $findings->all(),
-            'conclusion' => ($snapshot['final_conclusion'] ?? null)
-                ? ['final_conclusion' => $snapshot['final_conclusion'], 'coverage_gaps' => $snapshot['coverage_gaps'] ?? '']
-                : null,
-        ];
-    }
-
-    /**
      * The evidence items, each titled by its title or type, with its text, link or file name.
      *
      * @param  Collection<int, SubmissionEvidence>  $evidence
@@ -469,7 +431,7 @@ class ScoringPageService
     {
         return collect($suggestion?->evidence_processing ?: [])
             ->map(function (array $status): string {
-                $line = ($status['filename'] ?? 'Evidence').' ? '.str_replace('_', ' ', $status['status'] ?? 'unknown');
+                $line = ($status['filename'] ?? 'Evidence').' → '.str_replace('_', ' ', $status['status'] ?? 'unknown');
 
                 return empty($status['strategy']) ? $line : $line.' ('.str_replace('_', ' ', $status['strategy']).')';
             })

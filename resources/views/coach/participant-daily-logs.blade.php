@@ -51,12 +51,17 @@
                     <h2 id="participant-daily-logs-title" class="m-0 text-xl font-extrabold">Daily Logs</h2>
                     <span class="text-sm text-muted">· {{ $logs->total() }} total</span>
                 </div>
-                @if($logs->total() > 0)
+                @if($logs->isNotEmpty())
                     <span class="text-sm text-muted">Showing {{ $logs->firstItem() }}–{{ $logs->lastItem() }} of {{ $logs->total() }} Daily Logs</span>
                 @endif
             </div>
             @if($logs->isEmpty())
-                <p class="m-0 rounded-xl border border-dashed border-line p-5 text-muted">No Daily Logs have been submitted by this participant yet.</p>
+                <div class="grid justify-items-start gap-3 rounded-xl border border-dashed border-line p-5">
+                    <p class="m-0 text-muted">{{ $emptyMessage }}</p>
+                    @if($lastPageUrl)
+                        <x-ui.button variant="secondary" :href="$lastPageUrl">Go to the last page</x-ui.button>
+                    @endif
+                </div>
             @else
                 <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="participant-daily-logs-title" tabindex="0">
                     <table class="w-full min-w-215 border-collapse text-sm">

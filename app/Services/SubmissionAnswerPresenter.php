@@ -75,6 +75,22 @@ class SubmissionAnswerPresenter
         })->values()->all();
     }
 
+    /**
+     * The Week 3 review of a version's immutable workspace snapshot, filtered to the participant's test paths, or null
+     * on other weeks or without a snapshot (the coach review and scoring pages show it through the
+     * `week-three-review` partial). The version's submission must have its activity, week and participant loaded.
+     *
+     * @return ?array<string, mixed>
+     */
+    public function versionWeekThreeReview(SubmissionVersion $version): ?array
+    {
+        $submission = $version->submission;
+        $activity = $submission->activity;
+        $snapshot = $activity->week->week_number === 3 ? ($version->field_values['week_three_snapshot'] ?? null) : null;
+
+        return $snapshot ? $this->weekThreeReview($snapshot, (int) $activity->position, $submission->participant->training_path) : null;
+    }
+
     /** @return array<string,mixed> */
     public function weekThreeReview(mixed $snapshot, int $activityPosition, ?TrainingPath $trainingPath = null): array
     {

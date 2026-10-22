@@ -38,6 +38,7 @@ class AppServiceProvider extends ServiceProvider
         View::composer('layouts.app', function (ViewContract $view): void {
             $user = Auth::user();
             $view->with('sidebarNavigation', $user ? app(SidebarNavigationService::class)->sidebarData($user, request()) : null);
+            $view->with('guestLinks', $user ? [] : app(SidebarNavigationService::class)->guestLinks(request()));
 
             if (! $user || $user->role !== UserRole::Participant) {
                 $view->with('participantDriveHeader', null);

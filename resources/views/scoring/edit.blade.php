@@ -53,39 +53,8 @@
                             </li>
                         @endforeach
                     </ul>
-                @elseif(! $weekThreeCheckpoint)
+                @elseif(! $weekThreeReview)
                     <p class="{{ $hintClasses }}">No submitted activity answers.</p>
-                @endif
-
-                @if($weekThreeCheckpoint)
-                    <h3 class="{{ $subsectionTitleClasses }}">Week 3 workspace checkpoint</h3>
-                    <ul class="m-0 grid list-none gap-3 p-0">
-                        @foreach($weekThreeCheckpoint['findings'] as $finding)
-                            <li class="{{ $rowClasses }}">
-                                <strong>{{ $finding['heading'] }}</strong>
-                                <p class="m-0 leading-relaxed">{{ $finding['description'] }}</p>
-                                <p class="m-0 leading-relaxed"><strong>Actual result:</strong> {{ $finding['actual_result'] }}</p>
-                                <p class="m-0 leading-relaxed"><strong>Human validation:</strong> {{ $finding['human_validation'] }}</p>
-                                @foreach($finding['tests'] as $test)
-                                    <div class="{{ $formattedClasses }} grid gap-1">
-                                        <p class="m-0"><strong>{{ $test['label'] }}</strong> {{ $test['name'] }}</p>
-                                        <p class="m-0 whitespace-pre-wrap">{{ $test['execution_result'] }}</p>
-                                        @if($test['fix_validation'])
-                                            <p class="m-0"><strong>Fix status:</strong> {{ $test['fix_validation']['status'] }}</p>
-                                            <p class="m-0"><strong>Bug-free result:</strong> {{ $test['fix_validation']['bug_free_result'] }}</p>
-                                        @endif
-                                    </div>
-                                @endforeach
-                            </li>
-                        @endforeach
-                        @if($weekThreeCheckpoint['conclusion'])
-                            <li class="{{ $rowClasses }}">
-                                <strong>Regression conclusion</strong>
-                                <p class="m-0 leading-relaxed">{{ $weekThreeCheckpoint['conclusion']['final_conclusion'] }}</p>
-                                <p class="m-0 leading-relaxed"><strong>Coverage gaps:</strong> {{ $weekThreeCheckpoint['conclusion']['coverage_gaps'] }}</p>
-                            </li>
-                        @endif
-                    </ul>
                 @endif
 
                 @if($version->interactions->isNotEmpty())
@@ -118,6 +87,13 @@
                     </ul>
                 @endif
             </x-ui.card>
+
+            @if($weekThreeReview)
+                <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-3" aria-label="Week 3 snapshot">
+                    <p class="{{ $hintClasses }}">Participant submission · immutable Week 3 snapshot for Version {{ $version->version_number }}</p>
+                    @include('components.week-three-review', ['review' => $weekThreeReview])
+                </x-ui.card>
+            @endif
 
             <x-ui.card as="section" class="grid grid-cols-1 gap-2" aria-labelledby="rubric-title">
                 <h2 id="rubric-title" class="{{ $sectionTitleClasses }}">Rubric reference</h2>

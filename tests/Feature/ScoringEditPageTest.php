@@ -82,7 +82,7 @@ class ScoringEditPageTest extends TestCase
             'D1 · Deliverable quality — Suggested 1/30', 'Suggested feedback', 'Basis: Submitted answer',
             'D5 · Evidence &amp; reasoning — Suggested 1/10',
             '<strong>Overall Suggested Feedback:</strong> Suggested overall feedback.',
-            'Evidence considered:', 'notes.txt ? inspected (text extract)', 'Evidence ? not supported',
+            'Evidence considered:', 'notes.txt → inspected (text extract)', 'Evidence → not supported',
             'AI scoring status: Configured.',
             'id="suggestion-form" method="POST" action="'.route('coach.scoring.suggestion', $version).'"', 'name="draft_json" id="draft-json"', '>Regenerate Suggestions</button>',
             'id="apply-suggestions"', '>Apply Suggestions to Scoring Fields</button>',
@@ -191,39 +191,49 @@ class ScoringEditPageTest extends TestCase
         $this->assertSame(70, $version->activityScore()->value('second_score'));
     }
 
-    public function test_a_week_three_version_shows_the_workspace_checkpoint_instead_of_answers(): void
+    public function test_a_week_three_version_shows_the_shared_snapshot_review_with_the_participants_path_tests(): void
     {
         [$coach, $version] = $this->assignedCoachWithVersion([
             'week_three_snapshot' => [
                 'findings' => [
                     [
-                        'position' => 4,
                         'title' => 'Checkout total',
-                        'description' => 'Total ignores tax.',
-                        'actual_result' => 'Tax missing',
-                        'human_validation' => 'Confirmed manually',
-                        'tests' => [['path' => 'manual', 'name' => 'Pay with tax', 'execution_result' => 'Failed', 'fix_validation' => ['status' => 'fixed', 'bug_free_result' => 'Passes']]],
+                        'severity' => 'High',
+                        'tests' => [
+                            ['path' => 'manual', 'name' => 'Pay with tax', 'steps' => 'Add a taxed item', 'execution_result' => 'Failed'],
+                            ['path' => 'automation', 'name' => 'Automated tax check'],
+                        ],
                     ],
-                    ['tests' => [['execution_result' => 'Passed']]],
                 ],
-                'final_conclusion' => 'Regression covered.',
-                'coverage_gaps' => 'Refunds',
             ],
         ], 3);
+        $version->submission->activity->update(['position' => 2]);
 
         $response = $this->actingAs($coach)->get(route('coach.scoring.edit', $version))->assertOk();
 
         $response->assertSeeInOrder([
-            'Week 3 workspace checkpoint',
-            'Finding 4 · Checkout total', 'Total ignores tax.',
-            '<strong>Actual result:</strong> Tax missing', '<strong>Human validation:</strong> Confirmed manually',
-            '<strong>Manual test:</strong> Pay with tax', 'Failed',
-            '<strong>Fix status:</strong> fixed', '<strong>Bug-free result:</strong> Passes',
-            'Finding 2 · Untitled', '<strong>Test test:</strong>', 'Passed',
-            'Regression conclusion', 'Regression covered.', '<strong>Coverage gaps:</strong> Refunds',
+            'aria-label="Week 3 snapshot"',
+            'Participant submission · immutable Week 3 snapshot for Version '.$version->version_number,
+            '>AI-Assisted Testing</h2>',
+            'Finding #1 — Checkout total',
+            'Pay with tax', '>Manual</span>',
+            '>Steps</dt>', 'Add a taxed item',
+            '>Execution Result</dt>', 'Failed',
         ], false);
-        $this->assertSame(1, substr_count($response->getContent(), 'Fix status:'));
-        $response->assertDontSee('No submitted activity answers.')->assertDontSee('Week Three Snapshot');
+        $response->assertDontSee('Automated tax check')
+            ->assertDontSee('Week 3 workspace checkpoint')
+            ->assertDontSee('No submitted activity answers.')
+            ->assertDontSee('Week Three Snapshot');
+    }
+
+    public function test_a_week_two_version_does_not_show_a_week_three_snapshot(): void
+    {
+        [$coach, $version] = $this->assignedCoachWithVersion(['week_three_snapshot' => ['findings' => [['title' => 'Stale finding']]]]);
+
+        $this->actingAs($coach)->get(route('coach.scoring.edit', $version))
+            ->assertOk()
+            ->assertDontSee('aria-label="Week 3 snapshot"', false)
+            ->assertDontSee('Stale finding');
     }
 
     public function test_unassigned_coach_sees_a_read_only_page_without_the_score_or_second_reader_forms(): void

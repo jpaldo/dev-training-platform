@@ -64,6 +64,32 @@ class CoachSubmissionReviewPageTest extends TestCase
         $response->assertDontSee('Create Retry')->assertDontSee('Read only')->assertDontSee('Current Review');
     }
 
+    public function test_text_evidence_and_the_participant_note_render_as_escaped_markdown(): void
+    {
+        [$coach, $version] = $this->assignedCoachWithVersion('submitted');
+        $version->update(['participant_note' => "Checked **staging** <script>alert('note')</script>"]);
+        SubmissionEvidence::factory()->for($version, 'submissionVersion')->create(['title' => 'Notes', 'evidence_type' => 'text', 'content' => "- First *step*\n- Second step"]);
+
+        $this->actingAs($coach)->get(route('coach.reviews.show', $version))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Text evidence', 'class="formatted-text markdown"', '<li>First <em>step</em></li>', '<li>Second step</li>',
+                'Participant Note', 'class="formatted-text markdown"', 'Checked <strong>staging</strong>', '&lt;script&gt;',
+            ], false)
+            ->assertDontSee("<script>alert('note')</script>", false)
+            ->assertDontSee('whitespace-pre-wrap', false);
+    }
+
+    public function test_a_missing_participant_note_reads_not_provided(): void
+    {
+        [$coach, $version] = $this->assignedCoachWithVersion('submitted');
+        $version->update(['participant_note' => null]);
+
+        $this->actingAs($coach)->get(route('coach.reviews.show', $version))
+            ->assertOk()
+            ->assertSeeInOrder(['Participant Note', '<span class="text-muted">Not provided</span>'], false);
+    }
+
     public function test_the_latest_review_is_shown_as_the_current_review(): void
     {
         [$coach, $version] = $this->assignedCoachWithVersion('needs_revision');

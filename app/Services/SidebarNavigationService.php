@@ -43,6 +43,20 @@ class SidebarNavigationService
     }
 
     /**
+     * The guest layout's account links (Login, Register), each with its URL and whether it is the current page.
+     *
+     * @return list<array{label: string, url: string, is_current: bool}>
+     */
+    public function guestLinks(Request $request): array
+    {
+        return array_map(fn (string $route): array => [
+            'label' => ucfirst($route),
+            'url' => route($route),
+            'is_current' => $request->routeIs($route),
+        ], ['login', 'register']);
+    }
+
+    /**
      * The sidebar links per group label, in display order: each link's route name, the route patterns that mark it
      * as the current page and an optional badge count.
      *

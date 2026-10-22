@@ -159,7 +159,9 @@
                                     <x-ui.button variant="secondary" :href="$item['evidence']->url" target="_blank" rel="noopener noreferrer">Open evidence</x-ui.button>
                                 @elseif($item['evidence']->content)
                                     <p class="{{ $hintClasses }}">Text evidence</p>
-                                    <p class="{{ $formattedClasses }} m-0 whitespace-pre-wrap wrap-anywhere">{{ $item['evidence']->content }}</p>
+                                    <div class="{{ $formattedClasses }}">
+                                        <x-formatted-text :text="$item['evidence']->content" />
+                                    </div>
                                 @else
                                     <p class="{{ $hintClasses }}">No evidence content provided.</p>
                                 @endif
@@ -173,7 +175,9 @@
 
             <x-ui.card as="section" class="grid grid-cols-1 gap-3" aria-labelledby="participant-note-title">
                 <h2 id="participant-note-title" class="{{ $sectionTitleClasses }}">Participant Note</h2>
-                <p class="{{ $formattedClasses }} m-0 whitespace-pre-wrap wrap-anywhere">{{ $submissionVersion->participant_note ?: 'Not provided' }}</p>
+                <div class="{{ $formattedClasses }}">
+                    <x-formatted-text :text="$submissionVersion->participant_note" />
+                </div>
             </x-ui.card>
 
             <x-ui.card as="section" class="grid grid-cols-1 gap-5" aria-labelledby="coach-review-title">

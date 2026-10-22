@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
+use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
@@ -44,8 +45,8 @@ class CoachReviewQueuePageTest extends TestCase
                 'href="'.route('coach.reviews.show', $latestVersion).'"', '>Review latest version</a>',
             ], false)
             ->assertDontSee('href="'.route('coach.reviews.show', $olderVersion).'"', false)
-            ->assertDontSee('Dora Draft')
-            ->assertDontSee('Abe Approved')
+            ->assertDontSee('>Dora Draft</h2>', false)
+            ->assertDontSee('>Abe Approved</h2>', false)
             ->assertDontSee('No submissions to review.');
 
         $this->assertSame(1, substr_count($this->actingAs($coach)->get(route('coach.reviews'))->getContent(), 'Review latest version'));
@@ -65,7 +66,7 @@ class CoachReviewQueuePageTest extends TestCase
         $this->actingAs($coach)->get(route('coach.reviews', ['status' => 'needs_revision']))
             ->assertOk()
             ->assertSee('>Revision 1</h2>', false)
-            ->assertDontSee('Sam Submitted')
+            ->assertDontSee('>Sam Submitted</h2>', false)
             ->assertDontSee('>Revision 26</h2>', false)
             ->assertSee(e(route('coach.reviews', ['status' => 'needs_revision', 'page' => 2])), false);
 
@@ -73,6 +74,72 @@ class CoachReviewQueuePageTest extends TestCase
             ->assertOk()
             ->assertSee('>Revision 26</h2>', false)
             ->assertDontSee('>Revision 1</h2>', false);
+    }
+
+    public function test_filter_form_offers_the_active_programs_weeks_activities_paths_statuses_and_participants(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $program = Program::factory()->create();
+        $weekTwo = TrainingWeek::factory()->for($program)->create(['week_number' => 2]);
+        $weekThree = TrainingWeek::factory()->for($program)->create(['week_number' => 3]);
+        TrainingWeek::factory()->for($program)->create(['week_number' => 1]);
+        $charter = Activity::factory()->for($weekThree, 'week')->create(['title' => 'Exploratory charter', 'position' => 1]);
+        $checklist = Activity::factory()->for($weekTwo, 'week')->create(['title' => 'Validation checklist', 'position' => 2]);
+        Activity::factory()->for($weekTwo, 'week')->create(['title' => 'Retired activity', 'is_active' => false]);
+        Activity::factory()->for(TrainingWeek::factory()->for(Program::factory())->state(['week_number' => 4]), 'week')->create(['title' => 'Later program activity']);
+        $participant = User::factory()->create(['name' => 'Zed Participant']);
+        User::factory()->create(['name' => 'Amy Participant']);
+
+        $response = $this->actingAs($coach)->get(route('coach.reviews', ['week' => 3, 'activity' => $charter->id, 'path' => 'automation', 'status' => 'under_review', 'participant' => $participant->id]))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'action="'.route('coach.reviews').'"', 'aria-label="Filter submissions"',
+                'for="review-participant"', '<option value="">All participants</option>', '>Amy Participant</option>', '<option value="'.$participant->id.'" selected>Zed Participant</option>',
+                'for="review-week"', '<option value="">All weeks</option>', '<option value="2" >Week 2</option>', '<option value="3" selected>Week 3</option>',
+                'for="review-activity"', '<option value="'.$checklist->id.'" >Week 2 · Validation checklist</option>', '<option value="'.$charter->id.'" selected>Week 3 · Exploratory charter</option>',
+                'for="review-path"', '<option value="manual" >Manual</option>', '<option value="automation" selected>Automation</option>', '<option value="automation_manual" >Automation / Manual</option>',
+                'for="review-status"', '<option value="submitted" >Submitted</option>', '<option value="resubmitted" >Resubmitted</option>', '<option value="under_review" selected>Under review</option>', '<option value="needs_revision" >Needs revision</option>',
+                '>Filter</button>', 'href="'.route('coach.reviews').'"', '>Clear</a>',
+                'No submissions match the selected filters.',
+            ], false)
+            ->assertDontSee('Week 1</option>', false)
+            ->assertDontSee('Retired activity')
+            ->assertDontSee('Later program activity')
+            ->assertDontSee('No submissions to review.');
+
+        $this->assertSame(1, substr_count($response->getContent(), '>Amy Participant</option>'));
+    }
+
+    public function test_week_activity_path_and_participant_filters_narrow_the_queue(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $weekTwoActivity = Activity::factory()->for(TrainingWeek::factory()->state(['week_number' => 2]), 'week')->create();
+        $weekThreeActivity = Activity::factory()->for(TrainingWeek::factory()->state(['week_number' => 3]), 'week')->create();
+        $manualTwo = $this->submission($weekTwoActivity, 'Manual Two', 'submitted', now());
+        $this->submission($weekThreeActivity, 'Manual Three', 'submitted', now());
+        $automation = ActivitySubmission::factory()
+            ->for($weekTwoActivity)
+            ->for(User::factory()->state(['name' => 'Automation Two', 'training_path' => 'automation']), 'participant')
+            ->create(['status' => 'submitted', 'submitted_at' => now()]);
+
+        $this->actingAs($coach)->get(route('coach.reviews', ['week' => 3]))
+            ->assertOk()->assertSee('>Manual Three</h2>', false)->assertDontSee('>Manual Two</h2>', false)->assertDontSee('>Automation Two</h2>', false);
+        $this->actingAs($coach)->get(route('coach.reviews', ['activity' => $weekTwoActivity->id]))
+            ->assertOk()->assertSee('>Manual Two</h2>', false)->assertSee('>Automation Two</h2>', false)->assertDontSee('>Manual Three</h2>', false);
+        $this->actingAs($coach)->get(route('coach.reviews', ['path' => 'automation']))
+            ->assertOk()->assertSee('>Automation Two</h2>', false)->assertDontSee('>Manual Two</h2>', false)->assertDontSee('>Manual Three</h2>', false);
+        $this->actingAs($coach)->get(route('coach.reviews', ['participant' => $manualTwo->user_id]))
+            ->assertOk()->assertSee('>Manual Two</h2>', false)->assertDontSee('>Automation Two</h2>', false)->assertDontSee('>Manual Three</h2>', false);
+        $this->actingAs($coach)->get(route('coach.reviews', ['participant' => $automation->user_id, 'week' => 3]))
+            ->assertOk()->assertSee('No submissions match the selected filters.');
+    }
+
+    public function test_unfiltered_queue_has_no_clear_link(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.reviews'))
+            ->assertOk()
+            ->assertSee('aria-label="Filter submissions"', false)
+            ->assertDontSee('>Clear</a>', false);
     }
 
     #[DataProvider('statusFilterValues')]

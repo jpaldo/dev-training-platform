@@ -170,10 +170,19 @@ class CoachReportService
         return User::query()->whereIn('role', [UserRole::Coach, UserRole::Admin])->orderBy('name')->get();
     }
 
-    /** @return Collection<int, TrainingWeek> */
-    public function activeWeeks(): Collection
+    /**
+     * The active weeks of the participants' program, in week order. Participants are not linked to a program, so this
+     * is the active program the participant dashboard shows (the first by id); no weeks while none is active.
+     *
+     * @return Collection<int, TrainingWeek>
+     */
+    public function activeProgramWeeks(): Collection
     {
-        return TrainingWeek::query()->where('is_active', true)->orderBy('week_number')->get();
+        return TrainingWeek::query()
+            ->where('is_active', true)
+            ->where('program_id', Program::query()->select('id')->where('is_active', true)->orderBy('id')->limit(1))
+            ->orderBy('week_number')
+            ->get();
     }
 
     /**

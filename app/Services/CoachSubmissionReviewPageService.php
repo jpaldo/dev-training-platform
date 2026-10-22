@@ -34,7 +34,6 @@ class CoachSubmissionReviewPageService
         if (! $linkedValidationSubmission || (int) $linkedValidationSubmission->user_id !== (int) $submission->user_id) {
             $linkedValidationSubmission = null;
         }
-        $weekThreeSnapshot = $activity->week->week_number === 3 ? ($submissionVersion->field_values['week_three_snapshot'] ?? null) : null;
         $canManage = $viewer->canManageParticipant($submission->participant);
 
         return [
@@ -44,7 +43,7 @@ class CoachSubmissionReviewPageService
             'versionStatusLabel' => $submissionVersion->status->label(),
             'isActivityOne' => $activity->isValidationChecklist($activity->week),
             'linkedValidationSubmission' => $linkedValidationSubmission,
-            'weekThreeReview' => $weekThreeSnapshot ? $this->answers->weekThreeReview($weekThreeSnapshot, (int) $activity->position, $submission->participant->training_path) : null,
+            'weekThreeReview' => $this->answers->versionWeekThreeReview($submissionVersion),
             'weekFourReview' => $this->weekFour->present($activity, $submissionVersion->field_values ?? [], true),
             'officialQuestions' => $activity->week->week_number === 4 && $activity->position === 2 ? $this->interviews->questionnaire() : [],
             'canManage' => $canManage,

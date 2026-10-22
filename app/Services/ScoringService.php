@@ -134,7 +134,7 @@ class ScoringService
     private function totals(Collection $rows): array
     {
         $scored = $rows->filter(fn (array $row): bool => $row['score']?->isPublished() && $row['score']->total_score !== null);
-        $completed = $rows->filter(fn (array $row): bool => in_array($row['submission']?->status, ['submitted', 'resubmitted', 'approved', 'completed'], true))->count();
+        $completed = $rows->filter(fn (array $row): bool => $row['submission']?->isHandedIn() === true)->count();
 
         return ['completed' => $completed, 'total' => $rows->count(), 'scored' => $scored->count(), 'average' => $scored->isEmpty() ? null : (int) round($scored->avg(fn (array $row): int => $row['score']->total_score))];
     }

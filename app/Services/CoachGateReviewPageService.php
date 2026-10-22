@@ -14,8 +14,6 @@ use Illuminate\Database\Eloquent\Builder;
 
 class CoachGateReviewPageService
 {
-    private const COMPLETED_SUBMISSION_STATUSES = ['submitted', 'resubmitted', 'approved', 'completed'];
-
     private const VIDEO_CRITERION_TYPES = ['weekly_video', 'weekly_loom'];
 
     public function __construct(private readonly WeekTwoGateService $gates) {}
@@ -88,7 +86,7 @@ class CoachGateReviewPageService
         $weekActivities = $week->activities()->where('is_active', true)->get();
         $activitySubmissions = $participant->activitySubmissions()->whereIn('activity_id', $weekActivities->pluck('id'))->get()->keyBy('activity_id');
         $completedActivities = $weekActivities
-            ->filter(fn (Activity $activity): bool => in_array($activitySubmissions->get($activity->id)?->status, self::COMPLETED_SUBMISSION_STATUSES, true))
+            ->filter(fn (Activity $activity): bool => $activitySubmissions->get($activity->id)?->isHandedIn() === true)
             ->count();
 
         return "{$completedActivities} / {$weekActivities->count()} submitted";

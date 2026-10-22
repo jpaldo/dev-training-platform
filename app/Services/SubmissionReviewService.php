@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ReviewDecision;
+use App\Enums\SubmissionStatus;
 use App\Jobs\ExportActivityJob;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionReview;
@@ -21,7 +22,7 @@ class SubmissionReviewService
     {
         DB::transaction(function () use ($submissionVersion): void {
             $submission = $submissionVersion->submission()->lockForUpdate()->firstOrFail();
-            if (in_array($submission->status, ['submitted', 'resubmitted'], true)) {
+            if ($submission->isClaimable()) {
                 $submission->update(['status' => 'under_review']);
             }
         });
@@ -34,7 +35,7 @@ class SubmissionReviewService
     {
         $review = SubmissionReview::create(['submission_version_id' => $submissionVersion->id, 'reviewer_id' => $reviewer->id, 'decision' => $decision, 'comments' => $comments, 'reviewed_at' => now()]);
         $status = $review->decision->submissionStatus();
-        $submissionVersion->submission->update(['status' => $status, 'completed_at' => $status === 'approved' ? now() : null]);
+        $submissionVersion->submission->update(['status' => $status, 'completed_at' => $status === SubmissionStatus::Approved ? now() : null]);
         ExportActivityJob::dispatch($submissionVersion->id);
         $this->syncs->request($submissionVersion->submission->participant, 'review_updated');
 

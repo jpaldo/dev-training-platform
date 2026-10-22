@@ -179,7 +179,7 @@ class WeekProgressionService
 
         $submission = $activity->submissions()->where('user_id', $user->id)->latest('attempt_number')->first();
 
-        return ! $submission || in_array($submission->status, ['draft', 'needs_revision'], true);
+        return ! $submission || $submission->isDraft() || $submission->needsRevision();
     }
 
     public function requiresAttendanceForNewActivity(User $user, TrainingWeek $week, Activity $activity): bool

@@ -74,7 +74,7 @@ class ReusableAssetLibraryService
 
     public function isPublishedVersion(SubmissionVersion $version): bool
     {
-        return in_array($version->submission?->status, ['approved', 'completed'], true)
+        return $version->submission?->isAccepted() === true
             && $version->submission?->activity?->position === 1
             && $version->submission?->activity?->week?->week_number === 4;
     }

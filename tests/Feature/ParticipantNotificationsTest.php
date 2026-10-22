@@ -117,6 +117,75 @@ class ParticipantNotificationsTest extends TestCase
         ];
     }
 
+    /**
+     * @param  list<string>  $activeReminders
+     */
+    #[DataProvider('latestAttemptStatuses')]
+    public function test_latest_attempt_status_sets_the_activity_reminders(string $status, array $activeReminders): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
+        $week = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
+        $activity = $week->activities()->where('position', 1)->firstOrFail();
+        ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'failed', 'attempt_number' => 1]);
+        ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $status, 'attempt_number' => 2]);
+
+        app(ParticipantNotificationService::class)->sync($participant);
+
+        $reminderKeys = collect(['incomplete', 'draft', 'revision', 'review'])->mapWithKeys(fn (string $reminder): array => ["week:{$week->id}:activity:{$activity->id}:{$reminder}" => $reminder]);
+        $this->assertSame($activeReminders, $participant->participantNotifications()->active()->whereIn('key', $reminderKeys->keys())->orderBy('id')->pluck('key')->map(fn (string $key): string => $reminderKeys[$key])->all());
+    }
+
+    /**
+     * The status of the participant's latest attempt (after a failed first attempt) and the activity reminders it
+     * keeps active, in the order the sync writes them.
+     *
+     * @return array<string, array{string, list<string>}>
+     */
+    public static function latestAttemptStatuses(): array
+    {
+        return [
+            'failed' => ['failed', ['incomplete']],
+            'draft' => ['draft', ['draft']],
+            'submitted' => ['submitted', ['review']],
+            'resubmitted' => ['resubmitted', ['review']],
+            'under review' => ['under_review', ['review']],
+            'approved' => ['approved', []],
+            'completed' => ['completed', []],
+        ];
+    }
+
+    /**
+     * @param  list<string>  $statuses
+     */
+    #[DataProvider('weekActivityStatuses')]
+    public function test_weekly_video_reminder_starts_once_every_activity_of_the_week_is_handed_in(array $statuses, bool $isVideoReminderActive): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
+        $week = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
+        foreach ($week->activities()->where('is_active', true)->orderBy('position')->get()->values() as $index => $activity) {
+            ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $statuses[$index % count($statuses)]]);
+        }
+
+        app(ParticipantNotificationService::class)->sync($participant);
+
+        $this->assertSame($isVideoReminderActive, $participant->participantNotifications()->active()->where('key', "week:{$week->id}:video")->exists());
+    }
+
+    /**
+     * The statuses given to the week's activities in turn and whether the Weekly Video Recording reminder is active.
+     *
+     * @return array<string, array{list<string>, bool}>
+     */
+    public static function weekActivityStatuses(): array
+    {
+        return [
+            'handed in or under review' => [['under_review', 'submitted', 'resubmitted', 'approved', 'completed'], true],
+            'one still a draft' => [['draft', 'approved', 'approved', 'approved', 'approved'], false],
+        ];
+    }
+
     public function test_dashboard_next_action_skips_notifications_awaiting_review(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);

@@ -78,7 +78,7 @@ class TrainingWorkbookService
         $headers = array_merge($headers, $historicalFields->values()->all());
         $row = array_fill(0, count($headers), null);
         if ($version) {
-            $values = [$participant->name, $participant->trainingPathLabel(), $activity->week->week_number, $activity->title, $version->submission->id, $version->submission->attempt_number, $version->version_number, $version->submission->status, $version->submitted_at, $version->participant_note];
+            $values = [$participant->name, $participant->trainingPathLabel(), $activity->week->week_number, $activity->title, $version->submission->id, $version->submission->attempt_number, $version->version_number, $version->submission->status->value, $version->submitted_at, $version->participant_note];
             if ($labHeaders !== []) {
                 $lab = $version->validationSubmission;
                 array_push($values, $lab?->id, $lab?->artifact_code, $lab?->artifact_name);
@@ -109,7 +109,7 @@ class TrainingWorkbookService
         $tests = $findings->flatMap(fn (mixed $finding): mixed => $finding['tests'] ?? [])->values()->all();
         $fixes = collect($tests)->map(fn (mixed $test): mixed => $test['fix_validation'] ?? null)->filter()->values()->all();
         $regression = collect($snapshot)->only(['regression_areas', 'regression_issues', 'coverage_gaps', 'final_conclusion'])->all();
-        $values = [$participant->name, $participant->trainingPathLabel(), 3, $activity->title, $version->submission->id, $version->submission->attempt_number, $version->version_number, $version->submission->status, $version->submitted_at, $version->participant_note];
+        $values = [$participant->name, $participant->trainingPathLabel(), 3, $activity->title, $version->submission->id, $version->submission->attempt_number, $version->version_number, $version->submission->status->value, $version->submitted_at, $version->participant_note];
         $values[] = json_encode($findings->map(fn (mixed $finding): array => collect($finding)->except(['tests'])->all())->values()->all(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $values[] = json_encode($tests, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $values[] = json_encode($fixes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

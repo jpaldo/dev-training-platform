@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\RecoveryRequestStatus;
 use App\Enums\ReviewDecision;
+use App\Enums\SubmissionStatus;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
@@ -249,7 +250,7 @@ class CoachOperationsTest extends TestCase
     }
 
     #[DataProvider('reviewDecisions')]
-    public function test_each_review_decision_moves_the_submission_to_its_status_and_shows_its_label(string $decision, ReviewDecision $storedDecision, string $submissionStatus, bool $isCompleted, string $label): void
+    public function test_each_review_decision_moves_the_submission_to_its_status_and_shows_its_label(string $decision, ReviewDecision $storedDecision, SubmissionStatus $submissionStatus, bool $isCompleted, string $label): void
     {
         $this->seedProgram();
         $coach = User::factory()->create(['role' => 'coach']);
@@ -272,14 +273,14 @@ class CoachOperationsTest extends TestCase
      * Each decision a coach can post, its stored case, the submission status it leads to, whether it completes the
      * submission and its label on the review page.
      *
-     * @return array<string, array{string, ReviewDecision, string, bool, string}>
+     * @return array<string, array{string, ReviewDecision, SubmissionStatus, bool, string}>
      */
     public static function reviewDecisions(): array
     {
         return [
-            'approved' => ['approved', ReviewDecision::Approved, 'approved', true, 'Passed'],
-            'needs revision' => ['needs_revision', ReviewDecision::NeedsRevision, 'needs_revision', false, 'Revise'],
-            'rejected' => ['rejected', ReviewDecision::Rejected, 'failed', false, 'Failed'],
+            'approved' => ['approved', ReviewDecision::Approved, SubmissionStatus::Approved, true, 'Passed'],
+            'needs revision' => ['needs_revision', ReviewDecision::NeedsRevision, SubmissionStatus::NeedsRevision, false, 'Revise'],
+            'rejected' => ['rejected', ReviewDecision::Rejected, SubmissionStatus::Failed, false, 'Failed'],
         ];
     }
 
@@ -418,7 +419,7 @@ class CoachOperationsTest extends TestCase
             ->assertSee('Attempt 2')
             ->assertSee('DRAFT');
         $this->assertDatabaseHas('activity_submissions', ['activity_id' => $activity->id, 'user_id' => $participant->id, 'attempt_number' => 2, 'status' => 'draft']);
-        $this->assertSame('failed', $failed->fresh()->status);
+        $this->assertSame(SubmissionStatus::Failed, $failed->fresh()->status);
         $this->assertSame('original', $version->fresh()->field_values['answer']);
 
         $this->actingAs($coach)->post(route('coach.reviews.retry', $version))
@@ -465,7 +466,7 @@ class CoachOperationsTest extends TestCase
         $this->actingAs($participant)->post(route('training.recovery.store', $failed), ['message' => 'Please reconsider this attempt.'])->assertRedirect();
         $request = ActivityRecoveryRequest::firstOrFail();
         $this->actingAs($coach)->post(route('coach.recovery.decide', $request), ['decision' => 'approved', 'coach_response' => 'Retry approved.'])->assertRedirect();
-        $this->assertSame('failed', $failed->fresh()->status);
+        $this->assertSame(SubmissionStatus::Failed, $failed->fresh()->status);
         $this->assertSame(2, $activity->submissions()->where('user_id', $participant->id)->count());
         $this->assertDatabaseHas('activity_recovery_requests', ['id' => $request->id, 'status' => 'approved']);
         $this->assertSame(RecoveryRequestStatus::Approved, $request->fresh()->status);

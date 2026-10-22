@@ -27,7 +27,7 @@
                 @if($latestVersion && ! $latestVersion->isDraft())
                     <x-ui.button variant="secondary" :href="route('training.submission.show', [$trainingWeek, $activity, $latestVersion])">View Submission</x-ui.button>
                 @endif
-            @elseif($submission?->status === 'needs_revision')
+            @elseif($submission?->needsRevision())
                 <form method="POST" action="{{ route('training.submission.revise', [$trainingWeek, $activity]) }}" class="m-0" data-revise-submission>
                     @csrf
                     <x-ui.button type="submit">Revise submission →</x-ui.button>
@@ -105,7 +105,7 @@
                         <h2 id="activity-submission-title" class="m-0 text-xl font-extrabold">Training-platform submission</h2>
                         <p class="m-0 text-muted">Status: <strong class="text-slate-100">{{ $submission?->status ?? 'Not started' }}</strong></p>
                         <p class="m-0 leading-relaxed text-muted">Select your Lab record where applicable, add required evidence, and submit for coach review. The existing Gate rules determine completion.</p>
-                        @if($submission?->status === 'needs_revision')
+                        @if($submission?->needsRevision())
                             <x-ui.alert tone="error">Your coach requested changes. Create a new revision; the previous submitted version remains unchanged.</x-ui.alert>
                             @if($revisionFeedback !== null)
                                 <div class="grid w-full gap-2 rounded-xl bg-surface-sunken p-4">
@@ -166,7 +166,7 @@
                                             @endif
                                         </p>
 
-                                        @if($attemptSubmission->status === 'failed')
+                                        @if($attemptSubmission->isFailed())
                                             <p class="m-0 leading-relaxed">This attempt was not accepted by your coach and is now closed. Your submitted work remains available as part of your training history.</p>
                                             @if($attempt['feedback'])
                                                 <div class="grid w-full gap-2 rounded-xl bg-surface-sunken p-4">
@@ -191,12 +191,12 @@
                                                     <x-ui.button variant="secondary" type="submit">Request Review</x-ui.button>
                                                 </form>
                                             @endif
-                                        @elseif($attemptSubmission->status === 'draft')
+                                        @elseif($attemptSubmission->isDraft())
                                             <p class="m-0 leading-relaxed">{{ $attempt['has_later_attempt'] ? 'This draft is an earlier attempt.' : 'Your work is saved as a draft.' }}</p>
                                             @if(! $attempt['has_later_attempt'])
                                                 <x-ui.button variant="secondary" :href="route('training.submission.edit', [$trainingWeek, $activity])">Continue Attempt {{ $attemptSubmission->attempt_number }} →</x-ui.button>
                                             @endif
-                                        @elseif($attemptSubmission->status === 'needs_revision')
+                                        @elseif($attemptSubmission->needsRevision())
                                             <p class="m-0 leading-relaxed">Your coach requested changes to this submission.</p>
                                             @if($attempt['feedback'])
                                                 <div class="grid w-full gap-2 rounded-xl bg-surface-sunken p-4">
@@ -208,9 +208,9 @@
                                                 @csrf
                                                 <x-ui.button variant="secondary" type="submit">Revise Submission →</x-ui.button>
                                             </form>
-                                        @elseif(in_array($attemptSubmission->status, ['approved', 'completed'], true))
+                                        @elseif($attemptSubmission->isAccepted())
                                             <p class="m-0 leading-relaxed">This activity has been accepted by your coach.</p>
-                                        @elseif(in_array($attemptSubmission->status, ['submitted', 'resubmitted', 'under_review'], true))
+                                        @elseif($attemptSubmission->isAwaitingReview())
                                             <p class="m-0 leading-relaxed">Your submission is in the review process. You will see the coach's decision here.</p>
                                         @endif
 

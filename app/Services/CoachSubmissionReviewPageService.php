@@ -12,8 +12,6 @@ use Illuminate\Support\Collection;
 
 class CoachSubmissionReviewPageService
 {
-    private const CLAIMABLE_SUBMISSION_STATUSES = ['submitted', 'resubmitted'];
-
     public function __construct(
         private readonly SubmissionAnswerPresenter $answers,
         private readonly WeekFourReviewPresenter $weekFour,
@@ -50,8 +48,8 @@ class CoachSubmissionReviewPageService
             'weekFourReview' => $this->weekFour->present($activity, $submissionVersion->field_values ?? [], true),
             'officialQuestions' => $activity->week->week_number === 4 && $activity->position === 2 ? $this->interviews->questionnaire() : [],
             'canManage' => $canManage,
-            'canClaim' => $canManage && in_array($submission->status, self::CLAIMABLE_SUBMISSION_STATUSES, true),
-            'canRetry' => $canManage && $submission->status === 'failed',
+            'canClaim' => $canManage && $submission->isClaimable(),
+            'canRetry' => $canManage && $submission->isFailed(),
             'submittedFields' => $this->submittedFields($submissionVersion),
             'evidenceItems' => $this->evidenceItems($submissionVersion->evidence),
             'currentReview' => $this->currentReview($submissionVersion->reviews),

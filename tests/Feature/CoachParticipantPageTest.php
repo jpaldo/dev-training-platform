@@ -99,6 +99,36 @@ class CoachParticipantPageTest extends TestCase
         ];
     }
 
+    #[DataProvider('submissionStatuses')]
+    public function test_submission_row_badge_shows_the_attempt_status_with_its_tone(string $status, string $badge): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        $activity = Activity::factory()->for(TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]), 'week')->create(['title' => 'Charter']);
+        ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $status]);
+
+        $this->actingAs($coach)->get(route('coach.participants.show', $participant))
+            ->assertOk()
+            ->assertSeeInOrder(['Week 2 · Charter', $badge], false);
+    }
+
+    /**
+     * Each attempt status and its badge on the coach participant page.
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function submissionStatuses(): array
+    {
+        return [
+            'draft' => ['draft', 'border-accent text-cyan-200">DRAFT</span>'],
+            'submitted' => ['submitted', 'border-line text-muted">SUBMITTED</span>'],
+            'under review' => ['under_review', 'border-line text-muted">UNDER REVIEW</span>'],
+            'needs revision' => ['needs_revision', 'border-accent text-cyan-200">NEEDS REVISION</span>'],
+            'approved' => ['approved', 'border-emerald-400 text-emerald-200">APPROVED</span>'],
+            'completed' => ['completed', 'border-emerald-400 text-emerald-200">COMPLETED</span>'],
+            'failed' => ['failed', 'border-danger text-rose-200">FAILED</span>'],
+        ];
+    }
+
     public function test_gate_rows_show_the_evaluation_or_readiness_status_and_daily_logs(): void
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();

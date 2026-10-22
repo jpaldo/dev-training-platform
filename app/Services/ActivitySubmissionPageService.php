@@ -72,7 +72,7 @@ class ActivitySubmissionPageService
             'isEditable' => ! $version || $version->isDraft(),
             'mainAction' => match (true) {
                 $version?->isDraft() === true => 'submit',
-                $submission?->status === 'needs_revision' => 'revise',
+                $submission?->needsRevision() === true => 'revise',
                 default => null,
             },
             'coachFeedback' => $coachFeedback?->comments ? $this->markdown->render($coachFeedback->comments) : null,
@@ -128,7 +128,7 @@ class ActivitySubmissionPageService
             ])->values()->all(),
             'finalScore' => $finalScore,
             'dimensionRows' => $this->dimensionRows($finalScore),
-            'isAwaitingRevision' => $version->submission->status === 'needs_revision',
+            'isAwaitingRevision' => $version->submission->needsRevision(),
             'weekThreeReview' => $weekThreeSnapshot ? $this->answers->weekThreeReview($weekThreeSnapshot, (int) $activity->position, $version->submission->participant->training_path) : null,
             'weekFourReview' => $weekFourReview,
             'weekFourTitle' => $weekFourReview ? match ($activity->position) {

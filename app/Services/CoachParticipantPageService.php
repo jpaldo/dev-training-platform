@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
+use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
@@ -67,11 +68,11 @@ class CoachParticipantPageService
     {
         return $participant->activitySubmissions->toBase()->map(fn (ActivitySubmission $submission): array => [
             'submission' => $submission,
-            'status_label' => strtoupper(str_replace('_', ' ', $submission->status)),
+            'status_label' => strtoupper($submission->status->label()),
             'tone' => match ($submission->status) {
-                'failed' => 'danger',
-                'draft', 'needs_revision' => 'accent',
-                'approved', 'completed' => 'success',
+                SubmissionStatus::Failed => 'danger',
+                SubmissionStatus::Draft, SubmissionStatus::NeedsRevision => 'accent',
+                SubmissionStatus::Approved, SubmissionStatus::Completed => 'success',
                 default => 'neutral',
             },
             'version_count' => $submission->versions->count(),

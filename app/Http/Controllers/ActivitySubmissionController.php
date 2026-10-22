@@ -87,7 +87,7 @@ class ActivitySubmissionController extends Controller
         if ($submissions->hasDraftVersion($submission)) {
             return redirect()->route('training.submission.edit', [$trainingWeek, $activity])->with('status', 'Revision draft already available.');
         }
-        abort_unless($submission->status === 'needs_revision', 422);
+        abort_unless($submission->needsRevision(), 422);
         $submissions->createRevisionDraft($user, $activity, $submission);
 
         return redirect()->route('training.submission.edit', [$trainingWeek, $activity])->with('status', 'Revision draft created.');

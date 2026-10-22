@@ -180,6 +180,41 @@ class TrainingActivityPageTest extends TestCase
             ->assertSee('Evidence: 2/4 completed · 1 failed');
     }
 
+    #[DataProvider('attemptStatuses')]
+    public function test_attempt_history_shows_the_label_tone_and_next_step_of_each_attempt_status(string $status, string $label, string $badgeClasses, string $nextStep): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $status]);
+        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => $status === 'draft' ? 'draft' : 'submitted']);
+
+        $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))
+            ->assertOk()
+            ->assertSee('<span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold '.$badgeClasses.'" role="status">'.$label.'</span>', false)
+            ->assertSee($nextStep);
+    }
+
+    /**
+     * Each attempt status, its attempt history label, the badge tone classes and the next step shown with it.
+     *
+     * @return array<string, array{string, string, string, string}>
+     */
+    public static function attemptStatuses(): array
+    {
+        $awaitingReview = 'Your submission is in the review process.';
+        $accepted = 'This activity has been accepted by your coach.';
+
+        return [
+            'draft' => ['draft', 'DRAFT · IN PROGRESS', 'border-accent text-cyan-200', 'Your work is saved as a draft.'],
+            'submitted' => ['submitted', 'SUBMITTED · AWAITING REVIEW', 'border-line text-muted', $awaitingReview],
+            'resubmitted' => ['resubmitted', 'RESUBMITTED · AWAITING REVIEW', 'border-line text-muted', $awaitingReview],
+            'under review' => ['under_review', 'UNDER REVIEW', 'border-line text-muted', $awaitingReview],
+            'needs revision' => ['needs_revision', 'REVISION REQUESTED', 'border-accent text-cyan-200', 'Your coach requested changes to this submission.'],
+            'approved' => ['approved', 'APPROVED', 'border-emerald-400 text-emerald-200', $accepted],
+            'completed' => ['completed', 'COMPLETED', 'border-emerald-400 text-emerald-200', $accepted],
+            'failed' => ['failed', 'FAILED · CLOSED', 'border-danger text-rose-200', 'This attempt was not accepted by your coach and is now closed.'],
+        ];
+    }
+
     public function test_activity_page_query_count_does_not_grow_with_requirements_and_attempts(): void
     {
         $this->assertSame($this->activityPageQueryCount(1), $this->activityPageQueryCount(3));

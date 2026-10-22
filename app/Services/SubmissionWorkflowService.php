@@ -103,7 +103,7 @@ class SubmissionWorkflowService
 
                 return $latest;
             }
-            if ($submission->status !== 'needs_revision') {
+            if (! $submission->needsRevision()) {
                 throw ValidationException::withMessages(['submission' => 'This submission is already submitted and cannot be edited.']);
             }
             $submission->update(['status' => 'draft']);

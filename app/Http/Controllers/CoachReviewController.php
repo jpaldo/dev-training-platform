@@ -48,7 +48,7 @@ class CoachReviewController extends Controller
     {
         Gate::authorize('update', $submissionVersion);
         $submission = $submissionVersion->submission()->with('activity')->firstOrFail();
-        abort_unless($submission->status === 'failed', 422);
+        abort_unless($submission->isFailed(), 422);
         $existingRetry = $reviews->existingRetry($submission);
         if ($existingRetry) {
             return redirect()->route('coach.participants.show', $submission->user_id)->with('status', "Retry attempt {$existingRetry->attempt_number} already exists.");

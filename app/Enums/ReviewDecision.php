@@ -15,12 +15,12 @@ enum ReviewDecision: string
     /**
      * The submission status the decision moves the reviewed submission to.
      */
-    public function submissionStatus(): string
+    public function submissionStatus(): SubmissionStatus
     {
         return match ($this) {
-            self::Approved => 'approved',
-            self::NeedsRevision => 'needs_revision',
-            self::Rejected => 'failed',
+            self::Approved => SubmissionStatus::Approved,
+            self::NeedsRevision => SubmissionStatus::NeedsRevision,
+            self::Rejected => SubmissionStatus::Failed,
         };
     }
 }

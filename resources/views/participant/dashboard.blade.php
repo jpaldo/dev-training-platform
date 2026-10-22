@@ -155,7 +155,7 @@
                             <ol class="m-0 grid list-none gap-3 p-0">
                                 @foreach ($item['week']->activities as $activity)
                                     @php
-                                        $activityStatus = $activity->participant_submission?->status;
+                                        $activityStatus = $activity->participant_submission?->status->value;
                                         $activityAction = match ($activityStatus) { 'needs_revision' => 'Revise', 'draft' => 'Continue', 'failed' => 'View attempts', 'submitted', 'resubmitted', 'under_review', 'approved', 'completed' => 'View', default => 'Start' };
                                         $activityUrl = route('training.activities.show', [$item['week'], $activity]);
                                     @endphp

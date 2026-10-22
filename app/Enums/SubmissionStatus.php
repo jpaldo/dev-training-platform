@@ -46,4 +46,34 @@ enum SubmissionStatus: string
     {
         return [self::Submitted, self::Resubmitted, self::Approved, self::Completed];
     }
+
+    /**
+     * The statuses of work waiting for a coach decision: submitted, resubmitted or under review.
+     *
+     * @return list<self>
+     */
+    public static function awaitingReview(): array
+    {
+        return [self::Submitted, self::Resubmitted, self::UnderReview];
+    }
+
+    /**
+     * The statuses of work a coach can claim for review: submitted or resubmitted.
+     *
+     * @return list<self>
+     */
+    public static function claimable(): array
+    {
+        return [self::Submitted, self::Resubmitted];
+    }
+
+    /**
+     * The statuses of work the coach accepted: approved or completed.
+     *
+     * @return list<self>
+     */
+    public static function accepted(): array
+    {
+        return [self::Approved, self::Completed];
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\SubmissionStatus;
 use App\Observers\ParticipantProgressObserver;
 use Database\Factories\ActivitySubmissionFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -18,9 +19,61 @@ class ActivitySubmission extends Model
 
     protected $fillable = ['activity_id', 'user_id', 'attempt_number', 'status', 'submitted_at', 'completed_at'];
 
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
-        return ['submitted_at' => 'datetime', 'completed_at' => 'datetime'];
+        return ['status' => SubmissionStatus::class, 'submitted_at' => 'datetime', 'completed_at' => 'datetime'];
+    }
+
+    public function isDraft(): bool
+    {
+        return $this->status === SubmissionStatus::Draft;
+    }
+
+    public function needsRevision(): bool
+    {
+        return $this->status === SubmissionStatus::NeedsRevision;
+    }
+
+    public function isFailed(): bool
+    {
+        return $this->status === SubmissionStatus::Failed;
+    }
+
+    /**
+     * Whether the participant handed the attempt in and it was neither sent back nor failed.
+     */
+    public function isHandedIn(): bool
+    {
+        return in_array($this->status, SubmissionStatus::handedIn(), true);
+    }
+
+    /**
+     * Whether the attempt waits for a coach decision (submitted, resubmitted or under review).
+     */
+    public function isAwaitingReview(): bool
+    {
+        return in_array($this->status, SubmissionStatus::awaitingReview(), true);
+    }
+
+    /**
+     * Whether a coach can claim the attempt for review (submitted or resubmitted).
+     */
+    public function isClaimable(): bool
+    {
+        return in_array($this->status, SubmissionStatus::claimable(), true);
+    }
+
+    /**
+     * Whether the coach accepted the attempt (approved or completed).
+     */
+    public function isAccepted(): bool
+    {
+        return in_array($this->status, SubmissionStatus::accepted(), true);
     }
 
     public function activity(): BelongsTo

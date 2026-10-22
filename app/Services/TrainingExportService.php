@@ -55,7 +55,7 @@ class TrainingExportService
                 'Submission ID' => $submission->id,
                 'Attempt' => $submission->attempt_number,
                 'Submission Version' => $version->version_number,
-                'Submission Status' => $submission->status,
+                'Submission Status' => $submission->status->value,
                 'Submitted At' => $version->submitted_at,
                 'Reviewed At' => $review?->reviewed_at,
                 'Reviewer' => $review?->reviewer?->name,

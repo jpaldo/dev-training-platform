@@ -81,7 +81,7 @@ class ParticipantWorkflowTest extends TestCase
         $this->actingAs($participant)->post(route('training.submission.draft', [$week2, $activity]), ['field_values' => ['finding' => 'Initial finding'], 'status' => 'approved'])->assertRedirect();
         $submission = ActivitySubmission::query()->firstOrFail();
         $version = $submission->versions()->firstOrFail();
-        $this->assertSame('draft', $submission->status);
+        $this->assertSame(SubmissionStatus::Draft, $submission->status);
         $this->actingAs($participant)->post(route('training.evidence.store', [$week2, $activity, $version]), ['evidence_requirement_id' => $evidenceRequirement->id, 'content' => 'Observed in the real run.'])->assertRedirect();
         $this->actingAs($participant)->post(route('training.submission.submit', [$week2, $activity, $version]))->assertRedirect();
         $this->assertDatabaseHas('activity_submissions', ['id' => $submission->id, 'status' => 'submitted']);
@@ -485,7 +485,9 @@ class ParticipantWorkflowTest extends TestCase
 
         $html = $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))->assertOk()->getContent();
 
-        $this->assertStringContainsString('<h3>Issues Found</h3>', $html);
+        $this->assertStringContainsString('Your coach requested changes. Create a new revision; the previous submitted version remains unchanged.', $html);
+        $this->assertStringContainsString('<strong>Coach feedback:</strong>', $html);
+        $this->assertSame(2, substr_count($html, '<h3>Issues Found</h3>'));
         $this->assertStringContainsString('<li>Correct the expected result</li>', $html);
         $this->assertStringContainsString('<strong>Do this now</strong>', $html);
         $this->assertStringNotContainsString('<script>alert', $html);

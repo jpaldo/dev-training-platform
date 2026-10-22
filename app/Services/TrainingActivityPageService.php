@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GoogleDriveExportStatus;
+use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
@@ -26,18 +27,6 @@ use Illuminate\Support\HtmlString;
 
 class TrainingActivityPageService
 {
-    /** @var array<string, string> Attempt status labels shown in the attempt history. */
-    private const ATTEMPT_STATUS_LABELS = [
-        'draft' => 'DRAFT · IN PROGRESS',
-        'submitted' => 'SUBMITTED · AWAITING REVIEW',
-        'under_review' => 'UNDER REVIEW',
-        'needs_revision' => 'REVISION REQUESTED',
-        'resubmitted' => 'RESUBMITTED · AWAITING REVIEW',
-        'approved' => 'APPROVED',
-        'failed' => 'FAILED · CLOSED',
-        'completed' => 'COMPLETED',
-    ];
-
     public function __construct(private readonly SafeMarkdownRenderer $markdown) {}
 
     /**
@@ -81,7 +70,7 @@ class TrainingActivityPageService
             'requirements' => $this->requirements($user, $activity),
             'submission' => $submission,
             'latestVersion' => $latestVersion,
-            'revisionFeedback' => $submission?->status === 'needs_revision' && $latestVersion?->reviews->isNotEmpty()
+            'revisionFeedback' => $submission?->needsRevision() && $latestVersion?->reviews->isNotEmpty()
                 ? $this->markdown->render($latestVersion->reviews->sortByDesc('reviewed_at')->first()?->comments)
                 : null,
             'labUrl' => $labRoute ? route($labRoute) : null,
@@ -168,11 +157,11 @@ class TrainingActivityPageService
 
             return [
                 'submission' => $attempt,
-                'status_label' => self::ATTEMPT_STATUS_LABELS[$attempt->status] ?? strtoupper(str_replace('_', ' ', $attempt->status)),
+                'status_label' => $this->attemptStatusLabel($attempt->status),
                 'tone' => match ($attempt->status) {
-                    'failed' => 'danger',
-                    'draft', 'needs_revision' => 'accent',
-                    'approved', 'completed' => 'success',
+                    SubmissionStatus::Failed => 'danger',
+                    SubmissionStatus::Draft, SubmissionStatus::NeedsRevision => 'accent',
+                    SubmissionStatus::Approved, SubmissionStatus::Completed => 'success',
                     default => 'neutral',
                 },
                 'has_later_attempt' => $attempts->contains(fn (ActivitySubmission $candidate): bool => $candidate->attempt_number > $attempt->attempt_number),
@@ -181,5 +170,22 @@ class TrainingActivityPageService
                 'published_score' => $latestAttemptVersion?->activityScore?->isPublished() ? $latestAttemptVersion->activityScore : null,
             ];
         });
+    }
+
+    /**
+     * The attempt status label shown in the attempt history.
+     */
+    private function attemptStatusLabel(SubmissionStatus $status): string
+    {
+        return match ($status) {
+            SubmissionStatus::Draft => 'DRAFT · IN PROGRESS',
+            SubmissionStatus::Submitted => 'SUBMITTED · AWAITING REVIEW',
+            SubmissionStatus::UnderReview => 'UNDER REVIEW',
+            SubmissionStatus::NeedsRevision => 'REVISION REQUESTED',
+            SubmissionStatus::Resubmitted => 'RESUBMITTED · AWAITING REVIEW',
+            SubmissionStatus::Approved => 'APPROVED',
+            SubmissionStatus::Failed => 'FAILED · CLOSED',
+            SubmissionStatus::Completed => 'COMPLETED',
+        };
     }
 }

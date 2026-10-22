@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SubmissionStatus;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionVersion;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -9,13 +10,6 @@ use Illuminate\Pagination\LengthAwarePaginator;
 class CoachReviewQueuePageService
 {
     private const SUBMISSIONS_PER_PAGE = 25;
-
-    private const STATUS_TONES = [
-        'submitted' => 'accent',
-        'resubmitted' => 'accent',
-        'under_review' => 'accent',
-        'needs_revision' => 'warning',
-    ];
 
     public function __construct(private readonly CoachReportService $reports) {}
 
@@ -50,8 +44,12 @@ class CoachReviewQueuePageService
             'participant_name' => $submission->participant->name,
             'week_number' => $submission->activity->week->week_number,
             'activity_title' => $submission->activity->title,
-            'status' => $submission->status,
-            'status_tone' => self::STATUS_TONES[$submission->status] ?? 'neutral',
+            'status' => $submission->status->value,
+            'status_tone' => match ($submission->status) {
+                SubmissionStatus::Submitted, SubmissionStatus::Resubmitted, SubmissionStatus::UnderReview => 'accent',
+                SubmissionStatus::NeedsRevision => 'warning',
+                default => 'neutral',
+            },
             'review_url' => $latestVersion instanceof SubmissionVersion ? route('coach.reviews.show', $latestVersion) : null,
         ];
     }

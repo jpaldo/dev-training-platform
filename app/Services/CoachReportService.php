@@ -71,7 +71,7 @@ class CoachReportService
     public function atRiskRows(?array $filters = null): Collection
     {
         return $this->participants($filters)->get()->map(function (User $participant): ?array {
-            $reasons = $participant->activitySubmissions->filter(fn (ActivitySubmission $s): bool => in_array($s->status, ['needs_revision', 'failed'], true))->map(fn (ActivitySubmission $s): string => "Activity {$s->activity_id}: {$s->status}")->values()->all();
+            $reasons = $participant->activitySubmissions->filter(fn (ActivitySubmission $s): bool => $s->needsRevision() || $s->isFailed())->map(fn (ActivitySubmission $s): string => "Activity {$s->activity_id}: {$s->status->value}")->values()->all();
             $reasons = array_merge($reasons, $participant->gateEvaluations->filter(fn (GateEvaluation $g): bool => $g->status !== GateEvaluationStatus::Passed)->map(fn (GateEvaluation $g): string => "Gate {$g->training_gate_id}: {$g->status->value}")->values()->all());
 
             return $reasons === [] ? null : ['participant' => $participant, 'reasons' => $reasons];
@@ -176,7 +176,7 @@ class CoachReportService
             'reviews' => [
                 'filename' => 'review-queue.csv',
                 'header' => ['Participant', 'Path', 'Week', 'Activity', 'Status', 'Version', 'Submitted', 'Decision', 'Reviewed'],
-                'rows' => $this->reviewRows($filters)->map(fn (array $r): array => [$r['submission']->participant->name, $r['submission']->participant->trainingPathLabel(), $r['submission']->activity->week->week_number, $r['submission']->activity->title, $r['submission']->status, $r['version']?->version_number, $r['submission']->submitted_at, $r['review']?->decision->value, $r['review']?->reviewed_at]),
+                'rows' => $this->reviewRows($filters)->map(fn (array $r): array => [$r['submission']->participant->name, $r['submission']->participant->trainingPathLabel(), $r['submission']->activity->week->week_number, $r['submission']->activity->title, $r['submission']->status->value, $r['version']?->version_number, $r['submission']->submitted_at, $r['review']?->decision->value, $r['review']?->reviewed_at]),
             ],
             'gates' => [
                 'filename' => 'gate-results.csv',

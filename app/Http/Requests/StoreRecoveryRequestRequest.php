@@ -19,7 +19,7 @@ class StoreRecoveryRequestRequest extends FormRequest
     {
         $submission = $this->route('activitySubmission');
 
-        return $submission instanceof ActivitySubmission && $submission->user_id === $this->user()?->id && $submission->status === 'failed';
+        return $submission instanceof ActivitySubmission && $submission->user_id === $this->user()?->id && $submission->isFailed();
     }
 
     /**

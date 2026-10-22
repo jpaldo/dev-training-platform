@@ -74,7 +74,7 @@ class ScoringPageService
             'activityTitle' => $submission->activity->title,
             'participantName' => $submission->participant->name,
             'weekNumber' => $submission->activity->week->week_number,
-            'submissionStatus' => $submission->status,
+            'submissionStatus' => $submission->status->value,
             'submittedAt' => $version->submitted_at?->format('M j, Y g:i A') ?? '—',
             'answers' => $this->answerRows($version),
             'weekThreeCheckpoint' => $this->weekThreeCheckpoint($version),
@@ -155,7 +155,7 @@ class ScoringPageService
                         'activity' => $row['activity']->title,
                         'score' => (string) ($row['score']?->total_score ?? '—'),
                         'band' => $row['score']?->performance_band ?? ($row['submission'] ? 'Awaiting scoring' : 'Not submitted'),
-                        'status' => $row['submission']?->status ?? 'Not submitted',
+                        'status' => $row['submission']?->status->value ?? 'Not submitted',
                         'action' => $row['version'] && ! $row['version']->isDraft()
                             ? ['label' => $row['score'] ? 'View score' : 'Score activity', 'url' => route('coach.scoring.edit', $row['version'])]
                             : null,

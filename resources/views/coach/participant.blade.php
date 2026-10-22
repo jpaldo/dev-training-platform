@@ -55,7 +55,7 @@
                                             <x-ui.badge :tone="$row['tone']">{{ $row['status_label'] }}</x-ui.badge>
                                         </div>
                                         <p class="m-0 text-sm text-muted">Attempt {{ $submission->attempt_number }} · {{ $row['version_count'] }} version(s)</p>
-                                        @if($submission->status === 'failed')
+                                        @if($submission->isFailed())
                                             @if($canManage)
                                                 <p class="m-0 text-sm/relaxed text-muted">This attempt is closed. Create a separate retry if appropriate.</p>
                                             @else
@@ -65,7 +65,7 @@
                                         @if($row['latest_version'])
                                             <div class="flex flex-wrap items-center gap-3">
                                                 <x-ui.button variant="secondary" :href="route('coach.reviews.show', $row['latest_version'])">View attempt</x-ui.button>
-                                                @if($submission->status === 'failed' && $canManage)
+                                                @if($submission->isFailed() && $canManage)
                                                     <form method="post" action="{{ route('coach.reviews.retry', $row['latest_version']) }}" class="m-0">
                                                         @csrf
                                                         <x-ui.button variant="secondary" type="submit">Create Retry Attempt</x-ui.button>

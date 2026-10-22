@@ -6,6 +6,7 @@ use App\Enums\GateEvaluationStatus;
 use App\Enums\ParticipantNotificationPriority;
 use App\Enums\ParticipantNotificationType;
 use App\Enums\ReviewDecision;
+use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
@@ -50,16 +51,15 @@ class ParticipantNotificationService
 
             foreach ($week->activities as $activity) {
                 $submission = $participant->activitySubmissions()->where('activity_id', $activity->id)->latest('attempt_number')->with(['versions' => fn (Relation $q): Relation => $q->latest('version_number')])->first();
-                $status = $submission?->status;
                 $url = route('training.activities.show', [$week, $activity]);
-                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:incomplete", ParticipantNotificationType::ActivityIncomplete, 'Activity incomplete', "{$activity->title} has not been completed for Week {$week->week_number}.", $url, ! $submission || $status === 'failed');
-                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:draft", ParticipantNotificationType::ActivityDraft, 'Continue your activity', "You have an unfinished draft for {$activity->title}.", route('training.submission.edit', [$week, $activity]), $status === 'draft');
+                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:incomplete", ParticipantNotificationType::ActivityIncomplete, 'Activity incomplete', "{$activity->title} has not been completed for Week {$week->week_number}.", $url, ! $submission || $submission->isFailed());
+                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:draft", ParticipantNotificationType::ActivityDraft, 'Continue your activity', "You have an unfinished draft for {$activity->title}.", route('training.submission.edit', [$week, $activity]), $submission?->isDraft() === true);
                 $version = $submission?->versions->first();
                 $latestReview = $version?->reviews()->latest('reviewed_at')->first();
-                $needsRevision = $status === 'needs_revision' || $latestReview?->decision === ReviewDecision::NeedsRevision;
+                $needsRevision = $submission?->needsRevision() === true || $latestReview?->decision === ReviewDecision::NeedsRevision;
                 $this->state($participant, "week:{$week->id}:activity:{$activity->id}:revision", ParticipantNotificationType::NeedsRevision, 'Revision required', "Your submission for {$activity->title} needs revision. Coach feedback is available.", route('training.submission.edit', [$week, $activity]), $needsRevision, ParticipantNotificationPriority::High);
-                $awaiting = $submission && in_array($status, ['submitted', 'resubmitted', 'under_review'], true);
-                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:review", ParticipantNotificationType::AwaitingReview, 'Awaiting coach review', "Your {$activity->title} submission has been submitted and is awaiting review.", route('training.submission.edit', [$week, $activity]), (bool) $awaiting);
+                $awaiting = $submission?->isAwaitingReview() === true;
+                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:review", ParticipantNotificationType::AwaitingReview, 'Awaiting coach review', "Your {$activity->title} submission has been submitted and is awaiting review.", route('training.submission.edit', [$week, $activity]), $awaiting);
                 if ($latestReview?->decision === ReviewDecision::Approved) {
                     $this->event($participant, "event:review:{$latestReview->id}", ParticipantNotificationType::ActivityApproved, 'Activity approved', "Your {$activity->title} submission has been approved.", route('training.submission.edit', [$week, $activity]));
                 }
@@ -70,7 +70,7 @@ class ParticipantNotificationService
             $allSubmitted = $week->activities->every(function (Activity $activity) use ($participant): bool {
                 $status = $participant->activitySubmissions()->where('activity_id', $activity->id)->latest('attempt_number')->value('status');
 
-                return in_array($status, ['submitted', 'resubmitted', 'under_review', 'approved', 'completed'], true);
+                return in_array($status, [...SubmissionStatus::handedIn(), SubmissionStatus::UnderReview], true);
             });
             $videoMissing = $allSubmitted && ! WeeklyVideoRecording::query()->where('user_id', $participant->id)->where('training_week_id', $week->id)->exists();
             $this->state($participant, "week:{$week->id}:video", ParticipantNotificationType::MissingVideo, 'Weekly Video Recording missing', "Upload your Week {$week->week_number} Video Recording to complete the weekly requirements.", route('training.video-recording.edit', $week), $videoMissing);

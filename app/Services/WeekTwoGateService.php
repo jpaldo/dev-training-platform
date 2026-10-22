@@ -99,7 +99,7 @@ class WeekTwoGateService
             }
             foreach ($activitiesByWeek->get($week->id, collect()) as $activity) {
                 $submission = $latestSubmissions->get($participant->id)?->get($activity->id);
-                if (! $submission || ! in_array($submission->status, self::SUBMITTED_STATUSES, true)) {
+                if (! $submission || ! $submission->isHandedIn()) {
                     $reasons['activity_'.$activity->position] = "Activity {$activity->position} must have a submitted version.";
 
                     continue;

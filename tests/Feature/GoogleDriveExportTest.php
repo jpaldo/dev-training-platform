@@ -7,14 +7,12 @@ use App\Jobs\SyncTrainingDataJob;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
-use App\Models\DailyLog;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveExport;
 use App\Models\SubmissionVersion;
 use App\Models\User;
 use App\Services\GoogleDriveConnectionService;
 use App\Services\GoogleDriveService;
-use App\Services\TrainingExportService;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
@@ -25,19 +23,6 @@ use Tests\TestCase;
 class GoogleDriveExportTest extends TestCase
 {
     use RefreshDatabase;
-
-    public function test_daily_log_csv_uses_participant_owned_data(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $participant = User::factory()->create(['training_path' => 'manual']);
-        $activity = Activity::query()->whereHas('week', fn ($q) => $q->where('week_number', 2))->firstOrFail();
-        DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => '2026-09-12', 'content' => 'Validated OTP flow']);
-        $csv = app(TrainingExportService::class)->dailyLogs($participant);
-        $this->assertStringContainsString('Daily Log ID', $csv);
-        $this->assertStringContainsString('Training Week', $csv);
-        $this->assertStringContainsString('Validated OTP flow', $csv);
-        $this->assertStringNotContainsString('another participant', $csv);
-    }
 
     public function test_manual_daily_log_export_requires_owned_connection(): void
     {

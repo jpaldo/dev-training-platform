@@ -25,23 +25,21 @@ class ParticipantDashboardService
     /**
      * Build the dashboard rows for every week of the program, with the participant's activity progress attached.
      *
-     * @return Collection<int, array{week: TrainingWeek, passed: bool, available: bool, daily_log_count: int, daily_log_required: int, locked_reason: ?string, is_current: bool, attendance_required: bool}>
+     * @return Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_reason: ?string, is_current: bool, attendance_required: bool}>
      */
     public function weeks(User $user, Program $program, ?AttendanceSession $activeAttendance): Collection
     {
         $programWeeks = $program->weeks;
         $weekStates = $this->progression->weekStates($user, $programWeeks);
-        $dailyLogCounts = $this->gateService->dailyLogCountsByWeek($user, $programWeeks->modelKeys());
         $videoRecordings = WeeklyVideoRecording::query()->where('user_id', $user->id)->whereIn('training_week_id', $programWeeks->modelKeys())->get()->keyBy('training_week_id');
         $this->attachActivityProgress($user, $programWeeks);
-        $minimumDailyLogs = $this->gateService->minimumDailyLogs();
 
-        $weeks = $programWeeks->sortBy('position')->values()->map(function (TrainingWeek $week) use ($weekStates, $dailyLogCounts, $videoRecordings, $minimumDailyLogs): array {
+        $weeks = $programWeeks->sortBy('position')->values()->map(function (TrainingWeek $week) use ($weekStates, $videoRecordings): array {
             $passed = $weekStates[$week->id]['passed'];
             $available = $passed || $weekStates[$week->id]['accessible'];
             $week->weekly_video_recording = $videoRecordings->get($week->id);
 
-            return ['week' => $week, 'passed' => $passed, 'available' => $available, 'daily_log_count' => $dailyLogCounts->get($week->id, 0), 'daily_log_required' => $minimumDailyLogs, 'locked_reason' => $passed ? null : ($available ? null : 'Complete and pass the previous Gate before proceeding.')];
+            return ['week' => $week, 'passed' => $passed, 'available' => $available, 'locked_reason' => $passed ? null : ($available ? null : 'Complete and pass the previous Gate before proceeding.')];
         });
         $currentWeek = $weeks->first(fn (array $item): bool => $item['available'] && ! $item['passed']);
         $currentWeekId = $currentWeek['week']->id ?? null;

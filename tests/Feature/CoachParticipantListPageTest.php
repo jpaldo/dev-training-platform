@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
-use App\Models\DailyLog;
 use App\Models\GateEvaluation;
 use App\Models\GoogleDriveConnection;
 use App\Models\User;
@@ -22,7 +21,7 @@ class CoachParticipantListPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_rows_show_the_coach_access_drive_daily_logs_and_attendance_of_each_participant(): void
+    public function test_rows_show_the_coach_access_drive_and_attendance_of_each_participant(): void
     {
         $this->travelTo(now()->setDate(2026, 3, 10)->setTime(15, 0));
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Coach Carter']);
@@ -33,7 +32,6 @@ class CoachParticipantListPageTest extends TestCase
         $coach->assignedParticipants()->attach($assigned->id);
         $otherCoach->assignedParticipants()->attach($unassigned->id);
         GoogleDriveConnection::create(['user_id' => $assigned->id, 'google_account_id' => 'account', 'google_email' => '', 'access_token' => 'access', 'connected_at' => now()]);
-        DailyLog::factory()->count(2)->for($assigned, 'participant')->create();
         AttendanceSession::create(['user_id' => $assigned->id, 'check_in_at' => now()->setTime(14, 0)]);
         AttendanceSession::create(['user_id' => $unassigned->id, 'check_in_at' => now()->subDay()->setTime(9, 0), 'check_out_at' => now()->subDay()->setTime(10, 30), 'total_seconds' => 5400]);
 
@@ -47,7 +45,6 @@ class CoachParticipantListPageTest extends TestCase
                 '>Ada Assigned</strong>', 'Manual QA', 'Assigned to me', 'Coach Carter',
                 'href="https://drive.google.com/drive/folders/ada" target="_blank" rel="noopener noreferrer"', 'Open Drive ↗',
                 '>Connected<', 'Account connected',
-                'href="'.route('coach.participants.daily-logs', $assigned).'"', '>2</a>',
                 'CHECKED IN', 'Mar 10 · 2:00 PM', 'elapsed',
                 'href="'.route('coach.participants.show', $assigned).'"', 'Inspect',
                 '>Una Unassigned</strong>', 'Not assigned', 'Other Mentor', 'Not provided', 'Not Connected',
@@ -56,7 +53,7 @@ class CoachParticipantListPageTest extends TestCase
                 'Showing 1–3 of 3 participants',
             ], false)
             ->assertDontSee('Admin access')
-            ->assertDontSee(route('coach.participants.daily-logs', $unassigned), false);
+            ->assertDontSee('Daily Logs');
     }
 
     public function test_admin_has_admin_access_to_every_participant(): void
@@ -193,8 +190,8 @@ class CoachParticipantListPageTest extends TestCase
 
     /**
      * Create the given number of participants, each assigned to a new coach with a Drive connection, a submission, a
-     * Gate evaluation, a daily log, an open attendance session and an active pair with the next participant, and count
-     * the queries of that coach's page request after a warm-up request.
+     * Gate evaluation, an open attendance session and an active pair with the next participant, and count the
+     * queries of that coach's page request after a warm-up request.
      */
     private function participantListQueryCount(int $participantCount): int
     {
@@ -206,7 +203,6 @@ class CoachParticipantListPageTest extends TestCase
             GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => "account-{$participant->id}", 'google_email' => "drive-{$participant->id}@gmail.com", 'access_token' => 'access', 'connected_at' => now()]);
             ActivitySubmission::factory()->for($participant, 'participant')->create();
             GateEvaluation::factory()->for($participant, 'participant')->create();
-            DailyLog::factory()->for($participant, 'participant')->create();
             AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subHour()]);
             WeekFourInterviewPair::create(['participant_one_id' => $participant->id, 'participant_two_id' => $participants[$index + 1]->id, 'assigned_by_id' => $coach->id, 'status' => 'active']);
         }

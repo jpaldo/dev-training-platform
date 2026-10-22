@@ -3,8 +3,6 @@
 @php
     $reportLinks = [
         'progress' => ['label' => 'Progress', 'url' => route('coach.reports')],
-        'daily-logs' => ['label' => 'Daily Log Completion', 'url' => route('coach.reports.daily-logs')],
-        'daily-log-details' => ['label' => 'Daily Log Details', 'url' => route('coach.reports.daily-logs.details')],
         'missing-submissions' => ['label' => 'Missing Submissions', 'url' => route('coach.reports.missing-submissions')],
     ];
 @endphp

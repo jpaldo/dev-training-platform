@@ -7,21 +7,16 @@ use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\User;
-use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
 
 class MissingSubmissionReportService
 {
-    /** @var array<int, int|null> */
-    private array $generalEvidenceCounts = [];
-
     public function rows(array $filters = []): Collection
     {
         $participants = User::query()
@@ -31,8 +26,6 @@ class MissingSubmissionReportService
             ->when($filters['mentor'] ?? null, fn (Builder $query, int|string $value): Builder => $query->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($value)))
             ->with([
                 'assignedCoaches:id,name',
-                'googleDriveConnection',
-                'dailyLogs.activity.week',
                 'activitySubmissions.activity.week',
                 'activitySubmissions.versions.evidence',
                 'weeklyVideoRecordings',
@@ -46,35 +39,17 @@ class MissingSubmissionReportService
         }
 
         $weekStates = app(WeekProgressionService::class)->weekStatesForParticipants($participants, $program->weeks()->get());
-        $weeklyExpected = app(WeekTwoGateService::class)->minimumDailyLogs();
         $rows = collect();
         foreach ($participants as $participant) {
             $mentor = $participant->assignedCoaches->pluck('name')->filter()->implode(', ') ?: 'Not assigned';
-            $generalLogs = $participant->dailyLogs
-                ->filter(fn (DailyLog $log): bool => ! $log->activity_id)
-                ->filter(fn (DailyLog $log): bool => $this->dateMatches($log->logged_on, $filters));
-            $generalExpected = config('training.general_training_daily_logs_expected');
-            // General Training is represented by DailyLog rows without an
-            // activity. It is Week 1 for reporting only; it is not a
-            // progression week or Gate requirement.
-            $generalEvidence = $generalExpected !== null
-                && $generalLogs->count() < $generalExpected
-                && (! ($filters['category'] ?? null) || ($filters['category'] ?? null) === 'general_training')
-                ? $this->generalEvidenceCount($participant)
-                : null;
-            $this->addDailyRow($rows, $participant, $mentor, 'General Training', null, 'General Training Daily Logs', $generalExpected, $generalLogs, true, $generalEvidence);
 
             foreach ($program->weeks as $week) {
                 if (! $weekStates[$participant->id][$week->id]['accessible']) {
                     continue;
                 }
-                $logs = $participant->dailyLogs
-                    ->filter(fn (DailyLog $log): bool => $log->activity?->training_week_id === $week->id)
-                    ->filter(fn (DailyLog $log): bool => $this->dateMatches($log->logged_on, $filters));
-                $this->addDailyRow($rows, $participant, $mentor, 'Daily Logs', $week->week_number, "Week {$week->week_number} Daily Logs", $weeklyExpected, $logs);
 
                 if (! $participant->weeklyVideoRecordings->contains('training_week_id', $week->id)) {
-                    $rows->push($this->row($participant, $mentor, 'Video Recording', $week->week_number, 'Weekly Video Recording', 1, 0, 'Not Uploaded', null, 0));
+                    $rows->push($this->row($participant, $mentor, 'Video Recording', $week->week_number, 'Weekly Video Recording', 1, 0, 'Not Uploaded', 0));
                 }
 
                 foreach ($week->activities as $activity) {
@@ -87,7 +62,7 @@ class MissingSubmissionReportService
                     if ($hasSubmittedVersion) {
                         continue;
                     }
-                    $rows->push($this->row($participant, $mentor, 'Activities', $week->week_number, $activity->title, 1, 0, 'Not Submitted', null, $this->activityEvidenceCount($participant, $activity)));
+                    $rows->push($this->row($participant, $mentor, 'Activities', $week->week_number, $activity->title, 1, 0, 'Not Submitted', $this->activityEvidenceCount($participant, $activity)));
                 }
             }
         }
@@ -98,24 +73,7 @@ class MissingSubmissionReportService
             ->values();
     }
 
-    private function addDailyRow(Collection $rows, User $participant, string $mentor, string $category, ?int $week, string $requirement, ?int $expected, Collection $logs, bool $alwaysShow = false, ?int $evidences = null): void
-    {
-        $submitted = $logs->count();
-        if ($expected === null) {
-            if ($submitted === 0 && ! $alwaysShow) {
-                return;
-            }
-            $rows->push($this->row($participant, $mentor, $category, $week, $requirement, null, $submitted, 'Expectation Not Configured', $logs->max('logged_on'), $evidences));
-
-            return;
-        }
-        if ($submitted >= $expected) {
-            return;
-        }
-        $rows->push($this->row($participant, $mentor, $category, $week, $requirement, $expected, $submitted, $submitted > 0 ? 'Partially Submitted' : 'Not Submitted', $logs->max('logged_on'), $evidences));
-    }
-
-    private function row(User $participant, string $mentor, string $category, ?int $week, string $requirement, ?int $expected, int $submitted, string $status, mixed $lastDate, ?int $evidences = null): array
+    private function row(User $participant, string $mentor, string $category, int $week, string $requirement, int $expected, int $submitted, string $status, int $evidences): array
     {
         return [
             'participant' => $participant,
@@ -125,26 +83,16 @@ class MissingSubmissionReportService
             'path' => $participant->trainingPathLabel(),
             'mentor' => $mentor,
             'category' => $category,
-            'week' => $week ? "Week {$week}" : 'General Training',
-            'week_sort' => $week ?? 1,
+            'week' => "Week {$week}",
+            'week_sort' => $week,
             'category_sort' => $category === 'Activities' ? 2 : 1,
             'requirement' => $requirement,
             'expected' => $expected,
             'submitted' => $submitted,
-            'missing' => $expected === null ? null : max(0, $expected - $submitted),
+            'missing' => max(0, $expected - $submitted),
             'evidences' => $evidences,
             'status' => $status,
-            'last_date' => $lastDate,
         ];
-    }
-
-    private function generalEvidenceCount(User $participant): ?int
-    {
-        if (! array_key_exists($participant->id, $this->generalEvidenceCounts)) {
-            $this->generalEvidenceCounts[$participant->id] = app(GoogleDriveService::class)->countWeekOneEvidenceFiles($participant);
-        }
-
-        return $this->generalEvidenceCounts[$participant->id];
     }
 
     private function activityEvidenceCount(User $participant, Activity $activity): int
@@ -177,7 +125,7 @@ class MissingSubmissionReportService
         if (($filters['category'] ?? null) && strtolower(str_replace(' ', '_', $row['category'])) !== $filters['category']) {
             return false;
         }
-        if (($filters['week'] ?? null) && (string) ($row['week'] === 'General Training' ? 'general' : str_replace('Week ', '', $row['week'])) !== (string) $filters['week']) {
+        if (($filters['week'] ?? null) && str_replace('Week ', '', $row['week']) !== (string) $filters['week']) {
             return false;
         }
         if (($filters['requirement'] ?? null) && ! str_contains(strtolower($row['requirement']), strtolower($filters['requirement']))) {
@@ -186,22 +134,7 @@ class MissingSubmissionReportService
         if (($filters['status'] ?? null) === 'not_submitted' && ! in_array($row['status'], ['Not Submitted', 'Not Uploaded'], true)) {
             return false;
         }
-        if (($filters['status'] ?? null) === 'partial' && $row['status'] !== 'Partially Submitted') {
-            return false;
-        }
 
         return true;
-    }
-
-    private function dateMatches(mixed $date, array $filters): bool
-    {
-        if (! $date) {
-            return false;
-        }
-
-        $date = $date instanceof CarbonInterface ? $date->toDateString() : (string) $date;
-
-        return (! ($filters['from'] ?? null) || $date >= $filters['from'])
-            && (! ($filters['to'] ?? null) || $date <= $filters['to']);
     }
 }

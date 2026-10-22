@@ -6,7 +6,6 @@ use App\Enums\GateCriterionStatus;
 use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\GateCriterion;
 use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
@@ -32,12 +31,6 @@ class CoachGateReviewPageTest extends TestCase
         foreach ($activities as $activity) {
             $this->completeActivity($participant, $activity);
         }
-        foreach (range(1, 3) as $day) {
-            DailyLog::factory()->for($participant, 'participant')->for($activities->first())->create(['logged_on' => now()->subDays($day)->toDateString()]);
-        }
-        foreach (range(4, 5) as $day) {
-            DailyLog::factory()->for($participant, 'participant')->for($activities->last())->create(['logged_on' => now()->subDays($day)->toDateString()]);
-        }
         $recording = $this->uploadWeeklyVideo($participant, $week);
         $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision', 'comments' => 'Strong week, finish the video.']);
         [$activityCriterion, $videoCriterion] = $criteria;
@@ -56,8 +49,6 @@ class CoachGateReviewPageTest extends TestCase
                 'Gate readiness',
                 '>Criteria</span>',
                 '1 / 2',
-                'Daily logs',
-                '5 / 5',
                 'Activities',
                 '2 / 2 submitted',
                 'Video Recording',
@@ -84,6 +75,7 @@ class CoachGateReviewPageTest extends TestCase
                 'Strong week, finish the video.',
             ], false)
             ->assertDontSee('Blockers')
+            ->assertDontSee('Daily logs')
             ->assertDontSee('Optional stretch goal')
             ->assertDontSee('Read only');
 
@@ -100,14 +92,11 @@ class CoachGateReviewPageTest extends TestCase
             ->assertSeeInOrder([
                 'Criteria',
                 '0 / 2',
-                'Daily logs',
-                '0 / 5',
                 'Activities',
                 '0 / 1 submitted',
                 'Video Recording',
                 'Missing',
                 'Blockers',
-                'Daily logs: 0 of 5 completed. Complete 5 more Week 2 daily logs before this Gate can be passed.',
                 'Activity 1 must have a submitted version.',
                 'Required Weekly Video Recording is missing. Upload the video before this Gate can be passed.',
                 'Gate criteria',
@@ -131,7 +120,6 @@ class CoachGateReviewPageTest extends TestCase
                 'Video Recording',
                 'Not required',
                 'Blockers',
-                'Daily logs: 0 of 5 completed.',
                 'Activity 1 must have a submitted version.',
                 'Gate criteria',
             ])
@@ -163,19 +151,7 @@ class CoachGateReviewPageTest extends TestCase
 
         $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
             ->assertOk()
-            ->assertSeeInOrder(['>Criteria</span>', '1 / 2', 'Daily logs'], false);
-    }
-
-    public function test_the_daily_log_figure_uses_the_configured_weekly_minimum(): void
-    {
-        config(['training.daily_logs_per_week' => 3]);
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
-        DailyLog::factory()->for($participant, 'participant')->for($activities->first())->create();
-
-        $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
-            ->assertOk()
-            ->assertSeeInOrder(['Daily logs', '1 / 3', 'Activities', 'Daily logs: 1 of 3 completed.']);
+            ->assertSeeInOrder(['>Criteria</span>', '1 / 2', 'Activities'], false);
     }
 
     public function test_a_coach_who_is_not_assigned_to_the_participant_sees_the_gate_read_only(): void
@@ -241,9 +217,6 @@ class CoachGateReviewPageTest extends TestCase
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
         [$activityCriterion, $videoCriterion] = $criteria;
         $this->completeActivity($participant, $activities->first());
-        foreach (range(1, 5) as $day) {
-            DailyLog::factory()->for($participant, 'participant')->for($activities->first())->create(['logged_on' => now()->subDays($day)->toDateString()]);
-        }
         $this->uploadWeeklyVideo($participant, $week);
 
         $this->actingAs($coach)
@@ -308,22 +281,21 @@ class CoachGateReviewPageTest extends TestCase
         $this->assertDatabaseMissing('gate_evaluations', ['user_id' => $participant->id]);
     }
 
-    public function test_gate_review_query_count_does_not_grow_with_activities_daily_logs_and_criteria(): void
+    public function test_gate_review_query_count_does_not_grow_with_activities_and_criteria(): void
     {
         $this->assertSame($this->gateReviewQueryCount(1), $this->gateReviewQueryCount(3));
     }
 
     /**
-     * Give a new participant a Week 2 Gate with the given number of activities (each submitted with a daily log) and
-     * extra required criteria, and count the queries of the assigned coach's page request after a warm-up request.
+     * Give a new participant a Week 2 Gate with the given number of activities (each submitted) and extra required
+     * criteria, and count the queries of the assigned coach's page request after a warm-up request.
      */
     private function gateReviewQueryCount(int $rows): int
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         ['week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture(activityCount: $rows, extraCriteriaCount: $rows);
-        foreach ($activities as $index => $activity) {
+        foreach ($activities as $activity) {
             $this->completeActivity($participant, $activity);
-            DailyLog::factory()->for($participant, 'participant')->for($activity)->create(['logged_on' => now()->subDays($index + 1)->toDateString()]);
         }
         $this->uploadWeeklyVideo($participant, $week);
         GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);

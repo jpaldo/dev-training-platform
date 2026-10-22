@@ -25,7 +25,7 @@ class CoachParticipantListPageService
      * participant rows. The page has no single main action, so every button is secondary.
      *
      * @param  array{search?: ?string, path?: ?string}  $filters
-     * @return array{assignPairUrl: string, pairCandidateOptions: list<array{value: string, label: string}>, pairs: list<array{participant_one: string, participant_two: string, unpair_url: string}>, search: string, pathOptions: list<array{value: string, label: string, is_selected: bool}>, participants: LengthAwarePaginator<int, array{name: string, email: string, path: string, access_label: ?string, coach_names: string, drive_url: ?string, google_drive_account: ?string, daily_log_count: int, daily_logs_url: ?string, attendance: ?array{is_open: bool, status: string, time: string, duration: string}, submission_count: int, gate_count: int, inspect_url: string}>}
+     * @return array{assignPairUrl: string, pairCandidateOptions: list<array{value: string, label: string}>, pairs: list<array{participant_one: string, participant_two: string, unpair_url: string}>, search: string, pathOptions: list<array{value: string, label: string, is_selected: bool}>, participants: LengthAwarePaginator<int, array{name: string, email: string, path: string, access_label: ?string, coach_names: string, drive_url: ?string, google_drive_account: ?string, attendance: ?array{is_open: bool, status: string, time: string, duration: string}, submission_count: int, gate_count: int, inspect_url: string}>}
      */
     public function indexData(User $viewer, array $filters): array
     {
@@ -58,7 +58,6 @@ class CoachParticipantListPageService
                 ->values()
                 ->all(),
             'participants' => $this->reports->participants($filters)
-                ->withCount('dailyLogs')
                 ->with(['attendanceSessions' => fn (Relation $sessions): Relation => $sessions->latest('check_in_at'), 'googleDriveConnection'])
                 ->paginate(self::PARTICIPANTS_PER_PAGE)
                 ->withQueryString()
@@ -70,7 +69,7 @@ class CoachParticipantListPageService
      * One table row: the viewer's access to the participant (admin access, assigned to the viewer, or null when not
      * assigned), the Drive links, the counts and the open (or else latest) attendance session.
      *
-     * @return array{name: string, email: string, path: string, access_label: ?string, coach_names: string, drive_url: ?string, google_drive_account: ?string, daily_log_count: int, daily_logs_url: ?string, attendance: ?array{is_open: bool, status: string, time: string, duration: string}, submission_count: int, gate_count: int, inspect_url: string}
+     * @return array{name: string, email: string, path: string, access_label: ?string, coach_names: string, drive_url: ?string, google_drive_account: ?string, attendance: ?array{is_open: bool, status: string, time: string, duration: string}, submission_count: int, gate_count: int, inspect_url: string}
      */
     private function participantRow(User $viewer, User $participant): array
     {
@@ -88,8 +87,6 @@ class CoachParticipantListPageService
             'google_drive_account' => $participant->googleDriveConnection
                 ? ($participant->googleDriveConnection->google_email ?: 'Account connected')
                 : null,
-            'daily_log_count' => $participant->daily_logs_count,
-            'daily_logs_url' => $participant->daily_logs_count > 0 ? route('coach.participants.daily-logs', $participant) : null,
             'attendance' => $this->attendanceSummary($participant),
             'submission_count' => $participant->activity_submissions_count,
             'gate_count' => $participant->gate_evaluations_count,

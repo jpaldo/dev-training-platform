@@ -8,6 +8,7 @@ use App\Models\Program;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 
 class DailyLogPageService
 {
@@ -15,7 +16,6 @@ class DailyLogPageService
 
     public function __construct(
         private readonly WeekProgressionService $progression,
-        private readonly WeekTwoGateService $gates,
     ) {}
 
     /**
@@ -27,7 +27,7 @@ class DailyLogPageService
     public function indexData(User $participant): array
     {
         return [
-            'requiredDailyLogs' => $this->gates->minimumDailyLogs(),
+            'requiredDailyLogs' => $this->minimumDailyLogs(),
             'weeklyProgress' => $this->weeklyProgress($participant),
             'logs' => $participant->dailyLogs()
                 ->with('activity.week')
@@ -142,8 +142,8 @@ class DailyLogPageService
         }
 
         $weeks = $program->weeks->where('is_active', true)->sortBy('week_number');
-        $dailyLogCounts = $this->gates->dailyLogCountsByWeek($participant, $weeks->modelKeys());
-        $minimum = $this->gates->minimumDailyLogs();
+        $dailyLogCounts = $this->dailyLogCountsByWeek($participant, $weeks->modelKeys());
+        $minimum = $this->minimumDailyLogs();
 
         return $weeks
             ->map(function (TrainingWeek $week) use ($dailyLogCounts, $minimum): array {
@@ -161,6 +161,35 @@ class DailyLogPageService
             })
             ->values()
             ->all();
+    }
+
+    private function minimumDailyLogs(): int
+    {
+        return (int) config('training.daily_logs_per_week', 5);
+    }
+
+    /**
+     * Count the participant's daily logs per training week, scoped through each week's activities.
+     *
+     * @param  array<int, int>  $weekIds
+     * @return Collection<int, int> daily log counts keyed by week id; weeks without logs are absent
+     */
+    private function dailyLogCountsByWeek(User $participant, array $weekIds): Collection
+    {
+        $weekIdsByActivity = Activity::query()->whereIn('training_week_id', $weekIds)->pluck('training_week_id', 'id');
+        if ($weekIdsByActivity->isEmpty()) {
+            return collect();
+        }
+
+        return DailyLog::query()
+            ->select('activity_id')
+            ->selectRaw('count(*) as daily_log_count')
+            ->where('user_id', $participant->id)
+            ->whereIn('activity_id', $weekIdsByActivity->keys())
+            ->groupBy('activity_id')
+            ->get()
+            ->groupBy(fn (DailyLog $row): int => $weekIdsByActivity->get($row->activity_id))
+            ->map(fn (Collection $weekRows): int => (int) $weekRows->sum('daily_log_count'));
     }
 
     private function activeProgram(): ?Program

@@ -5,8 +5,6 @@ namespace Tests\Feature;
 use App\Enums\TrainingPath;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
-use App\Models\DailyLog;
-use App\Models\GoogleDriveConnection;
 use App\Models\Program;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
@@ -14,7 +12,6 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -27,12 +24,9 @@ class MissingSubmissionReportPageTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Coach Avery']);
         $admin = User::factory()->create(['role' => 'admin', 'name' => 'Admin Blake']);
         $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);
-        $activity = Activity::factory()->for($week, 'week')->create(['title' => 'Explore checkout']);
+        Activity::factory()->for($week, 'week')->create(['title' => 'Explore checkout']);
         $ada = User::factory()->create(['name' => 'Ada Alpha', 'email' => 'ada@example.test', 'training_path' => 'automation_manual']);
         $ada->assignedCoaches()->attach([$admin->id, $coach->id]);
-        foreach (['2026-09-10', '2026-09-11'] as $date) {
-            DailyLog::factory()->for($ada, 'participant')->for($activity)->create(['logged_on' => $date]);
-        }
 
         $response = $this->actingAs($coach)->get(route('coach.reports.missing-submissions'))
             ->assertOk()
@@ -42,42 +36,39 @@ class MissingSubmissionReportPageTest extends TestCase
                 'Missing submissions',
                 'href="'.e(route('coach.reports.missing-submissions.export')).'"', '>Export Missing Submissions CSV</a>',
                 'aria-label="Reports"',
-                '>Progress</a>', '>Daily Log Completion</a>', '>Daily Log Details</a>', '>Missing Submissions</a>',
+                '>Progress</a>', '>Missing Submissions</a>',
                 '<option value="">All participants</option>', '<option value="'.$ada->id.'"', '>Ada Alpha</option>',
                 '<option value="">All mentors</option>',
                 '<option value="'.$admin->id.'"', '>Admin Blake</option>', '<option value="'.$coach->id.'"', '>Coach Avery</option>',
                 'Participants With Missing Requirements', '>1</dd>',
                 'Missing Activities', '>1</dd>',
-                'Missing Daily Logs', '>2</dd>',
-                'Missing General Training Logs', '>1</dd>',
                 'Missing Video Recordings', '>1</dd>',
-                'Actionable missing requirements', '4 row(s)',
+                'Actionable missing requirements', '2 row(s)',
                 'href="'.e(route('coach.participants.show', $ada)).'"', '>Ada Alpha</a>', '>ada@example.test</span>', '>Automation / Manual</span>',
-                '>Admin Blake, Coach Avery</td>', '>General Training</td>', '>General Training</td>', '<strong>General Training Daily Logs</strong>',
-                '>5</td>', '>0</td>', '>5</td>', '>—</td>', '>Not Submitted</span>', '>—</td>',
-                '>Ada Alpha</a>', '>Daily Logs</td>', '>Week 2</td>', '<strong>Week 2 Daily Logs</strong>',
-                '>5</td>', '>2</td>', '>3</td>', '>—</td>', '>Partially Submitted</span>', '>Sep 11, 2026</td>',
-                '>Ada Alpha</a>', '>Video Recording</td>', '>Week 2</td>', '<strong>Weekly Video Recording</strong>',
-                '>1</td>', '>0</td>', '>1</td>', '>0</td>', '>Not Uploaded</span>', '>—</td>',
+                '>Admin Blake, Coach Avery</td>', '>Video Recording</td>', '>Week 2</td>', '<strong>Weekly Video Recording</strong>',
+                '>1</td>', '>0</td>', '>1</td>', '>0</td>', '>Not Uploaded</span>',
                 '>Ada Alpha</a>', '>Activities</td>', '>Week 2</td>', '<strong>Explore checkout</strong>',
-                '>1</td>', '>0</td>', '>1</td>', '>0</td>', '>Not Submitted</span>', '>—</td>',
+                '>1</td>', '>0</td>', '>1</td>', '>0</td>', '>Not Submitted</span>',
             ], false)
-            ->assertDontSee('No missing submissions found for the selected filters.');
+            ->assertDontSee('No missing submissions found for the selected filters.')
+            ->assertDontSee('Daily Log')
+            ->assertDontSee('General Training')
+            ->assertDontSee('Log Date');
 
         $html = $response->getContent();
         $this->assertSame(1, preg_match('/aria-label="Reports">(.*?)<\/nav>/s', $html, $reportNav));
         $this->assertSame(1, substr_count($reportNav[1], 'aria-current="page"'));
         $this->assertMatchesRegularExpression('/aria-current="page"[^>]*>Missing Submissions<\/a>/', $reportNav[1]);
-        $this->assertSame(4, substr_count($html, 'data-missing-row'));
+        $this->assertSame(2, substr_count($html, 'data-missing-row'));
         $this->assertStringNotContainsString('Coach Avery', $this->selectMarkup($html, 'missing-participant'));
-        $this->assertMatchesRegularExpression('/border-amber-500[^"]*">Partially Submitted<\/span>/', $html);
         $this->assertMatchesRegularExpression('/border-danger[^"]*">Not Uploaded<\/span>/', $html);
-        $this->assertSame(2, preg_match_all('/border-danger[^"]*">Not Submitted<\/span>/', $html));
+        $this->assertMatchesRegularExpression('/border-danger[^"]*">Not Submitted<\/span>/', $html);
     }
 
     public function test_filters_keep_their_values_and_the_export_and_pagination_links_keep_the_query(): void
     {
-        Program::factory()->create();
+        $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);
+        Activity::factory()->for($week, 'week')->create(['title' => 'Explore checkout']);
         $mentor = User::factory()->create(['role' => 'coach', 'name' => 'Mentor Ely']);
         $participants = User::factory()->count(26)
             ->sequence(fn (Sequence $sequence): array => ['name' => sprintf('Page Person %02d', $sequence->index + 1)])
@@ -88,26 +79,22 @@ class MissingSubmissionReportPageTest extends TestCase
         $filters = [
             'path' => 'automation',
             'mentor' => $mentor->id,
-            'category' => 'general_training',
-            'week' => 'general',
+            'category' => 'activities',
+            'week' => 2,
             'status' => 'not_submitted',
-            'requirement' => 'General',
-            'from' => '2026-09-01',
-            'to' => '2026-09-30',
+            'requirement' => 'Explore',
         ];
 
         $firstPage = $this->actingAs($mentor)->get(route('coach.reports.missing-submissions', $filters))
             ->assertOk()
             ->assertSee('<option value="automation" selected>Automation</option>', false)
             ->assertSee('<option value="'.$mentor->id.'" selected>Mentor Ely</option>', false)
-            ->assertSee('<option value="general_training" selected>General Training</option>', false)
-            ->assertSee('<option value="general" selected>General Training</option>', false)
+            ->assertSee('<option value="activities" selected>Activities</option>', false)
+            ->assertSee('<option value="2" selected>Week 2</option>', false)
             ->assertSee('<option value="not_submitted" selected>Not Submitted</option>', false)
-            ->assertSee('value="General"', false)
-            ->assertSee('value="2026-09-01"', false)
-            ->assertSee('value="2026-09-30"', false)
+            ->assertSee('value="Explore"', false)
             ->assertSee('href="'.e(route('coach.reports.missing-submissions.export', $filters)).'"', false)
-            ->assertSeeInOrder(['Participants With Missing Requirements', '>26</dd>', 'Missing General Training Logs', '>26</dd>'], false)
+            ->assertSeeInOrder(['Participants With Missing Requirements', '>26</dd>', 'Missing Activities', '>26</dd>', 'Missing Video Recordings', '>0</dd>'], false)
             ->assertSee('26 row(s)')
             ->assertSee(e(route('coach.reports.missing-submissions', [...$filters, 'page' => 2])), false)
             ->assertDontSee('Page Manual</a>', false);
@@ -123,7 +110,8 @@ class MissingSubmissionReportPageTest extends TestCase
 
     public function test_participants_with_missing_requirements_are_counted_by_id_not_by_name(): void
     {
-        Program::factory()->create();
+        $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);
+        Activity::factory()->for($week, 'week')->create();
         User::factory()->count(2)->create(['name' => 'Sam Same']);
 
         $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.reports.missing-submissions'))
@@ -131,31 +119,11 @@ class MissingSubmissionReportPageTest extends TestCase
             ->assertSeeInOrder(['Participants With Missing Requirements', '>2</dd>'], false);
     }
 
-    public function test_rows_without_a_configured_expectation_are_listed_but_not_counted(): void
+    public function test_the_removed_daily_log_filter_values_are_rejected(): void
     {
-        config(['training.general_training_daily_logs_expected' => null]);
-        Program::factory()->create();
-        $ada = User::factory()->create(['name' => 'Ada Alpha']);
-        DailyLog::factory()->for($ada, 'participant')->create(['activity_id' => null, 'logged_on' => '2026-09-12']);
-        User::factory()->create(['name' => 'Bo Beta']);
-
-        $response = $this->actingAs(User::factory()->create(['role' => 'coach']))
-            ->get(route('coach.reports.missing-submissions', ['participant' => $ada->id]))
-            ->assertOk()
-            ->assertSee('<option value="'.$ada->id.'" selected>Ada Alpha</option>', false)
-            ->assertSeeInOrder([
-                'Participants With Missing Requirements', '>0</dd>',
-                'Missing Activities', '>0</dd>',
-                'Missing Daily Logs', '>0</dd>',
-                'Missing General Training Logs', '>0</dd>',
-                'Missing Video Recordings', '>0</dd>',
-                '1 row(s)',
-                '>Ada Alpha</a>', '<strong>General Training Daily Logs</strong>',
-                '>—</td>', '>1</td>', '>—</td>', '>—</td>', '>Expectation Not Configured</span>', '>Sep 12, 2026</td>',
-            ], false)
-            ->assertDontSee('Bo Beta</a>', false);
-
-        $this->assertMatchesRegularExpression('/border-danger[^"]*">Expectation Not Configured<\/span>/', $response->getContent());
+        $this->actingAs(User::factory()->create(['role' => 'coach']))
+            ->get(route('coach.reports.missing-submissions', ['category' => 'daily_logs', 'week' => 'general', 'status' => 'partial']))
+            ->assertSessionHasErrors(['category', 'week', 'status']);
     }
 
     /**
@@ -211,36 +179,6 @@ class MissingSubmissionReportPageTest extends TestCase
         $this->assertSame($this->reportQueryCount(1), $this->reportQueryCount(3));
     }
 
-    public function test_drive_evidence_counts_are_reused_for_ten_minutes_per_participant_and_folder(): void
-    {
-        Program::factory()->create();
-        $participant = User::factory()->create();
-        $connection = GoogleDriveConnection::create([
-            'user_id' => $participant->id,
-            'access_token' => 'token',
-            'refresh_token' => 'refresh',
-            'token_expires_at' => now()->addDay(),
-            'connected_at' => now(),
-            'drive_folder_id' => 'first-folder',
-            'destination_source' => 'picker',
-        ]);
-        Http::fake(['*' => Http::response(['files' => []])]);
-        $coach = User::factory()->create(['role' => 'coach']);
-        $url = route('coach.reports.missing-submissions', ['category' => 'general_training']);
-
-        $this->actingAs($coach)->get($url)->assertOk();
-        $this->actingAs($coach)->get($url)->assertOk();
-        Http::assertSentCount(1);
-
-        $connection->update(['drive_folder_id' => 'second-folder']);
-        $this->actingAs($coach)->get($url)->assertOk();
-        Http::assertSentCount(2);
-
-        $this->travel(11)->minutes();
-        $this->actingAs($coach)->get($url)->assertOk();
-        Http::assertSentCount(3);
-    }
-
     /**
      * The markup of the select with the given id, options included.
      */
@@ -253,7 +191,7 @@ class MissingSubmissionReportPageTest extends TestCase
 
     /**
      * Build a new active program with Weeks 2 and 3 (an activity and a Gate each) and the given number of new
-     * participants without logs, and count the queries of a coach's report request after a warm-up request.
+     * participants, and count the queries of a coach's report request after a warm-up request.
      */
     private function reportQueryCount(int $participantCount): int
     {
@@ -272,7 +210,7 @@ class MissingSubmissionReportPageTest extends TestCase
         $this->actingAs($coach)->get(route('coach.reports.missing-submissions'))->assertOk();
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $this->actingAs($coach)->get(route('coach.reports.missing-submissions'))->assertOk()->assertSee('General Training Daily Logs');
+        $this->actingAs($coach)->get(route('coach.reports.missing-submissions'))->assertOk()->assertSee('Weekly Video Recording');
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());

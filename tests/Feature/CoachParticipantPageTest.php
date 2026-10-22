@@ -6,7 +6,6 @@ use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
-use App\Models\DailyLog;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
@@ -38,7 +37,7 @@ class CoachParticipantPageTest extends TestCase
                 'role="tablist" aria-label="Participant sections"',
                 'id="participant-tab-submissions"',
                 'id="participant-tab-gates"',
-                'id="participant-tab-logs-attendance"',
+                'id="participant-tab-attendance"',
                 'id="participant-tab-week-four"',
             ], false)
             ->assertSee('id="participant-tab-submissions" aria-controls="participant-panel-submissions" aria-selected="true"', false)
@@ -65,7 +64,7 @@ class CoachParticipantPageTest extends TestCase
             ->assertSeeInOrder([
                 'id="participant-tab-submissions"',
                 'id="participant-tab-gates"',
-                'id="participant-tab-logs-attendance"',
+                'id="participant-tab-attendance"',
             ], false)
             ->assertDontSee('participant-tab-week-four', false)
             ->assertDontSee('participant-panel-week-four', false)
@@ -165,31 +164,20 @@ class CoachParticipantPageTest extends TestCase
         ];
     }
 
-    public function test_gate_rows_show_the_evaluation_or_readiness_status_and_daily_logs(): void
+    public function test_gate_rows_show_the_evaluation_or_readiness_status(): void
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         $program = Program::factory()->create();
         $passedGate = TrainingGate::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 1]), 'week')->create(['title' => 'Passed Gate']);
-        TrainingGate::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 3, 'position' => 2]), 'week')->create(['title' => 'Blocked Gate']);
+        $blockedGate = TrainingGate::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 3, 'position' => 2]), 'week')->create(['title' => 'Blocked Gate']);
+        Activity::factory()->for($blockedGate->week, 'week')->create();
         GateEvaluation::factory()->for($passedGate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
-        DailyLog::factory()->for($participant, 'participant')->for(Activity::factory()->for($passedGate->week, 'week'))->create();
 
         $this->actingAs($coach)->get(route('coach.participants.show', $participant))
             ->assertOk()
-            ->assertSeeInOrder(['Week 2 · Passed Gate', 'Passed', 'Daily logs: 1 / 5'])
-            ->assertSeeInOrder(['Week 3 · Blocked Gate', 'Not ready', '(1 blocker(s))', 'Daily logs: 0 / 5']);
-    }
-
-    public function test_gate_row_daily_logs_use_the_configured_weekly_minimum(): void
-    {
-        config(['training.daily_logs_per_week' => 3]);
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        $gate = TrainingGate::factory()->for(TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]), 'week')->create(['title' => 'Logged Gate']);
-        DailyLog::factory()->for($participant, 'participant')->for(Activity::factory()->for($gate->week, 'week'))->create();
-
-        $this->actingAs($coach)->get(route('coach.participants.show', $participant))
-            ->assertOk()
-            ->assertSeeInOrder(['Week 2 · Logged Gate', 'Daily logs: 1 / 3']);
+            ->assertSeeInOrder(['Week 2 · Passed Gate', 'Passed'])
+            ->assertSeeInOrder(['Week 3 · Blocked Gate', 'Not ready', '(1 blocker(s))'])
+            ->assertDontSee('Daily logs');
     }
 
     #[DataProvider('savedGateStatuses')]
@@ -227,8 +215,8 @@ class CoachParticipantPageTest extends TestCase
     }
 
     /**
-     * Give a new participant the given number of weeks, each with a Gate, a submission with two versions, a daily log,
-     * a weekly video recording and a completed attendance session, plus an open session and a peer interview waiver,
+     * Give a new participant the given number of weeks, each with a Gate, a submission with two versions, a weekly
+     * video recording and a completed attendance session, plus an open session and a peer interview waiver,
      * and count the queries of the assigned coach's page request after a warm-up request.
      */
     private function participantPageQueryCount(int $rows, Activity $peerActivity): int
@@ -243,7 +231,6 @@ class CoachParticipantPageTest extends TestCase
             $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
             SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 1, 'status' => 'submitted']);
             SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 2, 'status' => 'submitted']);
-            DailyLog::factory()->for($participant, 'participant')->for($activity)->create(['logged_on' => now()->subDays($position)->toDateString()]);
             WeeklyVideoRecording::create(['user_id' => $participant->id, 'training_week_id' => $week->id, 'path' => "videos/{$position}.mp4", 'original_filename' => "week-{$position}.mp4", 'mime_type' => 'video/mp4', 'size_bytes' => 1048576, 'uploaded_at' => now()]);
             AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subDays($position)->subHours(8), 'check_out_at' => now()->subDays($position), 'total_seconds' => 28800]);
         }

@@ -141,18 +141,15 @@ class CoachOperationsTest extends TestCase
         $this->actingAs($connected)->get(route('coach.participants'))->assertForbidden();
     }
 
-    public function test_participant_list_is_paginated_with_daily_log_counts_and_preserves_filters(): void
+    public function test_participant_list_is_paginated_and_preserves_filters(): void
     {
         $this->seedProgram();
         $coach = User::factory()->create(['role' => 'coach']);
         $participants = User::factory()->count(26)->create(['training_path' => 'manual']);
-        $activity = Program::where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail()->activities()->firstOrFail();
-        DailyLog::create(['user_id' => $participants->first()->id, 'activity_id' => $activity->id, 'logged_on' => now()->toDateString(), 'content' => 'First log']);
         AttendanceSession::create(['user_id' => $participants->last()->id, 'check_in_at' => now()->subHour(), 'check_out_at' => now(), 'total_seconds' => 3600]);
 
         $firstPage = $this->actingAs($coach)->get(route('coach.participants', ['path' => 'manual']));
-        $firstPage->assertOk()->assertSee('of 26 participants')->assertSee('Daily Logs')->assertSee('1');
-        $this->assertStringContainsString(route('coach.participants.daily-logs', $participants->first()), $firstPage->getContent());
+        $firstPage->assertOk()->assertSee('of 26 participants')->assertDontSee('Daily Logs');
         $firstPage->assertSee('name="path"', false)->assertSee('Manual QA');
 
         $this->actingAs($coach)->get(route('coach.participants', ['path' => 'manual', 'page' => 2]))
@@ -224,7 +221,7 @@ class CoachOperationsTest extends TestCase
         GateEvaluation::create(['training_gate_id' => $gate->id, 'user_id' => $manual->id, 'status' => 'passed', 'evaluated_at' => now()]);
 
         $response = $this->actingAs($coach)->get(route('coach.gates'));
-        $response->assertOk()->assertSee('<table', false)->assertSee('Week 2')->assertSee('Week 3')->assertSee('Week 4')->assertSee('Gate Manual')->assertSee('Gate Automation')->assertSee('PASSED')->assertSee('Daily Logs')->assertSee('Criteria')->assertSee('Video')->assertSee('Review Gate');
+        $response->assertOk()->assertSee('<table', false)->assertSee('Week 2')->assertSee('Week 3')->assertSee('Week 4')->assertSee('Gate Manual')->assertSee('Gate Automation')->assertSee('PASSED')->assertSee('Criteria')->assertSee('Video')->assertSee('Review Gate');
         $this->actingAs($coach)->get(route('coach.gates', ['search' => 'Gate Manual']))->assertOk()->assertSee('Gate Manual')->assertDontSee('Gate Automation');
         $this->actingAs($coach)->get(route('coach.gates', ['week' => 2, 'path' => 'manual', 'status' => 'passed']))->assertOk()->assertSee('Gate Manual')->assertDontSee('Gate Automation');
         $this->actingAs($manual)->get(route('coach.gates'))->assertForbidden();

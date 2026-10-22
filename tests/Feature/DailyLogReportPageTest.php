@@ -40,7 +40,7 @@ class DailyLogReportPageTest extends TestCase
                 'Daily Log Completion',
                 'href="'.e(route('coach.reports.daily-logs.export')).'"', '>Export Daily Logs CSV</a>',
                 'aria-label="Reports"',
-                '>Progress</a>', '>Daily Log Completion</a>', '>Daily Log Details</a>', '>Missing Submissions</a>',
+                '>Progress</a>', '>Missing Submissions</a>',
                 '<option value="">All participants</option>',
                 '<option value="'.$ada->id.'"', '>Ada Alpha</option>',
                 '<option value="'.$bo->id.'"', '>Bo Beta</option>',
@@ -65,8 +65,8 @@ class DailyLogReportPageTest extends TestCase
             ->assertDontSee('No Daily Logs match the selected filters.');
 
         $this->assertSame(1, preg_match('/aria-label="Reports">(.*?)<\/nav>/s', $response->getContent(), $reportNav));
-        $this->assertSame(1, substr_count($reportNav[1], 'aria-current="page"'));
-        $this->assertMatchesRegularExpression('/aria-current="page"[^>]*>Daily Log Completion<\/a>/', $reportNav[1]);
+        $this->assertSame(0, substr_count($reportNav[1], 'aria-current="page"'));
+        $this->assertStringNotContainsString('Daily Log', $reportNav[1]);
         $this->assertSame(3, substr_count($response->getContent(), 'data-completion-row'));
         $this->assertStringNotContainsString('Coach Avery', $this->selectMarkup($response->getContent(), 'daily-participant'));
     }
@@ -140,7 +140,7 @@ class DailyLogReportPageTest extends TestCase
                 'COACH / REPORTS',
                 'Detailed Daily Logs',
                 'aria-label="Reports"',
-                '>Progress</a>', '>Daily Log Completion</a>', '>Daily Log Details</a>', '>Missing Submissions</a>',
+                '>Progress</a>', '>Missing Submissions</a>',
                 'Submitted entries',
                 '2 matching log(s)',
                 '>Bo Beta</strong>', '>bo@example.test</span>', '>Manual</span>', '>Sep 12, 2026</td>', '>—</td>', '>General Training</td>', '>Not assigned</td>',
@@ -152,8 +152,8 @@ class DailyLogReportPageTest extends TestCase
             ->assertDontSee('No Daily Logs match the selected filters.');
 
         $this->assertSame(1, preg_match('/aria-label="Reports">(.*?)<\/nav>/s', $response->getContent(), $reportNav));
-        $this->assertSame(1, substr_count($reportNav[1], 'aria-current="page"'));
-        $this->assertMatchesRegularExpression('/aria-current="page"[^>]*>Daily Log Details<\/a>/', $reportNav[1]);
+        $this->assertSame(0, substr_count($reportNav[1], 'aria-current="page"'));
+        $this->assertStringNotContainsString('Daily Log', $reportNav[1]);
         $this->assertSame(2, substr_count($response->getContent(), 'data-log-row'));
     }
 

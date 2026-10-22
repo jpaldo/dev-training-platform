@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\SubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\SubmissionVersion;
@@ -53,7 +52,6 @@ class WeekTwoGateService
         $participantIds = $participants->pluck('id')->all();
         $weekIds = $gates->pluck('training_week_id')->unique()->values()->all();
         $weeks = TrainingWeek::query()->findOrFail($weekIds)->keyBy('id');
-        $dailyLogCounts = $this->dailyLogCountsByParticipantAndWeek($participantIds, $weekIds);
         $activitiesByWeek = Activity::query()
             ->whereIn('training_week_id', $weekIds)
             ->where('is_active', true)
@@ -86,17 +84,9 @@ class WeekTwoGateService
             ->map(fn (Collection $recordings): Collection => $recordings->pluck('training_week_id'));
         $legacyLoomUrls = $this->legacyWeeklyLoomUrls($participantIds, $this->weeklyLoomWeekIds($gates, $videoCriteriaByGate));
 
-        return $participants->mapWithKeys(fn (User $participant): array => [$participant->id => $gates->mapWithKeys(function (TrainingGate $gate) use ($participant, $weeks, $dailyLogCounts, $activitiesByWeek, $latestSubmissions, $latestVersions, $videoCriteriaByGate, $recordedWeekIds, $legacyLoomUrls): array {
+        return $participants->mapWithKeys(fn (User $participant): array => [$participant->id => $gates->mapWithKeys(function (TrainingGate $gate) use ($participant, $weeks, $activitiesByWeek, $latestSubmissions, $latestVersions, $videoCriteriaByGate, $recordedWeekIds, $legacyLoomUrls): array {
             $week = $weeks->get($gate->training_week_id);
             $reasons = [];
-            $logs = $dailyLogCounts->get($participant->id, collect())->get($week->id, 0);
-            // Every active training week requires `training.daily_logs_per_week` participant daily logs.
-            // The count is scoped through the week's activities, never globally.
-            $minimumLogs = $this->minimumDailyLogs();
-            if ($logs < $minimumLogs) {
-                $remaining = $minimumLogs - $logs;
-                $reasons['daily_logs'] = "Daily logs: {$logs} of {$minimumLogs} completed. Complete {$remaining} more Week {$week->week_number} daily log".($remaining === 1 ? '' : 's').' before this Gate can be passed.';
-            }
             foreach ($activitiesByWeek->get($week->id, collect()) as $activity) {
                 $submission = $latestSubmissions->get($participant->id)?->get($activity->id);
                 if (! $submission || ! $submission->isHandedIn()) {
@@ -127,49 +117,6 @@ class WeekTwoGateService
 
             return [$gate->id => $reasons];
         })]);
-    }
-
-    public function minimumDailyLogs(): int
-    {
-        return (int) config('training.daily_logs_per_week', 5);
-    }
-
-    /**
-     * Count the participant's daily logs per training week, scoped through each week's activities.
-     *
-     * @param  array<int, int>  $weekIds
-     * @return Collection<int, int> daily log counts keyed by week id; weeks without logs are absent
-     */
-    public function dailyLogCountsByWeek(User $participant, array $weekIds): Collection
-    {
-        return $this->dailyLogCountsByParticipantAndWeek([$participant->id], $weekIds)->get($participant->id, collect());
-    }
-
-    /**
-     * Count the daily logs of several participants per training week, scoped through each week's activities.
-     *
-     * @param  array<int, int>  $participantIds
-     * @param  array<int, int>  $weekIds
-     * @return Collection<int, Collection<int, int>> daily log counts keyed by participant id, then week id; participants and weeks without logs are absent
-     */
-    public function dailyLogCountsByParticipantAndWeek(array $participantIds, array $weekIds): Collection
-    {
-        $weekIdsByActivity = Activity::query()->whereIn('training_week_id', $weekIds)->pluck('training_week_id', 'id');
-        if ($participantIds === [] || $weekIdsByActivity->isEmpty()) {
-            return collect();
-        }
-
-        return DailyLog::query()
-            ->select(['user_id', 'activity_id'])
-            ->selectRaw('count(*) as daily_log_count')
-            ->whereIn('user_id', $participantIds)
-            ->whereIn('activity_id', $weekIdsByActivity->keys())
-            ->groupBy('user_id', 'activity_id')
-            ->get()
-            ->groupBy('user_id')
-            ->map(fn (Collection $rows): Collection => $rows
-                ->groupBy(fn (DailyLog $row): int => $weekIdsByActivity->get($row->activity_id))
-                ->map(fn (Collection $weekRows): int => (int) $weekRows->sum('daily_log_count')));
     }
 
     /** @return array{status:string,url:?string,activity:?object,criterion:?object,recording:?WeeklyVideoRecording} */

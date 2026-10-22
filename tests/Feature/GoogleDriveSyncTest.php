@@ -8,7 +8,6 @@ use App\Jobs\SyncTrainingDataJob;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
-use App\Models\DailyLog;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveEvidenceExport;
 use App\Models\GoogleDriveExport;
@@ -74,10 +73,9 @@ class GoogleDriveSyncTest extends TestCase
         ]);
     }
 
-    public function test_week_workbook_contains_three_activity_sheets_and_daily_logs(): void
+    public function test_week_workbook_contains_one_sheet_per_activity_and_no_daily_logs(): void
     {
         $participant = User::factory()->create(['role' => 'participant']);
-        DailyLog::create(['user_id' => $participant->id, 'activity_id' => null, 'logged_on' => '2026-09-01', 'content' => 'General-only log']);
         $program = Program::factory()->create(['is_active' => true]);
         $week = TrainingWeek::factory()->create(['program_id' => $program->id, 'week_number' => 2]);
         foreach (['AI Output Error Detection', 'Validation Checklist', 'Pre-acceptance Check'] as $position => $title) {
@@ -92,61 +90,32 @@ class GoogleDriveSyncTest extends TestCase
         $workbook = $zip->getFromName('xl/workbook.xml');
         $zip->close();
         @unlink($path);
+        $this->assertSame(3, substr_count($workbook, '<sheet '));
         $this->assertStringContainsString('AI Output Error Detection', $workbook);
         $this->assertStringContainsString('Validation Checklist', $workbook);
         $this->assertStringContainsString('Pre-acceptance Check', $workbook);
-        $this->assertStringContainsString('Daily Logs', $workbook);
-        $this->assertStringNotContainsString('General-only log', $workbook);
+        $this->assertStringNotContainsString('Daily Logs', $workbook);
     }
 
-    public function test_general_training_workbook_contains_only_general_training_logs(): void
+    public function test_week_workbook_without_activities_has_one_header_only_activities_sheet(): void
     {
-        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
-        $program = Program::factory()->create(['is_active' => true]);
-        $week = TrainingWeek::factory()->create(['program_id' => $program->id, 'week_number' => 2]);
-        $activity = Activity::factory()->create(['training_week_id' => $week->id, 'position' => 1]);
-        DailyLog::create(['user_id' => $participant->id, 'activity_id' => null, 'logged_on' => '2026-09-01', 'content' => 'General-only log']);
-        DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => '2026-09-02', 'content' => 'Week-two log']);
+        $participant = User::factory()->create(['role' => 'participant']);
 
-        $content = app(TrainingWorkbookService::class)->forGeneralTraining($participant);
-        $path = tempnam(sys_get_temp_dir(), 'qa-week1-');
+        $content = app(TrainingWorkbookService::class)->forWeek($participant, 1);
+        $path = tempnam(sys_get_temp_dir(), 'qa-empty-week-');
         file_put_contents($path, $content);
         $zip = new ZipArchive;
         $this->assertTrue($zip->open($path) === true);
-        $xml = '';
-        for ($i = 1; $i <= $zip->numFiles; $i++) {
-            if (str_starts_with($zip->getNameIndex($i), 'xl/worksheets/')) {
-                $xml .= $zip->getFromIndex($i);
-            }
-        }
+        $workbook = $zip->getFromName('xl/workbook.xml');
+        $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $contentTypes = $zip->getFromName('[Content_Types].xml');
         $zip->close();
         @unlink($path);
-
-        $this->assertStringContainsString('General-only log', $xml);
-        $this->assertStringNotContainsString('Week-two log', $xml);
-        $this->assertStringContainsString('General Training', $xml);
-    }
-
-    public function test_general_training_workbook_regeneration_does_not_append_duplicate_rows(): void
-    {
-        $participant = User::factory()->create(['role' => 'participant']);
-        foreach (range(1, 5) as $day) {
-            DailyLog::create(['user_id' => $participant->id, 'activity_id' => null, 'logged_on' => "2026-09-0{$day}", 'content' => "General row {$day}"]);
-        }
-
-        $first = app(TrainingWorkbookService::class)->forGeneralTraining($participant);
-        $second = app(TrainingWorkbookService::class)->forGeneralTraining($participant);
-        foreach ([$first, $second] as $content) {
-            $path = tempnam(sys_get_temp_dir(), 'qa-week1-idempotent-');
-            file_put_contents($path, $content);
-            $zip = new ZipArchive;
-            $this->assertTrue($zip->open($path) === true);
-            $xml = $zip->getFromName('xl/worksheets/sheet1.xml');
-            $zip->close();
-            @unlink($path);
-            $this->assertSame(1, substr_count($xml, 'General row 1'));
-            $this->assertSame(1, substr_count($xml, 'General row 5'));
-        }
+        $this->assertSame(1, substr_count($workbook, '<sheet '));
+        $this->assertStringContainsString('<sheet name="Activities" sheetId="1" r:id="rId1"/>', $workbook);
+        $this->assertSame(1, substr_count($contentTypes, '/xl/worksheets/sheet'));
+        $this->assertSame(1, substr_count($sheet, '<row '));
+        $this->assertStringContainsString('>Participant</t>', $sheet);
     }
 
     public function test_participant_week_workbook_contains_no_internal_scoring_columns(): void
@@ -308,8 +277,7 @@ class GoogleDriveSyncTest extends TestCase
         $drive->shouldReceive('ensureFolder')->times(5)->andReturnUsing(fn ($received, string $name, string $parent): string => 'folder-'.md5($name.'|'.$parent));
         $drive->shouldReceive('uploadFile')->times(4)->andReturnUsing(fn ($received, string $name): string => 'nested-'.$name);
         $workbooks = Mockery::mock(TrainingWorkbookService::class);
-        $workbooks->shouldReceive('forWeek')->times(3)->andReturn('xlsx');
-        $workbooks->shouldReceive('forGeneralTraining')->once()->andReturn('xlsx');
+        $workbooks->shouldReceive('forWeek')->times(4)->andReturn('xlsx');
 
         (new SyncTrainingDataJob($sync->id))->handle(app(GoogleDriveConnectionService::class), $drive, Mockery::mock(TrainingExportService::class), $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
 
@@ -341,7 +309,6 @@ class GoogleDriveSyncTest extends TestCase
         $drive->shouldReceive('uploadFile')->andReturnUsing(fn (GoogleDriveConnection $received, string $name): string => 'drive-'.$name);
         $workbooks = Mockery::mock(TrainingWorkbookService::class);
         $workbooks->shouldReceive('forWeek')->andReturn('xlsx');
-        $workbooks->shouldReceive('forGeneralTraining')->andReturn('xlsx');
 
         app()->instance(GoogleDriveService::class, $drive);
         (new SyncTrainingDataJob($sync->id))->handle(app(GoogleDriveConnectionService::class), $drive, Mockery::mock(TrainingExportService::class), $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
@@ -373,8 +340,7 @@ class GoogleDriveSyncTest extends TestCase
         $drive->shouldReceive('uploadFile')->times(5)->andReturnUsing(fn ($received, $name) => 'drive-'.$name);
         $exports = Mockery::mock(TrainingExportService::class);
         $workbooks = Mockery::mock(TrainingWorkbookService::class);
-        $workbooks->shouldReceive('forWeek')->times(3)->andReturn('xlsx');
-        $workbooks->shouldReceive('forGeneralTraining')->once()->andReturn('xlsx');
+        $workbooks->shouldReceive('forWeek')->times(4)->andReturn('xlsx');
 
         app()->instance(GoogleDriveService::class, $drive);
         (new SyncTrainingDataJob($sync->id))->handle(app(GoogleDriveConnectionService::class), $drive, $exports, $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
@@ -432,8 +398,7 @@ class GoogleDriveSyncTest extends TestCase
             return 'drive-'.$name;
         });
         $workbooks = Mockery::mock(TrainingWorkbookService::class);
-        $workbooks->shouldReceive('forWeek')->times(6)->andReturn('xlsx');
-        $workbooks->shouldReceive('forGeneralTraining')->times(2)->andReturn('xlsx');
+        $workbooks->shouldReceive('forWeek')->times(8)->andReturn('xlsx');
 
         foreach ($syncs as $sync) {
             (new SyncTrainingDataJob($sync->id))->handle(app(GoogleDriveConnectionService::class), $drive, Mockery::mock(TrainingExportService::class), $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
@@ -450,9 +415,6 @@ class GoogleDriveSyncTest extends TestCase
     public function test_repeated_full_sync_updates_tracked_workbooks_in_place(): void
     {
         $participant = User::factory()->create(['role' => 'participant']);
-        for ($i = 0; $i < 5; $i++) {
-            DailyLog::create(['user_id' => $participant->id, 'activity_id' => null, 'logged_on' => now()->subDays($i)->toDateString(), 'content' => "Repeated general log {$i}"]);
-        }
         $connection = GoogleDriveConnection::create([
             'user_id' => $participant->id,
             'access_token' => 'token',
@@ -483,8 +445,7 @@ class GoogleDriveSyncTest extends TestCase
         });
         $exports = Mockery::mock(TrainingExportService::class);
         $workbooks = Mockery::mock(TrainingWorkbookService::class);
-        $workbooks->shouldReceive('forWeek')->times(9)->andReturn('xlsx');
-        $workbooks->shouldReceive('forGeneralTraining')->times(3)->andReturn('xlsx');
+        $workbooks->shouldReceive('forWeek')->times(12)->andReturn('xlsx');
 
         (new SyncTrainingDataJob($first->id))->handle(app(GoogleDriveConnectionService::class), $drive, $exports, $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
         (new SyncTrainingDataJob($second->id))->handle(app(GoogleDriveConnectionService::class), $drive, $exports, $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));

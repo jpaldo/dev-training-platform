@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\EvidenceRequirement;
 use App\Models\GateCriterion;
 use App\Models\GateCriterionEvaluation;
@@ -106,7 +105,7 @@ class CoachOperationsControllerTest extends TestCase
 
     /**
      * Create an active program with the given number of Week 2+ Gates and participants. Every participant has
-     * a submitted Activity 3 with evidence, a daily log and a Gate evaluation per week; every Gate accepts a
+     * a submitted Activity 3 with evidence and a Gate evaluation per week; every Gate accepts a
      * legacy Weekly Loom link and has no Weekly Video Recording, so the legacy lookup runs for every row.
      *
      * @return Collection<int, User>
@@ -129,7 +128,6 @@ class CoachOperationsControllerTest extends TestCase
                 $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
                 SubmissionEvidence::factory()->for($version, 'submissionVersion')->for($deliverable, 'evidenceRequirement')->create();
                 SubmissionEvidence::factory()->for($version, 'submissionVersion')->for($loomLink, 'evidenceRequirement')->create(['evidence_type' => 'url', 'url' => "https://www.loom.com/share/{$participant->id}-{$week->id}"]);
-                DailyLog::factory()->for($participant, 'participant')->for($activity)->create();
                 $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
                 GateCriterionEvaluation::factory()->for($evaluation, 'gateEvaluation')->for($loomCriterion, 'criterion')->create(['status' => 'met']);
             }

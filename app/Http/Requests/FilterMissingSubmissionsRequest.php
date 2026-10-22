@@ -28,12 +28,10 @@ class FilterMissingSubmissionsRequest extends FormRequest
             'participant' => ['nullable', 'integer'],
             'path' => ['nullable', Rule::enum(TrainingPath::class)],
             'mentor' => ['nullable', 'integer'],
-            'category' => ['nullable', 'in:general_training,daily_logs,activities,video_recording'],
-            'week' => ['nullable', 'in:general,2,3,4'],
+            'category' => ['nullable', 'in:activities,video_recording'],
+            'week' => ['nullable', 'in:2,3,4'],
             'requirement' => ['nullable', 'string', 'max:100'],
-            'status' => ['nullable', 'in:not_submitted,partial'],
-            'from' => ['nullable', 'date'],
-            'to' => ['nullable', 'date', 'after_or_equal:from'],
+            'status' => ['nullable', 'in:not_submitted'],
         ];
     }
 }

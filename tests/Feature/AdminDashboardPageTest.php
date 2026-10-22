@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\TrainingGate;
@@ -29,7 +28,6 @@ class AdminDashboardPageTest extends TestCase
         $activity = Activity::factory()->for($week, 'week')->create();
         ActivitySubmission::factory()->for($activity)->for($first, 'participant')->create(['status' => 'submitted']);
         ActivitySubmission::factory()->for($activity)->for($second, 'participant')->create(['status' => 'needs_revision']);
-        DailyLog::factory()->for($activity)->for($third, 'participant')->create();
         $gate = TrainingGate::factory()->create(['training_week_id' => $week->id]);
         GateEvaluation::factory()->create(['training_gate_id' => $gate->id, 'user_id' => $first->id, 'status' => 'passed']);
         GateEvaluation::factory()->create(['training_gate_id' => $gate->id, 'user_id' => $second->id, 'status' => 'not_ready']);
@@ -49,8 +47,7 @@ class AdminDashboardPageTest extends TestCase
                 '<dt', 'COACHES', '<dd', '1',
                 '<dt', 'ADMINS', '<dd', '1',
                 'Training overview',
-                'GENERAL', '<strong class="text-white">1</strong> participant(s) with activity or log records',
-                'WEEK2', '<strong class="text-white">2</strong>',
+                'WEEK2', '<strong class="text-white">2</strong> participant(s) with activity records',
                 'WEEK3', '<strong class="text-white">0</strong>',
                 'WEEK4', '<strong class="text-white">0</strong>',
                 'Review / Gate overview',

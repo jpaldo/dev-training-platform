@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\GateCriterion;
 use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
@@ -106,7 +105,6 @@ class TrainingWeekPageTest extends TestCase
         $firstGate = TrainingGate::factory()->for($week, 'week')->create(['title' => 'First Gate', 'position' => 1]);
         GateCriterion::factory()->for($firstGate, 'gate')->create(['criterion_type' => 'weekly_video', 'title' => 'Required Weekly Video Recording']);
         ActivitySubmission::factory()->for($participant, 'participant')->for($activities->first())->create(['status' => 'submitted']);
-        DailyLog::factory()->count(5)->for($participant, 'participant')->for($activities->first())->create();
         $this->uploadWeeklyVideo($participant, $week);
 
         $this->actingAs($participant)->get(route('training.weeks.show', $week))

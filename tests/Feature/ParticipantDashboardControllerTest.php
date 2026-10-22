@@ -8,7 +8,6 @@ use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\EvidenceRequirement;
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
@@ -122,6 +121,7 @@ class ParticipantDashboardControllerTest extends TestCase
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
         $evaluatedGate = TrainingGate::factory()->for($week, 'week')->create(['title' => 'Evaluated Gate', 'position' => 1]);
         TrainingGate::factory()->for($week, 'week')->create(['title' => 'Unevaluated Gate', 'position' => 2]);
+        Activity::factory()->for($week, 'week')->create();
         GateEvaluation::factory()->for($evaluatedGate, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
 
         $this->actingAs($participant)->get(route('dashboard'))
@@ -132,16 +132,17 @@ class ParticipantDashboardControllerTest extends TestCase
             ], false);
     }
 
-    public function test_week_daily_log_progress_uses_the_configured_weekly_minimum(): void
+    public function test_week_panels_show_no_daily_log_progress(): void
     {
-        config(['training.daily_logs_per_week' => 3]);
         $participant = User::factory()->create(['training_path' => 'manual']);
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
-        DailyLog::factory()->for($participant, 'participant')->for(Activity::factory()->for($week, 'week'))->create();
+        Activity::factory()->for($week, 'week')->create();
 
         $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
-            ->assertSeeInOrder(['Daily logs', '1 / 3 completed', 'Complete 2 more daily logs for this week.']);
+            ->assertSee('aria-label="Week 2 progress"', false)
+            ->assertDontSee('Daily logs')
+            ->assertDontSee('daily log');
     }
 
     /**
@@ -170,7 +171,6 @@ class ParticipantDashboardControllerTest extends TestCase
                 $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted']);
                 $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
                 SubmissionEvidence::factory()->for($version, 'submissionVersion')->for($evidenceRequirement, 'evidenceRequirement')->create();
-                DailyLog::factory()->for($participant, 'participant')->for($activity)->create();
             }
         }
 

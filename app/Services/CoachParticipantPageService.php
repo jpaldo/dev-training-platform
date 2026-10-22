@@ -20,19 +20,17 @@ class CoachParticipantPageService
     public function __construct(
         private readonly CoachGateOverviewService $gateOverview,
         private readonly WeekFourInterviewService $interviews,
-        private readonly WeekTwoGateService $gates,
     ) {}
 
     /**
      * Everything the coach participant page renders: the viewer's access level, the submission and weekly video rows,
-     * the Gate rows, the daily log and attendance summary, the Week 4 peer interview waiver and the page tabs.
+     * the Gate rows, the attendance summary, the Week 4 peer interview waiver and the page tabs.
      *
-     * @return array{participant: User, access: string, canManage: bool, submissions: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion}>, videoRecordings: Collection<int, WeeklyVideoRecording>, gates: Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int, daily_log_count: int, daily_log_required: int}>, attendance: array{completed_sessions: int, total_hours: float, active_session: ?AttendanceSession}, weekFourActivity: ?Activity, peerWaiver: ?WeekFourPeerInterviewWaiver, tabs: list<array{key: string, label: string}>, selectedTab: string}
+     * @return array{participant: User, access: string, canManage: bool, submissions: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion}>, videoRecordings: Collection<int, WeeklyVideoRecording>, gates: Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int}>, attendance: array{completed_sessions: int, total_hours: float, active_session: ?AttendanceSession}, weekFourActivity: ?Activity, peerWaiver: ?WeekFourPeerInterviewWaiver, tabs: list<array{key: string, label: string}>, selectedTab: string}
      */
     public function showData(User $viewer, User $participant): array
     {
-        $participant->load(['activitySubmissions.activity.week', 'activitySubmissions.versions', 'weeklyVideoRecordings.week', 'attendanceSessions', 'assignedCoaches'])
-            ->loadCount('dailyLogs');
+        $participant->load(['activitySubmissions.activity.week', 'activitySubmissions.versions', 'weeklyVideoRecordings.week', 'attendanceSessions', 'assignedCoaches']);
         $canManage = $viewer->canManageParticipant($participant);
         $weekFourActivity = $this->interviews->peerInterviewActivity();
 
@@ -53,7 +51,7 @@ class CoachParticipantPageService
             'tabs' => array_values(array_filter([
                 ['key' => 'submissions', 'label' => 'Submissions'],
                 ['key' => 'gates', 'label' => 'Gates'],
-                ['key' => 'logs-attendance', 'label' => 'Logs & Attendance'],
+                ['key' => 'attendance', 'label' => 'Attendance'],
                 $weekFourActivity ? ['key' => 'week-four', 'label' => 'Week 4'] : null,
             ])),
             'selectedTab' => 'submissions',
@@ -82,17 +80,15 @@ class CoachParticipantPageService
     }
 
     /**
-     * The participant's Week 2–4 Gates with their evaluation or readiness status, blocker count and daily log count
-     * against the weekly minimum.
+     * The participant's Week 2–4 Gates with their evaluation or readiness status and blocker count.
      *
-     * @return Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int, daily_log_count: int, daily_log_required: int}>
+     * @return Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int}>
      */
     private function gateRows(User $participant): Collection
     {
-        ['gateRows' => $gateRows, 'weeklyLogCounts' => $weeklyLogCounts] = $this->gateOverview->participantOverview($participant);
-        $minimumDailyLogs = $this->gates->minimumDailyLogs();
+        ['gateRows' => $gateRows] = $this->gateOverview->participantOverview($participant);
 
-        return $gateRows->map(function (array $row) use ($weeklyLogCounts, $minimumDailyLogs): array {
+        return $gateRows->map(function (array $row): array {
             $status = $row['evaluation']?->status ?? GateEvaluationStatus::fromReadiness($row['readiness']);
 
             return [
@@ -106,8 +102,6 @@ class CoachParticipantPageService
                     GateEvaluationStatus::NotReady => 'neutral',
                 },
                 'blocker_count' => count($row['readiness'] ?? []),
-                'daily_log_count' => $weeklyLogCounts[$row['gate']->week->id] ?? 0,
-                'daily_log_required' => $minimumDailyLogs,
             ];
         });
     }

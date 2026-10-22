@@ -81,15 +81,7 @@
             </div>
             <div class="grid min-w-0 gap-2">
                 <label for="missing-requirement" class="{{ $labelClasses }}">Requirement</label>
-                <input id="missing-requirement" name="requirement" value="{{ $requirement }}" placeholder="Activity or log requirement" class="{{ $controlClasses }}">
-            </div>
-            <div class="grid min-w-0 gap-2">
-                <label for="missing-from" class="{{ $labelClasses }}">Log date from</label>
-                <input id="missing-from" type="date" name="from" value="{{ $from }}" class="{{ $controlClasses }}">
-            </div>
-            <div class="grid min-w-0 gap-2">
-                <label for="missing-to" class="{{ $labelClasses }}">Log date to</label>
-                <input id="missing-to" type="date" name="to" value="{{ $to }}" class="{{ $controlClasses }}">
+                <input id="missing-requirement" name="requirement" value="{{ $requirement }}" placeholder="Activity or video requirement" class="{{ $controlClasses }}">
             </div>
             <div class="flex flex-wrap gap-3">
                 <x-ui.button variant="secondary" type="submit">Apply Filters</x-ui.button>
@@ -99,7 +91,7 @@
 
         <section aria-labelledby="missing-summary-title">
             <h2 id="missing-summary-title" class="sr-only">Missing submission summary</h2>
-            <dl class="m-0 grid grid-cols-2 gap-4 lg:grid-cols-5">
+            <dl class="m-0 grid grid-cols-2 gap-4 lg:grid-cols-3">
                 @foreach($stats as $stat)
                     <x-ui.stat :label="$stat['label']" :value="$stat['value']" />
                 @endforeach
@@ -129,7 +121,6 @@
                                 <th scope="col" class="{{ $headerCellClasses }}">Missing</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Evidences</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Status</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Last Submission / Log Date</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -153,9 +144,8 @@
                                     <td class="{{ $cellClasses }} tabular-nums">{{ $row['missing'] }}</td>
                                     <td class="{{ $cellClasses }} tabular-nums">{{ $row['evidences'] }}</td>
                                     <td class="{{ $cellClasses }}">
-                                        <x-ui.badge :tone="$row['status_tone']" class="whitespace-nowrap">{{ $row['status'] }}</x-ui.badge>
+                                        <x-ui.badge tone="danger" class="whitespace-nowrap">{{ $row['status'] }}</x-ui.badge>
                                     </td>
-                                    <td class="{{ $cellClasses }} whitespace-nowrap">{{ $row['last_date'] }}</td>
                                 </tr>
                             @endforeach
                         </tbody>

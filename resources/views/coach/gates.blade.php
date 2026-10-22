@@ -69,7 +69,6 @@
                             <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
                             <th scope="col" class="{{ $headerCellClasses }}">QA Path</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Status</th>
-                            <th scope="col" class="{{ $headerCellClasses }}">Daily Logs</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Criteria</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Video</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Blockers</th>
@@ -97,12 +96,6 @@
                                 </td>
                                 <td class="{{ $cellClasses }}">
                                     <span class="grid gap-0.5">
-                                        <span class="whitespace-nowrap">{{ $row['daily_log_progress'] }}</span>
-                                        <span class="whitespace-nowrap text-muted">{{ $row['daily_log_note'] }}</span>
-                                    </span>
-                                </td>
-                                <td class="{{ $cellClasses }}">
-                                    <span class="grid gap-0.5">
                                         <span class="whitespace-nowrap">{{ $row['criteria_met'] }} / {{ $row['criteria_total'] }}</span>
                                         <span class="whitespace-nowrap text-muted">criteria met</span>
                                     </span>
@@ -127,7 +120,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="{{ $cellClasses }} text-muted">No Gate rows match these filters.</td>
+                                <td colspan="8" class="{{ $cellClasses }} text-muted">No Gate rows match these filters.</td>
                             </tr>
                         @endforelse
                     </tbody>

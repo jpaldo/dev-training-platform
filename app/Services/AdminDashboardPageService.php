@@ -39,7 +39,6 @@ class AdminDashboardPageService
                 ['label' => 'ADMINS', 'value' => User::query()->where('role', UserRole::Admin)->count()],
             ],
             'trainingStats' => [
-                ['label' => 'GENERAL', 'value' => User::query()->where('role', UserRole::Participant)->whereHas('dailyLogs')->count()],
                 ['label' => 'WEEK2', 'value' => $this->participantsWithWeek($program, 2)],
                 ['label' => 'WEEK3', 'value' => $this->participantsWithWeek($program, 3)],
                 ['label' => 'WEEK4', 'value' => $this->participantsWithWeek($program, 4)],

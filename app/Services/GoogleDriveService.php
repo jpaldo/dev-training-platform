@@ -4,16 +4,11 @@ namespace App\Services;
 
 use App\Models\GoogleDriveConnection;
 use App\Models\User;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Throwable;
 
 class GoogleDriveService
 {
-    /** How long a Week 1 evidence count is reused before Drive is asked again. */
-    private const WEEK_ONE_EVIDENCE_CACHE_MINUTES = 10;
-
     public function __construct(private readonly GoogleDriveConnectionService $connections) {}
 
     public function ensureFolder(GoogleDriveConnection $connection, string $name, string $parentId, ?string $existingId = null): string
@@ -128,79 +123,6 @@ class GoogleDriveService
         }
 
         return $createdId;
-    }
-
-    /**
-     * Read-only count of files in the participant's existing Week 1 evidence tree, cached for 10 minutes per
-     * participant and destination folder; null (no connection or folder, or Drive unavailable) is never cached.
-     */
-    public function countWeekOneEvidenceFiles(User $participant): ?int
-    {
-        $connection = $participant->googleDriveConnection;
-        $rootId = $connection ? $this->connections->destinationFolderId($participant) : null;
-        if (! $connection || blank($rootId)) {
-            return null;
-        }
-
-        return Cache::remember(
-            "google-drive:week-one-evidence:{$participant->id}:{$rootId}",
-            now()->addMinutes(self::WEEK_ONE_EVIDENCE_CACHE_MINUTES),
-            fn (): ?int => $this->fetchWeekOneEvidenceCount($participant, $connection, $rootId),
-        );
-    }
-
-    /**
-     * Count the Week 1 evidence files under the destination folder in Drive: 0 without a Week 1 folder, null when
-     * Drive cannot be read.
-     */
-    private function fetchWeekOneEvidenceCount(User $participant, GoogleDriveConnection $connection, string $rootId): ?int
-    {
-        try {
-            $token = $this->connections->accessToken($connection);
-            $weekFolder = $this->findChildFolder($token, $connection, $rootId, 'Week 1');
-            if (! $weekFolder) {
-                return 0;
-            }
-
-            // Prefer the canonical Week 1/Evidences subtree. If a legacy
-            // destination has files directly under Week 1, count those while
-            // excluding the generated Week 1 workbook.
-            $evidenceFolder = $this->findChildFolder($token, $connection, $weekFolder, 'Evidences');
-
-            return $this->countDriveFiles($token, $connection, $evidenceFolder ?: $weekFolder, $evidenceFolder === null);
-        } catch (Throwable) {
-            Log::warning('Unable to inspect Week 1 Drive evidence for missing-submission report.', [
-                'participant_id' => $participant->id,
-                'connection_id' => $connection->id,
-            ]);
-
-            return null;
-        }
-    }
-
-    private function findChildFolder(string $token, GoogleDriveConnection $connection, string $parentId, string $name): ?string
-    {
-        $files = $this->listDriveChildren($token, $connection, $parentId, sprintf("name = '%s' and mimeType = 'application/vnd.google-apps.folder'", str_replace("'", "\\'", $name)));
-
-        return $files[0]['id'] ?? null;
-    }
-
-    private function countDriveFiles(string $token, GoogleDriveConnection $connection, string $parentId, bool $excludeGeneratedWorkbook): int
-    {
-        $count = 0;
-        foreach ($this->listDriveChildren($token, $connection, $parentId) as $file) {
-            if (($file['mimeType'] ?? null) === 'application/vnd.google-apps.folder') {
-                $count += $this->countDriveFiles($token, $connection, (string) $file['id'], $excludeGeneratedWorkbook);
-
-                continue;
-            }
-            if ($excludeGeneratedWorkbook && in_array($file['name'] ?? '', ['Week 1.xlsx', 'Week 1.csv'], true)) {
-                continue;
-            }
-            $count++;
-        }
-
-        return $count;
     }
 
     /** @return array<int, array{id?: string, name?: string, mimeType?: string}> */

@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
@@ -59,9 +58,6 @@ class WeekThreeWorkflowTest extends TestCase
             $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => [], 'submitted_at' => now()]);
             foreach ($activity->requirements()->where('requirement_type', '!=', 'gate_evidence')->with('evidenceRequirements')->get()->flatMap->evidenceRequirements->where('is_required', true) as $evidence) {
                 SubmissionEvidence::create(['submission_version_id' => $version->id, 'evidence_requirement_id' => $evidence->id, 'evidence_type' => $evidence->evidence_type, 'title' => 'Deliverable', 'disk' => 'local', 'path' => 'private/proof.pdf']);
-            }
-            foreach (range(1, 5) as $day) {
-                DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => now()->subDays($day + $activity->position)->toDateString(), 'content' => 'Session log']);
             }
         }
         $gate = $week3->gates->first();

@@ -7,7 +7,6 @@ use App\Enums\ParticipantNotificationType;
 use App\Enums\ReviewDecision;
 use App\Jobs\GenerateParticipantNotificationsJob;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\ParticipantNotification;
 use App\Models\Program;
 use App\Models\SubmissionReview;
@@ -23,12 +22,13 @@ class ParticipantNotificationsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_new_participant_gets_general_and_week_reminders_without_duplicates(): void
+    public function test_new_participant_gets_week_reminders_without_daily_log_reminders_or_duplicates(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
 
-        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('General Training Daily Logs')->assertSee('0 of 5 required Daily Logs for Week 2');
+        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('Activity incomplete')->assertDontSee('Daily Logs incomplete');
+        $this->assertDatabaseMissing('participant_notifications', ['user_id' => $participant->id, 'type' => 'daily_logs']);
         $firstCount = ParticipantNotification::query()->where('user_id', $participant->id)->count();
         GenerateParticipantNotificationsJob::dispatchSync($participant->id);
         $this->assertSame($firstCount, ParticipantNotification::query()->where('user_id', $participant->id)->count());
@@ -40,28 +40,10 @@ class ParticipantNotificationsTest extends TestCase
         $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
         $participant->participantNotifications()->delete();
 
-        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertDontSee('General Training Daily Logs incomplete');
+        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertDontSee('Activity incomplete');
         $this->actingAs($participant)->get(route('participant.notifications'))->assertOk();
 
         $this->assertDatabaseCount('participant_notifications', 0);
-    }
-
-    public function test_general_training_logs_are_independent_and_resolve_at_five(): void
-    {
-        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
-        $this->seed(QaTrainingProgramSeeder::class);
-        foreach (range(1, 3) as $day) {
-            DailyLog::factory()->create(['user_id' => $participant->id, 'activity_id' => null, 'logged_on' => now()->subDays($day)]);
-        }
-        $service = app(ParticipantNotificationService::class);
-        $service->sync($participant);
-        $notification = $participant->participantNotifications()->where('key', 'general_daily_logs')->firstOrFail();
-        $this->assertStringContainsString('3 of 5', $notification->body);
-        foreach (range(4, 5) as $day) {
-            DailyLog::factory()->create(['user_id' => $participant->id, 'activity_id' => null, 'logged_on' => now()->subDays($day)]);
-        }
-        $service->sync($participant->fresh());
-        $this->assertNotNull($participant->participantNotifications()->where('key', 'general_daily_logs')->first()->resolved_at);
     }
 
     public function test_revision_reminder_is_a_high_priority_needs_revision_notification(): void

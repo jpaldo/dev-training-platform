@@ -60,14 +60,13 @@ class SyncTrainingDataJob implements ShouldQueue
             foreach ([1, 2, 3, 4] as $week) {
                 $weekFolder = $this->managedFolder($participant, $connection, $drive, "Week {$week}", $destination, 'week_folder', (string) $week, $destination);
                 if ($week === 1) {
-                    // General Training is reporting-only, but its canonical
+                    // Week 1 evidence is not synchronized, but its canonical
                     // evidence location is still part of the Week 1 export
                     // contract. Reuse/create only Week 1/Evidences.
                     $this->managedFolder($participant, $connection, $drive, 'Evidences', $weekFolder, 'week_evidences_folder', '1', $destination);
                 }
                 $weekContexts[$week] = ['folder' => $weekFolder];
-                $content = $week === 1 ? $workbooks->forGeneralTraining($participant) : $workbooks->forWeek($participant, $week);
-                $components[] = ['type' => 'weekly_workbook_nested', 'scope' => (string) $week, 'name' => "Week {$week}.xlsx", 'content' => $content, 'parent' => $weekFolder, 'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+                $components[] = ['type' => 'weekly_workbook_nested', 'scope' => (string) $week, 'name' => "Week {$week}.xlsx", 'content' => $workbooks->forWeek($participant, $week), 'parent' => $weekFolder, 'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
             }
             $sync->update(['total_components' => count($components), 'successful_components' => 0, 'failed_components' => 0, 'skipped_components' => 0]);
             $componentErrors = [];

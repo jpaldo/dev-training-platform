@@ -5,7 +5,6 @@ namespace App\Observers;
 use App\Enums\UserRole;
 use App\Jobs\GenerateParticipantNotificationsJob;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\GateEvaluation;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
@@ -63,7 +62,6 @@ class ParticipantProgressObserver
     {
         return match (true) {
             $model instanceof User => $model->role === UserRole::Participant ? $model->id : null,
-            $model instanceof DailyLog,
             $model instanceof ActivitySubmission,
             $model instanceof WeeklyVideoRecording,
             $model instanceof GateEvaluation => $model->user_id,

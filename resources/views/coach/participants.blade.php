@@ -100,7 +100,6 @@
                                 <th scope="col" class="{{ $headerCellClasses }}">Assigned Coach</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Training Drive</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Google Drive</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Daily Logs</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Attendance</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Submissions</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Gates</th>
@@ -144,13 +143,6 @@
                                             </span>
                                         @else
                                             <span class="text-muted">Not Connected</span>
-                                        @endif
-                                    </td>
-                                    <td class="{{ $cellClasses }}">
-                                        @if($participant['daily_logs_url'])
-                                            <a href="{{ $participant['daily_logs_url'] }}" class="{{ $linkClasses }}">{{ $participant['daily_log_count'] }}</a>
-                                        @else
-                                            <span class="text-muted">0</span>
                                         @endif
                                     </td>
                                     <td class="{{ $cellClasses }}">

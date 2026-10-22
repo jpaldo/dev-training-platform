@@ -18,10 +18,10 @@
 
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="admin-training-title">
             <h2 id="admin-training-title" class="m-0 text-xl font-extrabold">Training overview</h2>
-            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-3">
                 @foreach($trainingStats as $stat)
                     <x-ui.stat variant="field" :label="$stat['label']">
-                        <dd class="m-0 text-sm/relaxed text-muted"><strong class="text-white">{{ $stat['value'] }}</strong> participant(s) with activity or log records</dd>
+                        <dd class="m-0 text-sm/relaxed text-muted"><strong class="text-white">{{ $stat['value'] }}</strong> participant(s) with activity records</dd>
                     </x-ui.stat>
                 @endforeach
             </dl>

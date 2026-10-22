@@ -199,17 +199,6 @@
                                 </div>
                             </x-ui.card>
 
-                            <x-ui.card padding="p-5" class="grid gap-2.5">
-                                <h3 class="m-0 text-base font-extrabold">Daily logs</h3>
-                                <strong class="text-sm">{{ $item['daily_log_count'] }} / {{ $item['daily_log_required'] }} completed</strong>
-                                <div class="h-2 overflow-hidden rounded-full border border-line bg-field" aria-hidden="true"><div class="h-full bg-linear-to-r from-brand to-accent" style="width: {{ min(100, $item['daily_log_required'] ? round($item['daily_log_count'] / $item['daily_log_required'] * 100) : 0) }}%"></div></div>
-                                @if($item['daily_log_count'] < $item['daily_log_required'])
-                                    <p class="m-0 text-sm text-muted">Complete {{ $item['daily_log_required'] - $item['daily_log_count'] }} more daily log{{ $item['daily_log_required'] - $item['daily_log_count'] === 1 ? '' : 's' }} for this week.</p>
-                                @else
-                                    <x-ui.alert tone="success">{{ $item['daily_log_required'] }} of {{ $item['daily_log_required'] }} daily logs completed.</x-ui.alert>
-                                @endif
-                            </x-ui.card>
-
                             @if(in_array($item['week']->week_number, [2, 3, 4], true))
                                 <x-ui.card padding="p-5" class="grid gap-2.5">
                                     <h3 class="m-0 text-base font-extrabold">Training Guide</h3>
@@ -296,7 +285,7 @@
                         <div class="grid content-start gap-2 rounded-2xl border border-line bg-surface-sunken p-4.5"><x-ui.eyebrow>WEEK 3</x-ui.eyebrow><h3 class="m-0 text-base font-extrabold">AI-Assisted Failure Analysis, Test Generation &amp; Regression Intelligence</h3><p class="m-0 text-sm/relaxed text-muted">Use AI to support failure investigation, test creation, regression prioritization, and coverage analysis while maintaining human ownership of the conclusion.</p></div>
                         <div class="grid content-start gap-2 rounded-2xl border border-line bg-surface-sunken p-4.5"><x-ui.eyebrow>WEEK 4</x-ui.eyebrow><h3 class="m-0 text-base font-extrabold">Sustain, Reuse, Reassess</h3><p class="m-0 text-sm/relaxed text-muted">Turn repeated AI-assisted QA work into a reusable team asset, demonstrate Level 3 QA capability through a mock interview, and complete a formal reassessment.</p></div>
                     </div>
-                    <x-ui.alert class="mt-2 grid gap-2"><strong class="text-cyan-200">Gates &amp; progression</strong><p class="m-0">Each week includes required activities, evidence, and daily logs. A Coach must review and pass the Gate before the next week becomes available.</p><p class="m-0">Your progress is based on demonstrated QA judgment and evidence — not simply completing AI-generated work.</p></x-ui.alert>
+                    <x-ui.alert class="mt-2 grid gap-2"><strong class="text-cyan-200">Gates &amp; progression</strong><p class="m-0">Each week includes required activities and evidence. A Coach must review and pass the Gate before the next week becomes available.</p><p class="m-0">Your progress is based on demonstrated QA judgment and evidence — not simply completing AI-generated work.</p></x-ui.alert>
                 </x-ui.card>
 
                 <x-ui.card class="grid justify-items-start gap-2">

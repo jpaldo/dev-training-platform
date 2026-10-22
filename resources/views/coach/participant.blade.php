@@ -117,7 +117,6 @@
                                                 <span class="text-muted">({{ $row['blocker_count'] }} blocker(s))</span>
                                             @endif
                                         </div>
-                                        <span class="text-sm text-muted">Daily logs: {{ $row['daily_log_count'] }} / {{ $row['daily_log_required'] }}</span>
                                     </div>
                                     <x-ui.button variant="secondary" :href="route('training.coach.gates.show', [$row['gate']->week, $participant, $row['gate']])">Review Gate</x-ui.button>
                                 </li>
@@ -129,16 +128,8 @@
                 </x-ui.card>
             </x-ui.tab-panel>
 
-            <x-ui.tab-panel name="logs-attendance" :selected="$selectedTab" id-prefix="participant">
+            <x-ui.tab-panel name="attendance" :selected="$selectedTab" id-prefix="participant">
                 <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-                    <x-ui.card as="section" class="grid content-start justify-items-start gap-3" aria-labelledby="participant-logs-title">
-                        <h2 id="participant-logs-title" class="m-0 text-xl font-extrabold">Daily logs</h2>
-                        <p class="m-0">{{ $participant->daily_logs_count }} total log(s)</p>
-                        @if($participant->daily_logs_count > 0)
-                            <x-ui.button variant="secondary" :href="route('coach.participants.daily-logs', $participant)">View Daily Logs →</x-ui.button>
-                        @endif
-                    </x-ui.card>
-
                     <x-ui.card as="section" class="grid content-start justify-items-start gap-3" aria-labelledby="participant-attendance-title">
                         <h2 id="participant-attendance-title" class="m-0 text-xl font-extrabold">Attendance summary</h2>
                         <p class="m-0 leading-relaxed text-muted">{{ $attendance['completed_sessions'] }} completed session(s) · {{ number_format($attendance['total_hours'], 2) }} total hours</p>

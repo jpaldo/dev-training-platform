@@ -43,8 +43,6 @@ class CoachProgressReportPageTest extends TestCase
                 'href="'.e(route('coach.reports.export', ['type' => 'progress'])).'"', '>Export Progress CSV</a>',
                 'aria-label="Reports"',
                 'href="'.route('coach.reports').'"', 'aria-current="page"', '>Progress</a>',
-                'href="'.route('coach.reports.daily-logs').'"', '>Daily Log Completion</a>',
-                'href="'.route('coach.reports.daily-logs.details').'"', '>Daily Log Details</a>',
                 'href="'.route('coach.reports.missing-submissions').'"', '>Missing Submissions</a>',
                 '<option value="">All mentors</option>',
                 '<option value="'.$admin->id.'"', '>Admin Blake</option>',
@@ -74,6 +72,7 @@ class CoachProgressReportPageTest extends TestCase
 
         $this->assertSame(1, preg_match('/aria-label="Reports">(.*?)<\/nav>/s', $response->getContent(), $reportNav));
         $this->assertSame(1, substr_count($reportNav[1], 'aria-current="page"'));
+        $this->assertStringNotContainsString('Daily Log', $reportNav[1]);
     }
 
     public function test_filters_keep_their_values_and_the_export_and_pagination_links_keep_the_query(): void

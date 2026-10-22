@@ -9,7 +9,6 @@ namespace App\Enums;
  */
 enum ParticipantNotificationType: string
 {
-    case DailyLogs = 'daily_logs';
     case ActivityIncomplete = 'activity_incomplete';
     case ActivityDraft = 'activity_draft';
     case NeedsRevision = 'needs_revision';

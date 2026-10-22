@@ -10,7 +10,6 @@ use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 
 class CoachGateReviewPageService
 {
@@ -50,7 +49,6 @@ class CoachGateReviewPageService
             'canManage' => $viewer->canManageParticipant($participant),
             'readinessItems' => [
                 ['label' => 'Criteria', 'value' => $metCriteriaCount.' / '.$requiredCriteria->count()],
-                ['label' => 'Daily logs', 'value' => $this->weeklyDailyLogCount($participant, $week).' / '.$this->gates->minimumDailyLogs()],
                 ['label' => 'Activities', 'value' => $this->activityProgress($participant, $week)],
                 ['label' => 'Video Recording', 'value' => match (true) {
                     $weeklyVideo['status'] === 'not_required' => 'Not required',
@@ -107,15 +105,5 @@ class CoachGateReviewPageService
             ->count();
 
         return "{$completedActivities} / {$weekActivities->count()} submitted";
-    }
-
-    /**
-     * The participant's daily logs on the week's activities.
-     */
-    private function weeklyDailyLogCount(User $participant, TrainingWeek $week): int
-    {
-        return $participant->dailyLogs()
-            ->whereHas('activity', fn (Builder $query): Builder => $query->where('training_week_id', $week->id))
-            ->count();
     }
 }

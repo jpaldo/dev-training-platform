@@ -29,8 +29,8 @@ class ParticipantNotificationsPageTest extends TestCase
             'created_at' => now()->subHour(),
         ]);
         $this->notification($participant, [
-            'title' => 'Daily logs complete',
-            'body' => 'All daily logs are in.',
+            'title' => 'Week 2 Gate passed',
+            'body' => 'Your Week 2 Gate has been completed successfully.',
             'action_url' => null,
             'is_read' => true,
             'created_at' => now()->subDay(),
@@ -64,9 +64,9 @@ class ParticipantNotificationsPageTest extends TestCase
                 '>Open<',
                 'action="'.route('participant.notifications.read', $reminder).'"',
                 'Mark as Read',
-                'Daily logs complete',
+                'Week 2 Gate passed',
                 '1 day ago',
-                'All daily logs are in.',
+                'Your Week 2 Gate has been completed successfully.',
             ], false)
             ->assertDontSee('No notifications right now.');
 

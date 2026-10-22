@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Enums\InterviewPairStatus;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
-use App\Models\DailyLog;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
@@ -76,7 +75,6 @@ class WeekFourWorkflowTest extends TestCase
             $evidence = $activity->requirements()->with('evidenceRequirements')->get()->flatMap->evidenceRequirements->firstWhere('is_required', true);
             SubmissionEvidence::create(['submission_version_id' => $version->id, 'evidence_requirement_id' => $evidence->id, 'evidence_type' => $evidence->evidence_type, 'title' => 'Packet evidence', 'disk' => 'local', 'path' => 'proof/item']);
         }
-        DailyLog::create(['user_id' => $participant->id, 'activity_id' => $week4->activities->get(1)->id, 'logged_on' => now()->toDateString(), 'content' => 'Mock interview logged']);
         $gate = $week4->gates->first();
         $criteria = $gate->criteria->pluck('id')->mapWithKeys(fn ($id) => [$id => 'met'])->all();
         $this->actingAs($coach)->post(route('training.coach.gates.update', [$week4, $participant, $gate]), ['status' => 'passed', 'criteria' => $criteria])->assertRedirect();

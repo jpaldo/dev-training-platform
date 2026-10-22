@@ -12,10 +12,8 @@ use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\ParticipantNotification;
 use App\Models\Program;
-use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
@@ -34,7 +32,6 @@ class ParticipantNotificationService
             return;
         }
 
-        $this->state($participant, 'general_daily_logs', ParticipantNotificationType::DailyLogs, 'General Training Daily Logs incomplete', $this->generalLogBody($participant), route('daily-logs.index'), $this->generalLogsMissing($participant) > 0);
         $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $q): Relation => $q->whereIn('week_number', [2, 3, 4])->where('is_active', true)->with(['activities' => fn (Relation $a): Relation => $a->where('is_active', true)->orderBy('position'), 'gates'])])->first();
         if (! $program) {
             return;
@@ -45,10 +42,6 @@ class ParticipantNotificationService
             if (! $available) {
                 continue;
             }
-            $logs = $this->weekLogCount($participant, $week);
-            $remaining = max($this->gates->minimumDailyLogs() - $logs, 0);
-            $this->state($participant, "week:{$week->id}:daily_logs", ParticipantNotificationType::DailyLogs, "Week {$week->week_number} Daily Logs incomplete", "You have completed {$logs} of {$this->gates->minimumDailyLogs()} required Daily Logs for Week {$week->week_number}. {$remaining} Daily Log".($remaining === 1 ? '' : 's').' are still missing.', route('daily-logs.index'), $remaining > 0);
-
             foreach ($week->activities as $activity) {
                 $submission = $participant->activitySubmissions()->where('activity_id', $activity->id)->latest('attempt_number')->with(['versions' => fn (Relation $q): Relation => $q->latest('version_number')])->first();
                 $url = route('training.activities.show', [$week, $activity]);
@@ -96,29 +89,10 @@ class ParticipantNotificationService
     public function dashboard(User $participant): array
     {
         $items = $participant->participantNotifications()->active()->latest()->get();
-        $groups = $items->groupBy(fn (ParticipantNotification $n): string => str_contains($n->title, 'General') ? 'General Training' : (preg_match('/Week (\d+)/', $n->title, $m) ? "Week {$m[1]}" : 'Current work'));
+        $groups = $items->groupBy(fn (ParticipantNotification $n): string => preg_match('/Week (\d+)/', $n->title, $m) ? "Week {$m[1]}" : 'Current work');
         $next = $items->first(fn (ParticipantNotification $n): bool => $n->type !== ParticipantNotificationType::AwaitingReview);
 
         return ['groups' => $groups, 'next' => $next, 'items' => $items];
-    }
-
-    private function generalLogsMissing(User $participant): int
-    {
-        return max((int) config('training.general_training_daily_logs_expected', 5) - $participant->dailyLogs()->whereNull('activity_id')->count(), 0);
-    }
-
-    private function generalLogBody(User $participant): string
-    {
-        $expected = (int) config('training.general_training_daily_logs_expected', 5);
-        $count = $participant->dailyLogs()->whereNull('activity_id')->count();
-        $remaining = max($expected - $count, 0);
-
-        return "You have completed {$count} of {$expected} required General Training Daily Logs. {$remaining} Daily Log".($remaining === 1 ? '' : 's').' are still missing.';
-    }
-
-    private function weekLogCount(User $participant, TrainingWeek $week): int
-    {
-        return $participant->dailyLogs()->whereHas('activity', fn (Builder $q): Builder => $q->where('training_week_id', $week->id))->count();
     }
 
     private function missingEvidence(Activity $activity, ?ActivitySubmission $submission): bool

@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\EvidenceRequirement;
 use App\Models\GateCriterion;
 use App\Models\Program;
@@ -49,9 +48,6 @@ class WeekTwoGateTest extends TestCase
             $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => ['artifact_context' => 'x'], 'submitted_at' => now()]);
             foreach ($activity->requirements()->where('requirement_type', '!=', 'gate_evidence')->with('evidenceRequirements')->get()->flatMap->evidenceRequirements->where('is_required', true) as $evidence) {
                 SubmissionEvidence::create(['submission_version_id' => $version->id, 'evidence_requirement_id' => $evidence->id, 'evidence_type' => $evidence->evidence_type, 'title' => 'Proof', 'content' => in_array($evidence->evidence_type, ['text']) ? 'Evidence' : null, 'url' => in_array($evidence->evidence_type, ['video', 'url', 'link', 'repository']) ? 'https://www.loom.com/share/week-2-proof' : null]);
-            }
-            foreach (range(1, 5) as $day) {
-                DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => now()->subDays($day + $activity->position)->toDateString(), 'content' => 'Daily log']);
             }
         }
         $this->actingAs($participant)->get('/training/weeks/'.$week2->program->weeks()->where('week_number', 3)->first()->id)->assertForbidden();
@@ -108,19 +104,11 @@ class WeekTwoGateTest extends TestCase
         $this->assertSame($values['actual_truth'], $version->field_values['actual_truth']);
     }
 
-    public function test_each_training_week_requires_five_logs(): void
+    public function test_gate_readiness_does_not_require_daily_logs(): void
     {
-        [$week2, $gate] = $this->setupWeekTwo();
-        $participant = User::factory()->create();
-        $activity = $week2->activities->first();
+        ['gate' => $gate, 'participant' => $participant] = $this->gateWithACompletedWeek();
 
-        foreach (range(1, 4) as $day) {
-            DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => now()->subDays($day)->toDateString(), 'content' => 'Log']);
-        }
-        $this->assertArrayHasKey('daily_logs', app(WeekTwoGateService::class)->readiness($participant, $gate));
-
-        DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => now()->toDateString(), 'content' => 'Log']);
-        $this->assertArrayNotHasKey('daily_logs', app(WeekTwoGateService::class)->readiness($participant, $gate));
+        $this->assertSame([], app(WeekTwoGateService::class)->readiness($participant, $gate));
     }
 
     public function test_each_official_gate_has_exactly_one_required_weekly_video_criterion(): void
@@ -298,9 +286,6 @@ class WeekTwoGateTest extends TestCase
         $activity = Activity::factory()->for($week, 'week')->create();
         TrainingGate::factory()->for($week, 'week')->create();
         $participant = User::factory()->create();
-        foreach (range(1, 5) as $day) {
-            DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => now()->subDays($day)->toDateString(), 'content' => 'Log']);
-        }
         foreach ($states as $attempt => $status) {
             $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'attempt_number' => $attempt, 'status' => $status, 'submitted_at' => in_array($status, ['submitted', 'approved'], true) ? now() : null]);
             $submission->versions()->create(['version_number' => 1, 'status' => in_array($status, ['submitted', 'approved'], true) ? $status : 'draft', 'field_values' => []]);
@@ -327,7 +312,7 @@ class WeekTwoGateTest extends TestCase
 
     /**
      * A Week 2 Gate with one required activity criterion and no weekly video criterion, and a participant who
-     * submitted the week's only activity and logged five daily logs on it.
+     * submitted the week's only activity.
      *
      * @return array{week: TrainingWeek, gate: TrainingGate, participant: User}
      */
@@ -340,9 +325,6 @@ class WeekTwoGateTest extends TestCase
         $participant = User::factory()->create();
         $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
-        foreach (range(1, 5) as $day) {
-            DailyLog::factory()->for($participant, 'participant')->for($activity)->create(['logged_on' => now()->subDays($day)->toDateString()]);
-        }
 
         return ['week' => $week, 'gate' => $gate->load('criteria'), 'participant' => $participant];
     }

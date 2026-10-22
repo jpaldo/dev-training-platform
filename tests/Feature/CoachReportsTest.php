@@ -4,15 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
-use App\Models\GoogleDriveConnection;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\User;
-use App\Services\GoogleDriveService;
-use App\Services\MissingSubmissionReportService;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class CoachReportsTest extends TestCase
@@ -148,30 +144,6 @@ class CoachReportsTest extends TestCase
         $this->actingAs($participant)->get(route('coach.reports.missing-submissions'))->assertForbidden();
     }
 
-    public function test_missing_report_counts_partial_weekly_logs_and_ignores_submitted_activity(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $coach = User::factory()->create(['role' => 'coach', 'name' => 'Mentor Kate']);
-        $participant = User::factory()->create(['name' => 'Partial Participant', 'training_path' => 'manual']);
-        $participant->assignedCoaches()->attach($coach->id);
-        $activity = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail()->activities()->firstOrFail();
-
-        foreach (['2026-09-10', '2026-09-11', '2026-09-12'] as $date) {
-            DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => $date, 'content' => 'Work']);
-        }
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted', 'submitted_at' => now()]);
-        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
-
-        $response = $this->actingAs($coach)->get(route('coach.reports.missing-submissions', [
-            'participant' => $participant->id,
-            'category' => 'daily_logs',
-            'week' => 2,
-        ]));
-
-        $response->assertOk()->assertSee('Week 2 Daily Logs')->assertSee('Partial Participant')->assertSee('Partially Submitted')->assertSee('3');
-        $response->assertDontSee($activity->title);
-    }
-
     public function test_missing_report_uses_bounded_custom_pagination_icons(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);
@@ -252,98 +224,11 @@ class CoachReportsTest extends TestCase
             'category' => 'activities',
         ]))->streamedContent();
         $this->assertStringContainsString('Participant,"Employee ID",Email,"QA Path",Mentor,Category', $csv);
-        $this->assertStringContainsString(',Expected,Submitted,Missing,Evidences,Status,', $csv);
+        $this->assertStringContainsString(',Expected,Submitted,Missing,Evidences,Status'."\n", $csv);
+        $this->assertStringNotContainsString('Log Date', $csv);
         $this->assertStringContainsString('Combined QA', $csv);
         $rows = array_map(str_getcsv(...), array_slice(explode("\n", trim($csv)), 1));
         $this->assertNotEmpty($rows);
         $this->assertSame([['Combined QA', 'EMP-6001']], array_values(array_unique(array_map(fn (array $row): array => array_slice($row, 0, 2), $rows), SORT_REGULAR)));
-    }
-
-    public function test_general_training_reports_five_expected_logs_and_never_negative_missing_counts(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $admin = User::factory()->create(['role' => 'admin']);
-        $counts = [0, 3, 4, 5, 6];
-
-        foreach ($counts as $index => $count) {
-            $participant = User::factory()->create(['name' => "General {$count}"]);
-            for ($log = 0; $log < $count; $log++) {
-                DailyLog::create([
-                    'user_id' => $participant->id,
-                    'activity_id' => null,
-                    'logged_on' => now()->subDays($log)->toDateString(),
-                    'content' => 'General training work',
-                ]);
-            }
-        }
-
-        $rows = app(MissingSubmissionReportService::class)->rows(['category' => 'general_training']);
-        $byName = $rows->keyBy('participant_name');
-
-        foreach ([0 => 5, 3 => 2, 4 => 1] as $submitted => $missing) {
-            $row = $byName["General {$submitted}"];
-            $this->assertSame(5, $row['expected']);
-            $this->assertSame($submitted, $row['submitted']);
-            $this->assertSame($missing, $row['missing']);
-        }
-        $this->assertArrayNotHasKey('General 5', $byName->all());
-        $this->assertArrayNotHasKey('General 6', $byName->all());
-
-        $response = $this->actingAs($admin)->get(route('coach.reports.missing-submissions', ['category' => 'general_training']));
-        $response->assertOk()->assertSee('Evidences')->assertSee('Expected')->assertDontSee('Expectation Not Configured');
-    }
-
-    public function test_week_one_drive_evidence_count_is_read_only_and_excludes_folders_and_workbook(): void
-    {
-        $participant = User::factory()->create();
-        GoogleDriveConnection::create([
-            'user_id' => $participant->id,
-            'access_token' => 'token',
-            'refresh_token' => 'refresh',
-            'token_expires_at' => now()->addHour(),
-            'connected_at' => now(),
-            'drive_folder_id' => 'root',
-            'destination_source' => 'picker',
-        ]);
-        Http::fakeSequence()
-            ->push(['files' => [['id' => 'week-1', 'name' => 'Week 1', 'mimeType' => 'application/vnd.google-apps.folder']]], 200)
-            ->push(['files' => [['id' => 'evidence', 'name' => 'Evidences', 'mimeType' => 'application/vnd.google-apps.folder']]], 200)
-            ->push(['files' => [
-                ['id' => 'one', 'name' => 'checklist.png', 'mimeType' => 'image/png'],
-                ['id' => 'nested', 'name' => 'Screenshots', 'mimeType' => 'application/vnd.google-apps.folder'],
-            ]], 200)
-            ->push(['files' => [['id' => 'two', 'name' => 'notes.txt', 'mimeType' => 'text/plain']]], 200);
-
-        $this->assertSame(2, app(GoogleDriveService::class)->countWeekOneEvidenceFiles($participant));
-        Http::assertSentCount(4);
-    }
-
-    public function test_week_one_drive_evidence_count_distinguishes_missing_folder_from_unavailable_drive(): void
-    {
-        $missing = User::factory()->create();
-        GoogleDriveConnection::create([
-            'user_id' => $missing->id,
-            'access_token' => 'token',
-            'refresh_token' => 'refresh',
-            'token_expires_at' => now()->addHour(),
-            'connected_at' => now(),
-            'drive_folder_id' => 'root',
-            'destination_source' => 'picker',
-        ]);
-        Http::fakeSequence()->push(['files' => []], 200);
-        $this->assertSame(0, app(GoogleDriveService::class)->countWeekOneEvidenceFiles($missing));
-
-        $unavailable = User::factory()->create();
-        GoogleDriveConnection::create([
-            'user_id' => $unavailable->id,
-            'access_token' => 'token',
-            'refresh_token' => 'refresh',
-            'token_expires_at' => now()->addHour(),
-            'connected_at' => now(),
-            'drive_folder_id' => 'root',
-            'destination_source' => 'picker',
-        ]);
-        Http::fakeSequence()->push([], 503);
-        $this->assertNull(app(GoogleDriveService::class)->countWeekOneEvidenceFiles($unavailable));
     }
 }

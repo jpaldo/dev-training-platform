@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\GateCriterion;
 use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
@@ -38,13 +37,11 @@ class CoachGateBoardPageTest extends TestCase
         GateCriterionEvaluation::factory()->for($passedEvaluation, 'gateEvaluation')->for($activityCriterion, 'criterion')->create(['status' => 'met']);
         $passedRecording = $this->recordWeeklyVideo($passed, $week);
         $this->submitActivity($passed, $activity);
-        $this->logDays($passed, $activity, 5);
 
         $awaiting = User::factory()->create(['name' => 'Ada Awaiting', 'email' => 'ada@example.test', 'training_path' => 'automation']);
         GateEvaluation::factory()->for($gate, 'gate')->for($awaiting, 'participant')->create(['status' => 'awaiting_review']);
         $awaitingRecording = $this->recordWeeklyVideo($awaiting, $week);
         $this->submitActivity($awaiting, $activity);
-        $this->logDays($awaiting, $activity, 4);
 
         $notReady = User::factory()->create(['name' => 'Nell Notready', 'email' => 'nell@example.test', 'training_path' => 'manual']);
 
@@ -63,43 +60,26 @@ class CoachGateBoardPageTest extends TestCase
                 'href="'.route('coach.participants.show', $awaiting).'"', '>Ada Awaiting</a>', '>ada@example.test</span>',
                 '>Automation</td>',
                 'border-accent text-cyan-200 whitespace-nowrap">AWAITING REVIEW</span>',
-                '>4 / 5</span>', '>1 remaining</span>',
                 '>0 / 2</span>', '>criteria met</span>',
                 'href="'.route('training.video-recording.view', [$week, $awaitingRecording]).'"', '>Awaiting Review</a>',
-                '>1 blocker</strong>',
+                '>—</span>',
                 'href="'.route('training.coach.gates.show', [$week, $awaiting, $gate]).'"', '>Review Gate</a>',
                 '>Nell Notready</a>',
                 'border-line text-muted whitespace-nowrap">NOT READY</span>',
-                '>0 / 5</span>', '>5 remaining</span>',
                 '>0 / 2</span>',
                 '>Missing</span>',
-                '>3 blockers</strong>',
+                '>2 blockers</strong>',
                 'href="'.route('training.coach.gates.show', [$week, $notReady, $gate]).'"', '>Review Gate</a>',
                 '>Pat Passed</a>',
                 '>Manual</td>',
                 'border-emerald-400 text-emerald-200 whitespace-nowrap">PASSED</span>',
-                '>5 / 5</span>', '>Complete</span>',
                 '>2 / 2</span>',
                 'href="'.route('training.video-recording.view', [$week, $passedRecording]).'"', '>✓ Uploaded</a>',
                 '>—</span>',
                 'href="'.route('training.coach.gates.show', [$week, $passed, $gate]).'"', '>View Gate</a>',
             ], false)
-            ->assertDontSee('No Gate rows match these filters.');
-    }
-
-    public function test_daily_log_progress_uses_the_configured_weekly_minimum(): void
-    {
-        config(['training.daily_logs_per_week' => 3]);
-        $week = TrainingWeek::factory()->create(['week_number' => 2]);
-        TrainingGate::factory()->for($week, 'week')->create();
-        $activity = Activity::factory()->for($week, 'week')->create(['position' => 1]);
-        $this->logDays(User::factory()->create(['name' => 'Ada Partial']), $activity, 1);
-        $this->logDays(User::factory()->create(['name' => 'Bo Complete']), $activity, 3);
-
-        $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.gates'))
-            ->assertOk()
-            ->assertSeeInOrder(['>Ada Partial</a>', '>1 / 3</span>', '>2 remaining</span>'], false)
-            ->assertSeeInOrder(['>Bo Complete</a>', '>3 / 3</span>', '>Complete</span>'], false);
+            ->assertDontSee('No Gate rows match these filters.')
+            ->assertDontSee('Daily Logs');
     }
 
     public function test_a_gate_without_a_weekly_video_criterion_shows_the_video_as_not_required_and_no_video_blocker(): void
@@ -110,19 +90,19 @@ class CoachGateBoardPageTest extends TestCase
         $activity = Activity::factory()->for($week, 'week')->create(['position' => 1]);
         $ready = User::factory()->create(['name' => 'Ada Ready']);
         $this->submitActivity($ready, $activity);
-        $this->logDays($ready, $activity, 5);
         User::factory()->create(['name' => 'Bo Blocked']);
 
         $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.gates'))
             ->assertOk()
             ->assertSeeInOrder(['>Ada Ready</a>', 'READY FOR REVIEW</span>', '>Not required</span>', '>—</span>', '>Review Gate</a>'], false)
-            ->assertSeeInOrder(['>Bo Blocked</a>', 'NOT READY</span>', '>Not required</span>', '>2 blockers</strong>'], false);
+            ->assertSeeInOrder(['>Bo Blocked</a>', 'NOT READY</span>', '>Not required</span>', '>1 blocker</strong>'], false);
     }
 
     public function test_filters_keep_their_values_and_the_pagination_links_keep_them(): void
     {
         $week = TrainingWeek::factory()->create(['week_number' => 2]);
         TrainingGate::factory()->for($week, 'week')->create();
+        Activity::factory()->for($week, 'week')->create(['position' => 1]);
         TrainingGate::factory()->for(TrainingWeek::factory()->state(['week_number' => 3]), 'week')->create(['title' => 'Week three gate']);
         User::factory()->count(26)->sequence(fn (Sequence $sequence): array => ['name' => 'Page Person '.($sequence->index + 1)])->create(['training_path' => 'manual']);
         User::factory()->create(['name' => 'Page Automation', 'training_path' => 'automation']);
@@ -220,7 +200,7 @@ class CoachGateBoardPageTest extends TestCase
 
     /**
      * Create a Week 2 Gate with a weekly video criterion and one participant in each Gate status: one with nothing done
-     * (not ready), one with the activity submitted, five daily logs and the weekly video (ready for review), and one
+     * (not ready), one with the activity submitted and the weekly video (ready for review), and one
      * with a saved evaluation for each other status.
      *
      * @return array<string, User> participants keyed by their Gate status value
@@ -236,7 +216,6 @@ class CoachGateBoardPageTest extends TestCase
             $participants[$status->value] = User::factory()->create(['name' => 'Participant '.$status->label()]);
         }
         $this->submitActivity($participants['ready_for_review'], $activity);
-        $this->logDays($participants['ready_for_review'], $activity, 5);
         $this->recordWeeklyVideo($participants['ready_for_review'], $week);
         foreach ([GateEvaluationStatus::AwaitingReview, GateEvaluationStatus::NeedsRevision, GateEvaluationStatus::Failed, GateEvaluationStatus::Passed] as $status) {
             GateEvaluation::factory()->for($gate, 'gate')->for($participants[$status->value], 'participant')->create(['status' => $status]);
@@ -260,15 +239,5 @@ class CoachGateBoardPageTest extends TestCase
     {
         $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
-    }
-
-    /**
-     * Create the given number of daily logs of the participant on the activity, one per day.
-     */
-    private function logDays(User $participant, Activity $activity, int $days): void
-    {
-        foreach (range(1, $days) as $day) {
-            DailyLog::factory()->for($participant, 'participant')->for($activity)->create(['logged_on' => now()->subDays($day)->toDateString()]);
-        }
     }
 }

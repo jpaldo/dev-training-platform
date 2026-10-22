@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\SubmissionVersion;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -14,8 +13,10 @@ use ZipArchive;
 
 class TrainingWorkbookService
 {
-    public function __construct(private readonly TrainingExportService $exports) {}
-
+    /**
+     * Build the participant's workbook for a week: one sheet per active activity of that week number, or a header-only
+     * Activities sheet when the week has none, so the file is always a valid workbook.
+     */
     public function forWeek(User $participant, int $weekNumber): string
     {
         $activities = Activity::query()->with('week')->whereHas('week', fn (Builder $q): Builder => $q->where('week_number', $weekNumber))->where('is_active', true)->orderBy('position')->get();
@@ -26,30 +27,11 @@ class TrainingWorkbookService
             $usedNames[] = $sheetName;
             $sheets[] = [$sheetName, $this->activityRows($participant, $activity)];
         }
-        $sheets[] = ['Daily Logs', $this->dailyLogRows($participant, $weekNumber)];
+        if ($sheets === []) {
+            $sheets[] = ['Activities', [['Participant', 'QA Path', 'Week', 'Activity']]];
+        }
 
         return $this->xlsx($sheets);
-    }
-
-    /** Build the reporting-only Week 1 workbook for General Training logs. */
-    public function forGeneralTraining(User $participant): string
-    {
-        return $this->xlsx([['Daily Logs', $this->generalDailyLogRows($participant)]]);
-    }
-
-    /** Build a single-sheet workbook from an existing tabular report. */
-    public function fromCsv(string $sheetName, string $csv): string
-    {
-        $rows = [];
-        $stream = fopen('php://temp', 'w+');
-        fwrite($stream, $csv);
-        rewind($stream);
-        while (($row = fgetcsv($stream)) !== false) {
-            $rows[] = $row;
-        }
-        fclose($stream);
-
-        return $this->xlsx([[$this->uniqueSheetName($sheetName, []), $rows]]);
     }
 
     private function activityRows(User $participant, Activity $activity): array
@@ -111,34 +93,6 @@ class TrainingWorkbookService
         $values[] = json_encode($regression, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         return [$headers, $values];
-    }
-
-    public function dailyLogs(User $participant): string
-    {
-        return $this->fromCsv('Daily Logs', $this->exports->dailyLogs($participant));
-    }
-
-    private function dailyLogRows(User $participant, int $weekNumber): array
-    {
-        $logs = DailyLog::query()->with('activity.week')->where('user_id', $participant->id)->whereHas('activity.week', fn (Builder $q): Builder => $q->where('week_number', $weekNumber))->oldest('logged_on')->get();
-        $headers = ['Date', 'Participant', 'QA Path', 'Week', 'Activity', 'Daily Log', 'Created At', 'Updated At'];
-        $rows = $logs->map(fn (DailyLog $log): array => [$log->logged_on, $participant->name, $participant->trainingPathLabel(), $log->activity?->week?->week_number, $log->activity?->title ?? 'General training', $log->content, $log->created_at, $log->updated_at])->all();
-
-        return [$headers, ...$rows];
-    }
-
-    private function generalDailyLogRows(User $participant): array
-    {
-        $logs = DailyLog::query()
-            ->where('user_id', $participant->id)
-            ->whereNull('activity_id')
-            ->oldest('logged_on')
-            ->oldest('id')
-            ->get();
-        $headers = ['Date', 'Participant', 'QA Path', 'Week', 'Activity', 'Daily Log', 'Created At', 'Updated At'];
-        $rows = $logs->map(fn (DailyLog $log): array => [$log->logged_on, $participant->name, $participant->trainingPathLabel(), 'General Training', 'General training', $log->content, $log->created_at, $log->updated_at])->all();
-
-        return [$headers, ...$rows];
     }
 
     private function sheetName(string $name): string

@@ -66,11 +66,14 @@ class ParticipantNotificationTriggersTest extends TestCase
         Queue::assertNotPushed(GenerateParticipantNotificationsJob::class);
     }
 
-    public function test_creating_a_daily_log_queues_a_sync(): void
+    public function test_creating_a_daily_log_does_not_queue_a_sync(): void
     {
         $participant = User::factory()->create();
+        Queue::fake();
 
-        $this->assertWriteQueuesOneSyncFor($participant, fn (): DailyLog => DailyLog::factory()->for($participant, 'participant')->create());
+        DailyLog::factory()->for($participant, 'participant')->create();
+
+        Queue::assertNotPushed(GenerateParticipantNotificationsJob::class);
     }
 
     public function test_changing_a_submission_queues_a_sync(): void
@@ -140,7 +143,7 @@ class ParticipantNotificationTriggersTest extends TestCase
         $participant = User::factory()->create();
 
         $this->assertWriteQueuesOneSyncFor($participant, function () use ($participant): void {
-            DailyLog::factory()->count(3)->for($participant, 'participant')->create();
+            ActivitySubmission::factory()->count(3)->for($participant, 'participant')->create();
         });
     }
 

@@ -36,7 +36,6 @@ class CoachGateBoardPageService
 
     public function __construct(
         private readonly CoachGateOverviewService $gateOverview,
-        private readonly WeekTwoGateService $gates,
     ) {}
 
     /**
@@ -45,12 +44,11 @@ class CoachGateBoardPageService
      * main action, so every button is secondary.
      *
      * @param  array{week?: int|string|null, path?: string|null, search?: string|null, status?: GateEvaluationStatus|null}  $filters
-     * @return array{stats: list<array{label: string, value: int}>, search: string, weekOptions: list<array{value: string, label: string, is_selected: bool}>, pathOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, gateRows: LengthAwarePaginator<int, array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, path: string, status_label: string, status_tone: string, daily_log_progress: string, daily_log_note: string, criteria_met: int, criteria_total: int, video: array{url: ?string, label: string}, blocker_label: ?string, action_label: string, action_url: string}>}
+     * @return array{stats: list<array{label: string, value: int}>, search: string, weekOptions: list<array{value: string, label: string, is_selected: bool}>, pathOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, gateRows: LengthAwarePaginator<int, array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, path: string, status_label: string, status_tone: string, criteria_met: int, criteria_total: int, video: array{url: ?string, label: string}, blocker_label: ?string, action_label: string, action_url: string}>}
      */
     public function indexData(array $filters, int $page): array
     {
         ['rows' => $rows, 'summary' => $summary] = $this->gateOverview->board($filters);
-        $minimumDailyLogs = $this->gates->minimumDailyLogs();
 
         $gateRows = new LengthAwarePaginator(
             $rows->forPage($page, self::ROWS_PER_PAGE)->values(),
@@ -77,7 +75,7 @@ class CoachGateBoardPageService
             'statusOptions' => $this->options(self::STATUS_OPTIONS, ($filters['status'] ?? null)?->value),
             'gateRows' => $gateRows
                 ->withQueryString()
-                ->through(fn (array $row): array => $this->gateRow($row, $minimumDailyLogs)),
+                ->through(fn (array $row): array => $this->gateRow($row)),
         ];
     }
 
@@ -101,13 +99,12 @@ class CoachGateBoardPageService
 
     /**
      * One table row: the Gate and its week, the participant with their path, the status with its badge tone, the
-     * week's daily log progress against the weekly minimum, the required criteria met, the weekly video (a link when
-     * uploaded, otherwise Missing, or Not required when the Gate has no weekly video criterion), the blocker count (null without blockers) and the link to review (or, once passed, view) the Gate.
+     * required criteria met, the weekly video (a link when uploaded, otherwise Missing, or Not required when the Gate has no weekly video criterion), the blocker count (null without blockers) and the link to review (or, once passed, view) the Gate.
      *
-     * @param  array{gate: TrainingGate, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, daily_log_count: int, criteria_met: int, criteria_total: int, loom: array<string, mixed>}  $row
-     * @return array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, path: string, status_label: string, status_tone: string, daily_log_progress: string, daily_log_note: string, criteria_met: int, criteria_total: int, video: array{url: ?string, label: string}, blocker_label: ?string, action_label: string, action_url: string}
+     * @param  array{gate: TrainingGate, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, criteria_met: int, criteria_total: int, loom: array<string, mixed>}  $row
+     * @return array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, path: string, status_label: string, status_tone: string, criteria_met: int, criteria_total: int, video: array{url: ?string, label: string}, blocker_label: ?string, action_label: string, action_url: string}
      */
-    private function gateRow(array $row, int $minimumDailyLogs): array
+    private function gateRow(array $row): array
     {
         $gate = $row['gate'];
         $participant = $row['participant'];
@@ -128,10 +125,6 @@ class CoachGateBoardPageService
                 GateEvaluationStatus::ReadyForReview, GateEvaluationStatus::AwaitingReview => 'accent',
                 GateEvaluationStatus::NotReady => 'neutral',
             },
-            'daily_log_progress' => $row['daily_log_count'].' / '.$minimumDailyLogs,
-            'daily_log_note' => $row['daily_log_count'] < $minimumDailyLogs
-                ? ($minimumDailyLogs - $row['daily_log_count']).' remaining'
-                : 'Complete',
             'criteria_met' => $row['criteria_met'],
             'criteria_total' => $row['criteria_total'],
             'video' => [

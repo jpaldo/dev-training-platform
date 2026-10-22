@@ -12,12 +12,9 @@ use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\WeekFourInterviewPair;
-use App\Models\WeekFourPartnerFeedback;
 use App\Support\FieldLimits;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -124,196 +121,20 @@ class SubmissionFormPageTest extends TestCase
         $this->assertStringContainsString('href="https://example.com/evidence" target="_blank" rel="noopener noreferrer">Open evidence link</a>', $html);
     }
 
-    public function test_peer_interview_progress_reflects_partner_answers_and_practice_questions(): void
-    {
-        $participant = User::factory()->create();
-        $partner = User::factory()->create(['name' => 'Peer Partner']);
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 4, 'position' => 1]);
-        $activity = Activity::factory()->for($week, 'week')->create(['position' => 2]);
-        WeekFourInterviewPair::create(['participant_one_id' => min($participant->id, $partner->id), 'participant_two_id' => max($participant->id, $partner->id), 'assigned_by_id' => User::factory()->create(['role' => 'admin'])->id, 'status' => 'active']);
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
-        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft', 'field_values' => [
-            'about_you' => 'QA lead for payments.',
-            'practice_questions' => array_fill_keys(range(1, 15), 'How do you validate AI output?'),
-        ]]);
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'Partner assigned <span class="sr-only">(complete)</span>',
-                'About You <span class="sr-only">(complete)</span>',
-                'My practice questions: 15 / 15 <span class="sr-only">(complete)</span>',
-                'Partner questions answered: 0 / 15 <span class="sr-only">(incomplete)</span>',
-                'Feedback given: 0 / 2 required <span class="sr-only">(incomplete)</span>',
-                'Feedback received: 0 / 2 required <span class="sr-only">(incomplete)</span>',
-                "PEER PARTNER'S PRACTICE QUESTIONS FOR ME",
-            ], false);
-    }
-
-    /**
-     * @param  array<string, string>  $fieldValues
-     * @param  list<string>  $expectedSteps
-     */
-    #[DataProvider('weekFourGuides')]
-    public function test_week_four_guide_progress_reflects_the_saved_answers(int $position, array $fieldValues, string $title, array $expectedSteps): void
-    {
-        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: $position);
-        EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity))->create(['evidence_type' => 'file']);
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
-        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft', 'field_values' => $fieldValues]);
-
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
-            ->assertOk()
-            ->assertSeeInOrder(['WEEK 4 · REUSABLE &amp; SUSTAINED LEVEL 3 PRACTICE', $title, 'PROGRESS', ...$expectedSteps], false);
-    }
-
-    /**
-     * @return array<string, array{int, array<string, string>, string, list<string>}>
-     */
-    public static function weekFourGuides(): array
-    {
-        return [
-            'reusable asset' => [1, ['asset_name' => 'Test case generator', 'second_task' => 'Checkout regression'], 'Build &amp; Validate a Reusable AI Asset', [
-                'Asset <span class="sr-only">(complete)</span>',
-                'Original use <span class="sr-only">(incomplete)</span>',
-                'Second task <span class="sr-only">(complete)</span>',
-                'Reflection <span class="sr-only">(incomplete)</span>',
-                'Evidence <span class="sr-only">(incomplete)</span>',
-                'Ready to submit <span class="sr-only">(incomplete)</span>',
-            ]],
-            'leveling assessment' => [3, ['strict_interview_transcript' => 'Transcript', 'assessment_level' => 'Level 3'], 'Strict-mode Leveling Assessment', [
-                'Transcript <span class="sr-only">(complete)</span>',
-                'Tracker result <span class="sr-only">(incomplete)</span>',
-                'Level <span class="sr-only">(complete)</span>',
-                'Confidence <span class="sr-only">(incomplete)</span>',
-                'Evidence <span class="sr-only">(incomplete)</span>',
-                'Ready to submit <span class="sr-only">(incomplete)</span>',
-            ]],
-        ];
-    }
-
-    #[DataProvider('evidenceFileStates')]
-    public function test_week_four_guide_evidence_step_completes_once_the_required_file_is_uploaded(bool $fileIsStored, string $expectedStep): void
-    {
-        Storage::fake('local');
-        [$participant, $week, $activity, $version] = $this->levelingAssessmentDraft(['assessment_level' => 'Level 3']);
-        $this->uploadedEvidence($activity, $version, $fileIsStored);
-
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
-            ->assertOk()
-            ->assertSee($expectedStep, false);
-    }
-
-    /**
-     * @return array<string, array{bool, string}>
-     */
-    public static function evidenceFileStates(): array
-    {
-        return [
-            'file on disk' => [true, 'Evidence <span class="sr-only">(complete)</span>'],
-            'file missing from disk' => [false, 'Evidence <span class="sr-only">(incomplete)</span>'],
-        ];
-    }
-
-    /**
-     * @param  array<string, string>  $fieldValues
-     */
-    #[DataProvider('submissionReadinessStates')]
-    public function test_week_four_guide_ready_to_submit_follows_the_submission_requirements(array $fieldValues, string $expectedStep): void
-    {
-        Storage::fake('local');
-        [$participant, $week, $activity, $version] = $this->levelingAssessmentDraft($fieldValues);
-        $this->uploadedEvidence($activity, $version, fileIsStored: true);
-
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
-            ->assertOk()
-            ->assertSeeInOrder(['Evidence <span class="sr-only">(complete)</span>', $expectedStep], false);
-    }
-
-    /**
-     * @return array<string, array{array<string, string>, string}>
-     */
-    public static function submissionReadinessStates(): array
-    {
-        return [
-            'required field missing' => [[], 'Ready to submit <span class="sr-only">(incomplete)</span>'],
-            'invalid select option' => [['assessment_level' => 'Level 9'], 'Ready to submit <span class="sr-only">(incomplete)</span>'],
-            'all requirements met' => [['assessment_level' => 'Level 3'], 'Ready to submit <span class="sr-only">(complete)</span>'],
-        ];
-    }
-
-    public function test_peer_interview_guide_lists_feedback_for_answered_and_received_questions(): void
+    public function test_a_week_four_activity_two_opens_the_standard_form_without_the_peer_interview(): void
     {
         [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: 2);
-        [$partner, $pair] = $this->interviewPartner($participant);
-        $this->peerInterviewDraft($participant, $activity, ['practice_questions' => [1 => 'My first question', 2 => 'My second question', 5 => 'My unanswered question']]);
-        $this->peerInterviewDraft($partner, $activity, [
-            'practice_answers' => [1 => 'Partner answer one', 2 => 'Partner answer two'],
-            'practice_questions' => [3 => 'Partner question three', 4 => 'Partner question four', 6 => 'Partner question six'],
-        ]);
-        foreach ([1 => 'Saved feedback one', 2 => 'Saved feedback two'] as $number => $content) {
-            WeekFourPartnerFeedback::create(['pair_id' => $pair->id, 'author_id' => $participant->id, 'recipient_id' => $partner->id, 'question_number' => $number, 'content' => $content]);
-        }
-        foreach ([3 => 'Feedback on my answer three', 4 => 'Feedback on my answer four'] as $number => $content) {
-            WeekFourPartnerFeedback::create(['pair_id' => $pair->id, 'author_id' => $partner->id, 'recipient_id' => $participant->id, 'question_number' => $number, 'content' => $content]);
-        }
-
-        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'Feedback given: 2 / 2 required',
-                'Feedback received: 2 / 2 required',
-                'FEEDBACK I GAVE TO PEER PARTNER',
-                'Q1 · Your question', 'My first question', 'Partner answer one', 'Saved feedback one</textarea>',
-                'Q2 · Your question', 'My second question', 'Partner answer two', 'Saved feedback two</textarea>',
-                'FEEDBACK I RECEIVED FROM PEER PARTNER',
-                'Q3 · Peer Partner&#039;s question', 'Partner question three', 'Feedback on my answer three',
-                'Q4 · Peer Partner&#039;s question', 'Partner question four', 'Feedback on my answer four',
-                'Q6 · Peer Partner&#039;s question', 'Partner question six', 'Not provided yet',
-            ], false)
-            ->assertDontSee('Q5 · Your question')
-            ->getContent();
-
-        $this->assertSame(2, substr_count($html, 'action="'.route('training.week-four.partner-feedback').'"'));
-    }
-
-    public function test_peer_interview_guide_waits_for_the_partner_before_listing_feedback(): void
-    {
-        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: 2);
-        $this->interviewPartner($participant);
-        $this->peerInterviewDraft($participant, $activity, ['practice_questions' => [1 => 'My first question']]);
+        $this->submissionField($activity, 1, ['key' => 'interview_notes', 'label' => 'Interview notes', 'type' => 'textarea', 'required' => true]);
 
         $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
             ->assertOk()
-            ->assertSeeInOrder([
-                'Feedback given: 0 / 2 required',
-                'Waiting for Peer Partner to answer your practice questions.',
-                'Waiting for Peer Partner to prepare practice questions.',
-            ], false)
-            ->assertDontSee(route('training.week-four.partner-feedback'));
-    }
-
-    public function test_peer_interview_guide_without_a_partner_shows_the_pending_assignment(): void
-    {
-        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: 2);
-
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
-            ->assertOk()
-            ->assertSeeInOrder(['Mock Level 3 Interview', 'Partner Assignment Pending'], false)
-            ->assertDontSee('PARTNER FEEDBACK');
-    }
-
-    public function test_peer_interview_page_shows_only_the_peer_interview_progress_checklist(): void
-    {
-        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: 2);
-
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
-            ->assertOk()
-            ->assertSeeInOrder(['PEER INTERVIEW PROGRESS', 'Partner assigned <span class="sr-only">(incomplete)</span>'], false)
-            ->assertDontSee('week-four-progress-title', false)
-            ->assertDontSee('Partner selected')
-            ->assertDontSee('Ready to submit');
+            ->assertSee('action="'.route('training.submission.draft', [$week, $activity]).'" data-submission-form>', false)
+            ->assertSee('name="field_values[interview_notes]"', false)
+            ->assertSee('MENTOR MOCK INTERVIEW')
+            ->assertDontSee('PEER INTERVIEW PROGRESS')
+            ->assertDontSee('Partner Assignment Pending')
+            ->assertDontSee('name="field_values[practice_questions]', false)
+            ->assertDontSee('name="field_values[partner_user_id]"', false);
     }
 
     public function test_a_later_week_three_activity_opens_the_standard_form_before_earlier_activities_are_submitted(): void
@@ -388,60 +209,6 @@ class SubmissionFormPageTest extends TestCase
     private function submissionField(Activity $activity, int $position, array $configuration): void
     {
         ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => $position, 'configuration' => $configuration]);
-    }
-
-    /**
-     * A Week 4 Strict-mode Leveling Assessment draft with the given answers, a required "Level" select field and a
-     * required file evidence requirement.
-     *
-     * @param  array<string, string>  $fieldValues
-     * @return array{User, TrainingWeek, Activity, SubmissionVersion}
-     */
-    private function levelingAssessmentDraft(array $fieldValues): array
-    {
-        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: 3);
-        $this->submissionField($activity, 1, ['key' => 'assessment_level', 'label' => 'Level', 'type' => 'select', 'required' => true, 'options' => ['Level 2', 'Level 3']]);
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
-        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft', 'field_values' => $fieldValues]);
-
-        return [$participant, $week, $activity, $version];
-    }
-
-    /**
-     * Add a required file evidence requirement to the activity and an uploaded file for it on the version, optionally
-     * storing the file on the local disk.
-     */
-    private function uploadedEvidence(Activity $activity, SubmissionVersion $version, bool $fileIsStored): void
-    {
-        $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity))->create(['evidence_type' => 'file']);
-        SubmissionEvidence::factory()->for($version, 'submissionVersion')->for($requirement, 'evidenceRequirement')->create(['evidence_type' => 'file', 'content' => null, 'disk' => 'local', 'path' => 'evidence/transcript.pdf', 'original_filename' => 'transcript.pdf']);
-        if ($fileIsStored) {
-            Storage::disk('local')->put('evidence/transcript.pdf', 'transcript');
-        }
-    }
-
-    /**
-     * Assign a mock interview partner named "Peer Partner" to the participant.
-     *
-     * @return array{User, WeekFourInterviewPair}
-     */
-    private function interviewPartner(User $participant): array
-    {
-        $partner = User::factory()->create(['name' => 'Peer Partner']);
-        $pair = WeekFourInterviewPair::create(['participant_one_id' => min($participant->id, $partner->id), 'participant_two_id' => max($participant->id, $partner->id), 'assigned_by_id' => User::factory()->create(['role' => 'admin'])->id, 'status' => 'active']);
-
-        return [$partner, $pair];
-    }
-
-    /**
-     * Give the participant a draft of the peer interview activity with the given answers.
-     *
-     * @param  array<string, mixed>  $fieldValues
-     */
-    private function peerInterviewDraft(User $participant, Activity $activity, array $fieldValues): void
-    {
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
-        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft', 'field_values' => $fieldValues]);
     }
 
     /**

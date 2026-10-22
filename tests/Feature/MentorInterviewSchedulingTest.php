@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Enums\MentorInterviewScheduleStatus;
 use App\Enums\ParticipantNotificationPriority;
 use App\Enums\ParticipantNotificationType;
+use App\Enums\SubmissionStatus;
 use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
 use App\Models\GateEvaluation;
@@ -14,9 +16,7 @@ use App\Models\MentorInterviewAvailability;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\User;
-use App\Models\WeekFourInterviewPair;
 use App\Models\WeekFourMentorInterviewSchedule;
-use App\Models\WeekFourPeerInterviewWaiver;
 use App\Services\GoogleDriveConfigurationService;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -168,16 +168,6 @@ class MentorInterviewSchedulingTest extends TestCase
         $this->actingAs($participant)->put(route('training.mentor-interview.reschedule', [$otherWeek, $activity]), [])->assertNotFound();
     }
 
-    public function test_peer_interview_is_not_required_before_mentor_scheduling(): void
-    {
-        [$participant, , $activity] = $this->fixture();
-        WeekFourPeerInterviewWaiver::query()->delete();
-        Http::fake(['https://www.googleapis.com/calendar/v3/*' => Http::response(['id' => 'event-no-peer', 'hangoutLink' => 'https://meet.google.com/no-peer', 'conferenceData' => ['conferenceId' => 'conference-no-peer']], 200)]);
-
-        $this->actingAs($participant)->post(route('training.mentor-interview.schedule', [$activity->week, $activity]), ['scheduled_at' => now('Asia/Manila')->addDay()->setTime(15, 0)->format('Y-m-d\\TH:i')])->assertRedirect()->assertSessionHas('status');
-        $this->assertDatabaseHas('week_four_mentor_interview_schedules', ['google_event_id' => 'event-no-peer']);
-    }
-
     public function test_submission_page_shows_the_open_mentor_interview_schedule_including_one_booked_before_the_activity(): void
     {
         [$participant, $mentor, $activity] = $this->fixture();
@@ -207,14 +197,12 @@ class MentorInterviewSchedulingTest extends TestCase
         Http::assertSent(fn ($request): bool => $request->method() === 'DELETE' && $request->url() === 'https://www.googleapis.com/calendar/v3/calendars/primary/events/event-to-cancel?sendUpdates=all');
     }
 
-    public function test_activity_two_submission_requires_a_scheduled_mentor_interview_and_records_its_status(): void
+    public function test_activity_two_submission_requires_a_scheduled_mentor_interview(): void
     {
         [$participant, $mentor, $activity] = $this->fixture();
-        $partner = User::factory()->create(['role' => 'participant', 'training_path' => 'automation']);
-        WeekFourInterviewPair::create(['participant_one_id' => min($participant->id, $partner->id), 'participant_two_id' => max($participant->id, $partner->id), 'assigned_by_id' => $mentor->id, 'status' => 'active']);
         $schedule = WeekFourMentorInterviewSchedule::factory()->for($participant, 'participant')->for($mentor, 'mentor')->for($activity)->create();
         $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'draft']);
-        $version = $submission->versions()->create(['version_number' => 1, 'status' => 'draft', 'field_values' => ['partner_user_id' => $partner->id, 'practice_questions' => [1 => 'How do you validate AI output?']]]);
+        $version = $submission->versions()->create(['version_number' => 1, 'status' => 'draft', 'field_values' => $this->requiredFieldAnswers($activity)]);
         $evidenceRequirement = $activity->requirements()->with('evidenceRequirements')->get()->flatMap->evidenceRequirements->firstWhere('is_required', true);
         SubmissionEvidence::create(['submission_version_id' => $version->id, 'evidence_requirement_id' => $evidenceRequirement->id, 'evidence_type' => 'text', 'title' => 'Interview notes', 'content' => 'Interview evidence']);
 
@@ -229,11 +217,23 @@ class MentorInterviewSchedulingTest extends TestCase
             ->post(route('training.submission.submit', [$activity->week, $activity, $version]))
             ->assertRedirect()
             ->assertSessionHasNoErrors();
-        $this->assertSame('scheduled', $version->fresh()->field_values['practice_interview_snapshot']['mentor_schedule']['status']);
-        $this->actingAs($participant)
-            ->get(route('training.submission.show', [$activity->week, $activity, $version]))
-            ->assertOk()
-            ->assertSee('<strong>Status:</strong> Scheduled', false);
+        $this->assertSame(SubmissionStatus::Submitted, $version->fresh()->status);
+    }
+
+    /**
+     * An answer for every required submission field of the activity.
+     *
+     * @return array<string, string>
+     */
+    private function requiredFieldAnswers(Activity $activity): array
+    {
+        return $activity->requirements()
+            ->where('requirement_type', 'submission_field')
+            ->get()
+            ->map(fn (ActivityRequirement $requirement): array => $requirement->configuration)
+            ->filter(fn (array $field): bool => ($field['required'] ?? false) && ! ($field['deprecated'] ?? false))
+            ->mapWithKeys(fn (array $field): array => [$field['key'] => 'Answer'])
+            ->all();
     }
 
     /**
@@ -272,7 +272,6 @@ class MentorInterviewSchedulingTest extends TestCase
         GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'account', 'google_email' => $participant->email, 'access_token' => 'access', 'refresh_token' => 'refresh', 'token_expires_at' => now()->addHour(), 'scopes' => $calendarScope ? ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/calendar.events'] : ['https://www.googleapis.com/auth/drive.file'], 'connected_at' => now()]);
 
         $activity = $week->activities()->where('position', 2)->firstOrFail();
-        WeekFourPeerInterviewWaiver::create(['participant_id' => $participant->id, 'activity_id' => $activity->id, 'authorized_by_id' => $mentor->id, 'waived_at' => now()]);
 
         return [$participant, $mentor, $activity];
     }

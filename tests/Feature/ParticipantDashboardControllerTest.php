@@ -145,13 +145,27 @@ class ParticipantDashboardControllerTest extends TestCase
             ->assertDontSee('daily log');
     }
 
+    public function test_a_week_four_activity_two_is_listed_like_any_other_activity_without_peer_interview_partners(): void
+    {
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 4, 'position' => 1]);
+        Activity::factory()->for($week, 'week')->create(['title' => 'Mock Level 3 Interview', 'position' => 2]);
+
+        $this->actingAs($participant)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder(['<strong>Mock Level 3 Interview</strong>', '>Start</'], false)
+            ->assertSee('MENTOR MOCK INTERVIEW')
+            ->assertDontSee('Waiting for Partner Assignment')
+            ->assertDontSee('MOCK INTERVIEW PARTNERS')
+            ->assertDontSee('Peer practice');
+    }
+
     /**
      * Build an active program with the given number of weeks, activities per week and gates, fill it with
      * participant progress, and count the queries of a dashboard request after a warm-up request.
      *
      * Weeks are numbered up to Week 4, so every week falls inside the Weeks 2–4 that ParticipantNotificationService::sync()
-     * covers (the sync runs when progress is written, never on a dashboard request). Activities are numbered from 2 so
-     * both measurements include the one-off Week 4 Activity 2 interview partner lookup.
+     * covers (the sync runs when progress is written, never on a dashboard request).
      */
     private function dashboardQueryCount(int $rows): int
     {

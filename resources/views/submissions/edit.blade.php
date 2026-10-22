@@ -59,24 +59,6 @@
                 </section>
             @endif
 
-            @if($weekFourGuide !== null)
-                @include('submissions.week-four-guidance', [
-                    'activity' => $activity,
-                    'guide' => $weekFourGuide,
-                    'interviewPartner' => $interviewPartner,
-                    'partnerFeedback' => $partnerFeedback,
-                    'rowClasses' => $rowClasses,
-                    'rowTitleClasses' => $rowTitleClasses,
-                    'labelClasses' => $labelClasses,
-                    'textareaClasses' => $textareaClasses,
-                    'hintClasses' => $hintClasses,
-                    'guidanceClasses' => $guidanceClasses,
-                    'guidanceSummaryClasses' => $guidanceSummaryClasses,
-                    'guidanceBodyClasses' => $guidanceBodyClasses,
-                    'stepClasses' => $stepClasses,
-                ])
-            @endif
-
             <x-ui.card as="section" class="grid grid-cols-1 gap-5" aria-label="Submission form">
                 <p class="m-0 text-muted">
                     Current status: <strong class="text-slate-100">{{ $submission?->status->label() ?? 'Not started' }}</strong>
@@ -100,134 +82,6 @@
                                 'textareaClasses' => $textareaClasses,
                                 'hintClasses' => $hintClasses,
                             ])
-                        @endif
-
-                        @if($isPeerInterview)
-                            <div class="{{ $sectionHeadingClasses }}">
-                                <x-ui.eyebrow as="span">MOCK LEVEL 3 INTERVIEW</x-ui.eyebrow>
-                                <p class="{{ $hintClasses }}">Create your own peer-practice questions, answer your partner's questions, and exchange feedback. The official assessment questionnaire is reserved for Coach/Mentor/Admin use.</p>
-                            </div>
-
-                            <section class="{{ $rowClasses }}" aria-labelledby="mock-interview-partners-title">
-                                <h3 id="mock-interview-partners-title" class="{{ $rowTitleClasses }}">YOUR MOCK INTERVIEW PARTNERS</h3>
-                                @if($partnerRows !== [])
-                                    <p class="{{ $hintClasses }}">Assigned by your QA Coach/Mentor. Each partner's interview content is kept separate.</p>
-                                    <ul class="m-0 grid list-none gap-3 p-0">
-                                        @foreach($partnerRows as $partnerRow)
-                                            <li class="grid gap-2">
-                                                <div class="flex flex-wrap items-center gap-2">
-                                                    <strong class="wrap-break-word">{{ $partnerRow['partner']->name }}</strong>
-                                                    <x-ui.badge :tone="$partnerRow['week_four_unlocked'] ? 'success' : 'danger'">{{ $partnerRow['week_four_unlocked'] ? 'WEEK 4: UNLOCKED' : 'WEEK 4: LOCKED' }}</x-ui.badge>
-                                                </div>
-                                                <span class="text-sm wrap-anywhere text-muted">{{ $partnerRow['partner']->email }}</span>
-                                                @if(! $partnerRow['week_four_unlocked'])
-                                                    <x-ui.alert tone="error" class="grid gap-1">
-                                                        <strong>PARTNER WEEK 4 STATUS</strong>
-                                                        <span>Your partner has not unlocked Week 4 yet. Please follow up with them to complete their remaining activities. You can continue preparing your own Week 4 work while you wait.</span>
-                                                    </x-ui.alert>
-                                                @endif
-                                            </li>
-                                        @endforeach
-                                    </ul>
-                                @else
-                                    <x-ui.alert tone="error">Partner Assignment Pending</x-ui.alert>
-                                    <p class="{{ $hintClasses }}">Your QA Coach/Mentor has not assigned your mock interview partner yet.</p>
-                                @endif
-                            </section>
-                            <input type="hidden" name="field_values[partner_user_id]" value="{{ $interviewPartner?->id }}">
-
-                            <details class="{{ $guidanceClasses }}">
-                                <summary class="{{ $guidanceSummaryClasses }}">Interview Guidance</summary>
-                                <div class="{{ $guidanceBodyClasses }}">
-                                    <p>Hi {{ $user->name ?? 'there' }}, thanks for joining. Quick context before we start:</p>
-                                    <p>We're doing this to understand where everyone at Full Scale stands with AI — not to evaluate your performance, but to figure out where to invest in the right development for the right people.</p>
-                                    <p>One thing to keep in mind throughout: don't limit your answers to just what I ask. The questions are starting points. If a question makes you think of a specific project, tool, or experience — go there. The more detail and story you give me, the better.</p>
-                                    <p>Think of it less like a quiz and more like telling a teammate what you've been working on. There are no wrong answers. If you haven't used something yet, just say so — that's useful too.</p>
-                                </div>
-                            </details>
-
-                            <section class="{{ $rowClasses }}" aria-labelledby="peer-interview-progress-title">
-                                <h3 id="peer-interview-progress-title" class="{{ $rowTitleClasses }}">PEER INTERVIEW PROGRESS</h3>
-                                <ul class="m-0 grid list-none gap-2 p-0">
-                                    @foreach($peerInterviewProgress as $step)
-                                        <li class="{{ $stepClasses[$step['complete'] ? 'complete' : 'incomplete'] }}">
-                                            <span class="w-4 shrink-0" aria-hidden="true">{{ $step['complete'] ? '✓' : '○' }}</span>
-                                            {{ $step['label'] }} <span class="sr-only">({{ $step['complete'] ? 'complete' : 'incomplete' }})</span>
-                                        </li>
-                                    @endforeach
-                                </ul>
-                            </section>
-
-                            <div class="grid gap-2">
-                                <label for="about_you" class="{{ $labelClasses }}">ABOUT YOU *</label>
-                                <p class="{{ $hintClasses }}">Briefly introduce yourself, your role, and your primary responsibilities.</p>
-                                <textarea id="about_you" name="field_values[about_you]" rows="5" required class="{{ $textareaClasses }}">{{ old('field_values.about_you', $version?->field_values['about_you'] ?? '') }}</textarea>
-                            </div>
-
-                            <div class="{{ $sectionHeadingClasses }}">
-                                <x-ui.eyebrow as="span">PEER MOCK INTERVIEW</x-ui.eyebrow>
-                                <p class="{{ $hintClasses }}">Prepare your questions and answer your partner's questions. Partner questions and answers remain owned by the other participant.</p>
-                            </div>
-
-                            <section class="grid grid-cols-1 gap-3" aria-labelledby="partner-practice-questions-title">
-                                <div class="{{ $sectionHeadingClasses }}">
-                                    <x-ui.eyebrow as="h3" id="partner-practice-questions-title" class="m-0">{{ strtoupper($interviewPartner?->name ?? 'PARTNER') }}'S PRACTICE QUESTIONS FOR ME</x-ui.eyebrow>
-                                </div>
-                                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                    @foreach($practiceRows as $practice)
-                                        <div class="{{ $rowClasses }}">
-                                            <strong>Q{{ $practice['number'] }}</strong>
-                                            @if($practice['partner_question'])
-                                                <p class="m-0 font-bold">Partner Question</p>
-                                                <div class="min-w-0 rounded-xl bg-surface-sunken p-4">
-                                                    <x-formatted-text :text="$practice['partner_question']" />
-                                                </div>
-                                                <label for="practice-answer-{{ $practice['number'] }}" class="{{ $labelClasses }}">My Answer</label>
-                                                <textarea id="practice-answer-{{ $practice['number'] }}" name="field_values[practice_answers][{{ $practice['number'] }}]" rows="4" maxlength="10000" class="{{ $textareaClasses }}">{{ old('field_values.practice_answers.'.$practice['number'], $practice['answer']) }}</textarea>
-                                            @else
-                                                <p class="{{ $hintClasses }}">Waiting for your partner to prepare this question.</p>
-                                            @endif
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </section>
-
-                            <section class="grid grid-cols-1 gap-3" aria-labelledby="my-practice-questions-title">
-                                <div class="{{ $sectionHeadingClasses }}">
-                                    <x-ui.eyebrow as="h3" id="my-practice-questions-title" class="m-0">MY PRACTICE QUESTIONS FOR {{ strtoupper($interviewPartner?->name ?? 'MY PARTNER') }}</x-ui.eyebrow>
-                                    <p class="{{ $hintClasses }}">Write open-ended questions. Do not reproduce the official questionnaire.</p>
-                                </div>
-                                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                    @foreach($practiceRows as $practice)
-                                        <div class="{{ $rowClasses }}">
-                                            <label for="practice-question-{{ $practice['number'] }}" class="{{ $labelClasses }}">Q{{ $practice['number'] }} · My Question</label>
-                                            <textarea id="practice-question-{{ $practice['number'] }}" name="field_values[practice_questions][{{ $practice['number'] }}]" rows="4" maxlength="5000" @disabled($practice['is_locked']) class="{{ $textareaClasses }}">{{ old('field_values.practice_questions.'.$practice['number'], $practice['own_question']) }}</textarea>
-                                            @if($practice['is_locked'])
-                                                <p class="{{ $hintClasses }}">Answered by {{ $interviewPartner?->name }} — question locked.</p>
-                                            @else
-                                                <p class="{{ $hintClasses }}">Partner Answer: Waiting for {{ $interviewPartner?->name ?? 'your partner' }} to answer.</p>
-                                            @endif
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </section>
-
-                            <section class="grid grid-cols-1 gap-3" aria-labelledby="partner-answers-title">
-                                <div class="{{ $sectionHeadingClasses }}">
-                                    <x-ui.eyebrow as="h3" id="partner-answers-title" class="m-0">PARTNER ANSWERS</x-ui.eyebrow>
-                                </div>
-                                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                    @foreach($practiceRows as $practice)
-                                        @if($practice['is_locked'])
-                                            <div class="{{ $rowClasses }}">
-                                                <strong>Q{{ $practice['number'] }}</strong>
-                                                <p class="{{ $hintClasses }}">Answered by {{ $interviewPartner?->name }} — question locked.</p>
-                                                <x-formatted-text :text="$practice['partner_answer']" />
-                                            </div>
-                                        @endif
-                                    @endforeach
-                                </div>
-                            </section>
                         @endif
 
                         @foreach($fieldSections as $section)
@@ -345,7 +199,7 @@
                         <p class="m-0 text-sm text-muted data-error:text-rose-300" data-autosave-status role="status" aria-live="polite">Changes save automatically.</p>
                     </form>
 
-                    @if($isPeerInterview)
+                    @if($hasMentorInterview)
                         <section class="grid grid-cols-1 gap-5 border-t border-line pt-5" aria-label="Mentor mock interview">
                             <div class="{{ $sectionHeadingClasses }}">
                                 <x-ui.eyebrow as="span">MENTOR MOCK INTERVIEW</x-ui.eyebrow>
@@ -360,13 +214,6 @@
                                         <x-ui.alert tone="warning" class="grid w-full gap-1">
                                             <strong>CALENDAR / GOOGLE MEET UNAVAILABLE</strong>
                                             <span>Calendar / Google Meet scheduling is temporarily unavailable while the integration is being configured. Your existing Google Drive connection is not affected.</span>
-                                        </x-ui.alert>
-                                    @elseif($peerWaiver)
-                                        <x-ui.alert tone="success" class="w-full">✓ Peer mock interview requirement waived by Coach/Admin.</x-ui.alert>
-                                    @elseif(! $peerPrerequisiteSatisfied)
-                                        <x-ui.alert tone="error" class="grid w-full gap-1">
-                                            <strong>MENTOR SCHEDULING UNAVAILABLE</strong>
-                                            <span>Your partner mock interview is still incomplete. Complete the required peer interview steps before scheduling with your Mentor.</span>
                                         </x-ui.alert>
                                     @endif
 
@@ -391,9 +238,6 @@
                                             </form>
                                         </details>
                                     @else
-                                        @if(! $peerPrerequisiteSatisfied)
-                                            <x-ui.button variant="secondary" disabled aria-disabled="true">Schedule Mock Interview — disabled</x-ui.button>
-                                        @endif
                                         <p class="{{ $stepClasses['incomplete'] }} m-0 w-full">
                                             <span class="w-4 shrink-0" aria-hidden="true">○</span>
                                             Mentor mock interview scheduled <span class="sr-only">(incomplete)</span>
@@ -418,7 +262,7 @@
                             @endif
                             <script>
                                 (() => {
-                                    const mentorEligible = @json($peerPrerequisiteSatisfied && $participantCalendarEnabled);
+                                    const mentorEligible = @json($participantCalendarEnabled);
                                     if (mentorEligible) {
                                         return;
                                     }

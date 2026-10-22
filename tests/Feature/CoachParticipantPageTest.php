@@ -12,7 +12,6 @@ use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\WeekFourPeerInterviewWaiver;
 use App\Models\WeeklyVideoRecording;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -23,9 +22,10 @@ class CoachParticipantPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_heading_comes_first_then_four_tabs_with_submissions_selected(): void
+    public function test_heading_comes_first_then_three_tabs_with_submissions_selected(): void
     {
-        $this->peerInterviewActivity();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 4, 'position' => 4]);
+        Activity::factory()->for($week, 'week')->create(['position' => 2]);
         [$coach, $participant] = $this->assignedCoachAndParticipant();
 
         $this->actingAs($coach)->get(route('coach.participants.show', $participant))
@@ -38,11 +38,11 @@ class CoachParticipantPageTest extends TestCase
                 'id="participant-tab-submissions"',
                 'id="participant-tab-gates"',
                 'id="participant-tab-attendance"',
-                'id="participant-tab-week-four"',
             ], false)
             ->assertSee('id="participant-tab-submissions" aria-controls="participant-panel-submissions" aria-selected="true"', false)
-            ->assertSee('id="participant-panel-week-four"', false)
-            ->assertSee('Peer mock interview prerequisite is active.');
+            ->assertDontSee('participant-tab-week-four', false)
+            ->assertDontSee('participant-panel-week-four', false)
+            ->assertDontSee('Peer Mock Interview Requirement');
     }
 
     public function test_heading_shows_the_shared_training_path_label(): void
@@ -53,48 +53,6 @@ class CoachParticipantPageTest extends TestCase
         $this->actingAs($coach)->get(route('coach.participants.show', $participant))
             ->assertOk()
             ->assertSee(e($participant->email).' · Automation / Manual', false);
-    }
-
-    public function test_week_four_tab_is_hidden_without_the_peer_interview_activity(): void
-    {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-
-        $this->actingAs($coach)->get(route('coach.participants.show', $participant))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'id="participant-tab-submissions"',
-                'id="participant-tab-gates"',
-                'id="participant-tab-attendance"',
-            ], false)
-            ->assertDontSee('participant-tab-week-four', false)
-            ->assertDontSee('participant-panel-week-four', false)
-            ->assertDontSee('Peer Mock Interview Requirement');
-    }
-
-    public function test_peer_waiver_forms_ask_for_confirmation_through_data_confirm(): void
-    {
-        $peerActivity = $this->peerInterviewActivity();
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-
-        $this->actingAs($coach)->get(route('coach.participants.show', $participant))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'action="'.route('coach.week-four.peer-waiver.store', $participant).'"',
-                'data-confirm="Allow this participant to skip the peer mock interview requirement?"',
-                '>Allow Skip Peer Mock Interview</button>',
-            ], false)
-            ->assertDontSee('onsubmit=', false);
-
-        WeekFourPeerInterviewWaiver::create(['participant_id' => $participant->id, 'activity_id' => $peerActivity->id, 'authorized_by_id' => $coach->id, 'waived_at' => now()]);
-
-        $this->actingAs($coach)->get(route('coach.participants.show', $participant))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'action="'.route('coach.week-four.peer-waiver.revoke', $participant).'"',
-                'data-confirm="Revoke this peer mock interview waiver?"',
-                '>Revoke Waiver</button>',
-            ], false)
-            ->assertDontSee('onsubmit=', false);
     }
 
     #[DataProvider('viewerAccess')]
@@ -209,17 +167,15 @@ class CoachParticipantPageTest extends TestCase
 
     public function test_participant_page_query_count_does_not_grow_with_submissions_videos_and_attendance(): void
     {
-        $peerActivity = $this->peerInterviewActivity();
-
-        $this->assertSame($this->participantPageQueryCount(1, $peerActivity), $this->participantPageQueryCount(3, $peerActivity));
+        $this->assertSame($this->participantPageQueryCount(1), $this->participantPageQueryCount(3));
     }
 
     /**
      * Give a new participant the given number of weeks, each with a Gate, a submission with two versions, a weekly
-     * video recording and a completed attendance session, plus an open session and a peer interview waiver,
-     * and count the queries of the assigned coach's page request after a warm-up request.
+     * video recording and a completed attendance session, plus an open session, and count the queries of the assigned
+     * coach's page request after a warm-up request.
      */
-    private function participantPageQueryCount(int $rows, Activity $peerActivity): int
+    private function participantPageQueryCount(int $rows): int
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         $program = Program::factory()->create();
@@ -235,13 +191,12 @@ class CoachParticipantPageTest extends TestCase
             AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subDays($position)->subHours(8), 'check_out_at' => now()->subDays($position), 'total_seconds' => 28800]);
         }
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subHour()]);
-        WeekFourPeerInterviewWaiver::create(['participant_id' => $participant->id, 'activity_id' => $peerActivity->id, 'authorized_by_id' => $coach->id, 'waived_at' => now()]);
 
         $this->actingAs($coach)->get(route('coach.participants.show', $participant))->assertOk();
 
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $this->actingAs($coach)->get(route('coach.participants.show', $participant))->assertOk()->assertSee("week-{$rows}.mp4")->assertSee('Peer Mock Interview: Skipped');
+        $this->actingAs($coach)->get(route('coach.participants.show', $participant))->assertOk()->assertSee("week-{$rows}.mp4");
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());
@@ -259,15 +214,5 @@ class CoachParticipantPageTest extends TestCase
         $coach->assignedParticipants()->attach($participant->id);
 
         return [$coach, $participant];
-    }
-
-    /**
-     * The Week 4 peer mock interview activity (Activity 2 of a Week 4).
-     */
-    private function peerInterviewActivity(): Activity
-    {
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 4, 'position' => 4]);
-
-        return Activity::factory()->for($week, 'week')->create(['position' => 2]);
     }
 }

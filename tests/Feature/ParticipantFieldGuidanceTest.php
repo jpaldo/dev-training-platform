@@ -150,7 +150,7 @@ class ParticipantFieldGuidanceTest extends TestCase
             ],
             4 => [
                 'Build & Validate a Reusable AI Asset' => ['asset_name', 'asset_type', 'asset_purpose', 'asset_content', 'original_task', 'original_use', 'second_task', 'reuse_method', 'reuse_result', 'reuse_modified', 'reuse_changes', 'reusability_learning', 'reusability_improvement'],
-                'Mock Level 3 Interview' => ['partner_user_id', 'interview_date', 'interview_notes', 'question_1_answer', 'question_1_partner_feedback', 'question_2_answer', 'question_2_partner_feedback', 'question_3_answer', 'question_3_partner_feedback', 'about_you', 'question_1_usage', 'question_1_usage_explanation', 'question_2_depth', 'question_2_depth_explanation', 'question_3_tools', 'question_4_workday', 'question_5_recent_example', 'question_6_validation', 'question_6_validation_explanation', 'question_7_complex_work', 'question_8_others', 'question_9_mistake', 'question_10_when_not', 'question_11_next_skills', 'question_12_sharing', 'question_12_sharing_explanation', 'question_13_learning', 'question_14_future_role', 'question_15_failed_attempt'],
+                'Mock Level 3 Interview' => ['partner_user_id', 'interview_date', 'interview_notes', 'question_1_answer', 'question_1_partner_feedback', 'question_2_answer', 'question_2_partner_feedback', 'question_3_answer', 'question_3_partner_feedback', 'about_you'],
                 'Strict-mode Leveling Assessment' => ['strict_interview_transcript', 'assessment_tracker_result', 'assessment_level', 'assessment_confidence'],
             ],
         ];

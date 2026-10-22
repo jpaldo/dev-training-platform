@@ -155,21 +155,15 @@ class CoachSubmissionReviewPageTest extends TestCase
         $this->assertDatabaseCount('submission_reviews', 0);
     }
 
-    public function test_week_four_interview_shows_the_official_questionnaire_instead_of_the_activity_details(): void
+    public function test_week_four_interview_shows_the_submitted_activity_details_without_the_questionnaire(): void
     {
-        [$coach, $version] = $this->assignedCoachWithVersion('submitted', [], weekNumber: 4, position: 2);
-        $firstQuestion = config('training.week_four_interview_questions')[1];
+        [$coach, $version] = $this->assignedCoachWithVersion('submitted', ['interview_notes' => 'Covered regression risk.'], weekNumber: 4, position: 2);
 
         $this->actingAs($coach)->get(route('coach.reviews.show', $version))
             ->assertOk()
-            ->assertSeeInOrder([
-                'Participant Submission',
-                'Official AI Proficiency Interview Questionnaire',
-                'href="'.route('coach.week-four.questionnaire').'"', '>Open full questionnaire</a>',
-                'Q1 · '.$firstQuestion['title'], $firstQuestion['prompt'],
-                'Evidence', 'No evidence attached.',
-            ])
-            ->assertDontSee('Submitted Activity Details');
+            ->assertSeeInOrder(['Submitted Activity Details', 'Interview Notes', 'Covered regression risk.', 'Evidence'])
+            ->assertDontSee('Official AI Proficiency Interview Questionnaire')
+            ->assertDontSee('Week 4 snapshot');
     }
 
     public function test_submission_field_labels_come_from_the_loaded_activity_requirements(): void

@@ -28,15 +28,14 @@ class ActivitySubmissionPageService
         private readonly SubmissionWorkflowService $workflow,
         private readonly GoogleDriveConfigurationService $googleConfiguration,
         private readonly SubmissionAnswerPresenter $answers,
-        private readonly WeekFourReviewPresenter $weekFour,
-        private readonly WeekFourSubmissionPresenter $weekFourSubmission,
+        private readonly MentorInterviewSchedulingService $mentorScheduling,
         private readonly SafeMarkdownRenderer $markdown,
         private readonly EvidenceFilePolicy $evidenceFiles,
     ) {}
 
     /**
      * Data for the submission form: the latest attempt and version, the main action, the coach feedback, the field
-     * sections and evidence rows, the version history, and for Week 4 the activity guide and the mock interview context.
+     * sections and evidence rows, the version history, and for Week 4 Activity 2 the mentor mock interview booking.
      *
      * @return array<string, mixed>
      */
@@ -45,11 +44,10 @@ class ActivitySubmissionPageService
         $submission = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $participant->id)->with(['versions' => fn (Relation $query): Relation => $query->with(['evidence', 'reviews', 'interactions'])->orderByDesc('version_number')])->orderByDesc('attempt_number')->first();
         $version = $submission?->versions->first();
         $fields = $this->workflow->fieldDefinitions($activity, $participant);
-        $isPeerInterview = $trainingWeek->week_number === 4 && $activity->position === 2;
+        $hasMentorInterview = $trainingWeek->week_number === 4 && $activity->position === 2;
         $showInteractions = collect($fields)->keys()->intersect(['prompt', 'exact_prompt', 'ai_output', 'exact_ai_output'])->isNotEmpty();
         /** @var ?SubmissionReview $coachFeedback */
         $coachFeedback = $submission?->versions->flatMap->reviews->sortByDesc('reviewed_at')->firstWhere('decision', ReviewDecision::NeedsRevision);
-        $weekFourInterview = $this->weekFourSubmission->interviewData($participant, $trainingWeek, $activity, $version);
 
         return [
             'user' => $participant,
@@ -64,24 +62,26 @@ class ActivitySubmissionPageService
                 default => null,
             },
             'coachFeedback' => $coachFeedback?->comments ? $this->markdown->render($coachFeedback->comments) : null,
-            'isPeerInterview' => $isPeerInterview,
+            'hasMentorInterview' => $hasMentorInterview,
             'showInteractions' => $showInteractions,
             'interactionRows' => $showInteractions ? $this->interactionRows($version) : [],
-            'fieldSections' => $isPeerInterview ? [] : $this->fieldSections($fields),
+            'fieldSections' => $this->fieldSections($fields),
             'artifactTypes' => config('training.artifact_types'),
             'evidenceRows' => $this->evidenceRows($this->workflow->evidenceRequirements($activity, $participant), $version),
             'versionRows' => $this->versionRows($submission?->versions ?? collect(), $version),
-            ...$weekFourInterview,
-            'weekFourGuide' => $trainingWeek->week_number === 4 ? $this->weekFourSubmission->guide($participant, $activity, $version) : null,
+            'mentor' => $hasMentorInterview ? $this->mentorScheduling->assignedMentor($participant) : null,
+            'mentorSchedule' => $hasMentorInterview ? $this->mentorScheduling->openScheduleFor($participant, $activity) : null,
+            'mentorInterviewTimezone' => config('training.week_four_mentor_interview_timezone'),
+            'mentorInterviewDurationMinutes' => config('training.week_four_mentor_interview_duration_minutes'),
             'participantCalendarEnabled' => $this->googleConfiguration->participantCalendarEnabled(),
         ];
     }
 
     /**
      * Data for a submitted version: the status summary, the labelled answers, the evidence, the coach reviews with the
-     * published score and its dimension rows, the Week 4 review block, and the submitted version history.
+     * published score and its dimension rows, and the submitted version history.
      *
-     * @return array{pathLabel: string, statusLabel: string, statusTone: string, responses: Collection<int|string, array{label: string, value: mixed, text: mixed}>, evidenceItems: Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, reviewRows: list<array{decision_label: string, tone: string, comments: ?string}>, finalScore: ?ActivityScore, dimensionRows: list<array{dimension: string, points: int, evidence_reasoning: string}>, isAwaitingRevision: bool, weekFourReview: ?array<string, mixed>, weekFourTitle: ?string, versionRows: list<array{version: SubmissionVersion, status_label: string, tone: string, is_current: bool}>}
+     * @return array{pathLabel: string, statusLabel: string, statusTone: string, responses: Collection<int|string, array{label: string, value: mixed, text: mixed}>, evidenceItems: Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, reviewRows: list<array{decision_label: string, tone: string, comments: ?string}>, finalScore: ?ActivityScore, dimensionRows: list<array{dimension: string, points: int, evidence_reasoning: string}>, isAwaitingRevision: bool, versionRows: list<array{version: SubmissionVersion, status_label: string, tone: string, is_current: bool}>}
      */
     public function showData(User $participant, Activity $activity, SubmissionVersion $version): array
     {
@@ -92,7 +92,6 @@ class ActivitySubmissionPageService
             'text' => is_scalar($value) ? $value : json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ]);
         $finalScore = $version->publishedActivityScore;
-        $weekFourReview = $this->weekFour->present($activity, $version->field_values ?? []);
         $versions = $version->submission->versions;
 
         return [
@@ -109,12 +108,6 @@ class ActivitySubmissionPageService
             'finalScore' => $finalScore,
             'dimensionRows' => $this->dimensionRows($finalScore),
             'isAwaitingRevision' => $version->submission->needsRevision(),
-            'weekFourReview' => $weekFourReview,
-            'weekFourTitle' => $weekFourReview ? match ($activity->position) {
-                1 => 'Reusable AI Asset',
-                2 => 'Mock Level 3 Interview',
-                default => 'Strict-mode Leveling Assessment',
-            } : null,
             'versionRows' => $versions->count() > 1 ? $this->versionRows($versions->where('status', '!=', SubmissionStatus::Draft)->sortByDesc('version_number'), $version) : [],
         ];
     }

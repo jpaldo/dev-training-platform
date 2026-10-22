@@ -7,7 +7,6 @@ use App\Models\AttendanceSession;
 use App\Models\GateEvaluation;
 use App\Models\GoogleDriveConnection;
 use App\Models\User;
-use App\Models\WeekFourInterviewPair;
 use Closure;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -39,7 +38,6 @@ class CoachParticipantListPageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 'COACH · PARTICIPANTS',
-                'Assign reciprocal partners',
                 'aria-label="Filter participants"',
                 'Participant training overview',
                 '>Ada Assigned</strong>', 'Manual QA', 'Assigned to me', 'Coach Carter',
@@ -53,7 +51,8 @@ class CoachParticipantListPageTest extends TestCase
                 'Showing 1–3 of 3 participants',
             ], false)
             ->assertDontSee('Admin access')
-            ->assertDontSee('Daily Logs');
+            ->assertDontSee('Daily Logs')
+            ->assertDontSee('Assign reciprocal partners');
     }
 
     public function test_admin_has_admin_access_to_every_participant(): void
@@ -67,90 +66,6 @@ class CoachParticipantListPageTest extends TestCase
             ->assertSeeInOrder(['>'.$participant->name.'</strong>', 'Admin access', $coach->name], false)
             ->assertDontSee('Assigned to me')
             ->assertDontSee('Not assigned');
-    }
-
-    public function test_pairing_form_lists_active_candidates_with_their_mentor_and_the_active_pairs_once(): void
-    {
-        $coach = User::factory()->create(['role' => 'coach', 'name' => 'Coach Carter']);
-        $ann = User::factory()->create(['name' => 'Ann Alpha', 'email' => 'ann@example.test']);
-        $ben = User::factory()->create(['name' => 'Ben Beta', 'email' => 'ben@example.test']);
-        $cal = User::factory()->create(['name' => 'Cal Gamma', 'email' => 'cal@example.test']);
-        User::factory()->create(['name' => 'Ina Inactive', 'is_active' => false]);
-        $coach->assignedParticipants()->attach([$ann->id, $ben->id, $cal->id]);
-        $activePair = WeekFourInterviewPair::create(['participant_one_id' => $ann->id, 'participant_two_id' => $ben->id, 'assigned_by_id' => $coach->id, 'status' => 'active']);
-        $inactivePair = WeekFourInterviewPair::create(['participant_one_id' => $ann->id, 'participant_two_id' => $cal->id, 'assigned_by_id' => $coach->id, 'status' => 'inactive']);
-
-        $response = $this->actingAs($coach)->get(route('coach.participants'))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'action="'.route('coach.week-four.pairs.assign').'"',
-                'name="participant_one_id"',
-                '<option value="'.$ann->id.'">Ann Alpha — Mentor: Coach Carter (ann@example.test)</option>',
-                'name="participant_two_id"',
-                '<option value="'.$cal->id.'">Cal Gamma — Mentor: Coach Carter (cal@example.test)</option>',
-                'Assign pair',
-                'Active peer interview pairs',
-                'Ann Alpha (ann@example.test) ↔ Ben Beta (ben@example.test)',
-                'action="'.route('coach.week-four.pairs.unpair', $activePair).'"',
-                'data-confirm="Unpair these participants? Existing submitted history will be preserved."',
-                'Unpair',
-            ], false)
-            ->assertDontSee('onsubmit=', false)
-            ->assertDontSee('Ina Inactive — Mentor')
-            ->assertDontSee(route('coach.week-four.pairs.unpair', $inactivePair), false);
-
-        $this->assertSame(1, substr_count($response->getContent(), '↔'));
-    }
-
-    public function test_a_coach_is_offered_only_the_participants_and_pairs_they_manage(): void
-    {
-        $coach = User::factory()->create(['role' => 'coach']);
-        $otherCoach = User::factory()->create(['role' => 'coach']);
-        $ann = User::factory()->create(['name' => 'Ann Alpha']);
-        $ben = User::factory()->create(['name' => 'Ben Beta']);
-        $oli = User::factory()->create(['name' => 'Oli Other']);
-        $una = User::factory()->create(['name' => 'Una Unassigned']);
-        $coach->assignedParticipants()->attach([$ann->id, $ben->id]);
-        $otherCoach->assignedParticipants()->attach($oli->id);
-        $managedPair = WeekFourInterviewPair::create(['participant_one_id' => $ann->id, 'participant_two_id' => $ben->id, 'assigned_by_id' => $coach->id, 'status' => 'active']);
-        $mixedPair = WeekFourInterviewPair::create(['participant_one_id' => $ann->id, 'participant_two_id' => $oli->id, 'assigned_by_id' => $otherCoach->id, 'status' => 'active']);
-        $otherPair = WeekFourInterviewPair::create(['participant_one_id' => $oli->id, 'participant_two_id' => $una->id, 'assigned_by_id' => $otherCoach->id, 'status' => 'active']);
-
-        $response = $this->actingAs($coach)->get(route('coach.participants'))
-            ->assertOk()
-            ->assertSee('<option value="'.$ann->id.'">Ann Alpha — Mentor:', false)
-            ->assertSee('<option value="'.$ben->id.'">Ben Beta — Mentor:', false)
-            ->assertDontSee('<option value="'.$oli->id.'">', false)
-            ->assertDontSee('<option value="'.$una->id.'">', false)
-            ->assertSee(route('coach.week-four.pairs.unpair', $managedPair), false)
-            ->assertDontSee(route('coach.week-four.pairs.unpair', $mixedPair), false)
-            ->assertDontSee(route('coach.week-four.pairs.unpair', $otherPair), false);
-
-        $this->assertSame(1, substr_count($response->getContent(), '↔'));
-
-        $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.participants'))
-            ->assertOk()
-            ->assertSee('<option value="'.$oli->id.'">', false)
-            ->assertSee('<option value="'.$una->id.'">', false)
-            ->assertSee(route('coach.week-four.pairs.unpair', $mixedPair), false)
-            ->assertSee(route('coach.week-four.pairs.unpair', $otherPair), false);
-    }
-
-    public function test_a_rejected_pair_assignment_returns_to_the_page_with_the_error(): void
-    {
-        $coach = User::factory()->create(['role' => 'coach']);
-        $managed = User::factory()->create();
-        $unmanaged = User::factory()->create();
-        $coach->assignedParticipants()->attach($managed->id);
-
-        $this->actingAs($coach)
-            ->from(route('coach.participants'))
-            ->followingRedirects()
-            ->post(route('coach.week-four.pairs.assign'), ['participant_one_id' => $managed->id, 'participant_two_id' => $unmanaged->id])
-            ->assertOk()
-            ->assertSeeInOrder(['>Participants</h1>', 'role="alert"', 'You are not authorized to pair both participants.', 'Assign reciprocal partners'], false);
-
-        $this->assertSame(0, WeekFourInterviewPair::query()->count());
     }
 
     public function test_filters_keep_their_values_and_an_empty_result_shows_a_notice_instead_of_the_table(): void
@@ -190,21 +105,20 @@ class CoachParticipantListPageTest extends TestCase
 
     /**
      * Create the given number of participants, each assigned to a new coach with a Drive connection, a submission, a
-     * Gate evaluation, an open attendance session and an active pair with the next participant, and count the
-     * queries of that coach's page request after a warm-up request.
+     * Gate evaluation and an open attendance session, and count the queries of that coach's page request after a
+     * warm-up request.
      */
     private function participantListQueryCount(int $participantCount): int
     {
         $coach = User::factory()->create(['role' => 'coach']);
-        $participants = User::factory()->count($participantCount + 1)->create();
+        $participants = User::factory()->count($participantCount)->create();
         $coach->assignedParticipants()->attach($participants->modelKeys());
 
-        foreach ($participants->take($participantCount) as $index => $participant) {
+        foreach ($participants as $participant) {
             GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => "account-{$participant->id}", 'google_email' => "drive-{$participant->id}@gmail.com", 'access_token' => 'access', 'connected_at' => now()]);
             ActivitySubmission::factory()->for($participant, 'participant')->create();
             GateEvaluation::factory()->for($participant, 'participant')->create();
             AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subHour()]);
-            WeekFourInterviewPair::create(['participant_one_id' => $participant->id, 'participant_two_id' => $participants[$index + 1]->id, 'assigned_by_id' => $coach->id, 'status' => 'active']);
         }
 
         $this->actingAs($coach)->get(route('coach.participants'))->assertOk();

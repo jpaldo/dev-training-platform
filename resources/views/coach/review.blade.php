@@ -32,30 +32,6 @@
                 <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
             @endif
 
-            @if($weekFourReview)
-                <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-3" aria-labelledby="week-four-review-title">
-                    <p class="{{ $hintClasses }}">Participant submission · immutable Week 4 snapshot for Version {{ $submissionVersion->version_number }}</p>
-                    <h2 id="week-four-review-title" class="{{ $sectionTitleClasses }}">Participant Submission</h2>
-                    @include('components.week-four-review', ['review' => $weekFourReview])
-                </x-ui.card>
-
-                @if($officialQuestions)
-                    <x-ui.card as="section" class="grid grid-cols-1 justify-items-start gap-4" aria-labelledby="official-questions-title">
-                        <h2 id="official-questions-title" class="{{ $sectionTitleClasses }}">Official AI Proficiency Interview Questionnaire</h2>
-                        <p class="{{ $hintClasses }}">Coach/Mentor/Admin reference only. These official questions are separate from the participant-authored peer practice questions above.</p>
-                        <x-ui.button variant="secondary" :href="route('coach.week-four.questionnaire')">Open full questionnaire</x-ui.button>
-                        <ol class="m-0 grid w-full list-none gap-3 p-0">
-                            @foreach($officialQuestions as $number => $question)
-                                <li class="{{ $rowClasses }}">
-                                    <strong>Q{{ $number }} · {{ $question['title'] }}</strong>
-                                    <p class="m-0 leading-relaxed">{{ $question['prompt'] }}</p>
-                                </li>
-                            @endforeach
-                        </ol>
-                    </x-ui.card>
-                @endif
-            @endif
-
             @if($canClaim)
                 <x-ui.card as="form" method="POST" action="{{ route('coach.reviews.claim', $submissionVersion) }}" class="grid grid-cols-1 justify-items-start gap-3">
                     @csrf
@@ -71,43 +47,41 @@
                 </x-ui.card>
             @endif
 
-            @if(! $weekFourReview)
-                <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="activity-details-title">
-                    <h2 id="activity-details-title" class="{{ $sectionTitleClasses }}">Submitted Activity Details</h2>
-                    @if($submittedFields !== [])
-                        <ul class="m-0 grid list-none gap-3 p-0">
-                            @foreach($submittedFields as $field)
-                                <li class="{{ $rowClasses }}">
-                                    <strong>{{ $field['label'] }}</strong>
-                                    <div class="{{ $formattedClasses }}">
-                                        <x-formatted-text :text="$field['text']" />
-                                    </div>
-                                </li>
-                            @endforeach
-                        </ul>
-                    @else
-                        <p class="{{ $hintClasses }}">No submitted activity fields were provided.</p>
-                    @endif
+            <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="activity-details-title">
+                <h2 id="activity-details-title" class="{{ $sectionTitleClasses }}">Submitted Activity Details</h2>
+                @if($submittedFields !== [])
+                    <ul class="m-0 grid list-none gap-3 p-0">
+                        @foreach($submittedFields as $field)
+                            <li class="{{ $rowClasses }}">
+                                <strong>{{ $field['label'] }}</strong>
+                                <div class="{{ $formattedClasses }}">
+                                    <x-formatted-text :text="$field['text']" />
+                                </div>
+                            </li>
+                        @endforeach
+                    </ul>
+                @else
+                    <p class="{{ $hintClasses }}">No submitted activity fields were provided.</p>
+                @endif
 
-                    @if($submissionVersion->interactions->isNotEmpty())
-                        <h2 class="{{ $sectionTitleClasses }}">Prompt / output history</h2>
-                        <ul class="m-0 grid list-none gap-3 p-0">
-                            @foreach($submissionVersion->interactions as $interaction)
-                                <li class="{{ $rowClasses }}">
-                                    <strong>Prompt {{ $interaction->sequence }}</strong>
-                                    <div class="{{ $formattedClasses }}">
-                                        <x-formatted-text :text="$interaction->prompt" />
-                                    </div>
-                                    <strong>AI Output {{ $interaction->sequence }}</strong>
-                                    <div class="{{ $formattedClasses }}">
-                                        <x-formatted-text :text="$interaction->output" />
-                                    </div>
-                                </li>
-                            @endforeach
-                        </ul>
-                    @endif
-                </x-ui.card>
-            @endif
+                @if($submissionVersion->interactions->isNotEmpty())
+                    <h2 class="{{ $sectionTitleClasses }}">Prompt / output history</h2>
+                    <ul class="m-0 grid list-none gap-3 p-0">
+                        @foreach($submissionVersion->interactions as $interaction)
+                            <li class="{{ $rowClasses }}">
+                                <strong>Prompt {{ $interaction->sequence }}</strong>
+                                <div class="{{ $formattedClasses }}">
+                                    <x-formatted-text :text="$interaction->prompt" />
+                                </div>
+                                <strong>AI Output {{ $interaction->sequence }}</strong>
+                                <div class="{{ $formattedClasses }}">
+                                    <x-formatted-text :text="$interaction->output" />
+                                </div>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </x-ui.card>
 
             <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="review-evidence-title">
                 <h2 id="review-evidence-title" class="{{ $sectionTitleClasses }}">Evidence</h2>

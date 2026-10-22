@@ -22,55 +22,6 @@
             <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
         @endif
 
-        <x-ui.card as="section" class="grid grid-cols-1 gap-5" aria-labelledby="week-four-pairs-title">
-            <div class="grid gap-2">
-                <x-ui.eyebrow>WEEK 4 · MOCK INTERVIEW PARTNERS</x-ui.eyebrow>
-                <h2 id="week-four-pairs-title" class="m-0 text-xl font-extrabold">Assign reciprocal partners</h2>
-                <p class="m-0 leading-relaxed text-muted">Only coaches and admins can assign a pair. Existing active pairings are protected from accidental replacement.</p>
-                <p class="m-0 text-sm/relaxed text-muted">When assigning a pair, each participant's assigned Mentor is shown in the participant selector. Existing active pairs remain available for additional pairings.</p>
-            </div>
-
-            <form method="POST" action="{{ $assignPairUrl }}" class="m-0 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-                @csrf
-                <div class="grid min-w-0 gap-2">
-                    <label for="participant-one" class="{{ $labelClasses }}">Participant</label>
-                    <select id="participant-one" name="participant_one_id" required class="{{ $controlClasses }}">
-                        <option value="">Select participant</option>
-                        @foreach($pairCandidateOptions as $option)
-                            <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="grid min-w-0 gap-2">
-                    <label for="participant-two" class="{{ $labelClasses }}">Partner</label>
-                    <select id="participant-two" name="participant_two_id" required class="{{ $controlClasses }}">
-                        <option value="">Select partner</option>
-                        @foreach($pairCandidateOptions as $option)
-                            <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <x-ui.button variant="secondary" type="submit">Assign pair</x-ui.button>
-            </form>
-
-            @if($pairs !== [])
-                <section class="grid grid-cols-1 gap-3" aria-labelledby="week-four-active-pairs-title">
-                    <h3 id="week-four-active-pairs-title" class="m-0 text-base font-extrabold">Active peer interview pairs</h3>
-                    <ul class="m-0 grid list-none grid-cols-1 gap-3 p-0">
-                        @foreach($pairs as $pair)
-                            <li class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-field px-4 py-3">
-                                <span class="min-w-0 text-sm/relaxed wrap-anywhere">{{ $pair['participant_one'] }} ↔ {{ $pair['participant_two'] }}</span>
-                                <form method="POST" action="{{ $pair['unpair_url'] }}" class="m-0" data-confirm="Unpair these participants? Existing submitted history will be preserved.">
-                                    @csrf
-                                    <x-ui.button variant="secondary" type="submit">Unpair</x-ui.button>
-                                </form>
-                            </li>
-                        @endforeach
-                    </ul>
-                </section>
-            @endif
-        </x-ui.card>
-
         <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] md:items-end" aria-label="Filter participants">
             <div class="grid min-w-0 gap-2">
                 <label for="participant-search" class="{{ $labelClasses }}">Search participant or email</label>

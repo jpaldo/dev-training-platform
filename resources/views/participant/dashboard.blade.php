@@ -162,11 +162,10 @@
                                             <div class="flex flex-wrap items-center gap-2.5 text-sm">
                                                 <x-ui.badge :tone="$activity->participant_status_tone">{{ $activity->participant_status_label }}</x-ui.badge>
                                                 @if($activity->participant_score)<span class="text-muted">Score: <strong class="text-slate-100">{{ $activity->participant_score->total_score }} / {{ $activity->participant_score_max }}</strong></span>@endif
-                                                @if(!$activity->week_four_partner_assigned)<span class="text-muted">Waiting for Partner Assignment</span>@endif
                                             </div>
                                             @if($activity->participant_submission?->isFailed())<span class="text-sm text-muted">Attempt {{ $activity->participant_submission->attempt_number }} is closed. {{ $activity->participant_attempts->count() > 1 ? 'Retry available.' : 'Waiting for coach to create a retry.' }}</span>@endif
                                         </div>
-                                        @if($item['available'] && $activity->week_four_partner_assigned)
+                                        @if($item['available'])
                                             <div class="grid justify-items-start gap-1.5 sm:justify-items-end">
                                                 @if($item['attendance_required'] && ! $activity->participant_submission)<x-ui.button variant="secondary" :href="$activityUrl" disabled>{{ $activity->participant_action }}</x-ui.button>
                                                 @elseif($googleDriveReadinessEnforced && ! $googleDriveReady && ! $activity->participant_submission)<x-ui.button variant="secondary" :href="$activityUrl" disabled>Google Drive setup required</x-ui.button>
@@ -244,20 +243,6 @@
                         @else
                             <p class="m-0 text-sm/relaxed text-muted">Status: Booking Link Configured<br>Schedule your Mock Interview directly through your Mentor's booking calendar.</p>
                             <x-ui.button :href="$mentorBooking->mock_booking_url ?: $mentorBooking->booking_url" target="_blank" rel="noopener noreferrer">Schedule Mock Interview</x-ui.button>
-                        @endif
-                    </x-ui.card>
-                    <x-ui.card class="grid gap-3">
-                        <x-ui.eyebrow>MOCK INTERVIEW PARTNERS</x-ui.eyebrow>
-                        <h2 class="m-0 text-xl font-extrabold">Peer practice</h2>
-                        @if($mockInterviewPartners->isEmpty())
-                            <p class="m-0 text-sm/relaxed text-muted">Not assigned yet.<br>Your QA Coach/Mentor will assign your mock-interview partner.</p>
-                        @else
-                            <ul class="m-0 grid list-none gap-2 p-0 text-sm">
-                                @foreach($mockInterviewPartners as $partner)
-                                    <li class="flex flex-wrap items-center gap-2"><span aria-hidden="true">{{ $partner['status'] === 'unlocked' ? '✓' : '○' }}</span> {{ $partner['name'] }} <x-ui.badge :tone="$partner['status'] === 'unlocked' ? 'success' : 'danger'">Week 4: {{ strtoupper($partner['status']) }}</x-ui.badge></li>
-                                @endforeach
-                            </ul>
-                            <p class="m-0 text-sm/relaxed text-muted">To avoid delays, please follow up with your partner{{ $mockInterviewPartners->count() === 1 ? '' : 's' }} on their Week 4 activities.</p>
                         @endif
                     </x-ui.card>
                 </div>

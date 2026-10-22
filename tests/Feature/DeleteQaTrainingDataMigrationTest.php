@@ -47,9 +47,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         'gate_evaluations',
         'attendance_sessions',
         'weekly_video_recordings',
-        'week_four_partner_feedback',
-        'week_four_interview_pairs',
-        'week_four_peer_interview_waivers',
         'week_four_mentor_interview_schedules',
         'mentor_interview_availabilities',
         'coach_participant_assignments',
@@ -61,7 +58,7 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         $this->seed(QaTrainingProgramSeeder::class);
         $coach = User::factory()->create(['role' => UserRole::Coach]);
         $participant = User::factory()->create();
-        $this->seedTrainingRecords($participant, User::factory()->create(), $coach);
+        $this->seedTrainingRecords($participant, $coach);
 
         $this->migration()->up();
 
@@ -86,7 +83,7 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         $admin = User::factory()->create(['role' => UserRole::Admin]);
         $coach = User::factory()->create(['role' => UserRole::Coach]);
         $participant = User::factory()->create();
-        $this->seedTrainingRecords($participant, User::factory()->create(), $coach);
+        $this->seedTrainingRecords($participant, $coach);
         $coachAudit = AdminAuditLog::query()->create(['actor_id' => $admin->id, 'target_user_id' => $coach->id, 'action' => 'user_updated']);
         $participantAudit = AdminAuditLog::query()->create(['actor_id' => $admin->id, 'target_user_id' => $participant->id, 'action' => 'user_created']);
         DB::table('google_drive_connections')->insert(['user_id' => $admin->id, 'access_token' => 'admin-token', 'connected_at' => now()]);
@@ -119,7 +116,7 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         Storage::disk('local')->put(self::VIDEO_PATH, 'video');
         Storage::disk('local')->put('public-interview/booking.pdf', 'kept');
         $this->seed(QaTrainingProgramSeeder::class);
-        $this->seedTrainingRecords(User::factory()->create(), User::factory()->create(), User::factory()->create(['role' => UserRole::Coach]));
+        $this->seedTrainingRecords(User::factory()->create(), User::factory()->create(['role' => UserRole::Coach]));
 
         $this->migration()->up();
 
@@ -147,7 +144,7 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
      * seeded QA program. Rows go in through the query builder: most of these tables have no factory and their
      * models are removed during Phase 2.
      */
-    private function seedTrainingRecords(User $participant, User $partner, User $coach): void
+    private function seedTrainingRecords(User $participant, User $coach): void
     {
         $week = TrainingWeek::query()->firstOrFail();
         $activity = Activity::query()->firstOrFail();
@@ -166,7 +163,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         ]);
         $scoreId = DB::table('activity_scores')->insertGetId(['submission_version_id' => $versionId, 'scorer_id' => $coach->id]);
         $gateEvaluationId = DB::table('gate_evaluations')->insertGetId(['training_gate_id' => $criterion->training_gate_id, 'user_id' => $participant->id, 'reviewer_id' => $coach->id]);
-        $pairId = DB::table('week_four_interview_pairs')->insertGetId(['participant_one_id' => $participant->id, 'participant_two_id' => $partner->id, 'assigned_by_id' => $coach->id]);
         $availabilityId = DB::table('mentor_interview_availabilities')->insertGetId(['mentor_id' => $coach->id, 'available_date' => '2026-10-01', 'start_time' => '09:00', 'end_time' => '10:00']);
 
         DB::table('google_drive_evidence_exports')->insert(['submission_evidence_id' => $evidenceId]);
@@ -190,8 +186,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
             'mime_type' => 'video/mp4',
             'size_bytes' => 5,
         ]);
-        DB::table('week_four_partner_feedback')->insert(['pair_id' => $pairId, 'author_id' => $partner->id, 'recipient_id' => $participant->id, 'question_number' => 1, 'content' => 'Clear answer.']);
-        DB::table('week_four_peer_interview_waivers')->insert(['participant_id' => $participant->id, 'activity_id' => $activity->id, 'authorized_by_id' => $coach->id, 'waived_at' => now()]);
         DB::table('week_four_mentor_interview_schedules')->insert([
             'participant_id' => $participant->id,
             'mentor_id' => $coach->id,

@@ -27,10 +27,9 @@ class StoreSubmissionDraftRequest extends FormRequest
      */
     public function rules(): array
     {
-        $isWeekFourInterview = ($this->route('trainingWeek')?->week_number === 4 && $this->route('activity')?->position === 2);
         $rules = [
             'field_values' => ['nullable', 'array'],
-            'field_values.*' => $isWeekFourInterview ? ['nullable'] : ['nullable', 'string', 'max:'.FieldLimits::TEXTAREA],
+            'field_values.*' => ['nullable', 'string', 'max:'.FieldLimits::TEXTAREA],
             'participant_note' => ['nullable', 'string', 'max:'.FieldLimits::NOTE],
             'interactions' => ['nullable', 'array', 'max:20'],
             'interactions.*' => ['array'],
@@ -39,19 +38,7 @@ class StoreSubmissionDraftRequest extends FormRequest
         ];
 
         foreach ($this->fieldConfigurations() as $key => $configuration) {
-            $rules['field_values.'.$key] = ($configuration['type'] ?? null) === 'participant_selector'
-                ? ['nullable', 'integer']
-                : ['nullable', 'string', 'max:'.FieldLimits::forField($key, $configuration['type'] ?? 'textarea')];
-        }
-
-        if ($isWeekFourInterview) {
-            $rules['field_values.practice_questions'] = ['nullable', 'array', 'max:15'];
-            $rules['field_values.practice_questions.*'] = ['nullable', 'string', 'max:'.FieldLimits::TEXTAREA];
-            $rules['field_values.practice_answers'] = ['nullable', 'array', 'max:15'];
-            $rules['field_values.practice_answers.*'] = ['nullable', 'string', 'max:'.FieldLimits::TEXTAREA];
-            $rules['field_values.about_you'] = ['nullable', 'string', 'max:'.FieldLimits::TEXTAREA];
-            $rules['field_values.interview_date'] = ['nullable', 'date'];
-            $rules['field_values.interview_notes'] = ['nullable', 'string', 'max:'.FieldLimits::TEXTAREA];
+            $rules['field_values.'.$key] = ['nullable', 'string', 'max:'.FieldLimits::forField($key, $configuration['type'] ?? 'textarea')];
         }
 
         return $rules;

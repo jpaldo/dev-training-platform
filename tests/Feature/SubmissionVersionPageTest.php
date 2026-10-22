@@ -106,27 +106,27 @@ class SubmissionVersionPageTest extends TestCase
         ];
     }
 
-    #[DataProvider('weekFourTitles')]
-    public function test_week_four_snapshot_is_titled_by_activity_and_replaces_the_responses(int $position, string $title): void
+    #[DataProvider('weekFourActivityPositions')]
+    public function test_week_four_submissions_show_the_standard_activity_responses(int $position): void
     {
         [$participant, $week, $activity] = $this->activityFixture(4, $position);
         $version = $this->submittedVersion($participant, $activity, 'submitted', ['field_values' => ['asset_name' => 'Regression prompt']]);
 
         $this->actingAs($participant)->get(route('training.submission.show', [$week, $activity, $version]))
             ->assertOk()
-            ->assertSeeInOrder(['immutable Week 4 snapshot for Version 1', $title])
-            ->assertDontSee('Activity responses');
+            ->assertSeeInOrder(['Activity responses', 'Asset Name', 'Regression prompt'])
+            ->assertDontSee('Week 4 snapshot');
     }
 
     /**
-     * @return array<string, array{int, string}>
+     * @return array<string, array{int}>
      */
-    public static function weekFourTitles(): array
+    public static function weekFourActivityPositions(): array
     {
         return [
-            'activity 1' => [1, 'Reusable AI Asset'],
-            'activity 2' => [2, 'Mock Level 3 Interview'],
-            'activity 3' => [3, 'Strict-mode Leveling Assessment'],
+            'activity 1' => [1],
+            'activity 2' => [2],
+            'activity 3' => [3],
         ];
     }
 

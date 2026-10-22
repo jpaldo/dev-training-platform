@@ -5,13 +5,11 @@ namespace App\Services;
 use App\Enums\GateEvaluationStatus;
 use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
-use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\User;
-use App\Models\WeekFourPeerInterviewWaiver;
 use App\Models\WeeklyVideoRecording;
 use Illuminate\Support\Collection;
 
@@ -19,20 +17,18 @@ class CoachParticipantPageService
 {
     public function __construct(
         private readonly CoachGateOverviewService $gateOverview,
-        private readonly WeekFourInterviewService $interviews,
     ) {}
 
     /**
      * Everything the coach participant page renders: the viewer's access level, the submission and weekly video rows,
-     * the Gate rows, the attendance summary, the Week 4 peer interview waiver and the page tabs.
+     * the Gate rows, the attendance summary and the page tabs.
      *
-     * @return array{participant: User, access: string, canManage: bool, submissions: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion}>, videoRecordings: Collection<int, WeeklyVideoRecording>, gates: Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int}>, attendance: array{completed_sessions: int, total_hours: float, active_session: ?AttendanceSession}, weekFourActivity: ?Activity, peerWaiver: ?WeekFourPeerInterviewWaiver, tabs: list<array{key: string, label: string}>, selectedTab: string}
+     * @return array{participant: User, access: string, canManage: bool, submissions: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion}>, videoRecordings: Collection<int, WeeklyVideoRecording>, gates: Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int}>, attendance: array{completed_sessions: int, total_hours: float, active_session: ?AttendanceSession}, tabs: list<array{key: string, label: string}>, selectedTab: string}
      */
     public function showData(User $viewer, User $participant): array
     {
         $participant->load(['activitySubmissions.activity.week', 'activitySubmissions.versions', 'weeklyVideoRecordings.week', 'attendanceSessions', 'assignedCoaches']);
         $canManage = $viewer->canManageParticipant($participant);
-        $weekFourActivity = $this->interviews->peerInterviewActivity();
 
         return [
             'participant' => $participant,
@@ -46,14 +42,11 @@ class CoachParticipantPageService
             'videoRecordings' => $participant->weeklyVideoRecordings->sortByDesc('uploaded_at')->values(),
             'gates' => $this->gateRows($participant),
             'attendance' => $this->attendanceSummary($participant),
-            'weekFourActivity' => $weekFourActivity,
-            'peerWaiver' => $weekFourActivity ? $this->interviews->waiverFor($participant, $weekFourActivity) : null,
-            'tabs' => array_values(array_filter([
+            'tabs' => [
                 ['key' => 'submissions', 'label' => 'Submissions'],
                 ['key' => 'gates', 'label' => 'Gates'],
                 ['key' => 'attendance', 'label' => 'Attendance'],
-                $weekFourActivity ? ['key' => 'week-four', 'label' => 'Week 4'] : null,
-            ])),
+            ],
             'selectedTab' => 'submissions',
         ];
     }

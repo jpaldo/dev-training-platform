@@ -38,7 +38,6 @@ use App\Http\Controllers\TrainingGuideController;
 use App\Http\Controllers\TrainingSyncController;
 use App\Http\Controllers\TrainingWeekController;
 use App\Http\Controllers\WeekFourMentorInterviewController;
-use App\Http\Controllers\WeekFourPeerInterviewController;
 use App\Http\Controllers\WeeklyVideoRecordingController;
 use Illuminate\Support\Facades\Route;
 
@@ -80,7 +79,6 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
     Route::post('/profile/google-drive/destination', [GoogleDriveDestinationController::class, 'store'])->middleware('role:participant')->name('profile.google-drive.destination');
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
     Route::middleware('role:participant')->group(function () {
-        Route::post('/training/week-four/partner-feedback', [WeekFourPeerInterviewController::class, 'storePartnerFeedback'])->name('training.week-four.partner-feedback');
         Route::get('/attendance', [AttendanceController::class, 'participant'])->name('participant.attendance.index');
         Route::post('/attendance/check-in', [AttendanceController::class, 'checkIn'])->name('participant.attendance.check-in');
         Route::post('/attendance/check-out', [AttendanceController::class, 'checkOut'])->name('participant.attendance.check-out');
@@ -130,12 +128,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::get('/mentor-booking-calendar', [MentorBookingCalendarController::class, 'index'])->name('mentor-booking-calendar.index');
         Route::post('/mentor-booking-calendar', [MentorBookingCalendarController::class, 'store'])->name('mentor-booking-calendar.store');
         Route::delete('/mentor-booking-calendar', [MentorBookingCalendarController::class, 'destroy'])->name('mentor-booking-calendar.destroy');
-        Route::get('/week-four/interview-questionnaire', [WeekFourPeerInterviewController::class, 'questionnaire'])->name('week-four.questionnaire');
         Route::get('/participants', [CoachParticipantController::class, 'index'])->name('participants');
-        Route::post('/week-four/interview-pairs', [WeekFourPeerInterviewController::class, 'assignPair'])->name('week-four.pairs.assign');
-        Route::post('/week-four/interview-pairs/{pair}/unpair', [WeekFourPeerInterviewController::class, 'unpair'])->name('week-four.pairs.unpair');
-        Route::post('/week-four/participants/{participant}/peer-waiver', [WeekFourPeerInterviewController::class, 'waive'])->name('week-four.peer-waiver.store');
-        Route::post('/week-four/participants/{participant}/peer-waiver/revoke', [WeekFourPeerInterviewController::class, 'revokeWaiver'])->name('week-four.peer-waiver.revoke');
         Route::get('/participants/{participant}', [CoachParticipantController::class, 'show'])->name('participants.show');
         Route::get('/reviews', [CoachReviewController::class, 'index'])->name('reviews');
         Route::get('/recovery-requests', [RecoveryRequestController::class, 'index'])->name('recovery.index');

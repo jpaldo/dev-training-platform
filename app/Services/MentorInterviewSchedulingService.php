@@ -21,7 +21,7 @@ use Throwable;
 
 class MentorInterviewSchedulingService
 {
-    public function __construct(private readonly GoogleCalendarService $calendar, private readonly WeekFourInterviewService $interviews, private readonly EmailConfigurationService $email, private readonly GoogleDriveConfigurationService $googleConfiguration) {}
+    public function __construct(private readonly GoogleCalendarService $calendar, private readonly EmailConfigurationService $email, private readonly GoogleDriveConfigurationService $googleConfiguration) {}
 
     public function assignedMentor(User $participant): ?User
     {

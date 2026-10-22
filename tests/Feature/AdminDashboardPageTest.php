@@ -9,7 +9,6 @@ use App\Models\Program;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\WeekFourInterviewPair;
 use App\Models\WeekFourMentorInterviewSchedule;
 use App\Services\AdminSettingsStatusService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -31,7 +30,6 @@ class AdminDashboardPageTest extends TestCase
         $gate = TrainingGate::factory()->create(['training_week_id' => $week->id]);
         GateEvaluation::factory()->create(['training_gate_id' => $gate->id, 'user_id' => $first->id, 'status' => 'passed']);
         GateEvaluation::factory()->create(['training_gate_id' => $gate->id, 'user_id' => $second->id, 'status' => 'not_ready']);
-        WeekFourInterviewPair::create(['participant_one_id' => $first->id, 'participant_two_id' => $second->id, 'assigned_by_id' => $admin->id, 'status' => 'active']);
         $mentorInterviews = WeekFourMentorInterviewSchedule::factory()->for($coach, 'mentor')->for($activity);
         $mentorInterviews->scheduled()->for($first, 'participant')->create();
         $mentorInterviews->failed()->for($second, 'participant')->create();
@@ -55,8 +53,6 @@ class AdminDashboardPageTest extends TestCase
                 'NEEDS REVISION', '<dd class="m-0 text-3xl font-black">1</dd>',
                 'PENDING GATES', '<dd class="m-0 text-3xl font-black">1</dd>',
                 'Week 4',
-                'PARTNER ASSIGNED', '<dd class="m-0 text-3xl font-black">2</dd>',
-                'WAITING FOR PARTNER', '<dd class="m-0 text-3xl font-black">1</dd>',
                 'MENTOR INTERVIEWS SCHEDULED', '<dd class="m-0 text-3xl font-black">1</dd>',
                 'CALENDAR ATTENTION', '<dd class="m-0 text-3xl font-black">2</dd>',
                 'System / integration status',
@@ -72,26 +68,9 @@ class AdminDashboardPageTest extends TestCase
                 'href="'.route('training.reusable-assets.index').'"', 'Reusable Asset Library',
                 'href="'.route('coach.dashboard').'"', 'Coach Tools',
                 'href="'.route('admin.settings.index').'"', 'Settings',
-            ], false);
-    }
-
-    public function test_week_four_partner_counts_count_distinct_active_participants_in_active_pairs(): void
-    {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
-        [$shared, $firstPartner, $secondPartner, $closedPartner, $waiting] = User::factory()->count(5)->create()->all();
-        $inactivePartner = User::factory()->create(['is_active' => false]);
-        User::factory()->create(['is_active' => false]);
-        foreach ([[$shared, $firstPartner, 'active'], [$shared, $secondPartner, 'active'], [$closedPartner, $waiting, 'closed'], [$firstPartner, $inactivePartner, 'active']] as [$one, $two, $status]) {
-            WeekFourInterviewPair::create(['participant_one_id' => $one->id, 'participant_two_id' => $two->id, 'assigned_by_id' => $admin->id, 'status' => $status]);
-        }
-
-        $this->actingAs($admin)
-            ->get(route('admin.dashboard'))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'PARTNER ASSIGNED', '<dd class="m-0 text-3xl font-black">3</dd>',
-                'WAITING FOR PARTNER', '<dd class="m-0 text-3xl font-black">2</dd>',
-            ], false);
+            ], false)
+            ->assertDontSee('PARTNER ASSIGNED')
+            ->assertDontSee('WAITING FOR PARTNER');
     }
 
     public function test_week_counts_are_zero_without_an_active_program(): void

@@ -140,36 +140,6 @@
                     </x-ui.card>
                 </div>
             </x-ui.tab-panel>
-
-            @if($weekFourActivity)
-                <x-ui.tab-panel name="week-four" :selected="$selectedTab" id-prefix="participant">
-                    <x-ui.card as="section" class="grid justify-items-start gap-3" aria-labelledby="participant-week-four-title">
-                        <h2 id="participant-week-four-title" class="m-0 text-xl font-extrabold">Peer Mock Interview Requirement</h2>
-                        @if($peerWaiver)
-                            <x-ui.alert tone="success" class="w-full">Peer Mock Interview: Skipped</x-ui.alert>
-                            <p class="m-0 text-sm text-muted">Authorized by {{ $peerWaiver->authorizedBy?->name ?? 'Coach/Admin' }} · {{ $peerWaiver->waived_at?->format('M j, Y g:i A') }}</p>
-                            @if($canManage)
-                                <form method="POST" action="{{ route('coach.week-four.peer-waiver.revoke', $participant) }}" class="m-0" data-confirm="Revoke this peer mock interview waiver?">
-                                    @csrf
-                                    <x-ui.button variant="secondary" type="submit">Revoke Waiver</x-ui.button>
-                                </form>
-                            @endif
-                        @else
-                            <p class="m-0 text-muted">Peer mock interview prerequisite is active.</p>
-                            @if($canManage)
-                                <form method="POST" action="{{ route('coach.week-four.peer-waiver.store', $participant) }}" class="m-0 grid w-full justify-items-start gap-3" data-confirm="Allow this participant to skip the peer mock interview requirement?">
-                                    @csrf
-                                    <div class="grid w-full gap-2">
-                                        <label for="waiver-reason" class="text-sm font-extrabold">Reason (optional)</label>
-                                        <textarea id="waiver-reason" name="reason" rows="3" class="w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50"></textarea>
-                                    </div>
-                                    <x-ui.button variant="secondary" type="submit">Allow Skip Peer Mock Interview</x-ui.button>
-                                </form>
-                            @endif
-                        @endif
-                    </x-ui.card>
-                </x-ui.tab-panel>
-            @endif
         </div>
     </div>
 @endsection

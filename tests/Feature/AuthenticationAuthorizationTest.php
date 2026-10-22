@@ -368,6 +368,18 @@ class AuthenticationAuthorizationTest extends TestCase
         $this->actingAs($participant)->post('/training/weeks/'.$week->id.'/week-three/workspace', ['findings' => []])->assertNotFound();
     }
 
+    public function test_week_four_peer_interview_routes_are_gone(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create();
+        $coach->assignedParticipants()->attach($participant->id);
+
+        $this->actingAs($coach)->get('/coach/week-four/interview-questionnaire')->assertNotFound();
+        $this->actingAs($coach)->post('/coach/week-four/interview-pairs', ['participant_one_id' => $participant->id, 'participant_two_id' => $coach->id])->assertNotFound();
+        $this->actingAs($coach)->post('/coach/week-four/participants/'.$participant->id.'/peer-waiver')->assertNotFound();
+        $this->actingAs($participant)->post('/training/week-four/partner-feedback', ['question_number' => 1, 'content' => 'Clear answer.'])->assertNotFound();
+    }
+
     /**
      * A complete, valid self-registration.
      *

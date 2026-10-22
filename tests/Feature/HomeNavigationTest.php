@@ -6,7 +6,6 @@ use App\Enums\TrainingPath;
 use App\Models\ParticipantNotification;
 use App\Models\Program;
 use App\Models\User;
-use App\Models\WeekFourInterviewPair;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -168,23 +167,5 @@ class HomeNavigationTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Ely Mentor']);
         $participant->assignedCoaches()->attach($coach);
         $this->actingAs($participant->fresh())->get(route('dashboard'))->assertOk()->assertSee('Ely Mentor');
-    }
-
-    public function test_training_session_shows_all_active_mock_interview_partners_and_statuses(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $participant = User::factory()->create(['training_path' => 'manual']);
-        $first = User::factory()->create(['name' => 'Partner One', 'role' => 'participant']);
-        $second = User::factory()->create(['name' => 'Partner Two', 'role' => 'participant']);
-        $admin = User::factory()->create(['role' => 'admin']);
-        WeekFourInterviewPair::create(['participant_one_id' => min($participant->id, $first->id), 'participant_two_id' => max($participant->id, $first->id), 'assigned_by_id' => $admin->id, 'status' => 'active']);
-        WeekFourInterviewPair::create(['participant_one_id' => min($participant->id, $second->id), 'participant_two_id' => max($participant->id, $second->id), 'assigned_by_id' => $admin->id, 'status' => 'active']);
-
-        $this->actingAs($participant)->get(route('dashboard'))->assertOk()
-            ->assertSee('MOCK INTERVIEW PARTNERS')
-            ->assertSee('Partner One')
-            ->assertSee('Partner Two')
-            ->assertSee('Week 4: LOCKED')
-            ->assertSee('follow up with your partners');
     }
 }

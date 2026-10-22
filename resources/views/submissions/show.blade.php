@@ -40,49 +40,41 @@
             @endif
         </x-ui.card>
 
-        @if($weekFourReview)
-            <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-3" aria-labelledby="week-four-review-title">
-                <p class="{{ $hintClasses }}">Participant submission · immutable Week 4 snapshot for Version {{ $submissionVersion->version_number }}</p>
-                <h2 id="week-four-review-title" class="{{ $sectionTitleClasses }}">{{ $weekFourTitle }}</h2>
-                @include('components.week-four-review', ['review' => $weekFourReview])
-            </x-ui.card>
-        @else
-            <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="activity-responses-title">
-                <h2 id="activity-responses-title" class="{{ $sectionTitleClasses }}">Activity responses</h2>
-                @if($responses->isNotEmpty())
-                    <ul class="m-0 grid list-none gap-3 p-0">
-                        @foreach($responses as $response)
-                            <li class="{{ $rowClasses }}">
-                                <strong>{{ $response['label'] }}</strong>
-                                <div class="{{ $formattedClasses }}">
-                                    <x-formatted-text :text="$response['text']" />
-                                </div>
-                            </li>
-                        @endforeach
-                    </ul>
-                @else
-                    <p class="{{ $hintClasses }}">No activity responses were recorded.</p>
-                @endif
+        <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="activity-responses-title">
+            <h2 id="activity-responses-title" class="{{ $sectionTitleClasses }}">Activity responses</h2>
+            @if($responses->isNotEmpty())
+                <ul class="m-0 grid list-none gap-3 p-0">
+                    @foreach($responses as $response)
+                        <li class="{{ $rowClasses }}">
+                            <strong>{{ $response['label'] }}</strong>
+                            <div class="{{ $formattedClasses }}">
+                                <x-formatted-text :text="$response['text']" />
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
+            @else
+                <p class="{{ $hintClasses }}">No activity responses were recorded.</p>
+            @endif
 
-                @if($submissionVersion->interactions->isNotEmpty())
-                    <h2 class="{{ $sectionTitleClasses }}">Prompt / output history</h2>
-                    <ul class="m-0 grid list-none gap-3 p-0">
-                        @foreach($submissionVersion->interactions as $interaction)
-                            <li class="{{ $rowClasses }}">
-                                <strong>Prompt {{ $interaction->sequence }}</strong>
-                                <div class="{{ $formattedClasses }}">
-                                    <x-formatted-text :text="$interaction->prompt" />
-                                </div>
-                                <strong>AI Output {{ $interaction->sequence }}</strong>
-                                <div class="{{ $formattedClasses }}">
-                                    <x-formatted-text :text="$interaction->output" />
-                                </div>
-                            </li>
-                        @endforeach
-                    </ul>
-                @endif
-            </x-ui.card>
-        @endif
+            @if($submissionVersion->interactions->isNotEmpty())
+                <h2 class="{{ $sectionTitleClasses }}">Prompt / output history</h2>
+                <ul class="m-0 grid list-none gap-3 p-0">
+                    @foreach($submissionVersion->interactions as $interaction)
+                        <li class="{{ $rowClasses }}">
+                            <strong>Prompt {{ $interaction->sequence }}</strong>
+                            <div class="{{ $formattedClasses }}">
+                                <x-formatted-text :text="$interaction->prompt" />
+                            </div>
+                            <strong>AI Output {{ $interaction->sequence }}</strong>
+                            <div class="{{ $formattedClasses }}">
+                                <x-formatted-text :text="$interaction->output" />
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </x-ui.card>
 
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="submission-evidence-title">
             <h2 id="submission-evidence-title" class="{{ $sectionTitleClasses }}">Evidence</h2>

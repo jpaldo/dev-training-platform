@@ -10,7 +10,6 @@ use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\User;
-use App\Models\WeekFourInterviewPair;
 use App\Models\WeekFourMentorInterviewSchedule;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -19,9 +18,9 @@ class AdminDashboardPageService
     public function __construct(private readonly AdminSettingsStatusService $settings) {}
 
     /**
-     * Everything the admin dashboard renders: the account counts, the training, review / Gate and Week 4 counts
-     * with their labels, the integration statuses and the admin tool links. The page has no single main action,
-     * so every link is secondary.
+     * Everything the admin dashboard renders: the account counts, the training, review / Gate and Week 4 mentor
+     * interview counts with their labels, the integration statuses and the admin tool links. The page has no single
+     * main action, so every link is secondary.
      *
      * @return array{systemStats: list<array{label: string, value: int}>, trainingStats: list<array{label: string, value: int}>, reviewStats: list<array{label: string, value: int}>, weekFourStats: list<array{label: string, value: int}>, integrationStatuses: list<array{label: string, status: string}>, toolLinks: list<array{label: string, url: string}>}
      */
@@ -29,8 +28,6 @@ class AdminDashboardPageService
     {
         $participantCount = User::query()->where('role', UserRole::Participant)->count();
         $program = Program::query()->where('is_active', true)->first();
-        $activeParticipantCount = User::query()->where('role', UserRole::Participant)->where('is_active', true)->count();
-        $pairedParticipantCount = $this->activeParticipantsInActivePairs();
 
         return [
             'systemStats' => [
@@ -49,8 +46,6 @@ class AdminDashboardPageService
                 ['label' => 'PENDING GATES', 'value' => GateEvaluation::query()->whereNotIn('status', [GateEvaluationStatus::Passed])->count()],
             ],
             'weekFourStats' => [
-                ['label' => 'PARTNER ASSIGNED', 'value' => $pairedParticipantCount],
-                ['label' => 'WAITING FOR PARTNER', 'value' => $activeParticipantCount - $pairedParticipantCount],
                 ['label' => 'MENTOR INTERVIEWS SCHEDULED', 'value' => WeekFourMentorInterviewSchedule::query()->where('status', MentorInterviewScheduleStatus::Scheduled)->count()],
                 ['label' => 'CALENDAR ATTENTION', 'value' => WeekFourMentorInterviewSchedule::query()->whereIn('status', [MentorInterviewScheduleStatus::Failed, MentorInterviewScheduleStatus::Pending])->count()],
             ],
@@ -70,23 +65,6 @@ class AdminDashboardPageService
                 ['label' => 'Settings', 'url' => route('admin.settings.index')],
             ],
         ];
-    }
-
-    /**
-     * The number of distinct active participants in at least one active Week 4 interview pair (a participant may be
-     * in several pairs).
-     */
-    private function activeParticipantsInActivePairs(): int
-    {
-        $activePairs = WeekFourInterviewPair::query()->active();
-
-        return User::query()
-            ->where('role', UserRole::Participant)
-            ->where('is_active', true)
-            ->where(fn (Builder $query): Builder => $query
-                ->whereIn('id', $activePairs->clone()->select('participant_one_id'))
-                ->orWhereIn('id', $activePairs->clone()->select('participant_two_id')))
-            ->count();
     }
 
     /**

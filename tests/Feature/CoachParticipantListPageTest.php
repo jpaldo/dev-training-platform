@@ -9,8 +9,13 @@ use App\Models\GateEvaluation;
 use App\Models\GoogleDriveConnection;
 use App\Models\User;
 use App\Models\WeekFourInterviewPair;
+use Closure;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class CoachParticipantListPageTest extends TestCase
@@ -164,6 +169,21 @@ class CoachParticipantListPageTest extends TestCase
             ->assertDontSee('>Manual Person</strong>', false);
     }
 
+    public function test_rows_count_submissions_and_gate_evaluations_without_loading_them(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create();
+        ActivitySubmission::factory()->count(2)->for($participant, 'participant')->create();
+        GateEvaluation::factory()->count(3)->for($participant, 'participant')->create();
+
+        $retrievedModels = $this->retrievedModelCounts(fn (): TestResponse => $this->actingAs($coach)->get(route('coach.participants'))
+            ->assertOk()
+            ->assertViewHas('participants', fn (LengthAwarePaginator $rows): bool => $rows->first()['submission_count'] === 2 && $rows->first()['gate_count'] === 3));
+
+        $this->assertArrayNotHasKey(ActivitySubmission::class, $retrievedModels);
+        $this->assertArrayNotHasKey(GateEvaluation::class, $retrievedModels);
+    }
+
     public function test_query_count_does_not_grow_with_the_number_of_participants(): void
     {
         $this->assertSame($this->participantListQueryCount(1), $this->participantListQueryCount(3));
@@ -196,5 +216,24 @@ class CoachParticipantListPageTest extends TestCase
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());
+    }
+
+    /**
+     * Count the models of each class retrieved from the database while the callback runs.
+     *
+     * @return array<class-string, int>
+     */
+    private function retrievedModelCounts(Closure $callback): array
+    {
+        $counts = [];
+        Event::listen('eloquent.retrieved: *', function (string $event) use (&$counts): void {
+            $model = Str::after($event, 'eloquent.retrieved: ');
+            $counts[$model] = ($counts[$model] ?? 0) + 1;
+        });
+
+        $callback();
+        Event::forget('eloquent.retrieved: *');
+
+        return $counts;
     }
 }

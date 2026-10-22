@@ -203,6 +203,22 @@ class DailyLogReportPageTest extends TestCase
         $this->assertSame($this->reportQueryCounts(1), $this->reportQueryCounts(3));
     }
 
+    public function test_completion_report_groups_and_counts_logs_in_the_database_without_reading_whole_logs(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create(['name' => 'Ada Alpha']);
+        DailyLog::factory()->count(3)->for($participant, 'participant')->for(Activity::factory())->create();
+
+        DB::enableQueryLog();
+        $this->actingAs($coach)->get(route('coach.reports.daily-logs'))
+            ->assertOk()
+            ->assertSeeInOrder(['Total Logs', '>3</dd>', '>Ada Alpha</strong>', '<strong>3</strong>'], false);
+        DB::disableQueryLog();
+
+        $wholeLogQueries = collect(DB::getQueryLog())->filter(fn (array $query): bool => preg_match('/select (\* |"daily_logs"\.\* )from "daily_logs"/', $query['query']) === 1);
+        $this->assertSame([], $wholeLogQueries->values()->all());
+    }
+
     /**
      * The markup of the select with the given id, options included.
      */

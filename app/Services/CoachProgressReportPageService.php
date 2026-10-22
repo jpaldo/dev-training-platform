@@ -2,12 +2,9 @@
 
 namespace App\Services;
 
-use App\Enums\GateEvaluationStatus;
 use App\Enums\TrainingPath;
-use App\Models\GateEvaluation;
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Pagination\Paginator;
 
 class CoachProgressReportPageService
 {
@@ -37,16 +34,9 @@ class CoachProgressReportPageService
      */
     public function indexData(array $filters, array $query, int $atRiskPage): array
     {
-        $atRiskRows = $this->reports->atRiskRows($filters);
-        $summary = $this->reports->reportSummary($filters, $atRiskRows);
-
-        $atRiskPaginator = new LengthAwarePaginator(
-            $atRiskRows->forPage($atRiskPage, self::ROWS_PER_PAGE)->values(),
-            $atRiskRows->count(),
-            self::ROWS_PER_PAGE,
-            $atRiskPage,
-            ['path' => Paginator::resolveCurrentPath(), 'pageName' => self::AT_RISK_PAGE_NAME],
-        );
+        $atRiskParticipants = $this->reports->atRiskParticipants($filters)
+            ->paginate(self::ROWS_PER_PAGE, pageName: self::AT_RISK_PAGE_NAME, page: $atRiskPage);
+        $summary = $this->reports->reportSummary($filters, $atRiskParticipants->total());
 
         return [
             'exportUrl' => route('coach.reports.export', array_merge($query, ['type' => 'progress'])),
@@ -70,12 +60,12 @@ class CoachProgressReportPageService
                 ->map(fn (string $label, string $key): array => ['label' => $label, 'value' => $summary[$key]])
                 ->values()
                 ->all(),
-            'atRiskRows' => $atRiskPaginator
+            'atRiskRows' => $atRiskParticipants
                 ->withQueryString()
-                ->through(fn (array $row): array => [
-                    'participant_name' => $row['participant']->name,
-                    'path' => $row['participant']->trainingPathLabel(),
-                    'reasons' => implode(' · ', $row['reasons']),
+                ->through(fn (User $participant): array => [
+                    'participant_name' => $participant->name,
+                    'path' => $participant->trainingPathLabel(),
+                    'reasons' => implode(' · ', $this->reports->atRiskReasons($participant)),
                 ]),
             'participantRows' => $this->reports->participants($filters)
                 ->orderBy('name')
@@ -98,8 +88,8 @@ class CoachProgressReportPageService
             'email' => $participant->email,
             'path' => $participant->trainingPathLabel(),
             'mentors' => $participant->assignedCoaches->pluck('name')->filter()->join(', ') ?: 'Not assigned',
-            'submission_count' => $participant->activitySubmissions->count(),
-            'gate_count' => $participant->gateEvaluations->filter(fn (GateEvaluation $evaluation): bool => $evaluation->status === GateEvaluationStatus::Passed)->count(),
+            'submission_count' => $participant->activity_submissions_count,
+            'gate_count' => $participant->passed_gate_evaluations_count,
         ];
     }
 }

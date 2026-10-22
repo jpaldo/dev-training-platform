@@ -11,7 +11,6 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 
 class DailyLogReportPageService
@@ -40,21 +39,17 @@ class DailyLogReportPageService
      */
     public function indexData(array $filters, array $query, int $page): array
     {
-        $logs = $this->matchingLogs($filters);
-        $groups = $this->groupedRows($logs);
+        $totals = $this->matchingLogs($filters)
+            ->toBase()
+            ->selectRaw('count(*) as log_count, count(distinct daily_logs.user_id) as participant_count')
+            ->first();
+        $groups = $this->groupedLogs($filters)->paginate(self::ROWS_PER_PAGE, page: $page);
         $summary = [
-            'participants' => $logs->pluck('user_id')->unique()->count(),
-            'logs' => $logs->count(),
-            'activities' => count($groups),
+            'participants' => (int) $totals->participant_count,
+            'logs' => (int) $totals->log_count,
+            'activities' => $groups->total(),
         ];
-
-        $completionRows = new LengthAwarePaginator(
-            collect($groups)->forPage($page, self::ROWS_PER_PAGE)->values(),
-            count($groups),
-            self::ROWS_PER_PAGE,
-            $page,
-            ['path' => Paginator::resolveCurrentPath()],
-        );
+        $groups->setCollection(collect($this->groupRows($groups->getCollection(), $filters)));
 
         return [
             'exportUrl' => route('coach.reports.daily-logs.export', $query),
@@ -63,7 +58,7 @@ class DailyLogReportPageService
                 ->map(fn (string $label, string $key): array => ['label' => $label, 'value' => $summary[$key]])
                 ->values()
                 ->all(),
-            'completionRows' => $completionRows
+            'completionRows' => $groups
                 ->withQueryString()
                 ->through(fn (array $row): array => [
                     'participant_name' => $row['participant']->name,
@@ -130,7 +125,7 @@ class DailyLogReportPageService
      */
     public function completionRows(array $filters): array
     {
-        return $this->groupedRows($this->matchingLogs($filters));
+        return $this->groupRows($this->groupedLogs($filters)->get(), $filters);
     }
 
     /**
@@ -193,16 +188,14 @@ class DailyLogReportPageService
     }
 
     /**
-     * Every Daily Log matching the filters, with the participant's mentors and the activity's week, ordered by
-     * participant, activity, log date and id.
+     * The Daily Logs of participants matching the filters.
      *
      * @param  array{participant?: int|string|null, path?: string|null, mentor?: int|string|null, week?: int|string|null, activity?: int|string|null, from?: string|null, to?: string|null}  $filters
-     * @return EloquentCollection<int, DailyLog>
+     * @return Builder<DailyLog>
      */
-    private function matchingLogs(array $filters): EloquentCollection
+    private function matchingLogs(array $filters): Builder
     {
         return DailyLog::query()
-            ->with(['participant.assignedCoaches', 'activity.week'])
             ->whereHas('participant', function (Builder $query) use ($filters): void {
                 $query->where('role', UserRole::Participant)
                     ->when($filters['participant'] ?? null, fn (Builder $q, int|string $value): Builder => $q->whereKey($value))
@@ -210,40 +203,84 @@ class DailyLogReportPageService
                     ->when($filters['mentor'] ?? null, fn (Builder $q, int|string $value): Builder => $q->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($value)));
             })
             ->when($filters['week'] ?? null, fn (Builder $query, int|string $value): Builder => $query->whereHas('activity.week', fn (Builder $week): Builder => $week->where('week_number', $value)))
-            ->when($filters['activity'] ?? null, fn (Builder $query, int|string $value): Builder => $query->where('activity_id', $value))
-            ->when($filters['from'] ?? null, fn (Builder $query, string $value): Builder => $query->whereDate('logged_on', '>=', $value))
-            ->when($filters['to'] ?? null, fn (Builder $query, string $value): Builder => $query->whereDate('logged_on', '<=', $value))
-            ->orderBy('user_id')->orderBy('activity_id')->orderBy('logged_on')->orderBy('id')->get();
+            ->when($filters['activity'] ?? null, fn (Builder $query, int|string $value): Builder => $query->where('daily_logs.activity_id', $value))
+            ->when($filters['from'] ?? null, fn (Builder $query, string $value): Builder => $query->whereDate('daily_logs.logged_on', '>=', $value))
+            ->when($filters['to'] ?? null, fn (Builder $query, string $value): Builder => $query->whereDate('daily_logs.logged_on', '<=', $value));
     }
 
     /**
-     * Group the logs by participant, week and activity (logs without an activity form one General Training group per
-     * participant), sorted by participant name, week and activity name.
+     * One row per participant and activity (logs without an activity form one General Training group per
+     * participant) with its log count as `submitted`, sorted by participant name, week (General Training first) and
+     * activity title.
      *
-     * @param  EloquentCollection<int, DailyLog>  $logs
+     * @param  array{participant?: int|string|null, path?: string|null, mentor?: int|string|null, week?: int|string|null, activity?: int|string|null, from?: string|null, to?: string|null}  $filters
+     * @return Builder<DailyLog>
+     */
+    private function groupedLogs(array $filters): Builder
+    {
+        return $this->matchingLogs($filters)
+            ->select(['daily_logs.user_id', 'daily_logs.activity_id'])
+            ->selectRaw('count(*) as submitted')
+            ->join('users', 'users.id', '=', 'daily_logs.user_id')
+            ->leftJoin('activities', 'activities.id', '=', 'daily_logs.activity_id')
+            ->leftJoin('training_weeks', 'training_weeks.id', '=', 'activities.training_week_id')
+            ->groupBy('daily_logs.user_id', 'daily_logs.activity_id', 'users.name', 'activities.title', 'training_weeks.week_number')
+            ->orderBy('users.name')
+            ->orderByRaw('coalesce(training_weeks.week_number, 0)')
+            ->orderByRaw("coalesce(activities.title, 'General Training')")
+            ->orderBy('daily_logs.user_id')
+            ->orderBy('daily_logs.activity_id');
+    }
+
+    /**
+     * The completion rows of the given groups: the participant with their mentors, the activity with its week, the
+     * log count and the sorted log dates of each group, read with a fixed number of queries.
+     *
+     * @param  EloquentCollection<int, DailyLog>  $groups  rows of groupedLogs()
+     * @param  array{participant?: int|string|null, path?: string|null, mentor?: int|string|null, week?: int|string|null, activity?: int|string|null, from?: string|null, to?: string|null}  $filters
      * @return list<array{participant: User, activity: ?Activity, submitted: int, week: ?int, dates: list<string>, date_values: list<string>, activity_name: string}>
      */
-    private function groupedRows(EloquentCollection $logs): array
+    private function groupRows(EloquentCollection $groups, array $filters): array
     {
-        return $logs->groupBy(function (DailyLog $log): string {
-            $week = $log->activity?->training_week_id ?? 'general';
-            $activity = $log->activity_id ?? 'general';
+        if ($groups->isEmpty()) {
+            return [];
+        }
 
-            return "{$log->user_id}:{$week}:{$activity}";
-        })->map(function (Collection $group): array {
-            $first = $group->first();
-            $dates = $group->pluck('logged_on')->filter()->sortBy(fn (CarbonInterface $date): string => $date->toDateString())->values();
+        $groups->load(['participant.assignedCoaches', 'activity.week']);
+        $activityIds = $groups->pluck('activity_id');
+        $datesByGroup = $this->matchingLogs($filters)
+            ->whereIn('daily_logs.user_id', $groups->pluck('user_id')->unique()->values())
+            ->where(fn (Builder $query): Builder => $query
+                ->whereIn('daily_logs.activity_id', $activityIds->filter()->unique()->values())
+                ->when($activityIds->containsStrict(null), fn (Builder $general): Builder => $general->orWhereNull('daily_logs.activity_id')))
+            ->whereNotNull('daily_logs.logged_on')
+            ->orderBy('daily_logs.logged_on')
+            ->orderBy('daily_logs.id')
+            ->get(['daily_logs.user_id', 'daily_logs.activity_id', 'daily_logs.logged_on'])
+            ->groupBy(fn (DailyLog $log): string => $this->groupKey($log))
+            ->map(fn (EloquentCollection $logs): Collection => $logs->pluck('logged_on'));
+
+        return $groups->map(function (DailyLog $group) use ($datesByGroup): array {
+            $dates = $datesByGroup->get($this->groupKey($group), collect());
 
             return [
-                'participant' => $first->participant,
-                'activity' => $first->activity,
-                'submitted' => $group->count(),
-                'week' => $first->activity?->week?->week_number,
+                'participant' => $group->participant,
+                'activity' => $group->activity,
+                'submitted' => (int) $group->submitted,
+                'week' => $group->activity?->week?->week_number,
                 'dates' => $dates->map(fn (CarbonInterface $date): string => $date->format('M j, Y'))->all(),
                 'date_values' => $dates->map(fn (CarbonInterface $date): string => $date->toDateString())->all(),
-                'activity_name' => $first->activity?->title ?? 'General Training',
+                'activity_name' => $group->activity?->title ?? 'General Training',
             ];
-        })->sortBy(fn (array $row): string => sprintf('%s|%s|%s', $row['participant']->name, $row['week'] ?? 0, $row['activity_name']))->values()->all();
+        })->values()->all();
+    }
+
+    /**
+     * The participant and activity a log (or a grouped row) belongs to, as "user id:activity id".
+     */
+    private function groupKey(DailyLog $log): string
+    {
+        return "{$log->user_id}:{$log->activity_id}";
     }
 
     /**

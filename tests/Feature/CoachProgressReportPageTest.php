@@ -4,11 +4,17 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
+use App\Models\AttendanceSession;
 use App\Models\GateEvaluation;
+use App\Models\SubmissionVersion;
 use App\Models\User;
+use Closure;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class CoachProgressReportPageTest extends TestCase
@@ -119,6 +125,28 @@ class CoachProgressReportPageTest extends TestCase
         $this->assertStringNotContainsString('<table', $response->getContent());
     }
 
+    public function test_report_loads_only_the_at_risk_work_and_counts_the_rest(): void
+    {
+        $risky = User::factory()->create();
+        ActivitySubmission::factory()->for($risky, 'participant')->create(['status' => 'needs_revision']);
+        ActivitySubmission::factory()->count(2)->for($risky, 'participant')->create(['status' => 'approved']);
+        GateEvaluation::factory()->for($risky, 'participant')->create(['status' => 'failed']);
+        GateEvaluation::factory()->for($risky, 'participant')->create(['status' => 'passed']);
+        $steady = User::factory()->create();
+        ActivitySubmission::factory()->count(2)->for($steady, 'participant')->create(['status' => 'approved']);
+        GateEvaluation::factory()->for($steady, 'participant')->create(['status' => 'passed']);
+        $coach = User::factory()->create(['role' => 'coach']);
+
+        $retrievedModels = $this->retrievedModelCounts(fn (): TestResponse => $this->actingAs($coach)->get(route('coach.reports'))
+            ->assertOk()
+            ->assertSeeInOrder(['Submissions', '>5</dd>', 'Gates Passed', '>2</dd>', 'At Risk', '>1</dd>'], false));
+
+        $this->assertSame(1, $retrievedModels[ActivitySubmission::class]);
+        $this->assertSame(1, $retrievedModels[GateEvaluation::class]);
+        $this->assertArrayNotHasKey(SubmissionVersion::class, $retrievedModels);
+        $this->assertArrayNotHasKey(AttendanceSession::class, $retrievedModels);
+    }
+
     public function test_query_count_does_not_grow_with_the_number_of_participants(): void
     {
         $this->assertSame($this->reportQueryCount(1), $this->reportQueryCount(3));
@@ -148,5 +176,24 @@ class CoachProgressReportPageTest extends TestCase
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());
+    }
+
+    /**
+     * Count the models of each class retrieved from the database while the callback runs.
+     *
+     * @return array<class-string, int>
+     */
+    private function retrievedModelCounts(Closure $callback): array
+    {
+        $counts = [];
+        Event::listen('eloquent.retrieved: *', function (string $event) use (&$counts): void {
+            $model = Str::after($event, 'eloquent.retrieved: ');
+            $counts[$model] = ($counts[$model] ?? 0) + 1;
+        });
+
+        $callback();
+        Event::forget('eloquent.retrieved: *');
+
+        return $counts;
     }
 }

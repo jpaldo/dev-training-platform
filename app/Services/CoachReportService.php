@@ -18,6 +18,9 @@ use Illuminate\Support\Collection;
 
 class CoachReportService
 {
+    /** @var list<SubmissionStatus> The submission statuses that put a participant at risk. */
+    private const AT_RISK_SUBMISSION_STATUSES = [SubmissionStatus::NeedsRevision, SubmissionStatus::Failed];
+
     public function __construct(private readonly WeekProgressionService $progression) {}
 
     /**
@@ -27,33 +30,38 @@ class CoachReportService
      */
     public function dashboardStats(?Program $activeProgram): array
     {
-        $participants = $this->participants()->get();
+        $participants = $this->filteredParticipants()->get(['id']);
 
         return [
             'participants' => $participants->count(),
             'completed' => $activeProgram ? $this->progression->completedParticipantIds($participants, $activeProgram)->count() : 0,
             'needs_review' => $this->reviewQueue()->whereIn('status', SubmissionStatus::awaitingReview())->count(),
             'needs_revision' => $this->reviewQueue()->where('status', SubmissionStatus::NeedsRevision)->count(),
-            'at_risk' => $this->atRisk()->count(),
+            'at_risk' => $this->atRiskParticipants()->count(),
         ];
     }
 
+    /**
+     * The participants matching the filters with their assigned coaches and their submission, Gate evaluation and
+     * passed Gate evaluation counts.
+     *
+     * @param  ?array{path?: ?string, search?: ?string, mentor?: int|string|null, assigned_coach?: int|string|null}  $filters
+     * @return Builder<User>
+     */
     public function participants(?array $filters = null): Builder
     {
-        return User::query()->where('role', UserRole::Participant)
-            ->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))
-            ->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $search): Builder => $search->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))
-            ->when($filters['mentor'] ?? $filters['assigned_coach'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($v)))
-            ->withCount('dailyLogs')
-            ->with(['activitySubmissions.activity.week', 'activitySubmissions.versions.reviews', 'gateEvaluations.gate', 'attendanceSessions' => fn (Relation $q): Relation => $q->latest('check_in_at'), 'googleDriveConnection', 'assignedCoaches']);
+        return $this->filteredParticipants($filters)
+            ->withCount([
+                'activitySubmissions',
+                'gateEvaluations',
+                'gateEvaluations as passed_gate_evaluations_count' => fn (Builder $query): Builder => $query->where('status', GateEvaluationStatus::Passed),
+            ])
+            ->with('assignedCoaches');
     }
 
     public function participantSummary(?array $filters = null): Builder
     {
-        return User::query()->where('role', UserRole::Participant)
-            ->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))
-            ->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $search): Builder => $search->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))
-            ->when($filters['mentor'] ?? $filters['assigned_coach'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($v)))
+        return $this->filteredParticipants($filters)
             ->withCount(['activitySubmissions', 'gateEvaluations as passed_gate_evaluations_count' => fn (Builder $query): Builder => $query->where('status', GateEvaluationStatus::Passed)]);
     }
 
@@ -65,22 +73,56 @@ class CoachReportService
             ->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('activity.week', fn (Builder $w): Builder => $w->where('week_number', $v)))
             ->when($filters['activity'] ?? null, fn (Builder $q, int|string $v): Builder => $q->where('activity_id', $v))
             ->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->whereHas('participant', fn (Builder $u): Builder => $u->where('training_path', $v)))
-            ->with(['participant', 'activity.week', 'versions' => fn (Relation $q): Relation => $q->with(['evidence', 'reviews'])->latest('version_number')])->latest('submitted_at');
+            ->with(['participant', 'activity.week', 'latestVersion'])->latest('submitted_at');
     }
 
+    /**
+     * The participants matching the filters who have a submission needing revision or failed, or a Gate evaluation
+     * that did not pass, in id order, with only those submissions (and their activity titles) and evaluations (and
+     * their Gate titles) loaded.
+     *
+     * @param  ?array{path?: ?string, search?: ?string, mentor?: int|string|null, assigned_coach?: int|string|null}  $filters
+     * @return Builder<User>
+     */
+    public function atRiskParticipants(?array $filters = null): Builder
+    {
+        return $this->filteredParticipants($filters)
+            ->where(fn (Builder $query): Builder => $query
+                ->whereHas('activitySubmissions', fn (Builder $submissions): Builder => $submissions->whereIn('status', self::AT_RISK_SUBMISSION_STATUSES))
+                ->orWhereHas('gateEvaluations', fn (Builder $evaluations): Builder => $evaluations->where('status', '!=', GateEvaluationStatus::Passed)))
+            ->with([
+                'activitySubmissions' => fn (Relation $submissions): Relation => $submissions->whereIn('status', self::AT_RISK_SUBMISSION_STATUSES)->with('activity:id,title'),
+                'gateEvaluations' => fn (Relation $evaluations): Relation => $evaluations->where('status', '!=', GateEvaluationStatus::Passed)->with('gate:id,title'),
+            ])
+            ->orderBy('id');
+    }
+
+    /**
+     * Why a participant loaded by atRiskParticipants() is at risk: "Activity: status" per submission, then "Gate:
+     * status" per evaluation.
+     *
+     * @return list<string>
+     */
+    public function atRiskReasons(User $participant): array
+    {
+        return array_merge(
+            $participant->activitySubmissions->map(fn (ActivitySubmission $submission): string => "{$submission->activity->title}: {$submission->status->label()}")->values()->all(),
+            $participant->gateEvaluations->map(fn (GateEvaluation $evaluation): string => "{$evaluation->gate->title}: {$evaluation->status->label()}")->values()->all(),
+        );
+    }
+
+    /**
+     * Every at-risk participant matching the filters with their reasons.
+     *
+     * @param  ?array{path?: ?string, search?: ?string, mentor?: int|string|null, assigned_coach?: int|string|null}  $filters
+     * @return Collection<int, array{participant: User, reasons: list<string>}>
+     */
     public function atRiskRows(?array $filters = null): Collection
     {
-        return $this->participants($filters)->get()->map(function (User $participant): ?array {
-            $reasons = $participant->activitySubmissions->filter(fn (ActivitySubmission $s): bool => $s->needsRevision() || $s->isFailed())->map(fn (ActivitySubmission $s): string => "{$s->activity->title}: {$s->status->label()}")->values()->all();
-            $reasons = array_merge($reasons, $participant->gateEvaluations->filter(fn (GateEvaluation $g): bool => $g->status !== GateEvaluationStatus::Passed)->map(fn (GateEvaluation $g): string => "{$g->gate->title}: {$g->status->label()}")->values()->all());
-
-            return $reasons === [] ? null : ['participant' => $participant, 'reasons' => $reasons];
-        })->filter()->values();
-    }
-
-    public function atRisk(): Collection
-    {
-        return $this->atRiskRows()->map(fn (array $row): User => $row['participant']);
+        return $this->atRiskParticipants($filters)->get()->map(fn (User $participant): array => [
+            'participant' => $participant,
+            'reasons' => $this->atRiskReasons($participant),
+        ]);
     }
 
     public function gateResults(): Builder
@@ -95,8 +137,8 @@ class CoachReportService
 
     public function reviewRows(?array $filters = null): Collection
     {
-        return $this->reviewQueue($filters)->get()->map(function (ActivitySubmission $submission): array {
-            $version = $submission->versions->first();
+        return $this->reviewQueue($filters)->with('latestVersion.reviews')->get()->map(function (ActivitySubmission $submission): array {
+            $version = $submission->latestVersion;
             $review = $version?->reviews->sortByDesc('reviewed_at')->first();
 
             return compact('submission', 'version', 'review');
@@ -107,10 +149,9 @@ class CoachReportService
      * Headline counts of the reports page.
      *
      * @param  array<string, mixed>  $filters
-     * @param  Collection<int, array{participant: User, reasons: list<string>}>  $atRiskRows
      * @return array{participants: int, active: int, submissions: int, gates: int, at_risk: int}
      */
-    public function reportSummary(array $filters, Collection $atRiskRows): array
+    public function reportSummary(array $filters, int $atRiskCount): array
     {
         $summaryRows = $this->participantSummary($filters)->get();
 
@@ -119,7 +160,7 @@ class CoachReportService
             'active' => $summaryRows->where('is_active', true)->count(),
             'submissions' => $summaryRows->sum('activity_submissions_count'),
             'gates' => $summaryRows->sum(fn (User $participant): int => $participant->passed_gate_evaluations_count),
-            'at_risk' => $atRiskRows->count(),
+            'at_risk' => $atRiskCount,
         ];
     }
 
@@ -182,8 +223,22 @@ class CoachReportService
                 'header' => ['Name', 'Email', 'Training path', 'Submissions', 'Gate evaluations'],
                 'rows' => $this->participants(Arr::only($input, ['path', 'search']))->get()
                     ->when($input['mentor'] ?? null, fn (Collection $items, int|string $mentor): Collection => $items->filter(fn (User $participant): bool => $participant->assignedCoaches->contains('id', (int) $mentor))->values())
-                    ->map(fn (User $item): array => [$item->name, $item->email, $item->trainingPathLabel(), $item->activitySubmissions->count(), $item->gateEvaluations->count()]),
+                    ->map(fn (User $item): array => [$item->name, $item->email, $item->trainingPathLabel(), $item->activity_submissions_count, $item->gate_evaluations_count]),
             ],
         };
+    }
+
+    /**
+     * The participants matching the path, name or email search and mentor filters.
+     *
+     * @param  ?array{path?: ?string, search?: ?string, mentor?: int|string|null, assigned_coach?: int|string|null}  $filters
+     * @return Builder<User>
+     */
+    private function filteredParticipants(?array $filters = null): Builder
+    {
+        return User::query()->where('role', UserRole::Participant)
+            ->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))
+            ->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $search): Builder => $search->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))
+            ->when($filters['mentor'] ?? $filters['assigned_coach'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($v)));
     }
 }

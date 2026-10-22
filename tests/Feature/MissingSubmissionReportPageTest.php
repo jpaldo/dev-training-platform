@@ -6,11 +6,15 @@ use App\Enums\TrainingPath;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\DailyLog;
+use App\Models\GoogleDriveConnection;
 use App\Models\Program;
+use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -202,6 +206,41 @@ class MissingSubmissionReportPageTest extends TestCase
         $this->assertStringNotContainsString('Pagination Navigation', $response->getContent());
     }
 
+    public function test_query_count_does_not_grow_with_the_number_of_participants(): void
+    {
+        $this->assertSame($this->reportQueryCount(1), $this->reportQueryCount(3));
+    }
+
+    public function test_drive_evidence_counts_are_reused_for_ten_minutes_per_participant_and_folder(): void
+    {
+        Program::factory()->create();
+        $participant = User::factory()->create();
+        $connection = GoogleDriveConnection::create([
+            'user_id' => $participant->id,
+            'access_token' => 'token',
+            'refresh_token' => 'refresh',
+            'token_expires_at' => now()->addDay(),
+            'connected_at' => now(),
+            'drive_folder_id' => 'first-folder',
+            'destination_source' => 'picker',
+        ]);
+        Http::fake(['*' => Http::response(['files' => []])]);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $url = route('coach.reports.missing-submissions', ['category' => 'general_training']);
+
+        $this->actingAs($coach)->get($url)->assertOk();
+        $this->actingAs($coach)->get($url)->assertOk();
+        Http::assertSentCount(1);
+
+        $connection->update(['drive_folder_id' => 'second-folder']);
+        $this->actingAs($coach)->get($url)->assertOk();
+        Http::assertSentCount(2);
+
+        $this->travel(11)->minutes();
+        $this->actingAs($coach)->get($url)->assertOk();
+        Http::assertSentCount(3);
+    }
+
     /**
      * The markup of the select with the given id, options included.
      */
@@ -210,5 +249,32 @@ class MissingSubmissionReportPageTest extends TestCase
         $this->assertSame(1, preg_match('/<select id="'.$selectId.'".*?<\/select>/s', $html, $select));
 
         return $select[0];
+    }
+
+    /**
+     * Build a new active program with Weeks 2 and 3 (an activity and a Gate each) and the given number of new
+     * participants without logs, and count the queries of a coach's report request after a warm-up request.
+     */
+    private function reportQueryCount(int $participantCount): int
+    {
+        Program::query()->update(['is_active' => false]);
+        $program = Program::factory()->create();
+
+        foreach ([2 => 1, 3 => 2] as $weekNumber => $position) {
+            $week = TrainingWeek::factory()->for($program)->create(['week_number' => $weekNumber, 'position' => $position]);
+            Activity::factory()->for($week, 'week')->create();
+            TrainingGate::factory()->for($week, 'week')->create();
+        }
+
+        User::factory()->count($participantCount)->create();
+        $coach = User::factory()->create(['role' => 'coach']);
+
+        $this->actingAs($coach)->get(route('coach.reports.missing-submissions'))->assertOk();
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->actingAs($coach)->get(route('coach.reports.missing-submissions'))->assertOk()->assertSee('General Training Daily Logs');
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
     }
 }

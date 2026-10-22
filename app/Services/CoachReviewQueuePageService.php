@@ -37,7 +37,7 @@ class CoachReviewQueuePageService
      */
     private function submissionRow(ActivitySubmission $submission): array
     {
-        $latestVersion = $submission->versions->first();
+        $latestVersion = $submission->latestVersion;
 
         return [
             'participant_name' => $submission->participant->name,

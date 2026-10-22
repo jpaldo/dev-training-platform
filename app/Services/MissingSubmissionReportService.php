@@ -31,6 +31,7 @@ class MissingSubmissionReportService
             ->when($filters['mentor'] ?? null, fn (Builder $query, int|string $value): Builder => $query->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($value)))
             ->with([
                 'assignedCoaches:id,name',
+                'googleDriveConnection',
                 'dailyLogs.activity.week',
                 'activitySubmissions.activity.week',
                 'activitySubmissions.versions.evidence',
@@ -44,7 +45,7 @@ class MissingSubmissionReportService
             return collect();
         }
 
-        $progression = app(WeekProgressionService::class);
+        $weekStates = app(WeekProgressionService::class)->weekStatesForParticipants($participants, $program->weeks()->get());
         $weeklyExpected = app(WeekTwoGateService::class)->minimumDailyLogs();
         $rows = collect();
         foreach ($participants as $participant) {
@@ -64,7 +65,7 @@ class MissingSubmissionReportService
             $this->addDailyRow($rows, $participant, $mentor, 'General Training', null, 'General Training Daily Logs', $generalExpected, $generalLogs, true, $generalEvidence);
 
             foreach ($program->weeks as $week) {
-                if (! $progression->canAccessWeek($participant, $week)) {
+                if (! $weekStates[$participant->id][$week->id]['accessible']) {
                     continue;
                 }
                 $logs = $participant->dailyLogs

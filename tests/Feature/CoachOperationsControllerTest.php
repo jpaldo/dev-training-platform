@@ -59,6 +59,28 @@ class CoachOperationsControllerTest extends TestCase
             ->assertViewHas('stats', fn (array $stats): bool => $stats['participants']['value'] === 2 && $stats['completed']['value'] === 1);
     }
 
+    public function test_dashboard_counts_at_risk_participants_without_loading_their_progress(): void
+    {
+        ActivitySubmission::factory()->for(User::factory(), 'participant')->create(['status' => 'needs_revision']);
+        ActivitySubmission::factory()->for(User::factory(), 'participant')->create(['status' => 'failed']);
+        GateEvaluation::factory()->for(User::factory(), 'participant')->create(['status' => 'failed']);
+        $steady = User::factory()->create();
+        ActivitySubmission::factory()->for($steady, 'participant')->create(['status' => 'approved']);
+        GateEvaluation::factory()->for($steady, 'participant')->create(['status' => 'passed']);
+
+        DB::enableQueryLog();
+        $this->actingAs(User::factory()->create(['role' => 'coach']))
+            ->get(route('coach.dashboard'))
+            ->assertOk()
+            ->assertViewHas('stats', fn (array $stats): bool => $stats['participants']['value'] === 4 && $stats['at_risk']['value'] === 3);
+        DB::disableQueryLog();
+
+        $progressQueries = collect(DB::getQueryLog())
+            ->pluck('query')
+            ->filter(fn (string $query): bool => preg_match('/from "(attendance_sessions|google_drive_connections|submission_versions|coach_participant_assignments)"/', $query) === 1);
+        $this->assertSame([], $progressQueries->values()->all());
+    }
+
     public function test_participant_detail_query_count_does_not_grow_with_gates(): void
     {
         $coach = User::factory()->create(['role' => 'coach']);

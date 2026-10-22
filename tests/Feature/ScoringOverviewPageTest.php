@@ -10,6 +10,7 @@ use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ScoringOverviewPageTest extends TestCase
@@ -130,6 +131,11 @@ class ScoringOverviewPageTest extends TestCase
             ], false);
     }
 
+    public function test_query_count_does_not_grow_with_the_number_of_participants(): void
+    {
+        $this->assertSame($this->overviewQueryCount(1), $this->overviewQueryCount(3));
+    }
+
     public function test_without_an_active_program_the_overview_is_not_found(): void
     {
         Program::factory()->create(['is_active' => false]);
@@ -155,6 +161,29 @@ class ScoringOverviewPageTest extends TestCase
                     ->all();
             })
             ->all();
+    }
+
+    /**
+     * Build a new active program with the given number of participants, each with a published Week 2 score, and
+     * count the queries of a coach's overview request after a warm-up request.
+     */
+    private function overviewQueryCount(int $participantCount): int
+    {
+        Program::query()->update(['is_active' => false]);
+        $activities = $this->program();
+        $coach = User::factory()->create(['role' => 'coach']);
+
+        foreach (User::factory()->count($participantCount)->create() as $participant) {
+            $this->publishedScore($participant, $activities[2][0], 83, 'Proficient');
+        }
+
+        $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk();
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk()->assertSee('>83</strong>', false);
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
     }
 
     private function publishedScore(User $participant, Activity $activity, int $total, string $band): void

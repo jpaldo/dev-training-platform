@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionInteraction;
@@ -145,6 +146,24 @@ class CoachSubmissionReviewPageTest extends TestCase
                 'Evidence', 'No evidence attached.',
             ])
             ->assertDontSee('Submitted Activity Details');
+    }
+
+    public function test_submission_field_labels_come_from_the_loaded_activity_requirements(): void
+    {
+        [$coach, $version] = $this->assignedCoachWithVersion('submitted', ['feature_area' => 'Checkout']);
+        ActivityRequirement::factory()->for($version->submission->activity)->create([
+            'requirement_type' => 'submission_field',
+            'configuration' => ['key' => 'feature_area', 'label' => 'Product Area'],
+        ]);
+
+        DB::enableQueryLog();
+        $this->actingAs($coach)->get(route('coach.reviews.show', $version))
+            ->assertOk()
+            ->assertSeeInOrder(['Product Area', 'Checkout']);
+        DB::disableQueryLog();
+
+        $requirementQueries = collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'from "activity_requirements"'));
+        $this->assertCount(1, $requirementQueries);
     }
 
     public function test_review_page_query_count_does_not_grow_with_evidence_reviews_and_interactions(): void

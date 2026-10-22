@@ -228,8 +228,8 @@ class ValidationLabService
             return null;
         }
 
-        $week = Program::query()->where('is_active', true)->with('weeks.activities')->first()?->weeks->firstWhere('week_number', 2);
-        $activity = $week?->activities->firstWhere('position', 1);
+        $week = Program::query()->where('is_active', true)->first()?->weeks()->where('week_number', 2)->first();
+        $activity = $week?->activities()->where('position', 1)->first();
         if (! $week || ! $activity) {
             return null;
         }

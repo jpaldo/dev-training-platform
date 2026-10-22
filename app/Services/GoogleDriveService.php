@@ -4,12 +4,16 @@ namespace App\Services;
 
 use App\Models\GoogleDriveConnection;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class GoogleDriveService
 {
+    /** How long a Week 1 evidence count is reused before Drive is asked again. */
+    private const WEEK_ONE_EVIDENCE_CACHE_MINUTES = 10;
+
     public function __construct(private readonly GoogleDriveConnectionService $connections) {}
 
     public function upsertCsv(GoogleDriveConnection $connection, string $name, string $content, string $parentId): string
@@ -160,7 +164,10 @@ class GoogleDriveService
         return $createdId;
     }
 
-    /** Read-only count of files in the participant's existing Week 1 evidence tree. */
+    /**
+     * Read-only count of files in the participant's existing Week 1 evidence tree, cached for 10 minutes per
+     * participant and destination folder; null (no connection or folder, or Drive unavailable) is never cached.
+     */
     public function countWeekOneEvidenceFiles(User $participant): ?int
     {
         $connection = $participant->googleDriveConnection;
@@ -169,6 +176,19 @@ class GoogleDriveService
             return null;
         }
 
+        return Cache::remember(
+            "google-drive:week-one-evidence:{$participant->id}:{$rootId}",
+            now()->addMinutes(self::WEEK_ONE_EVIDENCE_CACHE_MINUTES),
+            fn (): ?int => $this->fetchWeekOneEvidenceCount($participant, $connection, $rootId),
+        );
+    }
+
+    /**
+     * Count the Week 1 evidence files under the destination folder in Drive: 0 without a Week 1 folder, null when
+     * Drive cannot be read.
+     */
+    private function fetchWeekOneEvidenceCount(User $participant, GoogleDriveConnection $connection, string $rootId): ?int
+    {
         try {
             $token = $this->connections->accessToken($connection);
             $weekFolder = $this->findChildFolder($token, $connection, $rootId, 'Week 1');

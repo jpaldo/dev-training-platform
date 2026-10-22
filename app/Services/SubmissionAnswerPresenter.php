@@ -13,7 +13,7 @@ class SubmissionAnswerPresenter
     {
         $version->loadMissing('submission.activity.requirements', 'interactions');
         $activity = $version->submission->activity;
-        $configured = $activity->requirements()->where('requirement_type', 'submission_field')->orderBy('position')->get()->mapWithKeys(fn (ActivityRequirement $requirement): array => [$requirement->configuration['key'] ?? '' => $requirement->configuration['label'] ?? $requirement->title]);
+        $configured = $activity->requirements->where('requirement_type', 'submission_field')->sortBy('position')->mapWithKeys(fn (ActivityRequirement $requirement): array => [$requirement->configuration['key'] ?? '' => $requirement->configuration['label'] ?? $requirement->title]);
         $legacyLabels = ['feature_area' => 'Feature / Area', 'environment' => 'Environment', 'ai_tool' => 'AI Tool', 'artifact_type' => 'Artifact Type', 'exact_prompt' => 'Exact Prompt', 'exact_ai_output' => 'Exact AI Output', 'prompt' => 'Prompt', 'ai_output' => 'AI Output'];
 
         return collect($version->field_values ?? [])->except(['week_three_snapshot'])->map(fn (mixed $value, int|string $key): array => [

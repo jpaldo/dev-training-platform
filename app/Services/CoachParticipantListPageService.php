@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Models\AttendanceSession;
 use App\Models\User;
 use App\Models\WeekFourInterviewPair;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class CoachParticipantListPageService
@@ -57,6 +58,8 @@ class CoachParticipantListPageService
                 ->values()
                 ->all(),
             'participants' => $this->reports->participants($filters)
+                ->withCount('dailyLogs')
+                ->with(['attendanceSessions' => fn (Relation $sessions): Relation => $sessions->latest('check_in_at'), 'googleDriveConnection'])
                 ->paginate(self::PARTICIPANTS_PER_PAGE)
                 ->withQueryString()
                 ->through(fn (User $participant): array => $this->participantRow($viewer, $participant)),
@@ -88,8 +91,8 @@ class CoachParticipantListPageService
             'daily_log_count' => $participant->daily_logs_count,
             'daily_logs_url' => $participant->daily_logs_count > 0 ? route('coach.participants.daily-logs', $participant) : null,
             'attendance' => $this->attendanceSummary($participant),
-            'submission_count' => $participant->activitySubmissions->count(),
-            'gate_count' => $participant->gateEvaluations->count(),
+            'submission_count' => $participant->activity_submissions_count,
+            'gate_count' => $participant->gate_evaluations_count,
             'inspect_url' => route('coach.participants.show', $participant),
         ];
     }

@@ -56,6 +56,32 @@ class WeekProgressionService
         ]]);
     }
 
+    /**
+     * Resolve the pass and access state of every week of one program for each participant with a fixed number of
+     * queries, as weekStates() does for one user.
+     *
+     * @param  Collection<int, User>  $participants
+     * @param  Collection<int, TrainingWeek>  $programWeeks  every week of the program, active or not
+     * @return Collection<int, Collection<int, array{passed: bool, accessible: bool}>> keyed by participant id, then week id
+     */
+    public function weekStatesForParticipants(Collection $participants, Collection $programWeeks): Collection
+    {
+        $passedWeekIdsByParticipant = $this->passedWeekIdsByParticipant($participants, $programWeeks);
+
+        return $participants->mapWithKeys(function (User $participant) use ($programWeeks, $passedWeekIdsByParticipant): array {
+            $passedWeekIds = $passedWeekIdsByParticipant->get($participant->id);
+
+            return [$participant->id => $programWeeks->mapWithKeys(fn (TrainingWeek $week): array => [$week->id => [
+                'passed' => $passedWeekIds->contains($week->id),
+                'accessible' => match (true) {
+                    $participant->isCoachOrAdmin() => true,
+                    $participant->role !== UserRole::Participant => false,
+                    default => $this->allWeeksPassed($programWeeks->where('position', '<', $week->position), $passedWeekIds),
+                },
+            ]])];
+        });
+    }
+
     public function isProgramCompleted(User $user, Program $program): bool
     {
         $weeks = $program->weeks()->where('is_active', true)->orderBy('position')->get();
@@ -76,6 +102,28 @@ class WeekProgressionService
             return collect();
         }
 
+        $passedWeekIdsByParticipant = $this->passedWeekIdsByParticipant($participants, $weeks);
+
+        return $participants
+            ->filter(fn (User $participant): bool => $this->allWeeksPassed($weeks, $passedWeekIdsByParticipant->get($participant->id)))
+            ->pluck('id')
+            ->values();
+    }
+
+    /**
+     * Per participant, the ids of the given weeks that have at least one Gate and a passed evaluation by the
+     * participant for every Gate, resolved with a fixed number of queries.
+     *
+     * @param  Collection<int, User>  $participants
+     * @param  Collection<int, TrainingWeek>  $weeks
+     * @return Collection<int, Collection<int, int>> keyed by participant id
+     */
+    private function passedWeekIdsByParticipant(Collection $participants, Collection $weeks): Collection
+    {
+        if ($weeks->isEmpty() || $participants->isEmpty()) {
+            return $participants->mapWithKeys(fn (User $participant): array => [$participant->id => collect()]);
+        }
+
         $gatesByWeek = TrainingGate::query()
             ->select(['id', 'training_week_id'])
             ->whereIn('training_week_id', $weeks->pluck('id'))
@@ -83,16 +131,9 @@ class WeekProgressionService
             ->get()
             ->groupBy('training_week_id');
 
-        return $participants
-            ->filter(function (User $participant) use ($weeks, $gatesByWeek): bool {
-                $passedWeekIds = $gatesByWeek
-                    ->filter(fn (Collection $gates): bool => $gates->every(fn (TrainingGate $gate): bool => $gate->evaluations->contains('user_id', $participant->id)))
-                    ->keys();
-
-                return $this->allWeeksPassed($weeks, $passedWeekIds);
-            })
-            ->pluck('id')
-            ->values();
+        return $participants->mapWithKeys(fn (User $participant): array => [$participant->id => $gatesByWeek
+            ->filter(fn (Collection $gates): bool => $gates->every(fn (TrainingGate $gate): bool => $gate->evaluations->contains('user_id', $participant->id)))
+            ->keys()]);
     }
 
     /**

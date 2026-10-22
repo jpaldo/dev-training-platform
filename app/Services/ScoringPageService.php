@@ -106,6 +106,8 @@ class ScoringPageService
     public function indexData(User $viewer, array $filters): array
     {
         $program = $this->activeProgram();
+        $participants = $this->filteredParticipants($viewer, $filters);
+        $summaries = $this->scoring->summaries($participants->getCollection(), $program);
 
         return [
             'criteriaUrl' => route('coach.scoring.criteria'),
@@ -117,8 +119,7 @@ class ScoringPageService
             'bandOptions' => $this->options(self::BAND_OPTIONS, $filters['band'] ?? null),
             'isAssignedToMe' => (bool) ($filters['assigned_to_me'] ?? false),
             'weekNumbers' => self::SCORED_WEEKS,
-            'participants' => $this->filteredParticipants($viewer, $filters)
-                ->through(fn (User $participant): array => $this->overviewRow($participant, $program)),
+            'participants' => $participants->through(fn (User $participant): array => $this->overviewRow($participant, $summaries[$participant->id])),
         ];
     }
 
@@ -276,12 +277,11 @@ class ScoringPageService
      * One overview row: the participant, each scored week's average with its band (null while unscored) and
      * completion, the overall average and completion, the assigned coaches and the link to the participant's scoring.
      *
+     * @param  array{weeks: \Illuminate\Support\Collection<int, array{completed: int, total: int, average: ?int}>, completed: int, total: int, average: ?int}  $summary  the participant's ScoringService summary
      * @return array{name: string, email: string, path: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, coach_names: string, scoring_url: string}
      */
-    private function overviewRow(User $participant, Program $program): array
+    private function overviewRow(User $participant, array $summary): array
     {
-        $summary = $this->scoring->summary($participant, $program);
-
         return [
             'name' => $participant->name,
             'email' => $participant->email,

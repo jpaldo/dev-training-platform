@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[ObservedBy([ParticipantProgressObserver::class])]
 class ActivitySubmission extends Model
@@ -89,5 +90,13 @@ class ActivitySubmission extends Model
     public function versions(): HasMany
     {
         return $this->hasMany(SubmissionVersion::class);
+    }
+
+    /**
+     * The attempt's version with the highest version number.
+     */
+    public function latestVersion(): HasOne
+    {
+        return $this->hasOne(SubmissionVersion::class)->latestOfMany('version_number');
     }
 }

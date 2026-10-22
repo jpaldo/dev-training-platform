@@ -4,12 +4,18 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
+use App\Models\SubmissionEvidence;
+use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Closure;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -125,6 +131,29 @@ class CoachReviewQueuePageTest extends TestCase
             ->assertDontSee('aria-label="Submissions to review"', false);
     }
 
+    public function test_queue_loads_only_the_latest_version_of_each_submission(): void
+    {
+        $activity = Activity::factory()->create();
+
+        foreach (['Ann Attempt', 'Ben Attempt'] as $participantName) {
+            $submission = $this->submission($activity, $participantName, 'submitted', now());
+
+            foreach ([1, 2, 3] as $versionNumber) {
+                $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => $versionNumber]);
+                SubmissionEvidence::factory()->for($version, 'submissionVersion')->create();
+                SubmissionReview::factory()->for($version, 'submissionVersion')->create();
+            }
+        }
+
+        $retrievedModels = $this->retrievedModelCounts(fn (): TestResponse => $this->actingAs(User::factory()->create(['role' => 'coach']))
+            ->get(route('coach.reviews'))
+            ->assertOk());
+
+        $this->assertSame(2, $retrievedModels[SubmissionVersion::class]);
+        $this->assertArrayNotHasKey(SubmissionEvidence::class, $retrievedModels);
+        $this->assertArrayNotHasKey(SubmissionReview::class, $retrievedModels);
+    }
+
     public function test_queue_query_count_does_not_grow_with_the_number_of_submissions(): void
     {
         $this->assertSame($this->reviewQueueQueryCount(1), $this->reviewQueueQueryCount(3));
@@ -164,5 +193,24 @@ class CoachReviewQueuePageTest extends TestCase
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());
+    }
+
+    /**
+     * Count the models of each class retrieved from the database while the callback runs.
+     *
+     * @return array<class-string, int>
+     */
+    private function retrievedModelCounts(Closure $callback): array
+    {
+        $counts = [];
+        Event::listen('eloquent.retrieved: *', function (string $event) use (&$counts): void {
+            $model = Str::after($event, 'eloquent.retrieved: ');
+            $counts[$model] = ($counts[$model] ?? 0) + 1;
+        });
+
+        $callback();
+        Event::forget('eloquent.retrieved: *');
+
+        return $counts;
     }
 }

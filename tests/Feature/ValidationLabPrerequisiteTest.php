@@ -3,12 +3,18 @@
 namespace Tests\Feature;
 
 use App\Enums\ValidationSubmissionStatus;
+use App\Models\Activity;
 use App\Models\Program;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\ValidationSubmission;
 use App\Services\SubmissionWorkflowService;
+use Closure;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -153,6 +159,19 @@ class ValidationLabPrerequisiteTest extends TestCase
             ->assertDontSee('Proceed to Activity 1 Submission');
     }
 
+    public function test_lab_result_links_the_owner_to_week_two_activity_one_without_loading_the_whole_program(): void
+    {
+        [$participant, $week, $activity] = $this->context();
+        $submitted = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $participant->id, 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]));
+
+        $retrievedModels = $this->retrievedModelCounts(fn (): TestResponse => $this->actingAs($participant)->get(route('result', $submitted))
+            ->assertOk()
+            ->assertSee(e(route('training.submission.edit', [$week, $activity]).'?validation_submission_id='.$submitted->id), false));
+
+        $this->assertSame(1, $retrievedModels[TrainingWeek::class]);
+        $this->assertSame(1, $retrievedModels[Activity::class]);
+    }
+
     public function test_all_training_paths_can_unlock_activity_one(): void
     {
         foreach (['manual', 'automation', 'automation_manual'] as $path) {
@@ -183,5 +202,24 @@ class ValidationLabPrerequisiteTest extends TestCase
         }
 
         return $payload;
+    }
+
+    /**
+     * Count the models of each class retrieved from the database while the callback runs.
+     *
+     * @return array<class-string, int>
+     */
+    private function retrievedModelCounts(Closure $callback): array
+    {
+        $counts = [];
+        Event::listen('eloquent.retrieved: *', function (string $event) use (&$counts): void {
+            $model = Str::after($event, 'eloquent.retrieved: ');
+            $counts[$model] = ($counts[$model] ?? 0) + 1;
+        });
+
+        $callback();
+        Event::forget('eloquent.retrieved: *');
+
+        return $counts;
     }
 }

@@ -30,7 +30,7 @@ class ParticipantNotificationController extends Controller
 
     public function readAll(Request $request): RedirectResponse
     {
-        $request->user()->participantNotifications()->unread()->update(['is_read' => true]);
+        $request->user()->participantNotifications()->where('is_read', false)->update(['is_read' => true]);
 
         return back()->with('status', 'All notifications marked as read.');
     }

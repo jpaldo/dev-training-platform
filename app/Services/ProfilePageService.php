@@ -45,9 +45,10 @@ class ProfilePageService
     /**
      * The participant's Google Drive card: the availability state (connected, unavailable when Drive is disabled,
      * not ready when OAuth is incomplete, or ready to connect) and, once connected, the account, export folder,
-     * latest sync and folder actions (the sync button is disabled while a sync is running).
+     * latest sync and folder actions (the sync button is disabled while a sync is running, and the folder picker
+     * button, with the reason, while the Picker is not configured or Google Drive cannot connect).
      *
-     * @return array{state: string, connection: ?array{account_label: string, connected_at_label: ?string, folder_state: string, folder_name: ?string, legacy_folder_label: string}, sync: ?array{status_label: string, last_successful_sync_label: ?string, error: ?string, failed_components: ?list<array{name: string, message: ?string}>, status_url: ?string}, can_sync: bool, sync_button_label: string, picker: array{is_configured: bool, label: string, api_key: ?string, app_id: ?string, is_enabled: bool}}
+     * @return array{state: string, connection: ?array{account_label: string, connected_at_label: ?string, folder_state: string, folder_name: ?string, legacy_folder_label: string}, sync: ?array{status_label: string, last_successful_sync_label: ?string, error: ?string, failed_components: ?list<array{name: string, message: ?string}>, status_url: ?string}, can_sync: bool, sync_button_label: string, picker: array{unavailable_message: ?string, label: string, api_key: ?string, app_id: ?string, is_enabled: bool}}
      */
     private function googleDrive(User $participant): array
     {
@@ -77,7 +78,11 @@ class ProfilePageService
                 default => 'CHOOSE GOOGLE DRIVE FOLDER',
             },
             'picker' => [
-                'is_configured' => $isPickerConfigured,
+                'unavailable_message' => match (true) {
+                    ! $isPickerConfigured => 'Google Drive folder selection is not configured. Please contact an administrator.',
+                    ! $canConnect => 'Google Drive folder selection is unavailable because Google Drive cannot connect right now. Please contact an administrator.',
+                    default => null,
+                },
                 'label' => $connection?->destination_source === 'picker' ? 'Change Folder' : 'Choose Google Drive Folder',
                 'api_key' => $apiKey,
                 'app_id' => $appId,

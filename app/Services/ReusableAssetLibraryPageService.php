@@ -32,7 +32,7 @@ class ReusableAssetLibraryPageService
     public function __construct(private readonly ReusableAssetLibraryService $library) {}
 
     /**
-     * Everything the reusable asset library renders: the filter values, the asset type options of the Week 4
+     * Everything the reusable asset library renders: the filter values, the Asset type field options of the Week 4
      * Activity 1 requirements and one card per published asset. The page has no single main action, so every
      * button is secondary.
      *
@@ -80,13 +80,15 @@ class ReusableAssetLibraryPageService
     }
 
     /**
-     * The asset type options configured on the Week 4 Activity 1 requirements, sorted and without duplicates.
+     * The options of the Asset type field (`asset_type`) configured on the Week 4 Activity 1 requirements, sorted and
+     * without duplicates.
      *
      * @return list<array{value: string, label: string, is_selected: bool}>
      */
     private function assetTypeOptions(string $selectedType): array
     {
         return ActivityRequirement::query()
+            ->where('configuration->key', 'asset_type')
             ->whereHas('activity', fn (Builder $activity): Builder => $activity->where('position', 1)->whereHas('week', fn (Builder $week): Builder => $week->where('week_number', 4)))
             ->get()
             ->flatMap(fn (ActivityRequirement $requirement): array => $requirement->configuration['options'] ?? [])

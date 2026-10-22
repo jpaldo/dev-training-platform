@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Activity;
+use App\Models\ActivitySubmission;
+use App\Models\DailyLog;
 use App\Models\GateCriterion;
 use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
@@ -44,6 +46,8 @@ class TrainingWeekPageTest extends TestCase
                 e($criteria[1]->title),
                 'Awaiting Review',
                 'Coach approval is required before the next week unlocks.',
+                'href="'.route('training.gates.show', [$week, $gate]).'"',
+                'View Gate',
                 'ACTIVITY 1',
                 e($firstActivity->title),
                 'href="'.route('training.activities.show', [$week, $firstActivity]).'"',
@@ -92,6 +96,43 @@ class TrainingWeekPageTest extends TestCase
             ], false)
             ->assertDontSee('week-main-action')
             ->assertDontSee('Upload Video Recording');
+    }
+
+    public function test_ready_participant_without_an_evaluation_sees_the_first_gate_by_position_ready_for_review(): void
+    {
+        $participant = User::factory()->create();
+        ['week' => $week, 'gate' => $laterGate, 'activities' => $activities] = $this->weekFixture(rows: 1);
+        $laterGate->update(['title' => 'Later Gate', 'position' => 2]);
+        $firstGate = TrainingGate::factory()->for($week, 'week')->create(['title' => 'First Gate', 'position' => 1]);
+        GateCriterion::factory()->for($firstGate, 'gate')->create(['criterion_type' => 'weekly_video', 'title' => 'Required Weekly Video Recording']);
+        ActivitySubmission::factory()->for($participant, 'participant')->for($activities->first())->create(['status' => 'submitted']);
+        DailyLog::factory()->count(5)->for($participant, 'participant')->for($activities->first())->create();
+        $this->uploadWeeklyVideo($participant, $week);
+
+        $this->actingAs($participant)->get(route('training.weeks.show', $week))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'First Gate',
+                'Gate status:',
+                'READY FOR REVIEW',
+                'Required Weekly Video Recording',
+                'href="'.route('training.gates.show', [$week, $firstGate]).'"',
+                'View Gate',
+            ], false)
+            ->assertDontSee('Later Gate')
+            ->assertDontSee('NOT READY');
+    }
+
+    public function test_coach_sees_the_gate_not_ready_without_a_view_gate_link(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        ['week' => $week, 'gate' => $gate] = $this->weekFixture(rows: 1);
+
+        $this->actingAs($coach)->get(route('training.weeks.show', $week))
+            ->assertOk()
+            ->assertSeeInOrder([e($gate->title), 'Gate status:', 'NOT READY', 'Coach approval is required before the next week unlocks.'], false)
+            ->assertDontSee('View Gate')
+            ->assertDontSee(route('training.gates.show', [$week, $gate]), false);
     }
 
     public function test_coach_sees_no_video_card_or_main_action_and_goes_back_to_the_profile(): void

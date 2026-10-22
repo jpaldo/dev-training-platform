@@ -21,7 +21,8 @@
                 'formMethod' => 'PATCH',
                 'dateValue' => $dateValue,
                 'maxDate' => $maxDate,
-                'activityOptions' => null,
+                'activityOptions' => $activityOptions,
+                'selectedActivityId' => $selectedActivityId,
                 'contentValue' => $dailyLog->content,
             ])
         </div>

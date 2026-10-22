@@ -16,9 +16,10 @@ class ParticipantNotificationPageService
 
     /**
      * Everything the participant's notifications page renders: the All / Unread / Read filter links and the
-     * participant's notifications for the selected filter, newest first. The main action is Mark All as Read.
+     * participant's notifications for the selected filter, newest first. The main action, Mark All as Read, is offered
+     * only while a notification is unread (resolved ones included, as the All filter lists them).
      *
-     * @return array{filters: list<array{label: string, url: string, is_active: bool}>, notifications: LengthAwarePaginator<int, array{title: string, body: string, created_at: string, created_at_label: string, is_read: bool, action_url: ?string, action_label: string, read_url: string}>, readAllUrl: string}
+     * @return array{filters: list<array{label: string, url: string, is_active: bool}>, notifications: LengthAwarePaginator<int, array{title: string, body: string, created_at: string, created_at_label: string, is_read: bool, action_url: ?string, action_label: string, read_url: string}>, readAllUrl: ?string}
      */
     public function indexData(User $participant, string $filter): array
     {
@@ -47,7 +48,9 @@ class ParticipantNotificationPageService
                     'action_label' => $notification->type === ParticipantNotificationType::NeedsRevision ? 'View Feedback & Revise' : 'Open',
                     'read_url' => route('participant.notifications.read', $notification),
                 ]),
-            'readAllUrl' => route('participant.notifications.read-all'),
+            'readAllUrl' => $participant->participantNotifications()->where('is_read', false)->exists()
+                ? route('participant.notifications.read-all')
+                : null,
         ];
     }
 }

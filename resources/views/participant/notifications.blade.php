@@ -8,12 +8,14 @@
             <p class="m-0 leading-relaxed text-muted">Your current training reminders and important updates.</p>
         </header>
 
-        <x-ui.main-action id="notifications-main-action">
-            <form method="POST" action="{{ $readAllUrl }}" class="m-0">
-                @csrf
-                <x-ui.button type="submit">Mark All as Read</x-ui.button>
-            </form>
-        </x-ui.main-action>
+        @if($readAllUrl)
+            <x-ui.main-action id="notifications-main-action">
+                <form method="POST" action="{{ $readAllUrl }}" class="m-0">
+                    @csrf
+                    <x-ui.button type="submit">Mark All as Read</x-ui.button>
+                </form>
+            </x-ui.main-action>
+        @endif
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
             @if(session('status'))

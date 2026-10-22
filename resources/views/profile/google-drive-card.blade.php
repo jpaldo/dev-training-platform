@@ -103,7 +103,7 @@
 
                     <x-ui.button
                         variant="secondary"
-                        :disabled="! $picker['is_configured']"
+                        :disabled="$picker['unavailable_message'] !== null"
                         :data-drive-picker="$picker['is_enabled']"
                         data-token-url="{{ route('profile.google-drive.picker-token') }}"
                         data-save-url="{{ route('profile.google-drive.destination') }}"
@@ -118,7 +118,7 @@
                     </form>
                 </div>
 
-                <x-ui.alert tone="error" role="alert" data-drive-picker-error :hidden="$picker['is_configured']">{{ $picker['is_configured'] ? '' : 'Google Drive folder selection is not configured. Please contact an administrator.' }}</x-ui.alert>
+                <x-ui.alert tone="error" role="alert" data-drive-picker-error :hidden="$picker['unavailable_message'] === null">{{ $picker['unavailable_message'] }}</x-ui.alert>
             </section>
 
             @if($picker['is_enabled'])

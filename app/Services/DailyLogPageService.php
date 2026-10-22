@@ -47,53 +47,84 @@ class DailyLogPageService
     }
 
     /**
-     * The new daily log form: the active activities of the weeks the participant can access (General training is
-     * the empty option) and today's date in the application timezone, which is both the default and the latest date.
+     * The new daily log form: the activity options (General training is the empty option) and today's date in the
+     * application timezone, which is both the default and the latest date.
      *
-     * @return array{activityOptions: list<array{value: string, label: string}>, dateValue: string, maxDate: string}
+     * @return array{activityOptions: list<array{value: string, label: string}>, selectedActivityId: ?string, dateValue: string, maxDate: string}
      */
     public function createData(User $participant): array
     {
-        $activities = Activity::query()
-            ->with('week.program.weeks')
-            ->where('is_active', true)
-            ->orderBy('training_week_id')
-            ->orderBy('position')
-            ->get();
-        $accessibleWeekIds = $activities
-            ->map(fn (Activity $activity): Program => $activity->week->program)
-            ->unique('id')
-            ->flatMap(fn (Program $program): array => $this->progression->weekStates($participant, $program->weeks)
-                ->filter(fn (array $state): bool => $state['accessible'])
-                ->keys()
-                ->all());
-
         return [
-            'activityOptions' => $activities
-                ->filter(fn (Activity $activity): bool => $accessibleWeekIds->contains($activity->training_week_id))
-                ->map(fn (Activity $activity): array => [
-                    'value' => (string) $activity->id,
-                    'label' => "Week {$activity->week->week_number} · {$activity->title}",
-                ])
-                ->values()
-                ->all(),
+            'activityOptions' => $this->activityOptions($participant),
+            'selectedActivityId' => null,
             'dateValue' => $this->today(),
             'maxDate' => $this->today(),
         ];
     }
 
     /**
-     * The edit form for one daily log: its stored date and content, with today in the application timezone as the
-     * latest date.
+     * The edit form for one daily log: the activity options with the log's activity selected (offered even when it is
+     * no longer among the options, so saving keeps it), its stored date and content, and today in the application
+     * timezone as the latest date.
      *
-     * @return array{dailyLog: DailyLog, dateValue: string, maxDate: string}
+     * @return array{dailyLog: DailyLog, activityOptions: list<array{value: string, label: string}>, selectedActivityId: ?string, dateValue: string, maxDate: string}
      */
-    public function editData(DailyLog $dailyLog): array
+    public function editData(DailyLog $dailyLog, User $participant): array
     {
+        $dailyLog->loadMissing('activity.week');
+        $activityOptions = $this->activityOptions($participant);
+        $savedActivity = $dailyLog->activity;
+        if ($savedActivity && ! in_array((string) $savedActivity->id, array_column($activityOptions, 'value'), true)) {
+            $activityOptions[] = $this->activityOption($savedActivity);
+        }
+
         return [
             'dailyLog' => $dailyLog,
+            'activityOptions' => $activityOptions,
+            'selectedActivityId' => $savedActivity ? (string) $savedActivity->id : null,
             'dateValue' => $dailyLog->logged_on->toDateString(),
             'maxDate' => $this->today(),
+        ];
+    }
+
+    /**
+     * The active activities of the active program's weeks the participant can access, in week and position order.
+     *
+     * @return list<array{value: string, label: string}>
+     */
+    private function activityOptions(User $participant): array
+    {
+        $program = $this->activeProgram();
+        if (! $program) {
+            return [];
+        }
+
+        $accessibleWeekIds = $this->progression->weekStates($participant, $program->weeks)
+            ->filter(fn (array $state): bool => $state['accessible'])
+            ->keys();
+
+        return Activity::query()
+            ->with('week')
+            ->whereIn('training_week_id', $accessibleWeekIds)
+            ->where('is_active', true)
+            ->orderBy('training_week_id')
+            ->orderBy('position')
+            ->get()
+            ->map(fn (Activity $activity): array => $this->activityOption($activity))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * An activity's week must be loaded.
+     *
+     * @return array{value: string, label: string}
+     */
+    private function activityOption(Activity $activity): array
+    {
+        return [
+            'value' => (string) $activity->id,
+            'label' => "Week {$activity->week->week_number} · {$activity->title}",
         ];
     }
 
@@ -105,7 +136,7 @@ class DailyLogPageService
      */
     private function weeklyProgress(User $participant): array
     {
-        $program = Program::query()->where('is_active', true)->with('weeks')->first();
+        $program = $this->activeProgram();
         if (! $program) {
             return [];
         }
@@ -130,6 +161,11 @@ class DailyLogPageService
             })
             ->values()
             ->all();
+    }
+
+    private function activeProgram(): ?Program
+    {
+        return Program::query()->where('is_active', true)->with('weeks')->first();
     }
 
     private function today(): string

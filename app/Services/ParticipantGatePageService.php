@@ -9,6 +9,7 @@ use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Str;
 
 class ParticipantGatePageService
 {
@@ -53,19 +54,22 @@ class ParticipantGatePageService
     }
 
     /**
-     * The saved evaluation status, or whether the Gate is ready for Coach review while it has none.
+     * The saved evaluation status, or whether the Gate is ready for Coach review while it has none (not ready when
+     * the readiness is unknown).
      *
-     * @param  array<string, string>  $readiness
+     * @param  ?array<string, string>  $readiness  the Gate's readiness reasons
      */
-    private function statusLabel(?GateEvaluation $evaluation, array $readiness): string
+    public function statusLabel(?GateEvaluation $evaluation, ?array $readiness): string
     {
         return strtoupper(($evaluation?->status ?? GateEvaluationStatus::fromReadiness($readiness))->label());
     }
 
     /**
-     * @param  array<string, string>  $readiness
+     * The badge tone of the status that statusLabel() shows.
+     *
+     * @param  ?array<string, string>  $readiness  the Gate's readiness reasons
      */
-    private function statusTone(?GateEvaluation $evaluation, array $readiness): string
+    public function statusTone(?GateEvaluation $evaluation, ?array $readiness): string
     {
         if ($evaluation?->status) {
             return $this->evaluationStatusTone($evaluation->status);
@@ -119,8 +123,8 @@ class ParticipantGatePageService
     }
 
     /**
-     * One summary row per outstanding readiness reason: the daily logs, the Weekly Video Recording, and a
-     * "Requirements" row for every reason other than the daily logs (the video reason included).
+     * One summary row per outstanding readiness reason, in the order the reasons are resolved: the daily logs, each
+     * unsubmitted activity, each activity with missing required evidence and the Weekly Video Recording.
      *
      * @param  array<string, string>  $readiness
      * @return list<array{label: string, progress: string, message: string}>
@@ -128,28 +132,37 @@ class ParticipantGatePageService
     private function readinessItems(User $participant, TrainingWeek $week, array $readiness): array
     {
         $items = [];
-        if (array_key_exists('daily_logs', $readiness)) {
-            $logs = $this->weeklyDailyLogCount($participant, $week);
-            $minimum = $this->gates->minimumDailyLogs();
-            $remaining = max(0, $minimum - $logs);
-            $items[] = [
-                'label' => 'Daily logs',
-                'progress' => "{$logs} of {$minimum} completed",
-                'message' => $remaining === 1
-                    ? "One more Week {$week->week_number} daily log is required before this Gate can be passed."
-                    : "{$remaining} more Week {$week->week_number} daily logs are required before this Gate can be passed.",
-            ];
-        }
-        if (array_key_exists('weekly_video', $readiness) || array_key_exists('weekly_loom', $readiness)) {
-            $items[] = ['label' => 'Weekly Video Recording', 'progress' => 'Missing', 'message' => 'Upload the required weekly video recording before this Gate can be passed.'];
-        }
-        foreach (array_keys($readiness) as $key) {
-            if ($key !== 'daily_logs') {
-                $items[] = ['label' => 'Requirements', 'progress' => 'Incomplete', 'message' => 'Complete the outstanding activity and evidence requirements before this Gate can be passed.'];
-            }
+        foreach ($readiness as $key => $reason) {
+            $items[] = match (true) {
+                $key === 'daily_logs' => $this->dailyLogReadinessItem($participant, $week),
+                $key === 'weekly_video' => ['label' => 'Weekly Video Recording', 'progress' => 'Missing', 'message' => 'Upload the required weekly video recording before this Gate can be passed.'],
+                str_starts_with($key, 'activity_') => ['label' => 'Activity '.Str::after($key, 'activity_'), 'progress' => 'Not submitted', 'message' => $reason],
+                str_starts_with($key, 'evidence_') => ['label' => 'Activity '.Str::after($key, 'evidence_').' evidence', 'progress' => 'Missing', 'message' => $reason],
+                default => ['label' => 'Requirements', 'progress' => 'Incomplete', 'message' => $reason],
+            };
         }
 
         return $items;
+    }
+
+    /**
+     * The daily logs row: the participant's daily logs on the week's activities against the weekly minimum.
+     *
+     * @return array{label: string, progress: string, message: string}
+     */
+    private function dailyLogReadinessItem(User $participant, TrainingWeek $week): array
+    {
+        $logs = $this->weeklyDailyLogCount($participant, $week);
+        $minimum = $this->gates->minimumDailyLogs();
+        $remaining = max(0, $minimum - $logs);
+
+        return [
+            'label' => 'Daily logs',
+            'progress' => "{$logs} of {$minimum} completed",
+            'message' => $remaining === 1
+                ? "One more Week {$week->week_number} daily log is required before this Gate can be passed."
+                : "{$remaining} more Week {$week->week_number} daily logs are required before this Gate can be passed.",
+        ];
     }
 
     /**

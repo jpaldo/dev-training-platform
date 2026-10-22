@@ -82,20 +82,27 @@ class ValidationLabService
     }
 
     /**
-     * A Lab record's six check results in order: the check label, whether it passed, the result text (upper case;
-     * `Issue` and a missing status both show as an issue) and the participant's notes.
+     * A Lab record's six check results in order: the check label, the result tone and icon (`pass` ✓, `issue` ⚠, or
+     * `missing` without an icon for a check with no status, as on a draft whose checks are not filled in), the result
+     * text (upper case; NOT RECORDED for a missing status) and the participant's notes.
      *
-     * @return list<array{label: string, isPassed: bool, statusLabel: string, notes: ?string}>
+     * @return list<array{label: string, tone: string, icon: ?string, statusLabel: string, notes: ?string}>
      */
     public function resultChecks(ValidationSubmission $submission): array
     {
         $checks = [];
         foreach (self::CHECKS as $key => $check) {
-            $isPassed = $submission->{$key.'_status'} === ValidationCheckStatus::Pass;
+            /** @var ?ValidationCheckStatus $status */
+            $status = $submission->{$key.'_status'};
             $checks[] = [
                 'label' => $check['label'],
-                'isPassed' => $isPassed,
-                'statusLabel' => strtoupper(($isPassed ? ValidationCheckStatus::Pass : ValidationCheckStatus::Issue)->label()),
+                'tone' => $status?->value ?? 'missing',
+                'icon' => match ($status) {
+                    ValidationCheckStatus::Pass => '✓',
+                    ValidationCheckStatus::Issue => '⚠',
+                    null => null,
+                },
+                'statusLabel' => strtoupper($status?->label() ?? 'Not recorded'),
                 'notes' => $submission->{$key.'_notes'},
             ];
         }

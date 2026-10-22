@@ -22,6 +22,7 @@
                 'dateValue' => $dateValue,
                 'maxDate' => $maxDate,
                 'activityOptions' => $activityOptions,
+                'selectedActivityId' => $selectedActivityId,
                 'contentValue' => null,
             ])
         </div>

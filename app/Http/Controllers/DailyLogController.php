@@ -54,18 +54,20 @@ class DailyLogController extends Controller
         return redirect()->route('daily-logs.index')->with('status', 'Daily log saved.');
     }
 
-    public function edit(DailyLog $dailyLog, DailyLogPageService $page): View
+    public function edit(Request $request, DailyLog $dailyLog, DailyLogPageService $page): View
     {
         Gate::authorize('update', $dailyLog);
+        /** @var User $user */
+        $user = $request->user();
 
-        return view('daily_logs.edit', $page->editData($dailyLog));
+        return view('daily_logs.edit', $page->editData($dailyLog, $user));
     }
 
     public function update(UpdateDailyLogRequest $request, DailyLog $dailyLog, WeekProgressionService $progression, TrainingExportCoordinator $exports): RedirectResponse
     {
         /** @var User $user */ $user = $request->user();
         $data = $request->validated();
-        if (! empty($data['activity_id'])) {
+        if (! empty($data['activity_id']) && (int) $data['activity_id'] !== $dailyLog->activity_id) {
             $activity = Activity::with('week')->findOrFail($data['activity_id']);
             $progression->ensureCanAccessActivity($user, $activity->week, $activity);
         }

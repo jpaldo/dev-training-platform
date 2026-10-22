@@ -20,17 +20,15 @@
         <p id="daily-log-date-hint" class="{{ $hintClasses }}">Select the date you performed this activity.</p>
     </div>
 
-    @if($activityOptions !== null)
-        <div class="grid gap-2">
-            <label for="daily-log-activity" class="{{ $labelClasses }}">Activity (optional)</label>
-            <select id="daily-log-activity" name="activity_id" class="{{ $controlClasses }}">
-                <option value="">General training</option>
-                @foreach($activityOptions as $option)
-                    <option value="{{ $option['value'] }}" @selected((string) old('activity_id') === $option['value'])>{{ $option['label'] }}</option>
-                @endforeach
-            </select>
-        </div>
-    @endif
+    <div class="grid gap-2">
+        <label for="daily-log-activity" class="{{ $labelClasses }}">Activity (optional)</label>
+        <select id="daily-log-activity" name="activity_id" class="{{ $controlClasses }}">
+            <option value="">General training</option>
+            @foreach($activityOptions as $option)
+                <option value="{{ $option['value'] }}" @selected((string) old('activity_id', $selectedActivityId) === $option['value'])>{{ $option['label'] }}</option>
+            @endforeach
+        </select>
+    </div>
 
     <div class="grid gap-2">
         <label for="daily-log-content" class="{{ $labelClasses }}">Work, findings, evidence, blockers, and outcome</label>

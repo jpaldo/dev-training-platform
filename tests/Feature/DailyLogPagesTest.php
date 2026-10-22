@@ -126,6 +126,8 @@ class DailyLogPagesTest extends TestCase
         Activity::factory()->for($weekOne, 'week')->create(['title' => 'Requirement review', 'position' => 1]);
         Activity::factory()->for($weekOne, 'week')->create(['title' => 'Retired activity', 'position' => 2, 'is_active' => false]);
         Activity::factory()->for($lockedWeek, 'week')->create(['title' => 'Locked charter', 'position' => 1]);
+        $otherProgram = Program::factory()->create(['is_active' => false]);
+        Activity::factory()->for($this->week($otherProgram, 1), 'week')->create(['title' => 'Other program activity', 'position' => 1]);
         $today = now(config('app.timezone', 'Asia/Manila'))->toDateString();
 
         $response = $this->actingAs($participant)->get(route('daily-logs.create'))
@@ -150,6 +152,7 @@ class DailyLogPagesTest extends TestCase
             ], false)
             ->assertDontSee('Retired activity')
             ->assertDontSee('Locked charter')
+            ->assertDontSee('Other program activity')
             ->assertDontSee('name="_method"', false);
 
         $this->assertSame(1, substr_count($response->getContent(), 'Save log'));
@@ -181,12 +184,15 @@ class DailyLogPagesTest extends TestCase
         $this->assertSame($this->newLogFormQueryCount(1), $this->newLogFormQueryCount(3));
     }
 
-    public function test_edit_form_shows_the_stored_log_and_updates_from_the_main_action(): void
+    public function test_edit_form_shows_the_stored_log_with_its_activity_selected_and_updates_from_the_main_action(): void
     {
         $participant = User::factory()->create();
+        $week = $this->week(Program::factory()->create(), 1);
+        $otherActivity = Activity::factory()->for($week, 'week')->create(['title' => 'Requirement review', 'position' => 1]);
+        $savedActivity = Activity::factory()->for($week, 'week')->create(['title' => 'Bug triage', 'position' => 2]);
         $storedDate = now(config('app.timezone', 'Asia/Manila'))->subDays(3)->toDateString();
         $today = now(config('app.timezone', 'Asia/Manila'))->toDateString();
-        $log = DailyLog::factory()->for($participant, 'participant')->create(['activity_id' => null, 'logged_on' => $storedDate, 'content' => 'Existing entry']);
+        $log = DailyLog::factory()->for($participant, 'participant')->for($savedActivity)->create(['logged_on' => $storedDate, 'content' => 'Existing entry']);
 
         $response = $this->actingAs($participant)->get(route('daily-logs.edit', $log))
             ->assertOk()
@@ -199,11 +205,58 @@ class DailyLogPagesTest extends TestCase
                 'action="'.route('daily-logs.update', $log).'" id="daily-log-form"',
                 'name="_method" value="PATCH"',
                 'name="logged_on" value="'.$storedDate.'" max="'.$today.'" required',
+                'for="daily-log-activity"',
+                '<option value="">General training</option>',
+                '<option value="'.$otherActivity->id.'" >Week 1 · Requirement review</option>',
+                '<option value="'.$savedActivity->id.'" selected>Week 1 · Bug triage</option>',
                 'Existing entry</textarea>',
-            ], false)
-            ->assertDontSee('name="activity_id"', false);
+            ], false);
 
         $this->assertSame(1, substr_count($response->getContent(), 'Update log'));
+        $this->assertSame(1, substr_count($response->getContent(), ' selected>'));
+    }
+
+    public function test_edit_form_keeps_offering_a_saved_activity_that_is_no_longer_an_option(): void
+    {
+        $participant = User::factory()->create();
+        $week = $this->week(Program::factory()->create(['is_active' => false]), 1);
+        $retiredActivity = Activity::factory()->for($week, 'week')->create(['title' => 'Retired activity', 'is_active' => false]);
+        $log = DailyLog::factory()->for($participant, 'participant')->for($retiredActivity)->create();
+
+        $this->actingAs($participant)->get(route('daily-logs.edit', $log))
+            ->assertOk()
+            ->assertSee('<option value="'.$retiredActivity->id.'" selected>Week 1 · Retired activity</option>', false);
+    }
+
+    public function test_log_update_changes_the_activity_and_rechecks_access_only_for_a_new_activity(): void
+    {
+        $participant = User::factory()->create();
+        $program = Program::factory()->create();
+        $weekOneActivity = Activity::factory()->for($this->week($program, 1), 'week')->create();
+        $lockedWeek = $this->week($program, 2);
+        $savedLockedActivity = Activity::factory()->for($lockedWeek, 'week')->create(['position' => 1]);
+        $otherLockedActivity = Activity::factory()->for($lockedWeek, 'week')->create(['position' => 2]);
+        $log = DailyLog::factory()->for($participant, 'participant')->for($savedLockedActivity)->create(['logged_on' => '2026-09-10']);
+
+        $this->actingAs($participant)
+            ->patch(route('daily-logs.update', $log), ['activity_id' => $savedLockedActivity->id, 'logged_on' => '2026-09-10', 'content' => 'Kept activity'])
+            ->assertRedirect(route('daily-logs.index'));
+        $this->assertSame('Kept activity', $log->fresh()->content);
+
+        $this->actingAs($participant)
+            ->patch(route('daily-logs.update', $log), ['activity_id' => $otherLockedActivity->id, 'logged_on' => '2026-09-10', 'content' => 'Locked move'])
+            ->assertForbidden();
+        $this->assertSame($savedLockedActivity->id, $log->fresh()->activity_id);
+
+        $this->actingAs($participant)
+            ->patch(route('daily-logs.update', $log), ['activity_id' => $weekOneActivity->id, 'logged_on' => '2026-09-10', 'content' => 'Moved'])
+            ->assertRedirect(route('daily-logs.index'));
+        $this->assertSame($weekOneActivity->id, $log->fresh()->activity_id);
+
+        $this->actingAs($participant)
+            ->patch(route('daily-logs.update', $log), ['activity_id' => '', 'logged_on' => '2026-09-10', 'content' => 'General'])
+            ->assertRedirect(route('daily-logs.index'));
+        $this->assertNull($log->fresh()->activity_id);
     }
 
     public function test_rejected_log_update_returns_to_the_edit_form_with_the_error_and_the_old_input(): void
@@ -274,7 +327,7 @@ class DailyLogPagesTest extends TestCase
         $response = $this->actingAs($participant)->get($url)->assertOk();
         DB::disableQueryLog();
         $this->assertSame($rows, substr_count($response->getContent(), 'Activity of week'));
-        Activity::query()->update(['is_active' => false]);
+        $program->update(['is_active' => false]);
 
         return count(DB::getQueryLog());
     }

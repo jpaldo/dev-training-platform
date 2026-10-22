@@ -66,6 +66,8 @@ class ReusableAssetLibraryPageTest extends TestCase
                 '<option value="Prompt Template" >Prompt Template</option>',
                 '<option value="Saved Agent / Configuration" >Saved Agent / Configuration</option>',
             ], false)
+            ->assertDontSee('I reused it as-is')
+            ->assertDontSee('I made adjustments')
             ->assertSee('No reusable assets have been published yet.')
             ->assertSee('Approved Week 4 reusable assets will appear here.')
             ->assertDontSee('data-reusable-asset', false)

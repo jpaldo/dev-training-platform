@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
+use App\Models\EvidenceRequirement;
 use App\Models\GateCriterion;
 use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
@@ -44,12 +46,12 @@ class ParticipantGatePageTest extends TestCase
                 'Daily logs',
                 '0 of 5 completed',
                 '5 more Week 2 daily logs are required before this Gate can be passed.',
+                'Activity 1',
+                'Not submitted',
+                'Activity 1 must have a submitted version.',
                 'Weekly Video Recording',
                 'Missing',
                 'Upload the required weekly video recording before this Gate can be passed.',
-                'Requirements',
-                'Incomplete',
-                'Complete the outstanding activity and evidence requirements before this Gate can be passed.',
                 'id="gate-video-title"',
                 'Status:',
                 'MISSING',
@@ -66,6 +68,34 @@ class ParticipantGatePageTest extends TestCase
             ->assertDontSee('Coach feedback');
 
         $this->assertSame(1, substr_count($response->getContent(), 'Upload Video Recording'));
+    }
+
+    public function test_readiness_summary_lists_each_outstanding_reason_once(): void
+    {
+        $participant = User::factory()->create();
+        ['week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture(activityCount: 2, extraCriteriaCount: 1);
+        [$firstActivity] = $activities;
+        EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($firstActivity), 'activityRequirement')->create();
+        ActivitySubmission::factory()->for($participant, 'participant')->for($firstActivity)->create(['status' => 'submitted']);
+
+        $response = $this->actingAs($participant)->get(route('training.gates.show', [$week, $gate]))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Gate readiness',
+                '<strong>Daily logs</strong>',
+                '<strong>Activity 1 evidence</strong>',
+                'Missing',
+                'Required evidence for Activity 1 is missing.',
+                '<strong>Activity 2</strong>',
+                'Not submitted',
+                'Activity 2 must have a submitted version.',
+                '<strong>Weekly Video Recording</strong>',
+                'Upload the required weekly video recording before this Gate can be passed.',
+                'id="gate-video-title"',
+            ], false)
+            ->assertDontSee('Complete the outstanding activity and evidence requirements');
+
+        $this->assertSame(1, substr_count($response->getContent(), 'Upload the required weekly video recording before this Gate can be passed.'));
     }
 
     public function test_the_daily_log_summary_uses_the_configured_weekly_minimum(): void

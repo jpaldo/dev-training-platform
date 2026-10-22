@@ -46,7 +46,12 @@
             @foreach($checks as $check)
                 <li class="grid min-w-0 content-start gap-3 rounded-2xl border border-line bg-surface p-5">
                     <x-ui.eyebrow>{{ $check['label'] }}</x-ui.eyebrow>
-                    <div @class(['text-lg font-black', 'text-emerald-300' => $check['isPassed'], 'text-amber-200' => ! $check['isPassed']])>{{ $check['isPassed'] ? '✓' : '⚠' }} {{ $check['statusLabel'] }}</div>
+                    <div @class([
+                        'text-lg font-black',
+                        'text-emerald-300' => $check['tone'] === 'pass',
+                        'text-amber-200' => $check['tone'] === 'issue',
+                        'text-muted' => $check['tone'] === 'missing',
+                    ])>@if($check['icon']){{ $check['icon'] }} @endif{{ $check['statusLabel'] }}</div>
                     <details class="rounded-xl border border-line bg-field">
                         <summary class="cursor-pointer rounded-xl px-3 py-2.5 font-extrabold focus-visible:outline-3 focus-visible:outline-accent/50">View Details</summary>
                         <div class="grid min-w-0 gap-2 px-3 pb-3 text-sm/relaxed">

@@ -106,20 +106,60 @@ class ParticipantNotificationsPageTest extends TestCase
             ->assertSee('Resolved reminder');
     }
 
-    public function test_notifications_page_without_notifications_shows_the_empty_state(): void
+    public function test_notifications_page_without_notifications_shows_the_empty_state_and_no_main_action(): void
     {
         $participant = $this->participantWithoutNotifications();
 
         $response = $this->actingAs($participant)->get(route('participant.notifications'))
             ->assertOk()
             ->assertSeeInOrder([
-                'id="notifications-main-action"',
-                'Mark All as Read',
                 'aria-label="Filter notifications"',
                 'No notifications right now.',
-            ], false);
+            ], false)
+            ->assertDontSee('notifications-main-action')
+            ->assertDontSee('Mark All as Read');
 
         $this->assertStringNotContainsString('data-notification-row', $response->getContent());
+    }
+
+    public function test_mark_all_as_read_is_offered_only_while_a_notification_is_unread(): void
+    {
+        $participant = $this->participantWithoutNotifications();
+        $this->notification($participant, ['title' => 'Seen update', 'is_read' => true]);
+
+        $this->actingAs($participant)->get(route('participant.notifications'))
+            ->assertOk()
+            ->assertSee('Seen update')
+            ->assertDontSee('Mark All as Read');
+
+        $this->notification($participant, ['title' => 'Resolved reminder', 'resolved_at' => now()]);
+
+        $this->actingAs($participant)->get(route('participant.notifications'))
+            ->assertOk()
+            ->assertSee('id="notifications-main-action"', false)
+            ->assertSee('Mark All as Read');
+    }
+
+    public function test_marking_all_as_read_also_marks_resolved_notifications_as_read(): void
+    {
+        $participant = $this->participantWithoutNotifications();
+        $open = $this->notification($participant, ['title' => 'Open reminder']);
+        $resolved = $this->notification($participant, ['title' => 'Resolved reminder', 'resolved_at' => now()]);
+        $otherParticipantNotification = $this->notification($this->participantWithoutNotifications(), ['title' => 'Someone else']);
+
+        $response = $this->actingAs($participant)
+            ->from(route('participant.notifications'))
+            ->followingRedirects()
+            ->post(route('participant.notifications.read-all'))
+            ->assertOk()
+            ->assertSee('Resolved reminder')
+            ->assertDontSee('Mark All as Read');
+
+        $this->assertStringNotContainsString('Unread</span>', $response->getContent());
+        $this->assertStringNotContainsString('Mark as Read', $response->getContent());
+        $this->assertTrue($open->fresh()->is_read);
+        $this->assertTrue($resolved->fresh()->is_read);
+        $this->assertFalse($otherParticipantNotification->fresh()->is_read);
     }
 
     public function test_marking_all_as_read_returns_to_the_page_with_the_status_alert(): void

@@ -53,8 +53,8 @@
                             </div>
                         </div>
                         <div class="grid min-w-0 gap-2">
-                            <label class="{{ $labelClasses }}">Status</label>
-                            <select name="{{ $check['key'] }}_status" required class="{{ $controlClasses }}">
+                            <label for="{{ $check['key'] }}_status" class="{{ $labelClasses }}">Status</label>
+                            <select id="{{ $check['key'] }}_status" name="{{ $check['key'] }}_status" required class="{{ $controlClasses }}">
                                 <option value="">Select</option>
                                 @foreach($checkStatusOptions as $option)
                                     <option value="{{ $option['value'] }}" @selected(old($check['key'].'_status') === $option['value'])>{{ $option['label'] }}</option>
@@ -62,8 +62,8 @@
                             </select>
                         </div>
                         <div class="grid min-w-0 gap-2" data-character-counter>
-                            <label class="{{ $labelClasses }}">Evidence / notes</label>
-                            <textarea name="{{ $check['key'] }}_notes" maxlength="{{ $checkNotesMaxLength }}" required class="{{ $textareaClasses }}">{{ old($check['key'].'_notes') }}</textarea>
+                            <label for="{{ $check['key'] }}_notes" class="{{ $labelClasses }}">Evidence / notes</label>
+                            <textarea id="{{ $check['key'] }}_notes" name="{{ $check['key'] }}_notes" maxlength="{{ $checkNotesMaxLength }}" required class="{{ $textareaClasses }}">{{ old($check['key'].'_notes') }}</textarea>
                             <span class="text-sm text-muted" data-char-count>0 / {{ number_format($checkNotesMaxLength) }} characters</span>
                         </div>
                     </li>
@@ -72,12 +72,12 @@
 
             <x-ui.card class="grid min-w-0 grid-cols-1 gap-5">
                 <div class="grid min-w-0 gap-2">
-                    <label class="{{ $labelClasses }}">What did the validation catch?</label>
+                    <label for="finding" class="{{ $labelClasses }}">What did the validation catch?</label>
                     <x-markdown-field id="finding" name="finding" :value="old('finding')" required :maxlength="$findingMaxLength" class="{{ $textareaClasses }}" />
                 </div>
                 <div class="grid min-w-0 gap-2">
-                    <label class="{{ $labelClasses }}">Decision</label>
-                    <select name="decision" required class="{{ $controlClasses }}">
+                    <label for="decision" class="{{ $labelClasses }}">Decision</label>
+                    <select id="decision" name="decision" required class="{{ $controlClasses }}">
                         <option value="">Select</option>
                         @foreach($decisionOptions as $option)
                             <option value="{{ $option['value'] }}" @selected(old('decision') === $option['value'])>{{ $option['label'] }}</option>
@@ -85,7 +85,7 @@
                     </select>
                 </div>
                 <div class="grid min-w-0 gap-2">
-                    <label class="{{ $labelClasses }}">Evidence record</label>
+                    <label for="evidence_notes" class="{{ $labelClasses }}">Evidence record</label>
                     <x-markdown-field id="evidence_notes" name="evidence_notes" :value="old('evidence_notes')" required :maxlength="$evidenceMaxLength" class="{{ $textareaClasses }}" />
                 </div>
                 <div class="grid min-w-0 gap-2">

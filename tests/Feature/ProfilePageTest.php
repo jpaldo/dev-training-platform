@@ -256,7 +256,7 @@ class ProfilePageTest extends TestCase
         ];
     }
 
-    public function test_connected_participant_gets_no_picker_hook_or_script_while_google_drive_cannot_connect(): void
+    public function test_connected_participant_gets_a_disabled_picker_button_without_hook_or_script_while_google_drive_cannot_connect(): void
     {
         config()->set('services.google_drive.enabled', false);
         $participant = User::factory()->create(['role' => 'participant']);
@@ -265,7 +265,11 @@ class ProfilePageTest extends TestCase
         $this->actingAs($participant)->get(route('profile.show'))
             ->assertOk()
             ->assertSee('Google Drive Connected')
-            ->assertSee('data-token-url="'.route('profile.google-drive.picker-token').'"', false)
+            ->assertSeeInOrder([
+                '<button type="button" disabled data-token-url="'.route('profile.google-drive.picker-token').'"',
+                'Choose Google Drive Folder',
+                'role="alert" data-drive-picker-error="data-drive-picker-error">Google Drive folder selection is unavailable because Google Drive cannot connect right now. Please contact an administrator.</div>',
+            ], false)
             ->assertDontSee('data-drive-picker=', false)
             ->assertDontSee('apis.google.com/js/api.js', false)
             ->assertDontSee('Google Drive is currently unavailable.');

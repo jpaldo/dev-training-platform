@@ -87,7 +87,7 @@ class AttendanceTest extends TestCase
     public function test_export_applies_date_participant_and_completed_status_filters(): void
     {
         $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
-        $participant = User::factory()->create(['training_path' => 'automation_manual']);
+        $participant = User::factory()->create(['training_path' => 'automation_manual', 'employee_id' => 'EMP-1001']);
         $otherParticipant = User::factory()->create();
         $inRange = Carbon::parse('2026-09-10 09:00:00', config('app.timezone'));
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => $inRange, 'check_out_at' => $inRange->copy()->addHour(), 'total_seconds' => 3600]);
@@ -104,6 +104,8 @@ class AttendanceTest extends TestCase
 
         $rows = array_values(array_filter(explode("\n", $csv)));
         $this->assertCount(2, $rows);
+        $this->assertSame(['Participant', 'Employee ID', 'Email'], array_slice(str_getcsv($rows[0]), 0, 3));
+        $this->assertSame([$participant->name, 'EMP-1001', $participant->email], array_slice(str_getcsv($rows[1]), 0, 3));
         $this->assertStringContainsString($participant->email, $rows[1]);
         $this->assertStringContainsString('"Automation / Manual"', $rows[1]);
         $this->assertStringContainsString('2026-09-10', $rows[1]);

@@ -76,9 +76,9 @@ class AttendanceController extends Controller
 
         return response()->streamDownload(function () use ($sessions): void {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Participant', 'Email', 'QA Path', 'Date', 'Check-in', 'Check-out', 'Total Hours', 'Session Status']);
+            fputcsv($out, ['Participant', 'Employee ID', 'Email', 'QA Path', 'Date', 'Check-in', 'Check-out', 'Total Hours', 'Session Status']);
             foreach ($sessions as $session) {
-                fputcsv($out, [$session->participant->name, $session->participant->email, $session->participant->trainingPathLabel(), $session->check_in_at->timezone(config('app.timezone'))->format('Y-m-d'), $session->check_in_at->timezone(config('app.timezone'))->toDateTimeString(), $session->check_out_at?->timezone(config('app.timezone'))->toDateTimeString(), number_format($session->totalHours(), 2, '.', ''), $session->isOpen() ? 'Checked in' : 'Checked out']);
+                fputcsv($out, [$session->participant->name, $session->participant->employee_id, $session->participant->email, $session->participant->trainingPathLabel(), $session->check_in_at->timezone(config('app.timezone'))->format('Y-m-d'), $session->check_in_at->timezone(config('app.timezone'))->toDateTimeString(), $session->check_out_at?->timezone(config('app.timezone'))->toDateTimeString(), number_format($session->totalHours(), 2, '.', ''), $session->isOpen() ? 'Checked in' : 'Checked out']);
             }
             fclose($out);
         }, 'attendance.csv', ['Content-Type' => 'text/csv']);

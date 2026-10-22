@@ -235,7 +235,7 @@ class CoachReportsTest extends TestCase
     {
         $this->seed(QaTrainingProgramSeeder::class);
         $admin = User::factory()->create(['role' => 'admin', 'name' => 'Mentor Ely']);
-        $participant = User::factory()->create(['name' => 'Combined QA', 'training_path' => 'automation_manual']);
+        $participant = User::factory()->create(['name' => 'Combined QA', 'training_path' => 'automation_manual', 'employee_id' => 'EMP-6001']);
         $participant->assignedCoaches()->attach($admin->id);
 
         $response = $this->actingAs($admin)->get(route('coach.reports.missing-submissions', [
@@ -251,9 +251,12 @@ class CoachReportsTest extends TestCase
             'mentor' => $admin->id,
             'category' => 'activities',
         ]))->streamedContent();
-        $this->assertStringContainsString('Participant,Email,"QA Path",Mentor,Category', $csv);
+        $this->assertStringContainsString('Participant,"Employee ID",Email,"QA Path",Mentor,Category', $csv);
         $this->assertStringContainsString(',Expected,Submitted,Missing,Evidences,Status,', $csv);
         $this->assertStringContainsString('Combined QA', $csv);
+        $rows = array_map(str_getcsv(...), array_slice(explode("\n", trim($csv)), 1));
+        $this->assertNotEmpty($rows);
+        $this->assertSame([['Combined QA', 'EMP-6001']], array_values(array_unique(array_map(fn (array $row): array => array_slice($row, 0, 2), $rows), SORT_REGULAR)));
     }
 
     public function test_general_training_reports_five_expected_logs_and_never_negative_missing_counts(): void

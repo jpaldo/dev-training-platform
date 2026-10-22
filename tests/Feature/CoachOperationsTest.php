@@ -327,7 +327,8 @@ class CoachOperationsTest extends TestCase
     public function test_review_queue_export_prints_the_decision_of_the_latest_review(): void
     {
         $coach = User::factory()->create(['role' => 'coach']);
-        $submission = ActivitySubmission::factory()->create(['status' => 'needs_revision', 'submitted_at' => now()]);
+        $participant = User::factory()->create(['employee_id' => 'EMP-3001']);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->create(['status' => 'needs_revision', 'submitted_at' => now()]);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
         SubmissionReview::factory()->for($version, 'submissionVersion')->create(['decision' => ReviewDecision::Approved, 'reviewed_at' => now()->subDay()]);
         SubmissionReview::factory()->for($version, 'submissionVersion')->create(['decision' => ReviewDecision::NeedsRevision, 'reviewed_at' => now()]);
@@ -336,15 +337,30 @@ class CoachOperationsTest extends TestCase
 
         $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
         $this->assertCount(2, $rows);
-        $this->assertSame('Decision', $rows[0][7]);
-        $this->assertSame('needs_revision', $rows[1][7]);
+        $this->assertSame(['Participant', 'Employee ID'], array_slice($rows[0], 0, 2));
+        $this->assertSame([$participant->name, 'EMP-3001'], array_slice($rows[1], 0, 2));
+        $this->assertSame('Decision', $rows[0][8]);
+        $this->assertSame('needs_revision', $rows[1][8]);
+    }
+
+    public function test_progress_export_prints_each_participants_employee_id_after_the_name(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        User::factory()->create(['name' => 'Ada', 'email' => 'ada@example.com', 'employee_id' => 'EMP-5001']);
+        User::factory()->create(['name' => 'Ben', 'email' => 'ben@example.com', 'employee_id' => null]);
+
+        $csv = $this->actingAs($coach)->get(route('coach.reports.export'))->assertOk()->streamedContent();
+
+        $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
+        $this->assertSame(['Name', 'Employee ID', 'Email'], array_slice($rows[0], 0, 3));
+        $this->assertEqualsCanonicalizing([['Ada', 'EMP-5001', 'ada@example.com'], ['Ben', '', 'ben@example.com']], array_map(fn (array $row): array => array_slice($row, 0, 3), array_slice($rows, 1)));
     }
 
     public function test_gate_export_applies_participant_week_status_and_path_filters(): void
     {
         $this->seedProgram();
         $coach = User::factory()->create(['role' => 'coach']);
-        $manual = User::factory()->create(['training_path' => 'manual']);
+        $manual = User::factory()->create(['training_path' => 'manual', 'employee_id' => 'EMP-4001']);
         $automation = User::factory()->create(['training_path' => 'automation']);
         $program = Program::where('name', 'AI-Assisted QA Level 3')->first();
         $w2 = $program->weeks()->where('week_number', 2)->first()->gates()->first();
@@ -356,6 +372,9 @@ class CoachOperationsTest extends TestCase
         $this->assertStringContainsString($manual->name, $response->streamedContent());
         $this->assertStringContainsString(',2,"'.$w2->title.'",passed,', $response->streamedContent());
         $this->assertStringNotContainsString($automation->name, $response->streamedContent());
+        $rows = array_map(str_getcsv(...), explode("\n", trim($response->streamedContent())));
+        $this->assertSame(['Participant', 'Employee ID'], array_slice($rows[0], 0, 2));
+        $this->assertSame([$manual->name, 'EMP-4001'], array_slice($rows[1], 0, 2));
     }
 
     public function test_at_risk_report_contains_authoritative_reason(): void

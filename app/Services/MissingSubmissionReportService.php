@@ -120,6 +120,7 @@ class MissingSubmissionReportService
         return [
             'participant' => $participant,
             'participant_name' => $participant->name,
+            'employee_id' => $participant->employee_id,
             'email' => $participant->email,
             'path' => $participant->trainingPathLabel(),
             'mentor' => $mentor,

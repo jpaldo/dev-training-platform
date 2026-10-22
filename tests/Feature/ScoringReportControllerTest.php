@@ -40,8 +40,8 @@ class ScoringReportControllerTest extends TestCase
         $firstActivity = Activity::factory()->for($weekTwo, 'week')->create(['position' => 1]);
         $secondActivity = Activity::factory()->for($weekTwo, 'week')->create(['position' => 2]);
         $weekThreeActivity = Activity::factory()->for($weekThree, 'week')->create(['position' => 1]);
-        $ada = User::factory()->create(['name' => 'Ada', 'email' => 'ada@example.com', 'training_path' => 'manual']);
-        $ben = User::factory()->create(['name' => 'Ben', 'email' => 'ben@example.com', 'training_path' => 'automation']);
+        $ada = User::factory()->create(['name' => 'Ada', 'email' => 'ada@example.com', 'training_path' => 'manual', 'employee_id' => 'EMP-1001']);
+        $ben = User::factory()->create(['name' => 'Ben', 'email' => 'ben@example.com', 'training_path' => 'automation', 'employee_id' => null]);
         $ada->assignedCoaches()->attach($coach->id);
 
         $this->createScoredSubmission($ada, $firstActivity, $coach, 80);
@@ -52,11 +52,13 @@ class ScoringReportControllerTest extends TestCase
         $this->createScoredSubmission($ben, $weekThreeActivity, $coach, 70, attemptNumber: 2);
 
         $csv = $this->actingAs($coach)->get(route('coach.reports.participant-summary'))->assertOk()->streamedContent();
-        $rows = collect(explode("\n", trim($csv)))->skip(1)->map(fn (string $line): array => str_getcsv($line))->keyBy(0);
+        $lines = explode("\n", trim($csv));
+        $rows = collect($lines)->skip(1)->map(fn (string $line): array => str_getcsv($line))->keyBy(0);
 
+        $this->assertSame(['Participant', 'Employee ID', 'Email'], array_slice(str_getcsv($lines[0]), 0, 3));
         $this->assertCount(2, $rows);
-        $this->assertSame(['Ada', 'ada@example.com', 'Manual', 'Casey Coach', '2', '2', '0', '85', '', '', '85', 'Proficient', '2026-10-01 09:00:00'], $rows['Ada']);
-        $this->assertSame(['Ben', 'ben@example.com', 'Automation', '', '2', '2', '0', '60', '70', '', '65', 'Developing', '2026-10-01 10:00:00'], $rows['Ben']);
+        $this->assertSame(['Ada', 'EMP-1001', 'ada@example.com', 'Manual', 'Casey Coach', '2', '2', '0', '85', '', '', '85', 'Proficient', '2026-10-01 09:00:00'], $rows['Ada']);
+        $this->assertSame(['Ben', '', 'ben@example.com', 'Automation', '', '2', '2', '0', '60', '70', '', '65', 'Developing', '2026-10-01 10:00:00'], $rows['Ben']);
     }
 
     public function test_participant_summary_counts_unscored_activities_only_among_completed_ones(): void
@@ -74,7 +76,7 @@ class ScoringReportControllerTest extends TestCase
         $csv = $this->actingAs($coach)->get(route('coach.reports.participant-summary'))->assertOk()->streamedContent();
         $row = str_getcsv(explode("\n", trim($csv))[1]);
 
-        $this->assertSame(['Ada', '2', '2', '1'], [$row[0], $row[4], $row[5], $row[6]]);
+        $this->assertSame(['Ada', '2', '2', '1'], [$row[0], $row[5], $row[6], $row[7]]);
     }
 
     public function test_participant_summary_counts_a_draft_score_as_unscored_and_leaves_it_out_of_the_latest_score_date(): void
@@ -91,7 +93,7 @@ class ScoringReportControllerTest extends TestCase
         $csv = $this->actingAs($coach)->get(route('coach.reports.participant-summary'))->assertOk()->streamedContent();
         $row = str_getcsv(explode("\n", trim($csv))[1]);
 
-        $this->assertSame(['Ada', '2', '1', '1', '80', '80', '2026-10-01 09:00:00'], [$row[0], $row[4], $row[5], $row[6], $row[7], $row[10], $row[12]]);
+        $this->assertSame(['Ada', '2', '1', '1', '80', '80', '2026-10-01 09:00:00'], [$row[0], $row[5], $row[6], $row[7], $row[8], $row[11], $row[13]]);
     }
 
     public function test_activity_scores_export_prints_a_draft_score_as_unscored(): void
@@ -99,7 +101,7 @@ class ScoringReportControllerTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Casey Coach']);
         $program = Program::factory()->create();
         $week = TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 1]);
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create(['training_path' => 'manual', 'employee_id' => 'EMP-2001']);
         $published = Activity::factory()->for($week, 'week')->create(['title' => 'Published activity', 'position' => 1]);
         $draft = Activity::factory()->for($week, 'week')->create(['title' => 'Draft activity', 'position' => 2]);
         $unscored = Activity::factory()->for($week, 'week')->create(['title' => 'Unscored activity', 'position' => 3]);
@@ -110,7 +112,12 @@ class ScoringReportControllerTest extends TestCase
         SubmissionVersion::factory()->for($unscoredSubmission, 'submission')->create(['status' => 'submitted']);
 
         $csv = $this->actingAs($coach)->get(route('coach.reports.scores'))->assertOk()->streamedContent();
-        $statuses = collect(explode("\n", trim($csv)))->skip(1)->map(fn (string $line): array => str_getcsv($line))->mapWithKeys(fn (array $row): array => [$row[4] => [$row[7], $row[13], $row[14], $row[15]]]);
+        $lines = explode("\n", trim($csv));
+        $rows = collect($lines)->skip(1)->map(fn (string $line): array => str_getcsv($line));
+        $statuses = $rows->mapWithKeys(fn (array $row): array => [$row[5] => [$row[8], $row[14], $row[15], $row[16]]]);
+
+        $this->assertSame(['Participant', 'Employee ID', 'Email'], array_slice(str_getcsv($lines[0]), 0, 3));
+        $this->assertSame(['EMP-2001'], $rows->pluck(1)->unique()->values()->all());
 
         $this->assertSame(['Published activity' => ['published', '83', 'Proficient', 'Casey Coach'], 'Draft activity' => ['unscored', '', '', ''], 'Unscored activity' => ['unscored', '', '', '']], $statuses->all());
     }

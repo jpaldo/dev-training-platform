@@ -214,13 +214,13 @@ class CoachReportService
         return match ($type) {
             'reviews' => [
                 'filename' => 'review-queue.csv',
-                'header' => ['Participant', 'Path', 'Week', 'Activity', 'Status', 'Version', 'Submitted', 'Decision', 'Reviewed'],
-                'rows' => $this->reviewRows($filters)->map(fn (array $r): array => [$r['submission']->participant->name, $r['submission']->participant->trainingPathLabel(), $r['submission']->activity->week->week_number, $r['submission']->activity->title, $r['submission']->status->value, $r['version']?->version_number, $r['submission']->submitted_at, $r['review']?->decision->value, $r['review']?->reviewed_at]),
+                'header' => ['Participant', 'Employee ID', 'Path', 'Week', 'Activity', 'Status', 'Version', 'Submitted', 'Decision', 'Reviewed'],
+                'rows' => $this->reviewRows($filters)->map(fn (array $r): array => [$r['submission']->participant->name, $r['submission']->participant->employee_id, $r['submission']->participant->trainingPathLabel(), $r['submission']->activity->week->week_number, $r['submission']->activity->title, $r['submission']->status->value, $r['version']?->version_number, $r['submission']->submitted_at, $r['review']?->decision->value, $r['review']?->reviewed_at]),
             ],
             'gates' => [
                 'filename' => 'gate-results.csv',
-                'header' => ['Participant', 'Path', 'Week', 'Gate', 'Status', 'Evaluated', 'Reviewer'],
-                'rows' => $this->filteredGateResults($filters)->get()->map(fn (GateEvaluation $e): array => [$e->participant->name, $e->participant->trainingPathLabel(), $e->gate->week->week_number, $e->gate->title, $e->status->value, $e->evaluated_at, $e->reviewer_id]),
+                'header' => ['Participant', 'Employee ID', 'Path', 'Week', 'Gate', 'Status', 'Evaluated', 'Reviewer'],
+                'rows' => $this->filteredGateResults($filters)->get()->map(fn (GateEvaluation $e): array => [$e->participant->name, $e->participant->employee_id, $e->participant->trainingPathLabel(), $e->gate->week->week_number, $e->gate->title, $e->status->value, $e->evaluated_at, $e->reviewer_id]),
             ],
             'risk' => [
                 'filename' => 'at-risk.csv',
@@ -229,10 +229,10 @@ class CoachReportService
             ],
             default => [
                 'filename' => 'participant-progress.csv',
-                'header' => ['Name', 'Email', 'Training path', 'Submissions', 'Gate evaluations'],
+                'header' => ['Name', 'Employee ID', 'Email', 'Training path', 'Submissions', 'Gate evaluations'],
                 'rows' => $this->participants(Arr::only($input, ['path', 'search']))->get()
                     ->when($input['mentor'] ?? null, fn (Collection $items, int|string $mentor): Collection => $items->filter(fn (User $participant): bool => $participant->assignedCoaches->contains('id', (int) $mentor))->values())
-                    ->map(fn (User $item): array => [$item->name, $item->email, $item->trainingPathLabel(), $item->activity_submissions_count, $item->gate_evaluations_count]),
+                    ->map(fn (User $item): array => [$item->name, $item->employee_id, $item->email, $item->trainingPathLabel(), $item->activity_submissions_count, $item->gate_evaluations_count]),
             ],
         };
     }

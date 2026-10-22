@@ -71,6 +71,32 @@ class MentorInterviewAvailabilityTest extends TestCase
         $this->assertDatabaseHas('mentor_interview_availabilities', ['mentor_id' => $mentor->id, 'start_time' => '09:00', 'capacity' => 1]);
     }
 
+    public function test_admin_cannot_add_availability_for_a_user_who_is_not_a_coach(): void
+    {
+        [$participant] = $this->fixture();
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->post(route('coach.mentor-availability.store'), $this->availabilityPayload() + ['mentor_id' => $participant->id])
+            ->assertNotFound();
+
+        $this->assertDatabaseCount('mentor_interview_availabilities', 0);
+    }
+
+    public function test_admin_can_update_another_mentors_availability(): void
+    {
+        [, $mentor] = $this->fixture();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $availability = MentorInterviewAvailability::create($this->availabilityPayload() + ['mentor_id' => $mentor->id, 'status' => MentorInterviewAvailabilityStatus::Open]);
+
+        $this->actingAs($admin)
+            ->patch(route('coach.mentor-availability.update', $availability), ['end_time' => '11:00', 'capacity' => 2] + $this->availabilityPayload())
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(2, $availability->fresh()->capacity);
+    }
+
     public function test_mentor_can_update_own_availability_but_not_another_mentors(): void
     {
         [, $mentor] = $this->fixture();

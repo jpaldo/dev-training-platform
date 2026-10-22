@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserRole;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\TrainingWeek;
@@ -25,7 +26,7 @@ class TrainingActivityController extends Controller
         if ($progression->requiresAttendanceForNewActivity($user, $trainingWeek, $activity)) {
             return redirect()->route('dashboard')->withErrors(['attendance' => 'Please check in to access this week\'s activities.']);
         }
-        $isValidationChecklist = $user->role === 'participant'
+        $isValidationChecklist = $user->role === UserRole::Participant
             && $trainingWeek->week_number === 2
             && $activity->position === 1
             && $activity->title === 'Validation Checklist';

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserRole;
 use App\Http\Requests\StoreSubmissionEvidenceRequest;
 use App\Models\Activity;
 use App\Models\SubmissionEvidence;
@@ -27,7 +28,7 @@ class SubmissionEvidenceController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        abort_if($user->role === 'participant' && $readiness->enforced() && ! $readiness->isReady($user), 403, $readiness->message($user));
+        abort_if($user->role === UserRole::Participant && $readiness->enforced() && ! $readiness->isReady($user), 403, $readiness->message($user));
         $progression->ensureCanAccessActivity($user, $trainingWeek, $activity);
         $progression->ensureCanEditActivity($user, $trainingWeek, $activity);
         abort_unless($submissionVersion->submission->activity_id === $activity->id, 404);

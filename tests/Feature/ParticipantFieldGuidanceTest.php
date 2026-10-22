@@ -2,8 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TrainingPath;
 use App\Enums\ValidationSubmissionStatus;
+use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
+use App\Models\EvidenceRequirement;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
@@ -35,6 +39,23 @@ class ParticipantFieldGuidanceTest extends TestCase
                 }
             }
         }
+    }
+
+    public function test_participants_get_only_the_fields_and_evidence_of_their_path_while_coaches_get_every_path(): void
+    {
+        $activity = Activity::factory()->create();
+        foreach ([TrainingPath::Manual, TrainingPath::Automation] as $position => $path) {
+            $requirement = ActivityRequirement::factory()->for($activity)->create(['participant_path' => $path, 'requirement_type' => 'submission_field', 'position' => $position + 1, 'configuration' => ['key' => $path->value.'_notes']]);
+            EvidenceRequirement::factory()->for($requirement)->create(['title' => $path->value.' evidence', 'position' => $position + 1]);
+        }
+        $participant = User::factory()->create(['training_path' => TrainingPath::Manual]);
+        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $workflow = app(SubmissionWorkflowService::class);
+
+        $this->assertSame(['manual_notes'], array_keys($workflow->fieldDefinitions($activity, $participant)));
+        $this->assertSame(['manual evidence'], $workflow->evidenceRequirements($activity, $participant)->pluck('title')->all());
+        $this->assertSame(['manual_notes', 'automation_notes'], array_keys($workflow->fieldDefinitions($activity, $coach)));
+        $this->assertSame(['manual evidence', 'automation evidence'], $workflow->evidenceRequirements($activity, $coach)->pluck('title')->all());
     }
 
     public function test_participant_submission_page_exposes_expandable_field_guidance_and_weekly_loom_guidance(): void

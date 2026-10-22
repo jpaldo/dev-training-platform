@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -14,7 +15,7 @@ class WaiveWeekFourPeerInterviewRequest extends FormRequest
     public function authorize(): bool
     {
         $participant = $this->route('participant');
-        abort_unless($participant instanceof User && $participant->role === 'participant', 404);
+        abort_unless($participant instanceof User && $participant->role === UserRole::Participant, 404);
 
         return $this->user()?->isCoachOrAdmin() === true;
     }

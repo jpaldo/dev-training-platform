@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
@@ -13,6 +14,7 @@ use App\Models\TrainingGate;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
+use ValueError;
 
 class AuthenticationAuthorizationTest extends TestCase
 {
@@ -65,6 +67,22 @@ class AuthenticationAuthorizationTest extends TestCase
         ]);
     }
 
+    public function test_only_participants_must_keep_a_training_path_on_their_profile(): void
+    {
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+
+        $this->actingAs($participant)
+            ->patch(route('profile.update'), ['name' => $participant->name, 'email' => $participant->email])
+            ->assertSessionHasErrors(['training_path' => 'The training path field is required.']);
+        $this->assertDatabaseHas('users', ['id' => $participant->id, 'training_path' => 'manual']);
+
+        $this->actingAs($coach)
+            ->patch(route('profile.update'), ['name' => 'Updated Coach', 'email' => $coach->email])
+            ->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('users', ['id' => $coach->id, 'name' => 'Updated Coach', 'training_path' => null]);
+    }
+
     public function test_registration_and_profile_updates_reject_an_unknown_training_path(): void
     {
         $this->post(route('register.store'), [
@@ -105,6 +123,13 @@ class AuthenticationAuthorizationTest extends TestCase
         ])->assertRedirect(route('dashboard'));
 
         $this->assertAuthenticatedAs($participant);
+    }
+
+    public function test_a_user_cannot_hold_a_role_outside_participant_coach_and_admin(): void
+    {
+        $this->assertThrows(fn (): User => User::factory()->create(['email' => 'guest@example.test', 'role' => 'guest']), ValueError::class);
+
+        $this->assertDatabaseMissing('users', ['email' => 'guest@example.test']);
     }
 
     public function test_privileged_roles_redirect_to_valid_role_landing_pages(): void
@@ -184,6 +209,64 @@ class AuthenticationAuthorizationTest extends TestCase
         $this->assertTrue($admin->can('update', $participant));
         $this->assertTrue($admin->can('view', $submission));
         $this->assertFalse($participant->can('update', $gateEvaluation));
+    }
+
+    public function test_only_participants_can_create_training_records(): void
+    {
+        $participant = User::factory()->create();
+        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+
+        foreach ([ActivitySubmission::class, SubmissionVersion::class, SubmissionEvidence::class, DailyLog::class] as $record) {
+            $this->assertTrue($participant->can('create', $record), $record);
+            $this->assertFalse($coach->can('create', $record), $record);
+            $this->assertFalse($admin->can('create', $record), $record);
+        }
+    }
+
+    public function test_only_admins_can_create_users_or_update_another_user(): void
+    {
+        $participant = User::factory()->create();
+        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+
+        $this->assertTrue($admin->can('create', User::class));
+        $this->assertTrue($admin->can('update', $coach));
+        $this->assertFalse($coach->can('create', User::class));
+        $this->assertFalse($participant->can('create', User::class));
+        $this->assertFalse($participant->can('update', $coach));
+        $this->assertTrue($participant->can('update', $participant));
+    }
+
+    public function test_role_helpers_accept_role_cases_and_role_strings(): void
+    {
+        $participant = User::factory()->create();
+        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+
+        $this->assertTrue($coach->hasAnyRole([UserRole::Coach]));
+        $this->assertTrue($coach->hasAnyRole(['participant', 'coach']));
+        $this->assertFalse($participant->hasAnyRole([UserRole::Coach, 'admin']));
+        $this->assertFalse($participant->isCoachOrAdmin());
+        $this->assertTrue($coach->isCoachOrAdmin());
+        $this->assertTrue($admin->isCoachOrAdmin());
+    }
+
+    public function test_only_admins_and_assigned_coaches_manage_a_participant(): void
+    {
+        $participant = User::factory()->create();
+        $otherParticipant = User::factory()->create();
+        $assignedCoach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $otherCoach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $assignedCoach->assignedParticipants()->attach($participant->id);
+
+        $this->assertTrue($admin->canManageParticipant($participant));
+        $this->assertTrue($assignedCoach->canManageParticipant($participant));
+        $this->assertTrue($assignedCoach->canManageParticipant($participant->load('assignedCoaches')));
+        $this->assertFalse($otherCoach->canManageParticipant($participant));
+        $this->assertFalse($assignedCoach->canManageParticipant($otherCoach));
+        $this->assertFalse($otherParticipant->canManageParticipant($participant));
     }
 
     public function test_existing_qa_validation_lab_otp_exercise_remains_available_without_platform_authentication(): void

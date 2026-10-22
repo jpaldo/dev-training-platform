@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
+use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\Program;
 use App\Models\TrainingGate;
@@ -25,7 +26,7 @@ class WeekProgressionService
         if ($user->isCoachOrAdmin()) {
             return true;
         }
-        if ($user->role !== 'participant') {
+        if ($user->role !== UserRole::Participant) {
             return false;
         }
 
@@ -48,7 +49,7 @@ class WeekProgressionService
             'passed' => $passedWeekIds->contains($week->id),
             'accessible' => match (true) {
                 $user->isCoachOrAdmin() => true,
-                $user->role !== 'participant' => false,
+                $user->role !== UserRole::Participant => false,
                 default => $this->allWeeksPassed($programWeeks->where('position', '<', $week->position), $passedWeekIds),
             },
         ]]);
@@ -142,7 +143,7 @@ class WeekProgressionService
 
     private function ensurePriorWeekThreeActivities(User $user, TrainingWeek $week, Activity $activity): void
     {
-        if ($user->role !== 'participant' || $week->week_number !== 3 || $activity->position <= 1) {
+        if ($user->role !== UserRole::Participant || $week->week_number !== 3 || $activity->position <= 1) {
             return;
         }
 
@@ -157,7 +158,7 @@ class WeekProgressionService
 
     public function isCurrentWeek(User $user, TrainingWeek $week): bool
     {
-        if ($user->role !== 'participant') {
+        if ($user->role !== UserRole::Participant) {
             return false;
         }
 
@@ -172,7 +173,7 @@ class WeekProgressionService
 
     public function requiresAttendanceForActivity(User $user, TrainingWeek $week, Activity $activity): bool
     {
-        if ($user->role !== 'participant' || ! $this->isCurrentWeek($user, $week) || $user->attendanceSessions()->whereNull('check_out_at')->exists()) {
+        if ($user->role !== UserRole::Participant || ! $this->isCurrentWeek($user, $week) || $user->attendanceSessions()->whereNull('check_out_at')->exists()) {
             return false;
         }
 

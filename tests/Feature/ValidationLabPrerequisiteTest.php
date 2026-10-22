@@ -6,8 +6,10 @@ use App\Enums\ValidationSubmissionStatus;
 use App\Models\Program;
 use App\Models\User;
 use App\Models\ValidationSubmission;
+use App\Services\SubmissionWorkflowService;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class ValidationLabPrerequisiteTest extends TestCase
@@ -24,6 +26,19 @@ class ValidationLabPrerequisiteTest extends TestCase
         $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))
             ->assertRedirect(route('lab.activity', ['continue' => 'validation-checklist']))
             ->assertSessionHas('status', 'Complete and submit a QA Validation Lab record before starting the Validation Checklist.');
+    }
+
+    public function test_validation_checklist_draft_is_not_saved_for_a_participant_without_a_lab_record(): void
+    {
+        [$participant, , $activity] = $this->context();
+
+        try {
+            app(SubmissionWorkflowService::class)->saveDraft($participant, $activity, [], null);
+            $this->fail('The draft was saved without a QA Validation Lab record.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['lab_prerequisite' => ['Submit a QA Validation Lab record before starting this activity.']], $exception->errors());
+        }
+        $this->assertDatabaseMissing('activity_submissions', ['user_id' => $participant->id, 'activity_id' => $activity->id]);
     }
 
     public function test_dashboard_keeps_validation_checklist_start_action_when_lab_is_missing(): void

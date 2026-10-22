@@ -6,6 +6,7 @@ use App\Enums\GateEvaluationStatus;
 use App\Enums\ParticipantNotificationPriority;
 use App\Enums\ParticipantNotificationType;
 use App\Enums\ReviewDecision;
+use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\ParticipantNotification;
@@ -28,7 +29,7 @@ class ParticipantNotificationService
 
     public function sync(User $participant): void
     {
-        if ($participant->role !== 'participant') {
+        if ($participant->role !== UserRole::Participant) {
             return;
         }
 

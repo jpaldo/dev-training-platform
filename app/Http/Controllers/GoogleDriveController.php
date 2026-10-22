@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserRole;
 use App\Services\GoogleDriveConfigurationService;
 use App\Services\GoogleDriveConnectionService;
 use Illuminate\Http\RedirectResponse;
@@ -45,7 +46,7 @@ class GoogleDriveController extends Controller
             return $this->completeMentorCallback($request, $google);
         }
 
-        if ($request->user()?->role !== 'participant') {
+        if ($request->user()?->role !== UserRole::Participant) {
             return redirect()->route('login')->withErrors(['google_drive' => 'Start Google authorization from the participant Google Drive profile page.']);
         }
 
@@ -114,7 +115,7 @@ class GoogleDriveController extends Controller
     {
         $pending = $request->session()->pull('google_verification_oauth');
         $admin = $request->user();
-        if (! is_array($pending) || $admin?->role !== 'admin' || (int) ($pending['user_id'] ?? 0) !== (int) $admin?->id || (int) ($pending['expires_at'] ?? 0) < now()->timestamp) {
+        if (! is_array($pending) || $admin?->role !== UserRole::Admin || (int) ($pending['user_id'] ?? 0) !== (int) $admin?->id || (int) ($pending['expires_at'] ?? 0) < now()->timestamp) {
             return redirect()->route('login')->withErrors(['google_verification' => 'Google verification authorization could not be verified. Please start again.']);
         }
         if ($request->query('error') === 'access_denied') {

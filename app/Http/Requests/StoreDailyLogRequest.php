@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\UserRole;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreDailyLogRequest extends FormRequest
@@ -11,7 +12,7 @@ class StoreDailyLogRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->role === 'participant';
+        return $this->user()?->role === UserRole::Participant;
     }
 
     /**

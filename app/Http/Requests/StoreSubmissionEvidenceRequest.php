@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\UserRole;
 use App\Models\EvidenceRequirement;
 use App\Services\EvidenceFilePolicy;
 use App\Support\FieldLimits;
@@ -14,7 +15,7 @@ class StoreSubmissionEvidenceRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->role === 'participant';
+        return $this->user()?->role === UserRole::Participant;
     }
 
     /**

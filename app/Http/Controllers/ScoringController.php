@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ActivityScoreStatus;
+use App\Enums\UserRole;
 use App\Http\Requests\FilterScoringParticipantsRequest;
 use App\Http\Requests\ImproveScoringFeedbackRequest;
 use App\Http\Requests\StoreActivityScoreRequest;
@@ -31,7 +32,7 @@ class ScoringController extends Controller
 
     public function participant(User $participant, ScoringPageService $page): View
     {
-        abort_unless($participant->role === 'participant', 404);
+        abort_unless($participant->role === UserRole::Participant, 404);
 
         return view('scoring.participant', $page->participantData($participant));
     }
@@ -40,7 +41,7 @@ class ScoringController extends Controller
     {
         $submissionVersion->load('submission.participant');
         $draft = $request->session()->pull('scoring_draft');
-        abort_unless($submissionVersion->status !== 'draft' && $submissionVersion->submission->participant->role === 'participant', 404);
+        abort_unless($submissionVersion->status !== 'draft' && $submissionVersion->submission->participant->role === UserRole::Participant, 404);
 
         return view('scoring.edit', $page->editData($submissionVersion, $request->user(), is_array($draft) ? $draft : null));
     }
@@ -48,7 +49,7 @@ class ScoringController extends Controller
     public function generateSuggestion(Request $request, SubmissionVersion $submissionVersion, ScoringSuggestionService $suggestions): RedirectResponse
     {
         $submissionVersion->load('submission.participant');
-        abort_unless($submissionVersion->status !== 'draft' && $submissionVersion->submission->participant->role === 'participant', 404);
+        abort_unless($submissionVersion->status !== 'draft' && $submissionVersion->submission->participant->role === UserRole::Participant, 404);
         abort_unless(request()->user()->canManageParticipant($submissionVersion->submission->participant), 403);
         if ($request->filled('draft_json')) {
             $draft = json_decode((string) $request->input('draft_json'), true);
@@ -79,7 +80,7 @@ class ScoringController extends Controller
     public function store(StoreActivityScoreRequest $request, SubmissionVersion $submissionVersion, TrainingSyncCoordinator $syncs): RedirectResponse
     {
         $submissionVersion->load('submission.participant');
-        abort_unless($submissionVersion->status !== 'draft' && $submissionVersion->submission->participant->role === 'participant', 404);
+        abort_unless($submissionVersion->status !== 'draft' && $submissionVersion->submission->participant->role === UserRole::Participant, 404);
         $data = $request->validated();
         $total = collect($data['dimensions'])->sum('points');
         $service = app(ScoringService::class);

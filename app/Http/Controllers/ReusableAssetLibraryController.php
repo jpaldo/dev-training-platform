@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserRole;
 use App\Http\Requests\FilterReusableAssetsRequest;
 use App\Models\SubmissionVersion;
 use App\Models\User;
@@ -58,6 +59,6 @@ class ReusableAssetLibraryController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        abort_unless($user && in_array($user->role, ['participant', 'coach', 'admin'], true), 403);
+        abort_unless($user && in_array($user->role, UserRole::cases(), true), 403);
     }
 }

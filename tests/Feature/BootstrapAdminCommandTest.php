@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -26,7 +27,7 @@ class BootstrapAdminCommandTest extends TestCase
         $this->assertSame(0, $exitCode);
         $this->assertSame('Maricel Prestoza', $admin->name);
         $this->assertSame('mprestoza@fullscale.ph', $admin->email);
-        $this->assertSame('admin', $admin->role);
+        $this->assertSame(UserRole::Admin, $admin->role);
         $this->assertNull($admin->training_path);
         $this->assertTrue($admin->is_active);
         $this->assertDatabaseHas('admin_audit_logs', ['action' => 'first_admin_bootstrapped', 'target_user_id' => $admin->id]);

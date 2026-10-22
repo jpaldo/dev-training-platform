@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\MentorInterviewScheduleStatus;
+use App\Enums\UserRole;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
@@ -27,7 +28,7 @@ class SubmissionWorkflowService
 {
     public function fieldDefinitions(Activity $activity, User $user): array
     {
-        return $activity->requirements()->where('requirement_type', 'submission_field')->when($user->role === 'participant', function (Builder $query) use ($user): void {
+        return $activity->requirements()->where('requirement_type', 'submission_field')->when($user->role === UserRole::Participant, function (Builder $query) use ($user): void {
             $query->where(function (Builder $pathQuery) use ($user): void {
                 $pathQuery->whereNull('participant_path')->orWhereIn('participant_path', $user->eligibleTrainingPaths());
             });
@@ -40,7 +41,7 @@ class SubmissionWorkflowService
     public function evidenceRequirements(Activity $activity, User $user): Collection
     {
         return EvidenceRequirement::query()->whereHas('activityRequirement', function (Builder $query) use ($activity, $user): void {
-            $query->where('activity_id', $activity->id)->where('requirement_type', '!=', 'gate_evidence')->when($user->role === 'participant', function (Builder $q) use ($user): void {
+            $query->where('activity_id', $activity->id)->where('requirement_type', '!=', 'gate_evidence')->when($user->role === UserRole::Participant, function (Builder $q) use ($user): void {
                 $q->where(function (Builder $pathQuery) use ($user): void {
                     $pathQuery->whereNull('participant_path')->orWhereIn('participant_path', $user->eligibleTrainingPaths());
                 });
@@ -50,7 +51,7 @@ class SubmissionWorkflowService
 
     public function saveDraft(User $user, Activity $activity, array $fieldValues, ?string $note, ?array $interactions = null): SubmissionVersion
     {
-        if ($user->role === 'participant' && $activity->week?->week_number === 2 && $activity->position === 1 && $activity->title === 'Validation Checklist' && ! $user->validationSubmissions()->whereIn('status', ValidationSubmissionStatus::recorded())->exists()) {
+        if ($user->role === UserRole::Participant && $activity->week?->week_number === 2 && $activity->position === 1 && $activity->title === 'Validation Checklist' && ! $user->validationSubmissions()->whereIn('status', ValidationSubmissionStatus::recorded())->exists()) {
             throw ValidationException::withMessages(['lab_prerequisite' => 'Submit a QA Validation Lab record before starting this activity.']);
         }
         $allowed = Arr::only($fieldValues, array_keys($this->fieldDefinitions($activity, $user)));

@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use App\Observers\ParticipantProgressObserver;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -36,11 +37,20 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_active' => 'boolean',
             'training_path' => TrainingPath::class,
+            'role' => UserRole::class,
         ];
     }
 
+    /**
+     * Whether the user has one of the roles. Role strings (the `role:` middleware parameters and the callers not yet
+     * moved to cases) are normalised with `UserRole::from()`, so an unknown role string throws `ValueError`.
+     *
+     * @param  list<UserRole|string>  $roles
+     */
     public function hasAnyRole(array $roles): bool
     {
+        $roles = array_map(fn (UserRole|string $role): UserRole => $role instanceof UserRole ? $role : UserRole::from($role), $roles);
+
         return in_array($this->role, $roles, true);
     }
 
@@ -61,7 +71,7 @@ class User extends Authenticatable
 
     public function isCoachOrAdmin(): bool
     {
-        return $this->hasAnyRole(['coach', 'admin']);
+        return $this->hasAnyRole([UserRole::Coach, UserRole::Admin]);
     }
 
     public function activitySubmissions(): HasMany
@@ -116,10 +126,10 @@ class User extends Authenticatable
 
     public function canManageParticipant(User $participant): bool
     {
-        if ($this->role === 'admin') {
+        if ($this->role === UserRole::Admin) {
             return true;
         }
-        if ($this->role !== 'coach' || $participant->role !== 'participant') {
+        if ($this->role !== UserRole::Coach || $participant->role !== UserRole::Participant) {
             return false;
         }
         if ($participant->relationLoaded('assignedCoaches')) {

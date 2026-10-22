@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\GoogleDriveSyncStatus;
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveSync;
 use App\Models\User;
@@ -31,11 +32,11 @@ class ProfilePageService
      */
     public function showData(User $user): array
     {
-        $isParticipant = $user->role === 'participant';
+        $isParticipant = $user->role === UserRole::Participant;
 
         return [
             'user' => $user->load('googleDriveConnection'),
-            'roleLabel' => ucfirst($user->role),
+            'roleLabel' => $user->role->label(),
             'trainingPathOptions' => $isParticipant ? $this->trainingPathOptions() : [],
             'googleDrive' => $isParticipant ? $this->googleDrive($user) : null,
         ];

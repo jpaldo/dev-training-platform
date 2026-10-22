@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Models\User;
 
 class GoogleDriveReadinessService
@@ -15,7 +16,7 @@ class GoogleDriveReadinessService
     {
         $connection = $participant->googleDriveConnection;
 
-        return $participant->role === 'participant'
+        return $participant->role === UserRole::Participant
             && $connection !== null
             && filled($connection->access_token)
             && (filled($connection->refresh_token) || $connection->token_expires_at?->isFuture())

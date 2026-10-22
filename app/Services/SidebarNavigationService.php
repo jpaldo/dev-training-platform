@@ -33,7 +33,7 @@ class SidebarNavigationService
                 ->values()
                 ->all(),
             'user_name' => $user->name,
-            'role_label' => ucfirst($user->role),
+            'role_label' => $user->role->label(),
             'profile' => [
                 'url' => route('profile.show'),
                 'is_active' => $request->routeIs('profile.*'),

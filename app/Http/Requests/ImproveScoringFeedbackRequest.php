@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\UserRole;
 use App\Models\SubmissionVersion;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -16,7 +17,7 @@ class ImproveScoringFeedbackRequest extends FormRequest
         $submissionVersion = $this->route('submissionVersion');
         abort_unless($submissionVersion instanceof SubmissionVersion, 404);
         $submissionVersion->loadMissing('submission.participant');
-        abort_unless($submissionVersion->status !== 'draft' && $submissionVersion->submission->participant->role === 'participant', 404);
+        abort_unless($submissionVersion->status !== 'draft' && $submissionVersion->submission->participant->role === UserRole::Participant, 404);
 
         return $this->user()?->canManageParticipant($submissionVersion->submission->participant) === true;
     }

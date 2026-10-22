@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\GateCriterionStatus;
 use App\Enums\GateEvaluationStatus;
+use App\Enums\UserRole;
 use App\Http\Requests\StoreGateReviewRequest;
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
@@ -73,6 +74,6 @@ class GateReviewController extends Controller
 
     private function guard(TrainingWeek $week, User $participant, TrainingGate $gate): void
     {
-        abort_unless($week->id === $gate->training_week_id && in_array($week->week_number, [2, 3, 4], true) && $participant->role === 'participant', 404);
+        abort_unless($week->id === $gate->training_week_id && in_array($week->week_number, [2, 3, 4], true) && $participant->role === UserRole::Participant, 404);
     }
 }

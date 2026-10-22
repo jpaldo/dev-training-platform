@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserRole;
 use App\Http\Requests\AssignWeekFourPairRequest;
 use App\Http\Requests\StorePartnerFeedbackRequest;
 use App\Http\Requests\WaiveWeekFourPeerInterviewRequest;
@@ -45,7 +46,7 @@ class WeekFourPeerInterviewController extends Controller
 
     public function revokeWaiver(Request $request, User $participant, WeekFourInterviewService $interviews): RedirectResponse
     {
-        abort_unless($participant->role === 'participant', 404);
+        abort_unless($participant->role === UserRole::Participant, 404);
         $interviews->revokeWaiver($request->user(), $participant, $interviews->peerInterviewActivityOrFail());
 
         return back()->with('status', 'Peer mock interview waiver revoked.');

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Database\Query\Builder;
@@ -16,7 +17,7 @@ class UpdateParticipantAssignmentsRequest extends FormRequest
     public function authorize(): bool
     {
         $user = $this->route('user');
-        abort_unless($user instanceof User && $user->role === 'participant', 404);
+        abort_unless($user instanceof User && $user->role === UserRole::Participant, 404);
 
         return $this->user()?->hasAnyRole(['admin']) === true;
     }

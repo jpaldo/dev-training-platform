@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\MentorInterviewAvailabilityStatus;
 use App\Enums\MentorInterviewScheduleStatus;
+use App\Enums\UserRole;
 use App\Models\MentorInterviewAvailability;
 use App\Models\User;
 use App\Models\WeekFourMentorInterviewSchedule;
@@ -171,7 +172,7 @@ class MentorInterviewAvailabilityService
 
     private function authorizeAccess(User $actor, MentorInterviewAvailability $availability): void
     {
-        abort_unless($actor->role === 'admin' || ($actor->role === 'coach' && $actor->id === $availability->mentor_id), 403);
+        abort_unless($actor->role === UserRole::Admin || ($actor->role === UserRole::Coach && $actor->id === $availability->mentor_id), 403);
     }
 
     private function timezone(): string

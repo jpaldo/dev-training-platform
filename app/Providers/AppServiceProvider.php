@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Contracts\ScoringSuggestionProvider;
+use App\Enums\UserRole;
 use App\Models\GoogleDriveSync;
 use App\Services\AiScoringProviderResolver;
 use App\Services\EmailConfigurationService;
@@ -38,7 +39,7 @@ class AppServiceProvider extends ServiceProvider
             $user = Auth::user();
             $view->with('sidebarNavigation', $user ? app(SidebarNavigationService::class)->sidebarData($user, request()) : null);
 
-            if (! $user || $user->role !== 'participant') {
+            if (! $user || $user->role !== UserRole::Participant) {
                 $view->with('participantDriveHeader', null);
 
                 return;

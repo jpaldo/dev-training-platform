@@ -86,6 +86,21 @@ class ParticipantWorkflowTest extends TestCase
         $this->assertDatabaseHas('activity_submissions', ['id' => $submission->id, 'status' => 'submitted']);
     }
 
+    public function test_participant_cannot_add_evidence_while_google_drive_is_enforced_and_not_ready(): void
+    {
+        [$participant, $week2, $activity] = $this->trainingFixture();
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+        $deliverable = ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable', 'position' => 10]);
+        $evidenceRequirement = EvidenceRequirement::factory()->for($deliverable)->create(['evidence_type' => 'text']);
+        $this->actingAs($participant)->post(route('training.submission.draft', [$week2, $activity]), ['field_values' => []])->assertRedirect();
+        $version = ActivitySubmission::query()->firstOrFail()->versions()->firstOrFail();
+        config(['services.google_drive.enabled' => true]);
+
+        $this->actingAs($participant)->post(route('training.evidence.store', [$week2, $activity, $version]), ['evidence_requirement_id' => $evidenceRequirement->id, 'content' => 'Observed in the real run.'])
+            ->assertForbidden();
+        $this->assertDatabaseCount('submission_evidence', 0);
+    }
+
     public function test_text_evidence_does_not_satisfy_a_required_file_evidence_requirement(): void
     {
         [$participant, $week2, $activity] = $this->trainingFixture();

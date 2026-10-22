@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Support\FieldLimits;
 use Illuminate\Foundation\Http\FormRequest;
@@ -16,7 +17,7 @@ class StoreSubmissionDraftRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->role === 'participant';
+        return $this->user()?->role === UserRole::Participant;
     }
 
     /**

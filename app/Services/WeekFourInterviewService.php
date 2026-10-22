@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\InterviewPairStatus;
 use App\Enums\MentorInterviewScheduleStatus;
+use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionVersion;
@@ -144,7 +145,7 @@ class WeekFourInterviewService
 
     public function assign(User $assigner, User $first, User $second): WeekFourInterviewPair
     {
-        if ($first->role !== 'participant' || $second->role !== 'participant' || ! $first->is_active || ! $second->is_active || $first->is($second)) {
+        if ($first->role !== UserRole::Participant || $second->role !== UserRole::Participant || ! $first->is_active || ! $second->is_active || $first->is($second)) {
             throw ValidationException::withMessages(['partner' => 'Choose two different active participants.']);
         }
         if (! $assigner->canManageParticipant($first) || ! $assigner->canManageParticipant($second)) {

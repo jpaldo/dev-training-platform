@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -26,7 +27,7 @@ class UpdateProfileRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users')->ignore($this->user())],
-            'training_path' => [Rule::requiredIf($this->user()?->role === 'participant'), 'nullable', Rule::enum(TrainingPath::class)],
+            'training_path' => [Rule::requiredIf($this->user()?->role === UserRole::Participant), 'nullable', Rule::enum(TrainingPath::class)],
             'drive_link' => ['nullable', 'string', 'max:2048', 'url', 'regex:#^https://(?:www\.)?drive\.google\.com/drive/(?:u/\d+/)?folders/[A-Za-z0-9_-]+(?:\?.*)?$#'],
         ];
     }

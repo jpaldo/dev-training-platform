@@ -105,6 +105,7 @@ class AppLayoutTest extends TestCase
             ['Profile', route('profile.show'), false, 0],
         ], array_slice($this->sidebarLinks($sidebar), -6));
         $this->assertSame(1, substr_count($sidebar, 'aria-current="page"'));
+        $this->assertStringContainsString('>Admin</span>', $sidebar);
     }
 
     public function test_profile_link_is_marked_as_the_current_page_on_the_profile(): void

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\UserRole;
 use App\Services\GoogleDriveConfigurationService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -10,7 +11,7 @@ class UpdateGoogleDriveSettingsRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->role === 'admin';
+        return $this->user()?->role === UserRole::Admin;
     }
 
     public function rules(): array

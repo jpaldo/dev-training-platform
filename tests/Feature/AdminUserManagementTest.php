@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -37,7 +38,7 @@ class AdminUserManagementTest extends TestCase
         $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
         $this->actingAs($admin)->put(route('admin.users.update', $participant), ['name' => $participant->name, 'email' => $participant->email, 'access_type' => 'qa_automation', 'is_active' => 1])->assertRedirect();
         $participant->refresh();
-        $this->assertSame('participant', $participant->role);
+        $this->assertSame(UserRole::Participant, $participant->role);
         $this->assertSame(TrainingPath::Automation, $participant->training_path);
         $this->actingAs($admin)->post(route('admin.users.disable', $participant))->assertRedirect();
         $this->assertFalse($participant->fresh()->is_active);
@@ -51,6 +52,17 @@ class AdminUserManagementTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
         $this->actingAs($admin)->post(route('admin.users.disable', $admin))->assertSessionHasErrors('user');
         $this->actingAs($admin)->put(route('admin.users.update', $admin), ['name' => $admin->name, 'email' => $admin->email, 'access_type' => 'coach', 'is_active' => 1])->assertSessionHasErrors('access_type');
+    }
+
+    public function test_last_active_admin_cannot_be_disabled_from_the_edit_form(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+
+        $this->actingAs($admin)
+            ->put(route('admin.users.update', $admin), ['name' => $admin->name, 'email' => $admin->email, 'access_type' => 'admin', 'is_active' => 0])
+            ->assertSessionHasErrors(['user' => 'The last active admin cannot be disabled.']);
+
+        $this->assertTrue($admin->fresh()->is_active);
     }
 
     public function test_disabled_users_cannot_authenticate(): void

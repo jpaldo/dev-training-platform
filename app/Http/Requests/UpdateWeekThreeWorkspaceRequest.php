@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\UserRole;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -12,7 +13,7 @@ class UpdateWeekThreeWorkspaceRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        abort_unless($this->user()?->role === 'participant', 403);
+        abort_unless($this->user()?->role === UserRole::Participant, 403);
 
         return true;
     }

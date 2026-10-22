@@ -2,13 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\UserRole;
 use Illuminate\Foundation\Http\FormRequest;
 
 class SendEmailTestRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->role === 'admin';
+        return $this->user()?->role === UserRole::Admin;
     }
 
     /** @return array<string, mixed> */

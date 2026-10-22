@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use App\Http\Requests\FilterAdminUsersRequest;
 use App\Http\Requests\StoreAdminUserRequest;
 use App\Http\Requests\UpdateAdminUserRequest;
@@ -62,10 +63,10 @@ class AdminUserController extends Controller
         $data = $request->validated();
         [$role, $path] = $this->mapAccessType($data['access_type']);
         $willBeActive = (bool) ($data['is_active'] ?? false);
-        if ($user->role === 'admin' && $user->is_active && ! $willBeActive) {
+        if ($user->role === UserRole::Admin && $user->is_active && ! $willBeActive) {
             $this->ensureCanDeactivate($user);
         }
-        if ($user->role === 'admin' && $role !== 'admin' && $user->is_active && User::query()->where('role', 'admin')->where('is_active', true)->count() <= 1) {
+        if ($user->role === UserRole::Admin && $role !== 'admin' && $user->is_active && User::query()->where('role', 'admin')->where('is_active', true)->count() <= 1) {
             throw ValidationException::withMessages(['access_type' => 'The last active admin cannot be changed to another access type.']);
         }
         $attributes = ['name' => $data['name'], 'email' => $data['email'], 'role' => $role, 'training_path' => $path, 'is_active' => $data['is_active'] ?? false];
@@ -97,7 +98,7 @@ class AdminUserController extends Controller
 
     private function ensureCanDeactivate(User $user): void
     {
-        if ($user->role === 'admin' && $user->is_active && User::query()->where('role', 'admin')->where('is_active', true)->count() <= 1) {
+        if ($user->role === UserRole::Admin && $user->is_active && User::query()->where('role', 'admin')->where('is_active', true)->count() <= 1) {
             throw ValidationException::withMessages(['user' => 'The last active admin cannot be disabled.']);
         }
     }

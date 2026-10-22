@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\UserRole;
 use App\Models\ActivitySubmission;
 use App\Models\User;
 
@@ -28,7 +29,7 @@ class ActivitySubmissionPolicy
      */
     public function create(User $user): bool
     {
-        return $user->role === 'participant';
+        return $user->role === UserRole::Participant;
     }
 
     /**

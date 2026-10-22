@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Enums\UserRole;
 use App\Jobs\GenerateParticipantNotificationsJob;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
@@ -61,7 +62,7 @@ class ParticipantProgressObserver
     private function affectedParticipantId(Model $model): ?int
     {
         return match (true) {
-            $model instanceof User => $model->role === 'participant' ? $model->id : null,
+            $model instanceof User => $model->role === UserRole::Participant ? $model->id : null,
             $model instanceof DailyLog,
             $model instanceof ActivitySubmission,
             $model instanceof WeeklyVideoRecording,

@@ -115,6 +115,29 @@ class CoachGateReviewPageTest extends TestCase
             ->assertDontSee('View Video');
     }
 
+    public function test_a_gate_without_a_weekly_video_criterion_shows_the_video_as_not_required_and_no_video_blocker(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 2]);
+        $gate = TrainingGate::factory()->for($week, 'week')->create();
+        GateCriterion::factory()->for($gate, 'gate')->create();
+        Activity::factory()->for($week, 'week')->create(['position' => 1]);
+
+        $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Criteria',
+                '0 / 1',
+                'Video Recording',
+                'Not required',
+                'Blockers',
+                'Daily logs: 0 of 5 completed.',
+                'Activity 1 must have a submitted version.',
+                'Gate criteria',
+            ])
+            ->assertDontSee('Required Weekly Video Recording is missing.');
+    }
+
     public function test_without_a_saved_evaluation_no_decision_is_preselected_and_every_criterion_opens_on_not_met(): void
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();

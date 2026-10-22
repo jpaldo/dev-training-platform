@@ -304,6 +304,31 @@ class WeekTwoGateTest extends TestCase
         $this->assertArrayNotHasKey('weekly_video', app(WeekTwoGateService::class)->readiness($participant, $gate));
     }
 
+    public function test_a_gate_without_a_weekly_video_criterion_can_be_ready_and_pass_without_a_video(): void
+    {
+        ['week' => $week, 'gate' => $gate, 'participant' => $participant] = $this->gateWithACompletedWeek();
+        $coach = User::factory()->create(['role' => 'coach']);
+        $coach->assignedParticipants()->attach($participant->id);
+
+        $this->assertSame([], app(WeekTwoGateService::class)->readiness($participant, $gate));
+
+        $this->actingAs($coach)->post(route('training.coach.gates.update', [$week, $participant, $gate]), ['status' => 'passed', 'criteria' => $gate->criteria->pluck('id')->mapWithKeys(fn (int $id): array => [$id => 'met'])->all()])
+            ->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('gate_evaluations', ['training_gate_id' => $gate->id, 'user_id' => $participant->id, 'status' => 'passed']);
+    }
+
+    public function test_a_gate_with_a_weekly_video_criterion_still_requires_the_video(): void
+    {
+        ['week' => $week, 'gate' => $gate, 'participant' => $participant] = $this->gateWithACompletedWeek();
+        GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_video']);
+
+        $this->assertSame(['weekly_video'], array_keys(app(WeekTwoGateService::class)->readiness($participant, $gate)));
+
+        WeeklyVideoRecording::create(['user_id' => $participant->id, 'training_week_id' => $week->id, 'disk' => 'local', 'path' => 'weekly-video/week-2.mp4', 'original_filename' => 'week-2.mp4', 'mime_type' => 'video/mp4', 'size_bytes' => 100, 'uploaded_at' => now()]);
+
+        $this->assertSame([], app(WeekTwoGateService::class)->readiness($participant, $gate));
+    }
+
     #[DataProvider('latestAttemptStates')]
     public function test_latest_attempt_is_authoritative_for_gate_readiness(array $states, bool $ready): void
     {
@@ -337,6 +362,28 @@ class WeekTwoGateTest extends TestCase
             'submitted then draft' => [['submitted', 'draft'], false],
             'submitted then approved' => [['submitted', 'approved'], true],
         ];
+    }
+
+    /**
+     * A Week 2 Gate with one required activity criterion and no weekly video criterion, and a participant who
+     * submitted the week's only activity and logged five daily logs on it.
+     *
+     * @return array{week: TrainingWeek, gate: TrainingGate, participant: User}
+     */
+    private function gateWithACompletedWeek(): array
+    {
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
+        $activity = Activity::factory()->for($week, 'week')->create(['position' => 1]);
+        $gate = TrainingGate::factory()->for($week, 'week')->create();
+        GateCriterion::factory()->for($gate, 'gate')->create();
+        $participant = User::factory()->create();
+        $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted']);
+        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
+        foreach (range(1, 5) as $day) {
+            DailyLog::factory()->for($participant, 'participant')->for($activity)->create(['logged_on' => now()->subDays($day)->toDateString()]);
+        }
+
+        return ['week' => $week, 'gate' => $gate->load('criteria'), 'participant' => $participant];
     }
 
     private function labPayload(): array

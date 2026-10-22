@@ -102,6 +102,23 @@ class CoachGateBoardPageTest extends TestCase
             ->assertSeeInOrder(['>Bo Complete</a>', '>3 / 3</span>', '>Complete</span>'], false);
     }
 
+    public function test_a_gate_without_a_weekly_video_criterion_shows_the_video_as_not_required_and_no_video_blocker(): void
+    {
+        $week = TrainingWeek::factory()->create(['week_number' => 2]);
+        $gate = TrainingGate::factory()->for($week, 'week')->create();
+        GateCriterion::factory()->for($gate, 'gate')->create();
+        $activity = Activity::factory()->for($week, 'week')->create(['position' => 1]);
+        $ready = User::factory()->create(['name' => 'Ada Ready']);
+        $this->submitActivity($ready, $activity);
+        $this->logDays($ready, $activity, 5);
+        User::factory()->create(['name' => 'Bo Blocked']);
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.gates'))
+            ->assertOk()
+            ->assertSeeInOrder(['>Ada Ready</a>', 'READY FOR REVIEW</span>', '>Not required</span>', '>—</span>', '>Review Gate</a>'], false)
+            ->assertSeeInOrder(['>Bo Blocked</a>', 'NOT READY</span>', '>Not required</span>', '>2 blockers</strong>'], false);
+    }
+
     public function test_filters_keep_their_values_and_the_pagination_links_keep_them(): void
     {
         $week = TrainingWeek::factory()->create(['week_number' => 2]);

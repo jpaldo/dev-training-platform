@@ -20,8 +20,8 @@ class CoachGateReviewPageService
 
     /**
      * Everything the coach Gate review page renders: the readiness summary (the required criteria met: the weekly
-     * video criterion once its recording is reviewed as met, every other one when the saved evaluation marks it met),
-     * the blockers, the required criteria (with the weekly video link on the video criterion and the criterion decision
+     * video criterion once its recording is reviewed as met, every other one when the saved evaluation marks it met;
+     * the video recording as Not required when the Gate has no weekly video criterion), the blockers, the required criteria (with the weekly video link on the video criterion and the criterion decision
      * to preselect: the saved one, Not met without one), the Gate decision options, the decision to preselect (the saved
      * evaluation's when it is a coach decision; none otherwise, so the first one shows), the criterion decision options,
      * the saved evaluation for the comments field and whether the viewer may decide the Gate (a coach who is not
@@ -52,7 +52,11 @@ class CoachGateReviewPageService
                 ['label' => 'Criteria', 'value' => $metCriteriaCount.' / '.$requiredCriteria->count()],
                 ['label' => 'Daily logs', 'value' => $this->weeklyDailyLogCount($participant, $week).' / '.$this->gates->minimumDailyLogs()],
                 ['label' => 'Activities', 'value' => $this->activityProgress($participant, $week)],
-                ['label' => 'Video Recording', 'value' => $weeklyVideo['url'] ? 'Uploaded' : 'Missing'],
+                ['label' => 'Video Recording', 'value' => match (true) {
+                    $weeklyVideo['status'] === 'not_required' => 'Not required',
+                    $weeklyVideo['url'] !== null => 'Uploaded',
+                    default => 'Missing',
+                }],
             ],
             'blockers' => array_values($readiness),
             'criteria' => $requiredCriteria->map(function (GateCriterion $criterion) use ($weeklyVideo, $evaluation): array {

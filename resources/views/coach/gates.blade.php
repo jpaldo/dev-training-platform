@@ -108,10 +108,10 @@
                                     </span>
                                 </td>
                                 <td class="{{ $cellClasses }} whitespace-nowrap">
-                                    @if($row['video'])
+                                    @if($row['video']['url'])
                                         <a href="{{ $row['video']['url'] }}" class="{{ $linkClasses }}">{{ $row['video']['label'] }}</a>
                                     @else
-                                        <span class="text-muted">Missing</span>
+                                        <span class="text-muted">{{ $row['video']['label'] }}</span>
                                     @endif
                                 </td>
                                 <td class="{{ $cellClasses }} whitespace-nowrap">

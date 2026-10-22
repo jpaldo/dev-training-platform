@@ -45,7 +45,7 @@ class CoachGateBoardPageService
      * main action, so every button is secondary.
      *
      * @param  array{week?: int|string|null, path?: string|null, search?: string|null, status?: GateEvaluationStatus|null}  $filters
-     * @return array{stats: list<array{label: string, value: int}>, search: string, weekOptions: list<array{value: string, label: string, is_selected: bool}>, pathOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, gateRows: LengthAwarePaginator<int, array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, path: string, status_label: string, status_tone: string, daily_log_progress: string, daily_log_note: string, criteria_met: int, criteria_total: int, video: ?array{url: string, label: string}, blocker_label: ?string, action_label: string, action_url: string}>}
+     * @return array{stats: list<array{label: string, value: int}>, search: string, weekOptions: list<array{value: string, label: string, is_selected: bool}>, pathOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, gateRows: LengthAwarePaginator<int, array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, path: string, status_label: string, status_tone: string, daily_log_progress: string, daily_log_note: string, criteria_met: int, criteria_total: int, video: array{url: ?string, label: string}, blocker_label: ?string, action_label: string, action_url: string}>}
      */
     public function indexData(array $filters, int $page): array
     {
@@ -101,11 +101,11 @@ class CoachGateBoardPageService
 
     /**
      * One table row: the Gate and its week, the participant with their path, the status with its badge tone, the
-     * week's daily log progress against the weekly minimum, the required criteria met, the weekly video link (null
-     * when missing), the blocker count (null without blockers) and the link to review (or, once passed, view) the Gate.
+     * week's daily log progress against the weekly minimum, the required criteria met, the weekly video (a link when
+     * uploaded, otherwise Missing, or Not required when the Gate has no weekly video criterion), the blocker count (null without blockers) and the link to review (or, once passed, view) the Gate.
      *
      * @param  array{gate: TrainingGate, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, daily_log_count: int, criteria_met: int, criteria_total: int, loom: array<string, mixed>}  $row
-     * @return array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, path: string, status_label: string, status_tone: string, daily_log_progress: string, daily_log_note: string, criteria_met: int, criteria_total: int, video: ?array{url: string, label: string}, blocker_label: ?string, action_label: string, action_url: string}
+     * @return array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, path: string, status_label: string, status_tone: string, daily_log_progress: string, daily_log_note: string, criteria_met: int, criteria_total: int, video: array{url: ?string, label: string}, blocker_label: ?string, action_label: string, action_url: string}
      */
     private function gateRow(array $row, int $minimumDailyLogs): array
     {
@@ -134,9 +134,15 @@ class CoachGateBoardPageService
                 : 'Complete',
             'criteria_met' => $row['criteria_met'],
             'criteria_total' => $row['criteria_total'],
-            'video' => $row['loom']['url']
-                ? ['url' => $row['loom']['url'], 'label' => $row['loom']['status'] === 'met' ? '✓ Uploaded' : 'Awaiting Review']
-                : null,
+            'video' => [
+                'url' => $row['loom']['url'],
+                'label' => match ($row['loom']['status']) {
+                    'not_required' => 'Not required',
+                    'missing' => 'Missing',
+                    'met' => '✓ Uploaded',
+                    default => 'Awaiting Review',
+                },
+            ],
             'blocker_label' => $blockerCount > 0 ? $blockerCount.' blocker'.($blockerCount === 1 ? '' : 's') : null,
             'action_label' => $row['status'] === GateEvaluationStatus::Passed ? 'View Gate' : 'Review Gate',
             'action_url' => route('training.coach.gates.show', [$gate->week, $participant, $gate]),

@@ -17,10 +17,11 @@ class ParticipantGatePageService
 
     /**
      * Everything the participant Gate page renders: the Gate status, the readiness summary, the Weekly Video Recording
-     * state, the required criteria with their review status and the coach feedback. The main action (Upload Video
-     * Recording) is offered only while no video is linked.
+     * state (null when the Gate has no weekly video criterion, so it does not require a video), the required criteria
+     * with their review status and the coach feedback. The main action (Upload Video Recording) is offered only while
+     * the Gate requires a video and none is linked.
      *
-     * @return array{trainingWeek: TrainingWeek, gate: TrainingGate, statusLabel: string, statusTone: string, readinessItems: list<array{label: string, progress: string, message: string}>, showsReadyNotice: bool, weeklyVideo: array{description: ?string, status_label: string, status_tone: string, url: ?string}, uploadVideoUrl: ?string, criteria: list<array{title: string, status_label: string, status_tone: string}>, coachFeedback: ?string}
+     * @return array{trainingWeek: TrainingWeek, gate: TrainingGate, statusLabel: string, statusTone: string, readinessItems: list<array{label: string, progress: string, message: string}>, showsReadyNotice: bool, weeklyVideo: ?array{description: ?string, status_label: string, status_tone: string, url: ?string}, uploadVideoUrl: ?string, criteria: list<array{title: string, status_label: string, status_tone: string}>, coachFeedback: ?string}
      */
     public function showData(TrainingWeek $week, User $participant, TrainingGate $gate): array
     {
@@ -29,6 +30,7 @@ class ParticipantGatePageService
         $weeklyVideo = $this->gates->weeklyVideo($participant, $gate);
         $gate->load('criteria');
         $readinessItems = $this->readinessItems($participant, $week, $readiness);
+        $requiresVideo = $weeklyVideo['status'] !== 'not_required';
 
         return [
             'trainingWeek' => $week,
@@ -37,7 +39,7 @@ class ParticipantGatePageService
             'statusTone' => $this->statusTone($evaluation, $readiness),
             'readinessItems' => $readinessItems,
             'showsReadyNotice' => $readinessItems === [] && ! $evaluation,
-            'weeklyVideo' => [
+            'weeklyVideo' => $requiresVideo ? [
                 'description' => $weeklyVideo['criterion']?->description,
                 'status_label' => strtoupper(str_replace('_', ' ', $weeklyVideo['status'])),
                 'status_tone' => match ($weeklyVideo['status']) {
@@ -46,8 +48,8 @@ class ParticipantGatePageService
                     default => 'neutral',
                 },
                 'url' => $weeklyVideo['url'],
-            ],
-            'uploadVideoUrl' => $weeklyVideo['url'] ? null : route('training.video-recording.edit', $week),
+            ] : null,
+            'uploadVideoUrl' => $requiresVideo && ! $weeklyVideo['url'] ? route('training.video-recording.edit', $week) : null,
             'criteria' => $this->criterionRows($gate, $evaluation),
             'coachFeedback' => $evaluation?->comments ?: null,
         ];

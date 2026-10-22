@@ -177,7 +177,7 @@ class CoachParticipantPageTest extends TestCase
         $this->actingAs($coach)->get(route('coach.participants.show', $participant))
             ->assertOk()
             ->assertSeeInOrder(['Week 2 · Passed Gate', 'Passed', 'Daily logs: 1 / 5'])
-            ->assertSeeInOrder(['Week 3 · Blocked Gate', 'Not ready', '(2 blocker(s))', 'Daily logs: 0 / 5']);
+            ->assertSeeInOrder(['Week 3 · Blocked Gate', 'Not ready', '(1 blocker(s))', 'Daily logs: 0 / 5']);
     }
 
     public function test_gate_row_daily_logs_use_the_configured_weekly_minimum(): void

@@ -41,21 +41,23 @@
                 @endif
             </x-ui.card>
 
-            <x-ui.card as="section" class="grid grid-cols-1 justify-items-start gap-3" aria-labelledby="gate-video-title">
-                <h2 id="gate-video-title" class="{{ $sectionTitleClasses }}">Weekly Video Recording</h2>
-                @if($weeklyVideo['description'])
-                    <p class="m-0 leading-relaxed text-muted">{{ $weeklyVideo['description'] }}</p>
-                @endif
-                <p class="m-0 flex flex-wrap items-center gap-2">
-                    <strong>Status:</strong>
-                    <x-ui.badge :tone="$weeklyVideo['status_tone']">{{ $weeklyVideo['status_label'] }}</x-ui.badge>
-                </p>
-                @if($weeklyVideo['url'])
-                    <x-ui.button variant="secondary" :href="$weeklyVideo['url']">View Video ↗</x-ui.button>
-                @else
-                    <p class="m-0 leading-relaxed text-muted">Upload a video recording of your actual QA work for this week.</p>
-                @endif
-            </x-ui.card>
+            @if($weeklyVideo)
+                <x-ui.card as="section" class="grid grid-cols-1 justify-items-start gap-3" aria-labelledby="gate-video-title">
+                    <h2 id="gate-video-title" class="{{ $sectionTitleClasses }}">Weekly Video Recording</h2>
+                    @if($weeklyVideo['description'])
+                        <p class="m-0 leading-relaxed text-muted">{{ $weeklyVideo['description'] }}</p>
+                    @endif
+                    <p class="m-0 flex flex-wrap items-center gap-2">
+                        <strong>Status:</strong>
+                        <x-ui.badge :tone="$weeklyVideo['status_tone']">{{ $weeklyVideo['status_label'] }}</x-ui.badge>
+                    </p>
+                    @if($weeklyVideo['url'])
+                        <x-ui.button variant="secondary" :href="$weeklyVideo['url']">View Video ↗</x-ui.button>
+                    @else
+                        <p class="m-0 leading-relaxed text-muted">Upload a video recording of your actual QA work for this week.</p>
+                    @endif
+                </x-ui.card>
+            @endif
 
             <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="gate-criteria-title">
                 <h2 id="gate-criteria-title" class="{{ $sectionTitleClasses }}">Criteria</h2>

@@ -37,7 +37,8 @@ class WeekTwoGateService
     }
 
     /**
-     * Resolve the readiness reasons of several Gates for several participants with a fixed number of queries.
+     * Resolve the readiness reasons of several Gates for several participants with a fixed number of queries. A Gate
+     * without a weekly video criterion does not require the Weekly Video Recording.
      *
      * @param  Collection<int, User>  $participants
      * @param  Collection<int, TrainingGate>  $gates
@@ -89,7 +90,7 @@ class WeekTwoGateService
             $week = $weeks->get($gate->training_week_id);
             $reasons = [];
             $logs = $dailyLogCounts->get($participant->id, collect())->get($week->id, 0);
-            // Every active training week requires five participant daily logs.
+            // Every active training week requires `training.daily_logs_per_week` participant daily logs.
             // The count is scoped through the week's activities, never globally.
             $minimumLogs = $this->minimumDailyLogs();
             if ($logs < $minimumLogs) {
@@ -115,7 +116,7 @@ class WeekTwoGateService
 
             $videoCriteria = $videoCriteriaByGate->get($gate->id);
             $weeklyVideoMissing = match (true) {
-                $videoCriteria === null => true,
+                $videoCriteria === null => false,
                 $recordedWeekIds->get($participant->id, collect())->contains($week->id) => false,
                 $videoCriteria->contains('criterion_type', 'weekly_loom') => ! $legacyLoomUrls->get($participant->id)?->get($week->id),
                 default => true,
@@ -185,6 +186,8 @@ class WeekTwoGateService
 
     /**
      * Resolve the Weekly Video Recording state of several Gates for several participants with a fixed number of queries.
+     * The status is `not_required` for a Gate without a weekly video criterion, otherwise `missing`, `awaiting_review`
+     * or `met`.
      *
      * @param  Collection<int, User>  $participants
      * @param  Collection<int, TrainingGate>  $gates
@@ -221,7 +224,7 @@ class WeekTwoGateService
             $videoCriteria = $videoCriteriaByGate->get($gate->id);
             $criterion = $videoCriteria?->first();
             if (! $criterion) {
-                return [$gate->id => ['status' => 'missing', 'url' => null, 'activity' => null, 'criterion' => null, 'recording' => null]];
+                return [$gate->id => ['status' => 'not_required', 'url' => null, 'activity' => null, 'criterion' => null, 'recording' => null]];
             }
 
             $week = $weeks->get($gate->training_week_id);

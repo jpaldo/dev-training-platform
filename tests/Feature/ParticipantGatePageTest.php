@@ -132,6 +132,27 @@ class ParticipantGatePageTest extends TestCase
             ->assertDontSee('of 5 completed');
     }
 
+    public function test_a_gate_without_a_weekly_video_criterion_is_ready_without_a_video_and_shows_no_video_section(): void
+    {
+        $participant = User::factory()->create();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 2]);
+        $gate = TrainingGate::factory()->for($week, 'week')->create();
+        GateCriterion::factory()->for($gate, 'gate')->create();
+        $this->completeWeek($participant, Activity::factory()->for($week, 'week')->create(['position' => 1]));
+
+        $this->actingAs($participant)->get(route('training.gates.show', [$week, $gate]))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'READY FOR REVIEW',
+                'Your Gate is ready for Coach review. A Coach/Admin must record the official result.',
+                'Criteria',
+            ])
+            ->assertDontSee('gate-main-action')
+            ->assertDontSee('Upload Video Recording')
+            ->assertDontSee('gate-video-title')
+            ->assertDontSee('Weekly Video Recording');
+    }
+
     public function test_evaluated_gate_shows_the_decision_criterion_results_and_coach_feedback(): void
     {
         $participant = User::factory()->create();

@@ -70,7 +70,7 @@ class WeekFourInterviewService
     /** @return Collection<int, WeekFourInterviewPair> */
     public function activePairs(): Collection
     {
-        return WeekFourInterviewPair::query()->where('status', InterviewPairStatus::Active)->with(['participantOne.assignedCoaches', 'participantTwo.assignedCoaches'])->get();
+        return WeekFourInterviewPair::query()->active()->with(['participantOne.assignedCoaches', 'participantTwo.assignedCoaches'])->get();
     }
 
     /**
@@ -168,7 +168,7 @@ class WeekFourInterviewService
     public function saveFeedback(User $author, int $question, string $content, ?int $pairId = null): WeekFourPartnerFeedback
     {
         $pair = $pairId
-            ? WeekFourInterviewPair::query()->whereKey($pairId)->where('status', InterviewPairStatus::Active)->where(fn (Builder $query): Builder => $query->where('participant_one_id', $author->id)->orWhere('participant_two_id', $author->id))->first()
+            ? WeekFourInterviewPair::query()->whereKey($pairId)->active()->involving($author->id)->first()
             : $this->pairFor($author);
         if (! $pair || blank(trim($content)) || $question < 1 || $question > 15) {
             throw ValidationException::withMessages(['feedback' => 'You must be paired and provide feedback for a valid interview question.']);
@@ -192,7 +192,7 @@ class WeekFourInterviewService
 
     public function currentVersion(User $participant): ?SubmissionVersion
     {
-        $activity = Activity::query()->where('position', 2)->whereHas('week', fn (Builder $query): Builder => $query->where('week_number', 4))->first();
+        $activity = $this->peerInterviewActivity();
         if (! $activity) {
             return null;
         }
@@ -241,7 +241,7 @@ class WeekFourInterviewService
         $partner = $pair?->partnerFor($participant->id);
         $state = $this->participantPracticeState($participant, $partner);
 
-        $activity = Activity::query()->where('position', 2)->whereHas('week', fn (Builder $query): Builder => $query->where('week_number', 4))->first();
+        $activity = $this->peerInterviewActivity();
         $schedule = $activity ? WeekFourMentorInterviewSchedule::query()->where('participant_id', $participant->id)->where('activity_id', $activity->id)->with('mentor')->first() : null;
 
         return ['partner' => $partner ? ['display_name' => $partner->name, 'email' => $partner->email, 'training_path' => $partner->training_path?->value] : null, 'questions_for_partner' => $state['own_questions'], 'partner_questions' => $state['partner_questions'], 'answers_to_partner' => $state['answers_to_partner'], 'partner_answers' => $state['partner_answers'], 'feedback_given' => $pair?->feedback()->where('author_id', $participant->id)->get()->mapWithKeys(fn (WeekFourPartnerFeedback $item): array => [(string) $item->question_number => ['content' => $item->content, 'author_name' => $participant->name, 'recipient_name' => $partner?->name]])->all() ?? [], 'feedback_received' => $pair?->feedback()->where('recipient_id', $participant->id)->get()->mapWithKeys(fn (WeekFourPartnerFeedback $item): array => [(string) $item->question_number => ['content' => $item->content, 'author_name' => $partner?->name, 'recipient_name' => $participant->name]])->all() ?? [], 'mentor_schedule' => $schedule ? ['mentor_name' => $schedule->mentor?->name, 'mentor_email' => $schedule->mentor?->email, 'starts_at' => $schedule->starts_at?->toIso8601String(), 'ends_at' => $schedule->ends_at?->toIso8601String(), 'timezone' => $schedule->timezone, 'duration_minutes' => $schedule->duration_minutes, 'status' => $schedule->status->value, 'google_event_id' => $schedule->google_event_id] : null];

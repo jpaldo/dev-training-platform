@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\GoogleDriveExportStatus;
 use App\Enums\UserRole;
-use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivityRequirement;
@@ -56,9 +55,9 @@ class TrainingActivityPageService
         $submission = $attempts->last();
         $latestVersion = $submission?->versions->first();
         $labRoute = $activity->configuration['lab_route'] ?? null;
-        $requiresLabRecord = $user->hasAnyRole(UserRole::Participant) && $trainingWeek->week_number === 2 && $activity->position === 1 && $activity->title === 'Validation Checklist';
+        $requiresLabRecord = $user->hasAnyRole(UserRole::Participant) && $activity->isValidationChecklist($trainingWeek);
         $labRecords = $labRoute || $requiresLabRecord
-            ? ValidationSubmission::query()->where('user_id', $user->id)->whereIn('status', ValidationSubmissionStatus::recorded())->latest('submitted_at')->latest('id')->get()
+            ? ValidationSubmission::query()->where('user_id', $user->id)->recorded()->latest('submitted_at')->latest('id')->get()
             : collect();
         $labPrerequisiteMet = ! $requiresLabRecord || $labRecords->isNotEmpty();
 

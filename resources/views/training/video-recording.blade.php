@@ -45,7 +45,7 @@
                     <p class="m-0 leading-relaxed text-muted">This recording is locked because the Gate has been completed.</p>
                 @else
                     {{-- The form is short, so its submit (the page's single main action) stays at the end of the form. --}}
-                    <form method="POST" action="{{ $storeUrl }}" enctype="multipart/form-data" class="m-0 grid grid-cols-1 gap-5" data-weekly-video-form data-max-bytes="{{ $maxBytes }}">
+                    <form method="POST" action="{{ $storeUrl }}" enctype="multipart/form-data" class="m-0 grid grid-cols-1 gap-5" data-weekly-video-form data-max-bytes="{{ $maxBytes }}" data-max-size-message="{{ $maxSizeMessage }}">
                         @csrf
 
                         <div class="grid min-w-0 gap-2">
@@ -56,7 +56,7 @@
                                 <p class="{{ $hintClasses }}">Upload a video file · maximum {{ $maxSizeLabel }}</p>
                                 <p class="{{ $hintClasses }}">Common video formats are supported.</p>
                             </div>
-                            <p class="{{ $fieldErrorClasses }}" role="alert" data-weekly-video-size-error hidden>The video must not exceed 350 MB.</p>
+                            <p class="{{ $fieldErrorClasses }}" role="alert" data-weekly-video-size-error hidden>{{ $maxSizeMessage }}</p>
                             @error('video')
                                 <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
                             @enderror

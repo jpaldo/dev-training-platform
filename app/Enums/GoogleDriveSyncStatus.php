@@ -33,6 +33,14 @@ enum GoogleDriveSyncStatus: string
     }
 
     /**
+     * Whether the sync has ended (`Completed`, `CompletedWithErrors` or `Failed`), so the profile stops polling it.
+     */
+    public function isFinished(): bool
+    {
+        return ! in_array($this, self::active(), true);
+    }
+
+    /**
      * The statuses of a sync that is still running (a `Retrying` sync waits for its next attempt): it blocks a new
      * sync, shows as syncing and is polled, and a stale one is marked failed.
      *

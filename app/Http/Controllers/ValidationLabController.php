@@ -11,6 +11,7 @@ use App\Services\ValidationLabService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class ValidationLabController extends Controller
@@ -80,9 +81,9 @@ class ValidationLabController extends Controller
         return redirect()->route('result', $submission);
     }
 
-    public function submitRecord(Request $request, ValidationSubmission $submission, ValidationLabService $lab): RedirectResponse
+    public function submitRecord(ValidationSubmission $submission, ValidationLabService $lab): RedirectResponse
     {
-        abort_unless((int) $submission->user_id === (int) $request->user()->id, 403);
+        Gate::authorize('submit', $submission);
         abort_unless($submission->isDraft(), 422);
 
         $incompleteRecordError = $lab->incompleteRecordError($submission);
@@ -105,10 +106,7 @@ class ValidationLabController extends Controller
 
     public function ownedRecord(Request $request, ValidationSubmission $submission, ValidationLabService $lab): View
     {
-        $user = $request->user();
-        $isOwner = $submission->user_id !== null && (int) $submission->user_id === (int) $user->id;
-        $isAuthorizedCoachLink = $user->isCoachOrAdmin() && $lab->isLinkedToParticipantSubmission($submission, $request->integer('submission_version'));
-        abort_unless($isOwner || $isAuthorizedCoachLink, 403);
+        Gate::authorize('view', [$submission, $request->integer('submission_version')]);
 
         return view('result', [
             'submission' => $submission,

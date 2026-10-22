@@ -51,8 +51,9 @@ class TrainingSyncController extends Controller
 
         return response()->json($sync ? [
             'status' => $sync->status,
+            'finished' => $sync->status->isFinished(),
             'error' => $sync->error,
             'completed_at' => $sync->completed_at?->toIso8601String(),
-        ] : ['status' => null]);
+        ] : ['status' => null, 'finished' => false]);
     }
 }

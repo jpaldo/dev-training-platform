@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ValidationCheckStatus;
 use App\Enums\ValidationDecision;
 use App\Enums\ValidationSubmissionStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class ValidationSubmission extends Model
@@ -48,5 +49,16 @@ class ValidationSubmission extends Model
     public function isSubmitted(): bool
     {
         return in_array($this->status, ValidationSubmissionStatus::recorded(), true);
+    }
+
+    /**
+     * Only recorded (submitted or completed) records, the ones that unlock the Week 2 Validation Checklist.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeRecorded(Builder $query): Builder
+    {
+        return $query->whereIn('status', ValidationSubmissionStatus::recorded());
     }
 }

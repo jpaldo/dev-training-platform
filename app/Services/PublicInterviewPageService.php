@@ -47,16 +47,13 @@ class PublicInterviewPageService
      * The public interviewer registration page: the public title, the interview type options (in case order) and
      * the form URLs.
      *
-     * @return array{publicTitle: string, interviewTypes: list<array{value: string, label: string}>, storeUrl: string, schedulingUrl: string}
+     * @return array{publicTitle: string, interviewTypes: list<array{value: string, label: string, offers_mock: bool, offers_final: bool}>, storeUrl: string, schedulingUrl: string}
      */
     public function registerData(): array
     {
         return [
             'publicTitle' => $this->interviewBookingLinks->publicTitle(),
-            'interviewTypes' => array_map(
-                fn (InterviewType $interviewType): array => ['value' => $interviewType->value, 'label' => $interviewType->label()],
-                InterviewType::cases(),
-            ),
+            'interviewTypes' => InterviewType::options(),
             'storeUrl' => route('interviews.register.store'),
             'schedulingUrl' => route('interviews.index'),
         ];

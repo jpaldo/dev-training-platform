@@ -62,7 +62,7 @@
                         <select id="interview_type" name="interview_type" required class="{{ $controlClasses }}">
                             <option value="">Choose an interview type</option>
                             @foreach($interviewTypes as $interviewType)
-                                <option value="{{ $interviewType['value'] }}" @selected(old('interview_type') === $interviewType['value'])>{{ $interviewType['label'] }}</option>
+                                <option value="{{ $interviewType['value'] }}" data-offers-mock="{{ $interviewType['offers_mock'] ? 'true' : 'false' }}" data-offers-final="{{ $interviewType['offers_final'] ? 'true' : 'false' }}" @selected(old('interview_type') === $interviewType['value'])>{{ $interviewType['label'] }}</option>
                             @endforeach
                         </select>
                     </div>

@@ -272,7 +272,7 @@ class AdminSettingsPageService
      * options of the Add Interviewer form, the pending public requests (newest first) and the approved Mock Interview
      * and Final Re-assessment interviewers (an interviewer of both types is listed in both sections).
      *
-     * @return array{publicTitle: string, logoConfigured: bool, logoStatus: string, interviewTypes: list<array{value: string, label: string}>, users: list<array{id: int, label: string}>, pendingInterviewers: list<array{id: int, fullName: string, interviewType: string, mockBookingUrl: string, finalBookingUrl: string, submittedAt: ?string, updateUrl: string, approveUrl: string, rejectUrl: string}>, sections: list<array{key: string, title: string, emptyMessage: string, interviewers: list<array{id: int, fullName: string, email: ?string, interviewType: string, mockBookingUrl: string, finalBookingUrl: string, displayOrder: int, summary: string, toggleLabel: string, updateUrl: string, toggleUrl: string, destroyUrl: string}>}>}
+     * @return array{publicTitle: string, logoConfigured: bool, logoStatus: string, interviewTypes: list<array{value: string, label: string, offers_mock: bool, offers_final: bool}>, users: list<array{id: int, label: string}>, pendingInterviewers: list<array{id: int, fullName: string, interviewType: string, mockBookingUrl: string, finalBookingUrl: string, submittedAt: ?string, updateUrl: string, approveUrl: string, rejectUrl: string}>, sections: list<array{key: string, title: string, emptyMessage: string, interviewers: list<array{id: int, fullName: string, email: ?string, interviewType: string, mockBookingUrl: string, finalBookingUrl: string, displayOrder: int, summary: string, toggleLabel: string, updateUrl: string, toggleUrl: string, destroyUrl: string}>}>}
      */
     public function interviewSchedulingData(): array
     {
@@ -284,10 +284,7 @@ class AdminSettingsPageService
             'logoStatus' => $logoConfigured
                 ? 'A public logo is configured.'
                 : 'No logo configured; the public page uses the configured title as its branding fallback.',
-            'interviewTypes' => array_map(
-                fn (InterviewType $interviewType): array => ['value' => $interviewType->value, 'label' => $interviewType->label()],
-                InterviewType::cases(),
-            ),
+            'interviewTypes' => InterviewType::options(),
             'users' => User::query()
                 ->whereIn('role', [UserRole::Coach, UserRole::Admin])
                 ->orderBy('name')

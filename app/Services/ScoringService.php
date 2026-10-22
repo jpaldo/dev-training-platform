@@ -139,7 +139,11 @@ class ScoringService
         return ['completed' => $completed, 'total' => $rows->count(), 'scored' => $scored->count(), 'average' => $scored->isEmpty() ? null : (int) round($scored->avg(fn (array $row): int => $row['score']->total_score))];
     }
 
-    public function runningAverage(User $participant, $exceptVersion = null): ?int
+    /**
+     * The participant's average published total score, leaving out the given submission version's score, or null
+     * without a published score.
+     */
+    public function runningAverage(User $participant, ?int $exceptVersion = null): ?int
     {
         $scores = ActivityScore::query()->where('status', ActivityScoreStatus::Published)->whereHas('version.submission', fn (Builder $q): Builder => $q->where('user_id', $participant->id))->when($exceptVersion, fn (Builder $q): Builder => $q->where('submission_version_id', '!=', $exceptVersion))->pluck('total_score');
 

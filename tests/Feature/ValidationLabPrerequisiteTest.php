@@ -8,14 +8,12 @@ use App\Models\Program;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\ValidationSubmission;
-use App\Services\SubmissionWorkflowService;
 use Closure;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
-use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class ValidationLabPrerequisiteTest extends TestCase
@@ -36,14 +34,11 @@ class ValidationLabPrerequisiteTest extends TestCase
 
     public function test_validation_checklist_draft_is_not_saved_for_a_participant_without_a_lab_record(): void
     {
-        [$participant, , $activity] = $this->context();
+        [$participant, $week, $activity] = $this->context();
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
-        try {
-            app(SubmissionWorkflowService::class)->saveDraft($participant, $activity, [], null);
-            $this->fail('The draft was saved without a QA Validation Lab record.');
-        } catch (ValidationException $exception) {
-            $this->assertSame(['lab_prerequisite' => ['Submit a QA Validation Lab record before starting this activity.']], $exception->errors());
-        }
+        $this->actingAs($participant)->post(route('training.submission.draft', [$week, $activity]), ['field_values' => []])
+            ->assertSessionHasErrors(['lab_prerequisite' => 'Submit a QA Validation Lab record before starting this activity.']);
         $this->assertDatabaseMissing('activity_submissions', ['user_id' => $participant->id, 'activity_id' => $activity->id]);
     }
 
@@ -125,6 +120,15 @@ class ValidationLabPrerequisiteTest extends TestCase
         $this->assertDatabaseHas('validation_submissions', ['id' => $record->id, 'status' => 'submitted']);
         $this->assertSame(ValidationSubmissionStatus::Submitted, $record->fresh()->status);
         $this->assertNotNull($record->fresh()->submitted_at);
+    }
+
+    public function test_explicit_submit_action_is_forbidden_for_another_participants_lab_record(): void
+    {
+        $owner = User::factory()->create(['role' => 'participant']);
+        $record = ValidationSubmission::create(array_merge($this->labPayload(), ['user_id' => $owner->id, 'status' => ValidationSubmissionStatus::Draft]));
+
+        $this->actingAs(User::factory()->create(['role' => 'participant']))->post(route('lab.records.submit', $record))->assertForbidden();
+        $this->assertSame(ValidationSubmissionStatus::Draft, $record->fresh()->status);
     }
 
     public function test_explicit_submit_action_keeps_an_incomplete_draft_lab_record_as_draft(): void

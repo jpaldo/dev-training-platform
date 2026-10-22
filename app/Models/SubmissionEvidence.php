@@ -39,4 +39,12 @@ class SubmissionEvidence extends Model
     {
         return $this->hasOne(GoogleDriveEvidenceExport::class, 'submission_evidence_id');
     }
+
+    /**
+     * Whether the evidence is an uploaded file (it has a disk, a path and an original filename).
+     */
+    public function isUploadedFile(): bool
+    {
+        return filled($this->disk) && filled($this->path) && filled($this->original_filename);
+    }
 }

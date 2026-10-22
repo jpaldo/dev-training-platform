@@ -298,7 +298,7 @@ class GoogleDriveSyncTest extends TestCase
 
         $response = $this->actingAs($participant)->getJson(route('google-drive.sync.status'));
 
-        $response->assertOk()->assertJsonPath('status', 'failed');
+        $response->assertOk()->assertJsonPath('status', 'failed')->assertJsonPath('finished', true);
         $this->assertDatabaseHas('google_drive_syncs', ['id' => $sync->id, 'status' => 'failed']);
     }
 

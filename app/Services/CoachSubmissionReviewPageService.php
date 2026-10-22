@@ -42,7 +42,7 @@ class CoachSubmissionReviewPageService
             'activityTitle' => $activity->title,
             'participantName' => $submission->participant->name,
             'versionStatusLabel' => $submissionVersion->status->label(),
-            'isActivityOne' => $activity->title === 'Validation Checklist' && $activity->week->week_number === 2,
+            'isActivityOne' => $activity->isValidationChecklist($activity->week),
             'linkedValidationSubmission' => $linkedValidationSubmission,
             'weekThreeReview' => $weekThreeSnapshot ? $this->answers->weekThreeReview($weekThreeSnapshot, (int) $activity->position, $submission->participant->training_path) : null,
             'weekFourReview' => $this->weekFour->present($activity, $submissionVersion->field_values ?? [], true),
@@ -51,7 +51,7 @@ class CoachSubmissionReviewPageService
             'canClaim' => $canManage && $submission->isClaimable(),
             'canRetry' => $canManage && $submission->isFailed(),
             'submittedFields' => $this->submittedFields($submissionVersion),
-            'evidenceItems' => $this->evidenceItems($submissionVersion->evidence),
+            'evidenceItems' => $this->answers->evidenceItems($submissionVersion->evidence)->all(),
             'currentReview' => $this->currentReview($submissionVersion->reviews),
             'decisionOptions' => array_map(fn (ReviewDecision $decision): array => [
                 'value' => $decision->value,
@@ -76,21 +76,6 @@ class CoachSubmissionReviewPageService
             ])
             ->values()
             ->all();
-    }
-
-    /**
-     * The evidence items with whether each is an uploaded file and the type label to show.
-     *
-     * @param  Collection<int, SubmissionEvidence>  $evidence
-     * @return list<array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>
-     */
-    private function evidenceItems(Collection $evidence): array
-    {
-        return $evidence->map(function (SubmissionEvidence $item): array {
-            $isFile = filled($item->disk) && filled($item->path) && filled($item->original_filename);
-
-            return ['evidence' => $item, 'is_file' => $isFile, 'type_label' => $isFile ? 'Uploaded File' : ucfirst($item->evidence_type)];
-        })->values()->all();
     }
 
     /**

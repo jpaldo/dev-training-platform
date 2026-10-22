@@ -83,18 +83,8 @@ class DailyLogReportPageService
      */
     public function detailsData(array $filters): array
     {
-        $logRows = DailyLog::query()
+        $logRows = $this->matchingLogs($filters)
             ->with(['participant.assignedCoaches', 'activity.week'])
-            ->whereHas('participant', function (Builder $query) use ($filters): void {
-                $query->where('role', UserRole::Participant)
-                    ->when($filters['participant'] ?? null, fn (Builder $q, int|string $value): Builder => $q->whereKey($value))
-                    ->when($filters['path'] ?? null, fn (Builder $q, string $value): Builder => $q->where('training_path', $value))
-                    ->when($filters['mentor'] ?? null, fn (Builder $q, int|string $value): Builder => $q->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($value)));
-            })
-            ->when($filters['week'] ?? null, fn (Builder $query, int|string $value): Builder => $query->whereHas('activity.week', fn (Builder $week): Builder => $week->where('week_number', $value)))
-            ->when($filters['activity'] ?? null, fn (Builder $query, int|string $value): Builder => $query->where('activity_id', $value))
-            ->when($filters['from'] ?? null, fn (Builder $query, string $value): Builder => $query->whereDate('logged_on', '>=', $value))
-            ->when($filters['to'] ?? null, fn (Builder $query, string $value): Builder => $query->whereDate('logged_on', '<=', $value))
             ->orderByDesc('logged_on')->orderBy('user_id')->orderByDesc('id')
             ->paginate(self::ROWS_PER_PAGE)
             ->withQueryString()

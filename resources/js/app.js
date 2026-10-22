@@ -245,7 +245,7 @@ const initializeAiProviderSettings = () => {
 /**
  * On the interview scheduling settings page, show the Final Re-assessment booking link field
  * (`[data-final-booking-field]`) of the `[data-interviewer-type-form]` form, and require it, only while the selected
- * interview type is not Mock Interview.
+ * interview type offers Final Re-assessment interviews (its option's `data-offers-final`, set from `InterviewType`).
  */
 const initializeInterviewerTypeFields = () => {
     const form = document.querySelector('[data-interviewer-type-form]');
@@ -259,7 +259,7 @@ const initializeInterviewerTypeFields = () => {
     const finalInput = form.elements.final_booking_url;
 
     const sync = () => {
-        const isFinalBookingShown = type.value !== 'mock';
+        const isFinalBookingShown = type.selectedOptions[0]?.dataset.offersFinal === 'true';
 
         finalField.hidden = !isFinalBookingShown;
         finalInput.required = isFinalBookingShown;
@@ -272,7 +272,8 @@ const initializeInterviewerTypeFields = () => {
 /**
  * On the public interviewer registration page, show the Mock Interview and Final Re-assessment booking link fields
  * (`[data-mock-booking-field]`, `[data-final-booking-field]`) of the `[data-interview-registration-form]` form, and
- * require their inputs, only for the selected interview type (Both shows and requires both).
+ * require their inputs, only for the interviews the selected type offers (its option's `data-offers-mock` and
+ * `data-offers-final`, set from `InterviewType`; Both shows and requires both).
  */
 const initializeInterviewRegistrationFields = () => {
     const form = document.querySelector('[data-interview-registration-form]');
@@ -288,8 +289,9 @@ const initializeInterviewRegistrationFields = () => {
     const finalInput = form.elements.final_booking_url;
 
     const sync = () => {
-        const isMockBookingShown = type.value === 'mock' || type.value === 'both';
-        const isFinalBookingShown = type.value === 'final_reassessment' || type.value === 'both';
+        const selectedType = type.selectedOptions[0];
+        const isMockBookingShown = selectedType?.dataset.offersMock === 'true';
+        const isFinalBookingShown = selectedType?.dataset.offersFinal === 'true';
 
         mockField.hidden = !isMockBookingShown;
         finalField.hidden = !isFinalBookingShown;
@@ -734,21 +736,22 @@ const initializeWeeklyVideoPreviews = () => {
 
 /**
  * On each `[data-weekly-video-form]`, check the chosen `[data-weekly-video-input]` file against the form's
- * `data-max-bytes` before upload: show `[data-weekly-video-size-error]`, mark the input invalid and block the submit
- * while the file is too large.
+ * `data-max-bytes` before upload: show `[data-weekly-video-size-error]`, mark the input invalid with the form's
+ * `data-max-size-message` and block the submit while the file is too large.
  */
 const initializeWeeklyVideoSizeLimit = () => {
     document.querySelectorAll('[data-weekly-video-form]').forEach((form) => {
         const input = form.querySelector('[data-weekly-video-input]');
         const error = form.querySelector('[data-weekly-video-size-error]');
         const maxBytes = Number(form.dataset.maxBytes || 0);
+        const maxSizeMessage = form.dataset.maxSizeMessage || '';
         const validate = () => {
             const tooLarge = Boolean(input?.files?.[0] && input.files[0].size > maxBytes);
 
             if (error) {
                 error.hidden = !tooLarge;
             }
-            input?.setCustomValidity(tooLarge ? 'The video must not exceed 350 MB.' : '');
+            input?.setCustomValidity(tooLarge ? maxSizeMessage : '');
 
             return !tooLarge;
         };

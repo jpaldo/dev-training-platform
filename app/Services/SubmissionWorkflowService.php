@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\MentorInterviewScheduleStatus;
 use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
-use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
@@ -52,9 +51,6 @@ class SubmissionWorkflowService
 
     public function saveDraft(User $user, Activity $activity, array $fieldValues, ?string $note, ?array $interactions = null): SubmissionVersion
     {
-        if ($user->role === UserRole::Participant && $activity->week?->week_number === 2 && $activity->position === 1 && $activity->title === 'Validation Checklist' && ! $user->validationSubmissions()->whereIn('status', ValidationSubmissionStatus::recorded())->exists()) {
-            throw ValidationException::withMessages(['lab_prerequisite' => 'Submit a QA Validation Lab record before starting this activity.']);
-        }
         $allowed = Arr::only($fieldValues, array_keys($this->fieldDefinitions($activity, $user)));
         if ($activity->week?->week_number === 4 && $activity->position === 2) {
             $pair = WeekFourInterviewPair::forParticipant($user->id);
@@ -78,7 +74,7 @@ class SubmissionWorkflowService
             Validator::make($allowed, ['artifact_type' => ['nullable', 'string', 'max:120']])->validate();
         }
         if (array_key_exists('validation_submission_id', $allowed) && filled($allowed['validation_submission_id'])) {
-            $record = ValidationSubmission::query()->whereKey((int) $allowed['validation_submission_id'])->where('user_id', $user->id)->whereIn('status', ValidationSubmissionStatus::recorded())->first();
+            $record = ValidationSubmission::query()->whereKey((int) $allowed['validation_submission_id'])->where('user_id', $user->id)->recorded()->first();
             if (! $record) {
                 throw ValidationException::withMessages(['field_values.validation_submission_id' => 'Select one of your own Validation Lab records.']);
             }
@@ -168,9 +164,7 @@ class SubmissionWorkflowService
             foreach ($this->evidenceRequirements($submission->activity, $user) as $req) {
                 $evidence = $version->evidence()->where('evidence_requirement_id', $req->id)->get();
                 if (in_array($req->evidence_type, ['file', 'screenshot', 'asset'], true)) {
-                    $evidence = $evidence->filter(fn (SubmissionEvidence $item): bool => filled($item->disk)
-                        && filled($item->path)
-                        && filled($item->original_filename)
+                    $evidence = $evidence->filter(fn (SubmissionEvidence $item): bool => $item->isUploadedFile()
                         && Storage::disk($item->disk)->exists($item->path));
                 }
                 if ($req->is_required && $evidence->count() < $req->minimum_count) {

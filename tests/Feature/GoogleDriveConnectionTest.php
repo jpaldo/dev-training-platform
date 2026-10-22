@@ -94,6 +94,7 @@ class GoogleDriveConnectionTest extends TestCase
         $this->actingAs($participant)->get(route('google-drive.sync.status'))
             ->assertOk()
             ->assertJsonPath('status', 'in_progress')
+            ->assertJsonPath('finished', false)
             ->assertJsonMissing(['user_id' => $other->id]);
     }
 

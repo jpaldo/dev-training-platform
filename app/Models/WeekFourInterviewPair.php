@@ -43,17 +43,39 @@ class WeekFourInterviewPair extends Model
         return $this->hasMany(WeekFourPartnerFeedback::class, 'pair_id');
     }
 
+    /**
+     * Only active pairs.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('status', InterviewPairStatus::Active);
+    }
+
+    /**
+     * Only pairs with the given user as either participant.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeInvolving(Builder $query, int $userId): Builder
+    {
+        return $query->where(fn (Builder $pair): Builder => $pair->where('participant_one_id', $userId)->orWhere('participant_two_id', $userId));
+    }
+
     public static function forParticipant(int $userId): ?self
     {
-        return static::query()->where('status', InterviewPairStatus::Active)->where(fn (Builder $query): Builder => $query->where('participant_one_id', $userId)->orWhere('participant_two_id', $userId))->with(['participantOne', 'participantTwo'])->first();
+        return static::query()->active()->involving($userId)->with(['participantOne', 'participantTwo'])->first();
     }
 
     /** @return Collection<int, self> */
     public static function forParticipantMany(int $userId): Collection
     {
         return static::query()
-            ->where('status', InterviewPairStatus::Active)
-            ->where(fn (Builder $query): Builder => $query->where('participant_one_id', $userId)->orWhere('participant_two_id', $userId))
+            ->active()
+            ->involving($userId)
             ->with(['participantOne.assignedCoaches', 'participantTwo.assignedCoaches', 'feedback'])
             ->orderBy('id')
             ->get();

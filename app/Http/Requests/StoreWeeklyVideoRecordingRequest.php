@@ -2,13 +2,11 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\GateEvaluationStatus;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\EvidenceFilePolicy;
 use App\Services\WeekProgressionService;
 use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreWeeklyVideoRecordingRequest extends FormRequest
@@ -25,9 +23,9 @@ class StoreWeeklyVideoRecordingRequest extends FormRequest
         $user = $this->user();
         /** @var TrainingWeek $trainingWeek */
         $trainingWeek = $this->route('trainingWeek');
-        app(WeekProgressionService::class)->ensureCanAccessWeek($user, $trainingWeek);
-        $gatePassed = $trainingWeek->gates()->where('is_active', true)->whereHas('evaluations', fn (Builder $query): Builder => $query->where('user_id', $user->id)->where('status', GateEvaluationStatus::Passed))->exists();
-        abort_if($gatePassed, 422, 'This week is locked after Gate completion.');
+        $progression = app(WeekProgressionService::class);
+        $progression->ensureCanAccessWeek($user, $trainingWeek);
+        abort_if($progression->hasPassedActiveGate($user, $trainingWeek), 422, 'This week is locked after Gate completion.');
 
         return true;
     }
@@ -52,10 +50,8 @@ class StoreWeeklyVideoRecordingRequest extends FormRequest
      */
     public function messages(): array
     {
-        $maxKb = (int) config('training.weekly_video_max_kb', 358400);
-
         return [
-            'video.max' => 'The video must not exceed '.round($maxKb / 1024, 1).' MB.',
+            'video.max' => app(EvidenceFilePolicy::class)->videoMaxSizeMessage(),
         ];
     }
 }

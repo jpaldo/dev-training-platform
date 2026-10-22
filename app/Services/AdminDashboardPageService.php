@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
-use App\Enums\InterviewPairStatus;
 use App\Enums\MentorInterviewScheduleStatus;
 use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
@@ -80,7 +79,7 @@ class AdminDashboardPageService
      */
     private function activeParticipantsInActivePairs(): int
     {
-        $activePairs = WeekFourInterviewPair::query()->where('status', InterviewPairStatus::Active);
+        $activePairs = WeekFourInterviewPair::query()->active();
 
         return User::query()
             ->where('role', UserRole::Participant)

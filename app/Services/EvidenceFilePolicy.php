@@ -31,6 +31,15 @@ class EvidenceFilePolicy
         ]);
     }
 
+    /**
+     * The message shown when a Weekly Video Recording exceeds `training.weekly_video_max_kb`, e.g. "The video must not
+     * exceed 350 MB." (the upload validation and the page's size check before upload).
+     */
+    public function videoMaxSizeMessage(): string
+    {
+        return 'The video must not exceed '.round((int) config('training.weekly_video_max_kb', 358400) / 1024, 1).' MB.';
+    }
+
     public function isVideoMimeType(?string $mimeType): bool
     {
         return filled($mimeType) && (str_starts_with($mimeType, 'video/') || in_array($mimeType, $this->videoMimeTypes(), true));

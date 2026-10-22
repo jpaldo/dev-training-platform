@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Enums\UserRole;
-use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Services\ActivitySubmissionService;
 use App\Services\ExportLifecycleService;
 use App\Services\GoogleDriveReadinessService;
 use App\Services\TrainingActivityPageService;
@@ -17,7 +17,7 @@ use Illuminate\View\View;
 
 class TrainingActivityController extends Controller
 {
-    public function show(Request $request, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, ExportLifecycleService $lifecycle, GoogleDriveReadinessService $readiness, TrainingActivityPageService $page): View|RedirectResponse
+    public function show(Request $request, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, ExportLifecycleService $lifecycle, GoogleDriveReadinessService $readiness, ActivitySubmissionService $submissions, TrainingActivityPageService $page): View|RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -26,11 +26,7 @@ class TrainingActivityController extends Controller
         if ($progression->requiresAttendanceForNewActivity($user, $trainingWeek, $activity)) {
             return redirect()->route('dashboard')->withErrors(['attendance' => 'Please check in to access this week\'s activities.']);
         }
-        $isValidationChecklist = $user->role === UserRole::Participant
-            && $trainingWeek->week_number === 2
-            && $activity->position === 1
-            && $activity->title === 'Validation Checklist';
-        if ($isValidationChecklist && ! $user->validationSubmissions()->whereIn('status', ValidationSubmissionStatus::recorded())->exists()) {
+        if ($submissions->isMissingLabPrerequisite($user, $trainingWeek, $activity)) {
             return redirect()->route('lab.activity', ['continue' => 'validation-checklist'])
                 ->with('status', 'Complete and submit a QA Validation Lab record before starting the Validation Checklist.');
         }

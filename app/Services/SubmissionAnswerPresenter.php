@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Enums\TrainingPath;
 use App\Models\ActivityRequirement;
+use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Support\Markdown;
+use Illuminate\Support\Collection;
 
 class SubmissionAnswerPresenter
 {
@@ -23,6 +25,22 @@ class SubmissionAnswerPresenter
             'display' => $this->displayValue($value),
             'markdown' => in_array($key, Markdown::OUTPUT_FIELDS, true),
         ])->filter(fn (array $field): bool => filled($field['value']))->values()->all();
+    }
+
+    /**
+     * The evidence items with whether each is an uploaded file and the type label to show ("Uploaded File" for a
+     * file, otherwise the evidence type).
+     *
+     * @param  Collection<int, SubmissionEvidence>  $evidence
+     * @return Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>
+     */
+    public function evidenceItems(Collection $evidence): Collection
+    {
+        return $evidence->map(fn (SubmissionEvidence $item): array => [
+            'evidence' => $item,
+            'is_file' => $item->isUploadedFile(),
+            'type_label' => $item->isUploadedFile() ? 'Uploaded File' : ucfirst($item->evidence_type),
+        ])->values()->toBase();
     }
 
     public function displayValue(mixed $value): string

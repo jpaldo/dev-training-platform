@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\ReviewDecision;
 use App\Enums\SubmissionStatus;
 use App\Enums\ValidationCheckStatus;
-use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
@@ -120,7 +119,7 @@ class ActivitySubmissionPageService
             'statusTone' => $version->status->tone(),
             'responses' => $responses,
             'labRecord' => $version->validationSubmission?->user_id === $participant->id ? $version->validationSubmission : null,
-            'evidenceItems' => $this->evidenceItems($version->evidence),
+            'evidenceItems' => $this->answers->evidenceItems($version->evidence),
             'reviewRows' => $version->reviews->map(fn (SubmissionReview $review): array => [
                 'decision_label' => $review->decision->label(),
                 'tone' => $review->decision->tone(),
@@ -150,7 +149,7 @@ class ActivitySubmissionPageService
      */
     private function submittedLabRecords(User $participant): Collection
     {
-        return ValidationSubmission::query()->where('user_id', $participant->id)->whereIn('status', ValidationSubmissionStatus::recorded())->latest('submitted_at')->latest('id')->get();
+        return ValidationSubmission::query()->where('user_id', $participant->id)->recorded()->latest('submitted_at')->latest('id')->get();
     }
 
     /**
@@ -266,7 +265,7 @@ class ActivitySubmissionPageService
 
             return [
                 'requirement' => $requirement,
-                'evidence' => $this->evidenceItems($evidence->where('evidence_requirement_id', $requirement->id)),
+                'evidence' => $this->answers->evidenceItems($evidence->where('evidence_requirement_id', $requirement->id)),
                 'input' => $input,
                 'file_label' => match ($input) {
                     'text' => 'Or upload artifact',
@@ -313,21 +312,6 @@ class ActivitySubmissionPageService
         }
 
         return $checks;
-    }
-
-    /**
-     * The evidence items with whether each is an uploaded file and the type label to show.
-     *
-     * @param  Collection<int, SubmissionEvidence>  $evidence
-     * @return Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>
-     */
-    private function evidenceItems(Collection $evidence): Collection
-    {
-        return $evidence->map(function (SubmissionEvidence $item): array {
-            $isFile = filled($item->disk) && filled($item->path) && filled($item->original_filename);
-
-            return ['evidence' => $item, 'is_file' => $isFile, 'type_label' => $isFile ? 'Uploaded File' : ucfirst($item->evidence_type)];
-        })->values()->toBase();
     }
 
     /**

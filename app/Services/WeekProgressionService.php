@@ -22,6 +22,17 @@ class WeekProgressionService
         return $this->passedWeekIds($user, collect([$week]))->contains($week->id);
     }
 
+    /**
+     * Whether the user has passed one of the week's active Gates, which locks the week's Weekly Video Recording.
+     */
+    public function hasPassedActiveGate(User $user, TrainingWeek $week): bool
+    {
+        return $week->gates()
+            ->where('is_active', true)
+            ->whereHas('evaluations', fn (Builder $query): Builder => $query->where('user_id', $user->id)->where('status', GateEvaluationStatus::Passed))
+            ->exists();
+    }
+
     public function canAccessWeek(User $user, TrainingWeek $week): bool
     {
         if ($user->isCoachOrAdmin()) {

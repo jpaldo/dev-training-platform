@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
 use App\Enums\SubmissionStatus;
-use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\AttendanceSession;
 use App\Models\GateEvaluation;
@@ -108,8 +107,8 @@ class ParticipantDashboardService
                 $activity->participant_score = $activity->participant_submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $version): bool => $version->activityScore?->isPublished() === true)?->activityScore;
                 $activity->participant_score_max = $scoreMax;
                 $activity->week_four_partner_assigned = ! $this->requiresWeekFourPartner($week, $activity) || ($hasWeekFourPartner ??= (bool) WeekFourInterviewPair::forParticipant($user->id));
-                $activity->lab_prerequisite_met = ! $this->requiresValidationLabRecord($week, $activity)
-                    || ($hasValidationLabRecord ??= $user->validationSubmissions()->whereIn('status', ValidationSubmissionStatus::recorded())->exists());
+                $activity->lab_prerequisite_met = ! $activity->isValidationChecklist($week)
+                    || ($hasValidationLabRecord ??= $user->validationSubmissions()->recorded()->exists());
             }
         }
     }
@@ -131,10 +130,5 @@ class ParticipantDashboardService
     private function requiresWeekFourPartner(TrainingWeek $week, Activity $activity): bool
     {
         return $week->week_number === 4 && $activity->position === 2;
-    }
-
-    private function requiresValidationLabRecord(TrainingWeek $week, Activity $activity): bool
-    {
-        return $week->week_number === 2 && $activity->position === 1 && $activity->title === 'Validation Checklist';
     }
 }

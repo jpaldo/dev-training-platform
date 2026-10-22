@@ -77,7 +77,7 @@
                         <label for="admin_interview_type" class="{{ $labelClasses }}">Interview Type</label>
                         <select id="admin_interview_type" name="interview_type" required class="{{ $controlClasses }}">
                             @foreach($interviewTypes as $interviewType)
-                                <option value="{{ $interviewType['value'] }}" @selected(old('interview_type') === $interviewType['value'])>{{ $interviewType['label'] }}</option>
+                                <option value="{{ $interviewType['value'] }}" data-offers-mock="{{ $interviewType['offers_mock'] ? 'true' : 'false' }}" data-offers-final="{{ $interviewType['offers_final'] ? 'true' : 'false' }}" @selected(old('interview_type') === $interviewType['value'])>{{ $interviewType['label'] }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -143,7 +143,7 @@
                                     <label for="pending-{{ $interviewer['id'] }}-interview-type" class="{{ $labelClasses }}">Interview Type</label>
                                     <select id="pending-{{ $interviewer['id'] }}-interview-type" name="interview_type" required class="{{ $controlClasses }}">
                                         @foreach($interviewTypes as $interviewType)
-                                            <option value="{{ $interviewType['value'] }}" @selected($interviewer['interviewType'] === $interviewType['value'])>{{ $interviewType['label'] }}</option>
+                                            <option value="{{ $interviewType['value'] }}" data-offers-mock="{{ $interviewType['offers_mock'] ? 'true' : 'false' }}" data-offers-final="{{ $interviewType['offers_final'] ? 'true' : 'false' }}" @selected($interviewer['interviewType'] === $interviewType['value'])>{{ $interviewType['label'] }}</option>
                                         @endforeach
                                     </select>
                                 </div>

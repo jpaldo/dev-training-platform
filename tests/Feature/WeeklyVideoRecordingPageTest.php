@@ -150,6 +150,22 @@ class WeeklyVideoRecordingPageTest extends TestCase
         $this->assertDatabaseCount('weekly_video_recordings', 0);
     }
 
+    public function test_size_message_follows_the_configured_video_limit(): void
+    {
+        Storage::fake('local');
+        config(['training.weekly_video_max_kb' => 2048]);
+        $participant = User::factory()->create();
+        ['week' => $week] = $this->weekFixture();
+
+        $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
+            ->assertOk()
+            ->assertSee('data-max-bytes="2097152" data-max-size-message="The video must not exceed 2 MB."', false)
+            ->assertSee('data-weekly-video-size-error hidden>The video must not exceed 2 MB.</p>', false);
+        $this->actingAs($participant)
+            ->post(route('training.video-recording.store', $week), ['video' => UploadedFile::fake()->create('week-2.mp4', 2049, 'video/mp4')])
+            ->assertSessionHasErrors(['video' => 'The video must not exceed 2 MB.']);
+    }
+
     public function test_participant_cannot_open_the_page_for_a_week_they_cannot_access_yet(): void
     {
         $participant = User::factory()->create();

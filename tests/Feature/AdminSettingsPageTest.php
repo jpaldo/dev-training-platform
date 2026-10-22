@@ -164,7 +164,7 @@ class AdminSettingsPageTest extends TestCase
                 'id="from_name" name="from_name" value="QA Training Platform"',
                 'name="mentor_emails_enabled" value="0"', 'name="mentor_emails_enabled" value="1"', 'Enable Mentor interview emails',
                 'Send test email',
-                'method="POST" action="'.route('admin.settings.email.test').'"',
+                'method="POST" action="'.route('admin.settings.email.test').'"', 'name="_token"',
                 'id="test-recipient" name="recipient" type="email" value=""',
                 'bg-raised', 'Send Test Email',
             ], false)

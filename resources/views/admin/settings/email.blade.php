@@ -138,6 +138,7 @@
                 </div>
 
                 <form method="POST" action="{{ route('admin.settings.email.test') }}" class="m-0 grid grid-cols-1 justify-items-start gap-4">
+                    @csrf
                     <div class="grid w-full max-w-120 gap-2">
                         <label for="test-recipient" class="{{ $labelClasses }}">Test recipient *</label>
                         <input id="test-recipient" name="recipient" type="email" value="{{ old('recipient') }}" required class="{{ $controlClasses }}">

@@ -39,7 +39,7 @@ class GateReviewController extends Controller
             Gate::authorize('view', $evaluation);
         }
 
-        return view('coach.gate_review', $page->showData($trainingWeek, $participant, $trainingGate, $evaluation));
+        return view('coach.gate_review', $page->showData($trainingWeek, $participant, $trainingGate, $evaluation, request()->user()));
     }
 
     public function update(StoreGateReviewRequest $request, TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, WeekTwoGateService $service, TrainingExportCoordinator $exports, TrainingSyncCoordinator $syncs): RedirectResponse

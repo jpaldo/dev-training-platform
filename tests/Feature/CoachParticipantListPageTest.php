@@ -98,6 +98,40 @@ class CoachParticipantListPageTest extends TestCase
         $this->assertSame(1, substr_count($response->getContent(), '↔'));
     }
 
+    public function test_a_coach_is_offered_only_the_participants_and_pairs_they_manage(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $otherCoach = User::factory()->create(['role' => 'coach']);
+        $ann = User::factory()->create(['name' => 'Ann Alpha']);
+        $ben = User::factory()->create(['name' => 'Ben Beta']);
+        $oli = User::factory()->create(['name' => 'Oli Other']);
+        $una = User::factory()->create(['name' => 'Una Unassigned']);
+        $coach->assignedParticipants()->attach([$ann->id, $ben->id]);
+        $otherCoach->assignedParticipants()->attach($oli->id);
+        $managedPair = WeekFourInterviewPair::create(['participant_one_id' => $ann->id, 'participant_two_id' => $ben->id, 'assigned_by_id' => $coach->id, 'status' => 'active']);
+        $mixedPair = WeekFourInterviewPair::create(['participant_one_id' => $ann->id, 'participant_two_id' => $oli->id, 'assigned_by_id' => $otherCoach->id, 'status' => 'active']);
+        $otherPair = WeekFourInterviewPair::create(['participant_one_id' => $oli->id, 'participant_two_id' => $una->id, 'assigned_by_id' => $otherCoach->id, 'status' => 'active']);
+
+        $response = $this->actingAs($coach)->get(route('coach.participants'))
+            ->assertOk()
+            ->assertSee('<option value="'.$ann->id.'">Ann Alpha — Mentor:', false)
+            ->assertSee('<option value="'.$ben->id.'">Ben Beta — Mentor:', false)
+            ->assertDontSee('<option value="'.$oli->id.'">', false)
+            ->assertDontSee('<option value="'.$una->id.'">', false)
+            ->assertSee(route('coach.week-four.pairs.unpair', $managedPair), false)
+            ->assertDontSee(route('coach.week-four.pairs.unpair', $mixedPair), false)
+            ->assertDontSee(route('coach.week-four.pairs.unpair', $otherPair), false);
+
+        $this->assertSame(1, substr_count($response->getContent(), '↔'));
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.participants'))
+            ->assertOk()
+            ->assertSee('<option value="'.$oli->id.'">', false)
+            ->assertSee('<option value="'.$una->id.'">', false)
+            ->assertSee(route('coach.week-four.pairs.unpair', $mixedPair), false)
+            ->assertSee(route('coach.week-four.pairs.unpair', $otherPair), false);
+    }
+
     public function test_filters_keep_their_values_and_an_empty_result_shows_a_notice_instead_of_the_table(): void
     {
         User::factory()->create(['name' => 'Manual Person', 'training_path' => 'manual']);

@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\UserRole;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreMentorInterviewAvailabilityRequest extends FormRequest
 {
@@ -18,12 +20,15 @@ class StoreMentorInterviewAvailabilityRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
+     * Admins must name the coach the availability belongs to; a coach's
+     * availability is always their own, so `mentor_id` is ignored for them.
+     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'mentor_id' => ['nullable', 'integer'],
+            'mentor_id' => [Rule::requiredIf($this->user()?->role === UserRole::Admin), 'nullable', 'integer'],
             'available_date' => ['required', 'date_format:Y-m-d'],
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i'],

@@ -79,7 +79,8 @@ class CoachGateReviewPageTest extends TestCase
                 'Strong week, finish the video.',
             ], false)
             ->assertDontSee('Blockers')
-            ->assertDontSee('Optional stretch goal');
+            ->assertDontSee('Optional stretch goal')
+            ->assertDontSee('Read only');
 
         $this->assertSame(1, substr_count($response->getContent(), 'Save Gate Evaluation'));
     }
@@ -105,6 +106,21 @@ class CoachGateReviewPageTest extends TestCase
                 'Gate criteria',
             ])
             ->assertDontSee('View Video');
+    }
+
+    public function test_a_coach_who_is_not_assigned_to_the_participant_sees_the_gate_read_only(): void
+    {
+        $participant = User::factory()->create();
+        $coach = User::factory()->create(['role' => 'coach']);
+        ['week' => $week, 'gate' => $gate] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+
+        $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
+            ->assertOk()
+            ->assertSeeInOrder(['Gate criteria', 'Coach decision', 'Read only — this participant is not assigned to you.'])
+            ->assertDontSee('id="gate-review-main-action"', false)
+            ->assertDontSee('Save Gate Evaluation')
+            ->assertDontSee('action="'.route('training.coach.gates.update', [$week, $participant, $gate]).'"', false)
+            ->assertDontSee('name="status"', false);
     }
 
     public function test_a_rejected_decision_returns_to_the_page_with_the_error(): void

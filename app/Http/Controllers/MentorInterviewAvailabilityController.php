@@ -29,9 +29,8 @@ class MentorInterviewAvailabilityController extends Controller
 
     public function store(StoreMentorInterviewAvailabilityRequest $request, MentorInterviewAvailabilityService $availability): RedirectResponse
     {
-        $data = $request->validated();
-        $mentor = $request->user()->role === UserRole::Admin ? User::query()->where('role', UserRole::Coach)->findOrFail($data['mentor_id']) : $request->user();
-        $availability->create($mentor, $data);
+        $mentor = $request->user()->role === UserRole::Admin ? User::query()->where('role', UserRole::Coach)->findOrFail($request->validated('mentor_id')) : $request->user();
+        $availability->create($mentor, $request->safe()->except('mentor_id'));
 
         return back()->with('status', 'Mentor interview availability added.');
     }

@@ -10,6 +10,7 @@ use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivitySubmission;
 use App\Services\CoachRecoveryRequestPageService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -25,9 +26,9 @@ class RecoveryRequestController extends Controller
         return back()->with('status', 'Review requested. Waiting for coach response.');
     }
 
-    public function index(CoachRecoveryRequestPageService $page): View
+    public function index(Request $request, CoachRecoveryRequestPageService $page): View
     {
-        return view('coach.recovery_requests', $page->indexData());
+        return view('coach.recovery_requests', $page->indexData($request->user()));
     }
 
     public function decide(DecideRecoveryRequestRequest $request, ActivityRecoveryRequest $recoveryRequest): RedirectResponse

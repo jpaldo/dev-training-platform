@@ -20,9 +20,9 @@ class CoachRecoveryRequestPageTest extends TestCase
     {
         $coach = User::factory()->create(['role' => 'coach']);
         $activity = Activity::factory()->for(TrainingWeek::factory()->state(['week_number' => 2]), 'week')->create(['title' => 'Risk charter']);
-        $older = $this->recoveryRequest($activity, 'Olga Older', 1, 'Please reconsider this attempt.', now()->subDay());
-        $newer = $this->recoveryRequest($activity, 'Nina Newer', 2, null, now());
-        $this->recoveryRequest($activity, 'Dina Declined', 1, 'Declined already.', now(), 'declined');
+        $older = $this->recoveryRequest($coach, $activity, 'Olga Older', 1, 'Please reconsider this attempt.', now()->subDay());
+        $newer = $this->recoveryRequest($coach, $activity, 'Nina Newer', 2, null, now());
+        $this->recoveryRequest($coach, $activity, 'Dina Declined', 1, 'Declined already.', now(), 'declined');
 
         $this->actingAs($coach)->get(route('coach.recovery.index'))
             ->assertOk()
@@ -47,7 +47,7 @@ class CoachRecoveryRequestPageTest extends TestCase
         $activity = Activity::factory()->create();
 
         foreach (range(1, 26) as $index) {
-            $this->recoveryRequest($activity, "Participant {$index}", 1, null, now()->subMinutes($index));
+            $this->recoveryRequest($coach, $activity, "Participant {$index}", 1, null, now()->subMinutes($index));
         }
 
         $this->actingAs($coach)->get(route('coach.recovery.index'))
@@ -60,6 +60,27 @@ class CoachRecoveryRequestPageTest extends TestCase
             ->assertOk()
             ->assertSee('Participant 26 · Attempt', false)
             ->assertDontSee('Participant 1 · Attempt', false);
+    }
+
+    public function test_a_coach_sees_only_the_requests_of_the_participants_they_manage_and_an_admin_sees_all(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $otherCoach = User::factory()->create(['role' => 'coach']);
+        $activity = Activity::factory()->create();
+        $managed = $this->recoveryRequest($coach, $activity, 'Mia Managed', 1, null, now());
+        $unmanaged = $this->recoveryRequest($otherCoach, $activity, 'Ula Unmanaged', 1, null, now());
+
+        $this->actingAs($coach)->get(route('coach.recovery.index'))
+            ->assertOk()
+            ->assertSee('Mia Managed · Attempt 1', false)
+            ->assertSee('action="'.route('coach.recovery.decide', $managed).'"', false)
+            ->assertDontSee('Ula Unmanaged')
+            ->assertDontSee(route('coach.recovery.decide', $unmanaged), false);
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.recovery.index'))
+            ->assertOk()
+            ->assertSee('action="'.route('coach.recovery.decide', $managed).'"', false)
+            ->assertSee('action="'.route('coach.recovery.decide', $unmanaged).'"', false);
     }
 
     public function test_page_without_pending_requests_shows_a_notice_instead_of_the_list(): void
@@ -77,14 +98,15 @@ class CoachRecoveryRequestPageTest extends TestCase
 
     /**
      * Create a recovery request with the given status, message and creation time for a failed attempt of the
-     * activity by a new participant with the given name.
+     * activity by a new participant with the given name, assigned to the given coach.
      */
-    private function recoveryRequest(Activity $activity, string $participantName, int $attemptNumber, ?string $message, CarbonInterface $createdAt, string $status = 'pending'): ActivityRecoveryRequest
+    private function recoveryRequest(User $assignedCoach, Activity $activity, string $participantName, int $attemptNumber, ?string $message, CarbonInterface $createdAt, string $status = 'pending'): ActivityRecoveryRequest
     {
         $submission = ActivitySubmission::factory()
             ->for($activity)
             ->for(User::factory()->state(['name' => $participantName]), 'participant')
             ->create(['status' => 'failed', 'attempt_number' => $attemptNumber]);
+        $assignedCoach->assignedParticipants()->attach($submission->user_id);
 
         return ActivityRecoveryRequest::forceCreate([
             'user_id' => $submission->user_id,
@@ -97,15 +119,15 @@ class CoachRecoveryRequestPageTest extends TestCase
     }
 
     /**
-     * Create the given number of pending requests, each for a new activity in a new week, and count the queries of a
-     * coach's page request after a warm-up request.
+     * Create the given number of pending requests, each for a new activity in a new week, and count the queries of the
+     * assigned coach's page request after a warm-up request.
      */
     private function recoveryRequestPageQueryCount(int $requestCount): int
     {
         $coach = User::factory()->create(['role' => 'coach']);
 
         foreach (range(1, $requestCount) as $index) {
-            $this->recoveryRequest(Activity::factory()->create(), "Participant {$index}", 1, null, now());
+            $this->recoveryRequest($coach, Activity::factory()->create(), "Participant {$index}", 1, null, now());
         }
 
         $this->actingAs($coach)->get(route('coach.recovery.index'))->assertOk();

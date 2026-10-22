@@ -21,11 +21,12 @@ class CoachGateReviewPageService
     /**
      * Everything the coach Gate review page renders: the readiness summary, the blockers, the required criteria
      * (with the weekly video link on the video criterion), the Gate decision options (none preselected, so the first
-     * one shows), the criterion decision options (Not met preselected) and the saved evaluation for the comments field.
+     * one shows), the criterion decision options (Not met preselected), the saved evaluation for the comments field and
+     * whether the viewer may decide the Gate (a coach who is not assigned to the participant sees the page read only).
      *
-     * @return array{trainingWeek: TrainingWeek, participant: User, gate: TrainingGate, evaluation: ?GateEvaluation, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, criteria: list<array{id: int, title: string, field_label: string, description: ?string, video_url: ?string}>, decisionOptions: list<array{value: string, label: string}>, criterionStatusOptions: list<array{value: string, label: string, is_selected: bool}>}
+     * @return array{trainingWeek: TrainingWeek, participant: User, gate: TrainingGate, evaluation: ?GateEvaluation, canManage: bool, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, criteria: list<array{id: int, title: string, field_label: string, description: ?string, video_url: ?string}>, decisionOptions: list<array{value: string, label: string}>, criterionStatusOptions: list<array{value: string, label: string, is_selected: bool}>}
      */
-    public function showData(TrainingWeek $week, User $participant, TrainingGate $gate, ?GateEvaluation $evaluation): array
+    public function showData(TrainingWeek $week, User $participant, TrainingGate $gate, ?GateEvaluation $evaluation, User $viewer): array
     {
         $gate->load('criteria');
         $requiredCriteria = $gate->criteria->where('is_required', true)->values();
@@ -37,6 +38,7 @@ class CoachGateReviewPageService
             'participant' => $participant,
             'gate' => $gate,
             'evaluation' => $evaluation,
+            'canManage' => $viewer->canManageParticipant($participant),
             'readinessItems' => [
                 ['label' => 'Criteria', 'value' => ($requiredCriteria->count() - count($readiness)).' / '.$requiredCriteria->count()],
                 ['label' => 'Daily logs', 'value' => $this->weeklyDailyLogCount($participant, $week).' / 5'],

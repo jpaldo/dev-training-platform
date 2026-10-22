@@ -83,6 +83,33 @@ class MentorInterviewAvailabilityTest extends TestCase
         $this->assertDatabaseCount('mentor_interview_availabilities', 0);
     }
 
+    public function test_admin_must_choose_the_mentor_when_adding_availability(): void
+    {
+        $this->fixture();
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->post(route('coach.mentor-availability.store'), $this->availabilityPayload())
+            ->assertRedirect()
+            ->assertSessionHasErrors('mentor_id');
+
+        $this->assertDatabaseCount('mentor_interview_availabilities', 0);
+    }
+
+    public function test_coach_adding_availability_owns_it_even_when_posting_another_mentor_id(): void
+    {
+        [, $mentor] = $this->fixture();
+        $otherMentor = User::factory()->create(['role' => 'coach', 'is_active' => true]);
+
+        $this->actingAs($mentor)
+            ->post(route('coach.mentor-availability.store'), $this->availabilityPayload() + ['mentor_id' => $otherMentor->id])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('mentor_interview_availabilities', ['mentor_id' => $mentor->id]);
+        $this->assertDatabaseMissing('mentor_interview_availabilities', ['mentor_id' => $otherMentor->id]);
+    }
+
     public function test_admin_can_update_another_mentors_availability(): void
     {
         [, $mentor] = $this->fixture();

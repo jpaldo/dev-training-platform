@@ -14,10 +14,12 @@
             <p class="m-0 leading-relaxed wrap-anywhere text-muted">Participant: {{ $participant->name }} · {{ $participant->trainingPathLabel() }} QA</p>
         </header>
 
-        {{-- The single main action stays in view: in the page header on desktop, pinned to the bottom of the screen on mobile. --}}
-        <div id="gate-review-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
-            <x-ui.button type="submit" form="gate-review-form">Save Gate Evaluation</x-ui.button>
-        </div>
+        @if($canManage)
+            {{-- The single main action stays in view: in the page header on desktop, pinned to the bottom of the screen on mobile. --}}
+            <div id="gate-review-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
+                <x-ui.button type="submit" form="gate-review-form">Save Gate Evaluation</x-ui.button>
+            </div>
+        @endif
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
             @if(session('status'))
@@ -71,38 +73,45 @@
                 @endif
             </x-ui.card>
 
-            <x-ui.card as="form" method="POST" action="{{ route('training.coach.gates.update', [$trainingWeek, $participant, $gate]) }}" id="gate-review-form" class="grid gap-6" aria-labelledby="gate-decision-title">
-                @csrf
-                <h2 id="gate-decision-title" class="m-0 text-xl font-extrabold">Coach decision</h2>
+            @if($canManage)
+                <x-ui.card as="form" method="POST" action="{{ route('training.coach.gates.update', [$trainingWeek, $participant, $gate]) }}" id="gate-review-form" class="grid gap-6" aria-labelledby="gate-decision-title">
+                    @csrf
+                    <h2 id="gate-decision-title" class="m-0 text-xl font-extrabold">Coach decision</h2>
 
-                <div class="grid gap-2">
-                    <label for="gate-status" class="{{ $labelClasses }}">Decision</label>
-                    <select id="gate-status" name="status" class="{{ $controlClasses }}">
-                        @foreach($decisionOptions as $option)
-                            <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
+                    <div class="grid gap-2">
+                        <label for="gate-status" class="{{ $labelClasses }}">Decision</label>
+                        <select id="gate-status" name="status" class="{{ $controlClasses }}">
+                            @foreach($decisionOptions as $option)
+                                <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <section class="grid gap-4 border-t border-line pt-5" aria-labelledby="gate-criterion-decisions-title">
+                        <h3 id="gate-criterion-decisions-title" class="m-0 text-lg font-extrabold">Criterion decisions</h3>
+                        @foreach($criteria as $criterion)
+                            <div class="grid gap-2">
+                                <label for="criterion-{{ $criterion['id'] }}" class="{{ $labelClasses }}">{{ $criterion['field_label'] }}</label>
+                                <select id="criterion-{{ $criterion['id'] }}" name="criteria[{{ $criterion['id'] }}]" class="{{ $controlClasses }}">
+                                    @foreach($criterionStatusOptions as $option)
+                                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
                         @endforeach
-                    </select>
-                </div>
+                    </section>
 
-                <section class="grid gap-4 border-t border-line pt-5" aria-labelledby="gate-criterion-decisions-title">
-                    <h3 id="gate-criterion-decisions-title" class="m-0 text-lg font-extrabold">Criterion decisions</h3>
-                    @foreach($criteria as $criterion)
-                        <div class="grid gap-2">
-                            <label for="criterion-{{ $criterion['id'] }}" class="{{ $labelClasses }}">{{ $criterion['field_label'] }}</label>
-                            <select id="criterion-{{ $criterion['id'] }}" name="criteria[{{ $criterion['id'] }}]" class="{{ $controlClasses }}">
-                                @foreach($criterionStatusOptions as $option)
-                                    <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    @endforeach
-                </section>
-
-                <div class="grid gap-2 border-t border-line pt-5">
-                    <label for="gate-comments" class="{{ $labelClasses }}">Coach comments</label>
-                    <textarea id="gate-comments" name="comments" rows="5" class="{{ $controlClasses }} min-h-28 resize-y">{{ old('comments', $evaluation?->comments) }}</textarea>
-                </div>
-            </x-ui.card>
+                    <div class="grid gap-2 border-t border-line pt-5">
+                        <label for="gate-comments" class="{{ $labelClasses }}">Coach comments</label>
+                        <textarea id="gate-comments" name="comments" rows="5" class="{{ $controlClasses }} min-h-28 resize-y">{{ old('comments', $evaluation?->comments) }}</textarea>
+                    </div>
+                </x-ui.card>
+            @else
+                <x-ui.card as="section" class="grid gap-4" aria-labelledby="gate-decision-title">
+                    <h2 id="gate-decision-title" class="m-0 text-xl font-extrabold">Coach decision</h2>
+                    <x-ui.alert tone="error" role="status">Read only — this participant is not assigned to you.</x-ui.alert>
+                </x-ui.card>
+            @endif
         </div>
     </div>
 @endsection

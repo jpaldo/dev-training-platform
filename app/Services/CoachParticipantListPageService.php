@@ -22,8 +22,8 @@ class CoachParticipantListPageService
 
     /**
      * Everything the coach participants page renders: the Week 4 pairing form (candidates with their mentor) and the
-     * active pairs, the filter values and the matching participant rows. The page has no single main action, so
-     * every button is secondary.
+     * active pairs, limited to the participants the viewer manages (admins: all), the filter values and the matching
+     * participant rows. The page has no single main action, so every button is secondary.
      *
      * @param  array{search?: ?string, path?: ?string}  $filters
      * @return array{assignPairUrl: string, pairCandidateOptions: list<array{value: string, label: string}>, pairs: list<array{participant_one: string, participant_two: string, unpair_url: string}>, search: string, pathOptions: list<array{value: string, label: string, is_selected: bool}>, participants: LengthAwarePaginator<int, array{name: string, email: string, path: string, access_label: ?string, coach_names: string, drive_url: ?string, google_drive_account: ?string, daily_log_count: int, daily_logs_url: ?string, attendance: ?array{is_open: bool, status: string, time: string, duration: string}, submission_count: int, gate_count: int, inspect_url: string}>}
@@ -33,6 +33,7 @@ class CoachParticipantListPageService
         return [
             'assignPairUrl' => route('coach.week-four.pairs.assign'),
             'pairCandidateOptions' => $this->interviews->pairingCandidates()
+                ->filter(fn (User $candidate): bool => $viewer->canManageParticipant($candidate))
                 ->map(fn (User $candidate): array => [
                     'value' => (string) $candidate->id,
                     'label' => "{$candidate->name} ({$candidate->email})",
@@ -40,6 +41,7 @@ class CoachParticipantListPageService
                 ->values()
                 ->all(),
             'pairs' => $this->interviews->activePairs()
+                ->filter(fn (WeekFourInterviewPair $pair): bool => $viewer->canManageParticipant($pair->participantOne) && $viewer->canManageParticipant($pair->participantTwo))
                 ->map(fn (WeekFourInterviewPair $pair): array => [
                     'participant_one' => "{$pair->participantOne->name} ({$pair->participantOne->email})",
                     'participant_two' => "{$pair->participantTwo->name} ({$pair->participantTwo->email})",

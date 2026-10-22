@@ -14,7 +14,7 @@ You are the coordinator. The `php-developer` agent does the coding; you resolve 
 ## 1. Resolve the plan document
 
 - Plans live in `docs/` (e.g. `docs/CODE_QUALITY_PLAN.md`) and in `docs/plans/`, where the `product-owner` agent writes plans generated from the specs in `docs/specs/`. Specs are not plans; never match them.
-- The first part of the arguments is the plan's title. Match it against the Markdown files in `docs/` and `docs/plans/` by file name (case-insensitive, ignoring `_`, `-`, spaces and the `.md` extension, e.g. `code quality` → `docs/CODE_QUALITY_PLAN.md`, `training plan` → `docs/plans/training-plan.md`) and by the document's `# H1` title.
+- The first part of the arguments is the plan's title. Match it against the Markdown files in `docs/` and `docs/plans/` by file name (case-insensitive, ignoring `_`, `-`, spaces and the `.md` extension, e.g. `code quality` → `docs/CODE_QUALITY_PLAN.md`, `developer program and training sessions` → `docs/plans/developer-program-and-training-sessions.md`) and by the document's `# H1` title.
 - If exactly one file matches, use it. If several match, or none, list the candidates (file name and H1) and ask the user which one. Do not guess.
 - If no arguments were given, list the plans in `docs/` and `docs/plans/` that contain checkboxes and ask which to implement.
 - If the plan lists blocking "Open questions" that gate items in scope, stop before those items and ask the user.

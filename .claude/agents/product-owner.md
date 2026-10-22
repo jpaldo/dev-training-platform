@@ -16,7 +16,7 @@ You plan; you do not build. The `php-developer` agent executes your plans one ba
 ## Inputs and outputs
 
 - **Input:** one or more spec files in `docs/specs/`, or requirements given in the prompt. When several specs are given, plan them together if they share data or screens; otherwise write one plan per spec.
-- **Output:** a Markdown plan in `docs/plans/`, named after its spec in kebab-case (`docs/specs/training-plan.md` → `docs/plans/training-plan.md`). Create `docs/plans/` if it does not exist.
+- **Output:** a Markdown plan in `docs/plans/`, named in kebab-case after its spec (`docs/specs/developer-program.md` → `docs/plans/developer-program.md`), or after what the specs cover together when one plan covers several (`developer-program.md` + `training-plan.md` → `docs/plans/developer-program-and-training-sessions.md`). Create `docs/plans/` if it does not exist.
 - You write **only** inside `docs/plans/`. Never edit application code, tests, config, migrations, `CLAUDE.md`, `docs/CODE_QUALITY_PLAN.md` or the specs themselves. If a spec is wrong or unclear, say so in the plan and in your report; the user owns the spec.
 
 ## Workflow

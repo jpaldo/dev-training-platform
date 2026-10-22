@@ -1,0 +1,779 @@
+# Developer Program and Training Sessions Plan
+
+Source specs: `docs/specs/developer-program.md` ("DP") and `docs/specs/training-plan.md` (Training Sessions, "TS") · Merged from the former plans `docs/plans/developer-program.md` and `docs/plans/training-plan.md` (in git history) · Last updated: 2026-10-23
+
+**Status legend:** `[x]` done · `[ ]` to do · `[~]` in progress · `[-]` deferred
+
+Each batch heading ends with its former ID, e.g. "(was TS 1.1)" or "(was DP 4.3)", so earlier discussion stays traceable.
+
+## Goal
+
+Turn the platform from a single QA course into a developer training platform. Remove the QA program, its data and its QA-only tools; make what stays work for any program and week; seed the 4-week *L4 Accelerator Training* with GitHub-link deliverables and a weekly mentor checklist. Then make trainings first-class: admins schedule **training sessions** (dated runs of a program) with participants, mentors and resources; participants register with their employee ID, join open sessions, and work through weeks that open by date and lock only after an *incomplete* mentor review, with submissions, scores and mentor scope kept per session.
+
+## Rules for every batch
+
+- Read `CLAUDE.md` **as it is on disk** before starting. It is newer than older copies you may have in context: enums in `app/Enums` are the convention for stored statuses and roles (code quality Phase 7 is done), Preflight is on, the legacy CSS classes are gone, and type discriminators such as `gate_criteria.criterion_type` stay plain strings (decided 2026-10-22 in `docs/CODE_QUALITY_PLAN.md`). Follow its "Code Quality Rules" for every new or touched line.
+- Keep each batch small and independently shippable: one concern, its tests, green suite. Behavior changes only where the item says so.
+- Do only the batch you were given. Record new problems under "Open decisions" instead of fixing them on the spot.
+- Definition of done: `vendor/bin/pint --dirty --format agent`, the full suite passing (`php artisan test --compact`), `npm run build` if CSS, JS or Tailwind classes changed, and the item ticked here (`[x]`, or `[~]` with a short note).
+- `php` is not on the default PATH in agent shells: use `~/.config/herd-lite/bin/php`.
+- **Order.** The phases are in cross-spec dependency order. "Continue the plan" (or `/implement` with no scope) means the first unchecked item in the lowest unfinished phase; no batch depends on a later one.
+- **Gate A — QA code and data are gone.** Cleared when Phases 1 to 4 are done (4.4 ticked). Phase 5 onward relies on it: those batches would otherwise rewrite QA code that Phases 2 to 4 delete (Validation Lab, Week 2 to 4 tools, daily logs, hardcoded week checks), and MIG-1 relies on the data deletion in 2.1.
+- **Gate B — open questions.** An item marked "Blocked by Qn" waits for that answer: skip it, take the next unblocked item in the same phase, and come back when the answer is recorded under Assumptions.
+- **Phase 13 — "When ready".** Its two batches have no fixed place in the order; they come last so the default "next" never stalls on them. Run them by name when their gate opens; if "next" reaches them while the gate is closed, stop and say so.
+  - **Gate D — 13.1 (migration squash)** runs right after a production deploy that has run every migration, and before the next batch that adds a migration is merged. Its earliest point is after Phase 4.
+  - **Gate C — 13.2 (real curriculum)** runs when the training team delivers the curriculum (Q4).
+- **Wording phase.** Phase 6 (developer and mentor wording) is the only phase not needed for the first session on Mon 9 Nov 2026. If the deadline gets tight it can move to the end, but then it has more screens to reword.
+- **Removal batches delete, they do not refactor** (Phase 2). Delete the feature's routes, controllers, Form Requests, policies, services, presenters, models, enums, factories, views, components, mail, config keys, sidebar links and tests, and drop its tables in a new migration. In code that stays, remove only the branches that served the feature. Never edit an old migration except to stop it referencing a deleted class (see 4.2).
+- When a deleted feature leaves a kept test without purpose, delete the test case; when asserting the feature's absence is useful (route gone → 404), keep one such case.
+- New migrations must run on MySQL (production) and SQLite (tests). See `database/migrations/2026_09_16_160000_fix_google_drive_evidence_export_sqlite_foreign_key.php` (in git history once 13.1 deletes it) for the SQLite foreign-key trap this codebase has already hit.
+- 13.1 replaces all existing migrations with one hand-written file per table. It squashes whatever migrations exist when it runs. Migrations written after it are ordinary new files; never edit or delete the squashed files.
+- New admin actions on sessions, participants, mentors and resources write an `AdminAuditLog` row through `AdminAuditService` (created in 8.2).
+- New user-facing copy says "training", "training session", "participant" and "mentor"; never "QA", "tester" or "coach".
+
+## Requirements
+
+Spec column: **DP** = `docs/specs/developer-program.md`, **TS** = `docs/specs/training-plan.md`. TS spec assumptions without an ID are listed as SA-1 to SA-4.
+
+| ID | Spec | Requirement | Covered by |
+|---|---|---|---|
+| REM-1 | DP | Remove the *AI-Assisted QA Level 3* program and its seeder | 2.1 (data), 4.2 (seeder) |
+| REM-2 | DP | Remove the Validation Lab (pages, routes, models, tables, tests) and the submission-version link to it | 2.2 |
+| REM-3 | DP | Remove Week 2 gate rules, Week 3 workspace, reusable asset library, Week 4 mock interviews (pairs, feedback, waivers, mentor booking, availability calendar) | 2.5, 2.6, 2.7, 2.8, 2.10 |
+| REM-4 | DP | Remove QA PDF guides and their routes | 2.9 |
+| REM-5 | DP | No QA wording in pages, emails, exports or legal text; generic text says training, participant, mentor | 6.1, 6.2, 6.3 |
+| REM-6 | DP | `/` sends guests to login and signed-in users to their dashboard | 2.2 |
+| REM-7 | DP | Remove daily logs completely (pages, reports, exports, reminders, counts, gate criteria, model, table, tests) | 2.3, 2.4 |
+| DAT-1 | DP | Admin exports QA data before deletion; deployment notes include the step | 4.4 |
+| DAT-2 | DP | A migration deletes all QA training data and the files it references | 2.1 |
+| DAT-3 | DP | Keep admin and coach accounts; delete QA participant accounts | 2.1 |
+| DAT-4 | DP | Deletion is FK-safe on MySQL and SQLite and tested; the app works with no training data (empty states) | 2.1, 3.3 |
+| GEN-1 | DP | No behavior tied to a week number or activity position; features switched by type and configuration | 2.5 to 2.7, 2.10, 3.1 |
+| GEN-2 | DP | Program weeks are numbered 1..length | 3.1, 4.1 |
+| GEN-3 | DP | Scoring criteria, dimensions and AI prompts come from program data | 3.2 |
+| GEN-4 | DP | Active-program lookups handle "none"; replaced by the session later | 3.3 (replacement in 9.5, 10.5 to 10.9, 12.3) |
+| DEV-1 | DP | Seed *L4 Accelerator Training* (active, 4 weeks; activities, fields, evidence, a gate with criteria, scoring dimensions per week) in `L4TrainingProgramSeeder` | 4.1 |
+| DEV-2 | DP | Placeholder activities labelled *Placeholder* until the real curriculum; swapping it means editing the seeder | 4.1, 13.2 |
+| DEV-3 | DP | Same flow as today (activities, drafts, evidence, review, scoring, weekly video); weeks unlock by date | 4.1 (flow kept), 11.1 (date unlocking) |
+| DEV-4 | DP | Seed the first session *L4 Accelerator Training — November 2026*, 9 Nov to 6 Dec 2026 | 8.8 |
+| DEV-5 | DP | Deliverables are `https://github.com/...` links; other values fail validation; mentor review shows the links | 7.1 |
+| DEV-6 | DP | The seeder is re-runnable without duplicates or touching submissions | 4.1 |
+| LOG-1 | DP | Session logs live in the participant's GitHub repo; the platform never stores them | 7.2 (checklist item), no platform storage by design |
+| LOG-2 | DP | Repository URL per session (`https://github.com/<owner>/<repo>` only), changeable on the session page, shown to mentors | 9.11 |
+| LOG-3 | DP | Each week's gate is a mentor checklist: one item per required deliverable plus "Session logs committed for this week"; nothing auto-ticked | 4.1, 7.2 |
+| LOG-4 | DP | *Completed* only when every required item is ticked; *incomplete* records the missing items; outcomes drive WK-2/WK-3 | 7.3 |
+| DMO-1 | DP | 3 demo developers and 3 demo mentors with employee ID, first/last name, email, known password; participants' job role Developer | 4.3 |
+| DMO-2 | DP | Demo participants join the first session, each with a demo mentor | 10.10 |
+| DMO-3 | DP | Demo users only in local and staging, via `DevelopmentAccountProvisioner`, never production | 4.3, 10.10 |
+| SES-1 | TS | Admin creates a session: program, title, weeks, start and end; end = start + weeks; weeks ≤ program weeks; overlaps allowed | 8.1, 8.2 |
+| SES-2 | TS | Admin edits title, weeks, dates under SES-1 rules; program locked once participants joined | 8.3 |
+| SES-3 | TS | Admin adds and removes participants; removal hides the session, keeps submissions and scores | 8.5, 9.2 |
+| SES-4 | TS | Admin adds, renames and removes resources (file or link), per week or session-wide | 8.6 |
+| MEN-1 | TS | Admin adds and removes session mentors | 10.1, 10.2 |
+| MEN-2 | TS | Admin assigns each participant one session mentor for the whole session; unassigned allowed | 10.1, 10.3 |
+| MEN-3 | TS | Admin changes a mentor mid-session; new mentor sees all work, previous loses access, history kept, past reviews stay attributed | 10.1, 10.3, 10.4 |
+| MEN-4 | TS | A mentor sees and reviews only participants currently assigned to them, in those sessions | 10.4 to 10.9 |
+| ADM-1 | TS | Admin dashboard lists 5 most recent sessions (title, program, dates, status, participant count), rows open the session dashboard, "View all sessions" paginated | 8.2, 8.7 |
+| ADM-2 | TS | Session dashboard with Overview, Participants, Mentors, Activities, Resources tabs, each label with its count; overview scoped to the session | 8.4, 12.1, 12.2, 12.3 |
+| ADM-3 | TS | Participants tab: name, employee ID, job role, current mentor, joined date; add and remove | 8.4, 8.5, 10.3 |
+| ADM-4 | TS | Mentors tab: manage mentors, assign and change mentors | 10.2, 10.3 |
+| ADM-5 | TS | Resources tab grouped by week with upload and remove | 8.6 |
+| REG-1 | TS | Register with employee ID, first and last name, job role, email, password; optionally join open sessions; job role informational and extensible | 1.1, 1.2, 9.8 |
+| REG-2 | TS | Unique `employee_id` on every user; required at registration; admins set or correct it; used in admin lists, searches, exports | 1.1, 1.2, 1.4, 1.6 |
+| REG-3 | TS | Login stays email and password | 1.2, 1.5 (regression tests) |
+| REG-4 | TS | No training path anywhere; one track; every requirement applies to everyone | 5.1, 5.2, 5.3, 5.4 |
+| PAR-1 | TS | Landing page: My trainings, Available trainings (with Join), Past trainings | 9.5, 9.7 |
+| PAR-2 | TS | Join is open to all, immediate, idempotent; not for completed sessions | 9.7 |
+| PAR-3 | TS | Several sessions at once; submissions, scores and progress tracked per session | 9.1, 9.3, 9.4, 9.9, 9.10 |
+| PAR-4 | TS | Session details page: one tab per week plus a Resources tab | 9.2, 9.5, 9.6, 11.6 |
+| PAR-5 | TS | Completed sessions stay viewable, submissions closed, except activities a mentor or admin reopens | 11.4, 11.6 |
+| PAR-6 | TS | Participants open only sessions they joined; other session pages and files return 403 | 9.2, 9.6 |
+| WK-1 | TS | Week N opens on start + (N − 1) weeks, with its activities, deliverables and resources, without passing earlier gates | 11.1, 11.6 |
+| WK-2 | TS | An *incomplete* week review locks every later week for that participant | 11.1 |
+| WK-3 | TS | Later weeks unlock when the mentor (or an admin) marks the week *completed*; mentors see a list of locked weeks with new submissions | 11.1, 11.5 |
+| WK-4 | TS | Locked and unopened weeks still show as tabs and explain why ("Opens on …", missing deliverables, "Waiting for your mentor …"); earlier weeks stay open | 11.2, 11.3 |
+| MIG-1 | TS | No QA data to migrate; admin and coach accounts kept | 2.1 (deletion), 9.1 (empty-table guard) |
+| MIG-2 | TS | Remove training paths from users, requirements, screens, filters and exports | 5.1 to 5.4 |
+| MIG-3 | TS | Existing users without an employee ID must add one at next login; admins can fill it in | 1.4, 1.5 |
+| SA-1 | TS | Sessions reuse a program's weeks and activities; no program editing UI | 8.1, Out of scope |
+| SA-2 | TS | Only admins manage sessions; mentors see their sessions read-only | 8.2 (policy), 10.9 |
+| SA-3 | TS | Uploads: PDF, Office, images, MP4, ≤ 100 MB; other videos as links | 8.6 |
+| SA-4 | TS | Admin changes to sessions, participants, mentor assignments and resources go to the admin audit log | 8.2, 8.3, 8.5, 8.6, 10.2, 10.3 |
+
+13.1 (replace the old migrations) is a maintenance batch the user requested on 2026-10-23; it is not a spec requirement and changes no behavior.
+
+## Current state
+
+### Codebase
+
+- **Working tree:** `database/seeders/L4TrainingProgramSeeder.php` exists, untracked and **empty** (0 bytes); there are no other uncommitted code changes. Nothing in this plan is done yet.
+- **One global program.** `Program` (`app/Models/Program.php`, `is_active`) has `TrainingWeek`s (`week_number`, `position`), each with `Activity`s and `TrainingGate`s. About 15 places load "the" active program with `Program::query()->where('is_active', true)` (e.g. `ParticipantDashboardController`, `AdminDashboardPageService`, `CoachDashboardPageService`, `CoachReportService`, `MissingSubmissionReportService`, `ScoringPageService`, `ScoringReportController`, `ExportParticipantScoreSummaryRequest`, `ParticipantNotificationService`). Three use `firstOrFail()`: `ParticipantDashboardController`, `ScoringReportController::participantSummary`, `ScoringPageService` (line ~231).
+- **QA program content** lives in `database/seeders/QaTrainingProgramSeeder.php` (weeks 2 to 4, gates with `weekly_video` criteria). It is run by `DatabaseSeeder`, by `app:ensure-development-baseline` (`EnsureDevelopmentBaselineCommand`, used by `scripts/dev.ps1`) and by about 25 tests. The old migration `database/migrations/2026_09_10_160000_add_week3_activity_fields.php` instantiates it (`new QaTrainingProgramSeeder` for `fieldGuidance()`), so deleting the seeder breaks fresh migrations unless that line is removed.
+- **QA features to remove**, with their footprint (non-migration files referencing them):
+  - Validation Lab: `ValidationLabController`, `ValidationLabService`, `ValidationSubmission` (+ policy, 3 enums, 2 Form Requests), views `home`, `artifact`, `checklist`, `result`, `lab/*`, routes `/`, `/lab/*`, `/start`, `/checklist`, `/result/*`, `/lab/records/*`; `submission_versions.validation_submission_id`; `Activity::isValidationChecklist()`, the Lab prerequisite in `ActivitySubmissionService` / `TrainingActivityController` / `ActivitySubmissionController`; Lab files in `SyncTrainingDataJob` and workbook headers; the QA practice app card on the participant dashboard (`services.qa_application.url`, `$qaMembershipFeatures`).
+  - `WeekTwoGateService` (gate readiness: daily logs, activities handed in, evidence, weekly video) is used by 11 services and `GateReviewController`.
+  - Week 3 workspace: 4 models, `WeekThreeWorkspaceService`, `WeekThreeWorkspacePresenter`, controller, request, `submissions/week-three` view, branches in submission, scoring, review and workbook services; `WeekProgressionService::ensurePriorWeekThreeActivities()`.
+  - Week 4 mock interviews: 5 models, 3 services, 3 controllers, 4 Form Requests, `MentorMockInterviewScheduled` mail, `coach/mentor-availability` and `coach/week-four-questionnaire` views, 4 enums, `config/training.php` `week_four_*` keys, `GoogleCalendarService` (only other users: `AdminSettingsStatusService`, `GoogleDriveConfigurationService`), branches in submission, review, dashboard and admin services.
+  - Reusable asset library: controller, 2 services, `FilterReusableAssetsRequest`, views, `EvidenceFilePolicy::reusableAsset*`, sidebar links.
+  - Guides: `TrainingGuideController`, `training-guides/*.pdf`, dashboard "Training Guide" card.
+  - Daily logs: `DailyLog` (+ policy, factory, 5 Form Requests, `ParticipantNotificationType::DailyLogs`), 3 controllers, `DailyLogPageService`, `DailyLogReportPageService`, `CoachParticipantDailyLogPageService`, views `daily_logs/*`, `coach/daily-log-report`, `coach/daily-logs-details`, `coach/participant-daily-logs`, plus counts in dashboards, gate board/review, coach participants, coach and missing-submission reports, notifications, exports and workbooks; `config/training.php` `daily_logs_per_week`, `general_training_daily_logs_expected`.
+- **Hardcoded weeks** (about 53 matches): most disappear with the removals; the rest are `CoachGateBoardPageService::WEEK_OPTIONS`, `CoachGateOverviewService`, `CoachReviewQueuePageService::REVIEWED_WEEKS`, `ScoringPageService::SCORED_WEEKS`, `ScoringService::summaries()`, `MissingSubmissionReportService`, `ParticipantNotificationService` (`[2, 3, 4]`), `GateReviewController::guard()`, `ActivitySubmissionPageService` (week 2 check), `TrainingWorkbookService`, the participant dashboard view.
+- **Scoring** uses the fixed `ScoringService::DIMENSIONS` (D1 to D5 with QA labels, max 100 total) in `StoreActivityScoreRequest`, `ScoringPageService`, `ScoringSuggestionService`, `ActivitySubmissionPageService`, `ParticipantDashboardService`; `activity_score_dimensions.dimension` is `string(2)`.
+- **Gate review** (`GateReviewController`, `StoreGateReviewRequest`, `CoachGateReviewPageService`, `coach/gate_review` view): decisions `GateEvaluationStatus::decisions()` = Passed, NeedsRevision, Failed; Passed requires every required criterion Met and empty readiness; criteria saved as `GateCriterionStatus` Met / NotMet.
+- **Gate-chain unlocking.** `WeekProgressionService::canAccessWeek()` opens a week only when every earlier week's gates are passed. It also drives "current week" and the attendance requirement (`requiresAttendanceForActivity`).
+- **Submission fields** come from `activity_requirements` with `requirement_type` `submission_field` and `configuration.type` (`text`, `textarea`, `url`, `select`, `date`, `participant_selector`); drafts are validated in `StoreSubmissionDraftRequest`, submissions in `SubmissionWorkflowService`.
+- **Per-user, not per-session, progress.** `activity_submissions` (`activity_id`, `user_id`, `attempt_number`), `gate_evaluations` (unique `training_gate_id` + `user_id`) and `weekly_video_recordings` (unique `user_id` + `training_week_id`) have no session. Versions, evidence, reviews, scores and recovery requests hang off `activity_submissions`. Attendance (`attendance_sessions`) is a global check-in/check-out per user.
+- **Participant dashboard = today's "session page".** `ParticipantDashboardController` + `ParticipantDashboardService` + `resources/views/participant/dashboard.blade.php` render one tab per week (`x-ui.tab-list` / `x-ui.tab-panel`, `initializePageTabs` in `resources/js/app.js`) with activities, gate and video cards.
+- **Routes are week-scoped, not session-scoped**: `training/weeks/{trainingWeek}/…` for weeks, activities, submissions, evidence upload, gate page, video; `training/coach/weeks/{trainingWeek}/participants/{participant}/gates/{trainingGate}` for gate review. `bootstrap/app.php` matches `training/weeks/*/video-recording` for its `PostTooLargeException` handler.
+- **Global coach assignments.** `coach_participant_assignments` (`CoachParticipantAssignment`, `User::assignedCoaches()` / `assignedParticipants()`), edited on the admin user form (`AdminUserController@assignments`, `UpdateParticipantAssignmentsRequest`). `User::canManageParticipant()` gates every coach write (policies `SubmissionVersionPolicy`, `GateEvaluationPolicy`; Form Requests `StoreSubmissionReviewRequest`, `StoreActivityScoreRequest`, `StoreSecondReaderScoreRequest`, `StoreGateReviewRequest`, `DecideRecoveryRequestRequest`, `ImproveScoringFeedbackRequest`; `GateReviewController`, `ScoringController`, `WeeklyVideoRecordingController`). Coach list pages show **every** participant, marking "Assigned to me".
+- **Users.** `users` has `name`, `email`, `role` (`UserRole`), `training_path` (`TrainingPath`), `drive_link`, `is_active`. No employee ID, first/last name or job role. Registration (`RegisteredUserController`, `StoreRegisteredUserRequest`, `auth/register`) asks name, email, password, training path. Admin user form maps an "access type" (`admin`, `coach`, `qa_manual`, `qa_automation`, `qa_automation_manual`) to role + path. Login (`AuthenticatedSessionController`) redirects by role.
+- **Training paths** are referenced in ~60 app, view, factory and seeder files and ~50 tests (`grep -rln "training_path\|TrainingPath\|participant_path" app resources database tests`), many inside QA features that Phase 2 deletes.
+- **Demo accounts**: `DevelopmentAccountProvisioner` reads `config/development_accounts.php` (one dev coach, one dev admin) and refuses outside `local` / `testing`.
+- **Audit log.** `admin_audit_logs` (`actor_id`, nullable `target_user_id`, `action`, JSON `metadata`). Written inline by `AdminUserController::audit()`, `AdminAiSettingsController`, `AdminGoogleDriveController`, `BootstrapAdminCommand`.
+- **Files.** Private `local` disk; size and type limits in `config/training.php`; evidence/video serving in `SubmissionEvidenceController` and `WeeklyVideoRecordingController`; rules in `App\Services\EvidenceFilePolicy`.
+- **Drive sync.** `SyncTrainingDataJob` and `TrainingWorkbookService` build one workbook per `week_number` across all activities with that number, so two sessions would mix.
+- **Sidebar** links come from `App\Services\SidebarNavigationService`.
+- **QA wording** appears in about 52 app and view files (many deleted by Phase 2).
+- **Deploys** (`scripts/atomic-release.sh`, `docs/ATOMIC_DEPLOYMENT.md`) never run migrations: `prepare` extracts the release, links the shared `.env` and storage, installs Composer dependencies, then `health_check` runs `php artisan migrate:status` against the live database and dies on any `Pending` line ("Pending migrations block activation"). Migrations are applied by hand, expand/migrate/contract. Seeders are run by hand.
+- **Migrations:** 81 files in `database/migrations` (Laravel's three `0001_01_01_*` files plus 78 dated 2026-09-03 to 2026-10-06). 15 of them are data migrations that rewrite QA activities, requirements and gate criteria by title (e.g. `2026_09_07_030000_align_week2_working_template_fields.php`, `2026_09_18_160000_align_current_activity_submission_definitions.php`); they match no rows on a fresh database. `2026_09_10_160000_add_week3_activity_fields.php` instantiates `QaTrainingProgramSeeder` (handled in 4.2). Two migrations exist only to fix SQLite foreign keys (`2026_09_14_121000_…`, `2026_09_16_160000_…`). None inserts rows on a fresh database.
+
+### How the two specs fit together
+
+- The DP spec's order of work is (1) removal and generalization, (2) the TS spec, (3) first session and demo enrollment. This plan keeps that order, with user identity (Phase 1) first because DMO-1 demo users need employee IDs, names and job roles, and 2.2 uses the role landing mapping from 1.5.
+- Training-path removal (TS MIG-2, which the DP spec delegates to TS) is Phase 5. Replacing active-program lookups with the session being viewed (DP GEN-4, second sentence) happens in 9.5, 10.5 to 10.9 and 12.3.
+- The DP spec's order of work does not place LOG-1 to LOG-4 or DEV-5. They are 7.1 to 7.3 (before the week-locking rules in Phase 11 that read their outcomes) and 9.11 (LOG-2, after the session page exists).
+- **Every week needs a checklist.** WK-2 / WK-3 locking, the WK-4 "missing deliverables" list and early resource unlocking (Q3) all read the week's checklist review, so every program week must have at least one checklist item (one active gate with at least one required criterion). Neither spec states it; 4.1 (seeder guard) and 7.2 (check) enforce it. A week without a checklist can never be marked incomplete or completed, so it never locks later weeks and never unlocks the next week's resources early.
+
+### Overlaps with `docs/CODE_QUALITY_PLAN.md`
+
+- Its Phase 7 "Production values" check is still open and blocks deploying `main`; this plan's work ships behind it too. That check lists `mentor_interview_availabilities` and `week_four_mentor_interview_schedules` queries; those tables are dropped in 2.7. Note it in that plan when 2.7 lands; the check still applies to the remaining columns.
+- Many open decisions there concern removed features (Validation Checklist lock, Mentor Booking Calendar, Week 4 guide badges, daily-log report filters and week filter, unused `TrainingExportService::dailyLogs()`, weekly-video literals in `WeekTwoGateService`, training-path text with a " QA" suffix). Close them with "removed by developer-program-and-training-sessions n.n" when the batch lands; do not fix them first.
+- "Weekly Video Recording treated as required whatever the Gate criteria" (batch 8t) is resolved by 2.10 (video required only when the week's checklist has a `weekly_video` item).
+- "Coach who is not assigned sees the Gate review read only" and "COMPLETED tile unlinked" are changed by 10.4, 10.7 and 10.9 (unassigned mentors get 403). Note the outcome in that plan when those batches land.
+- "Review queue participant filter is a select of every participant" also applies to the add-participant control in 8.5; keep the select for now (see Out of scope).
+
+## Design
+
+### Gate readiness (2.10)
+
+`GateReadinessService` replaces `WeekTwoGateService` with only generic rules, keyed by gate and criterion type: every active activity of the week has a handed-in attempt; its required evidence is present; a weekly video exists when the gate has a `weekly_video` criterion. Same public shape as today (`readiness()`, `readinessForGates()`, `readinessForParticipants()`, `weeklyVideo()`, `weeklyVideosForParticipants()`), so callers only change the type they inject. `weekly_loom` legacy handling goes (DAT-2 deletes the data it served).
+
+### Weekly checklist (4.1, 7.2, 7.3)
+
+- Each program week has exactly one active gate, the week's checklist. Its items are `gate_criteria` rows: one `deliverable` item per required deliverable, one `session_logs` item titled "Session logs committed for this week", and optionally a `weekly_video` item. Items belong to the **week** (the gate), not to an activity (Q2).
+- Every active week of an active program must have at least one required checklist item. The L4 seeder throws if it would leave a week without one, and a test asserts it for the seeded program.
+- Criterion type strings are listed once as constants on `GateCriterion` (e.g. `GateCriterion::TYPE_DELIVERABLE`, `TYPE_SESSION_LOGS`, `TYPE_WEEKLY_VIDEO`, `VIDEO_TYPES`), replacing the scattered literals.
+- Outcomes keep their stored values: **Completed** = `GateEvaluationStatus::Passed`, **Incomplete** = `GateEvaluationStatus::NeedsRevision`. `label()` becomes "Completed" / "Incomplete"; `decisions()` becomes `[Passed, NeedsRevision]` (no new Failed reviews). The missing items of an incomplete review are its criterion evaluations with `NotMet`. 11.1 reads exactly these.
+
+### Scoring dimensions (3.2)
+
+Per activity in `activities.configuration['scoring_dimensions']`: an ordered list of `{key, label, max}`, keys `D1`..`D9` (fits `string(2)`), maxima summing to 100 so the existing bands (`ScoringService::band()`) still apply. `Activity::scoringDimensions()` returns them. AI prompts take the program name, week title, activity title, description and these dimensions; no QA text in code.
+
+### GitHub links (7.1, 9.11)
+
+- `App\Rules\GitHubUrl`: `https://github.com/` followed by at least an owner segment; used for submission fields with `configuration.type` `github_url` (draft save and submit).
+- `App\Rules\GitHubRepositoryUrl`: exactly `https://github.com/<owner>/<repo>` (optional trailing slash; `.git` rejected); used for `training_session_participants.repository_url` (nullable string, 255).
+
+### Seeders
+
+- `L4TrainingProgramSeeder` (DEV-1, DEV-2, DEV-6): `updateOrCreate` keyed by program name, (`program_id`, `week_number`), (`training_week_id`, `position`), requirement `configuration.key`, (`training_gate_id`, `position`). Records that the seeder no longer defines are set `is_active = false`, never deleted (deleting would cascade into submissions). Sets L4 active.
+- `L4FirstSessionSeeder` (DEV-4): `firstOrCreate` the November 2026 session through `TrainingSessionService`.
+- Demo users live in `config/development_accounts.php`, provisioned by `DevelopmentAccountProvisioner` (local, staging, testing; throws in production). Demo enrollment (DMO-2) is a second provisioner step.
+
+### Data model (sessions and identity)
+
+| Table | Columns | Notes |
+|---|---|---|
+| `users` (changed) | `employee_id` string(50) nullable unique; `first_name`, `last_name` string nullable; `job_role` string nullable (`JobRole`) | `name` stays and is kept equal to "first last" whenever first or last name changes, so every existing screen, sort and export keeps working. `training_path` dropped in 5.4. |
+| `training_sessions` | `id`, `program_id` FK (restrict), `title`, `weeks_count` unsigned small int, `starts_on` date, `ends_on` date, `created_by` FK users nullable (null on delete), timestamps; index `starts_on` | Status is derived, never stored. |
+| `training_session_participants` | `id`, `training_session_id` FK (cascade), `user_id` FK (cascade), `joined_at`, `added_by` FK users nullable (null = joined themselves), timestamps; unique (`training_session_id`, `user_id`); index `user_id`; `repository_url` added in 9.11 | Removal deletes the row; work rows keep their `training_session_id`, so re-adding restores access. |
+| `training_session_mentors` | `id`, `training_session_id`, `user_id`, timestamps; unique pair | Coaches only. |
+| `mentor_assignments` | `id`, `training_session_id`, `participant_id`, `mentor_id`, `assigned_by` nullable, `started_at`, `ended_at` nullable, timestamps; index (`training_session_id`, `participant_id`, `ended_at`), (`mentor_id`, `ended_at`) | Current assignment = `ended_at` null; at most one per participant per session, enforced in `MentorAssignmentService` inside a transaction. Ended rows are the history. |
+| `training_session_resources` | `id`, `training_session_id` FK (cascade), `week_number` nullable, `title`, `type` (`TrainingSessionResourceType`: `file`, `link`), `url` nullable text, `disk`, `path`, `original_filename`, `mime_type`, `size_bytes` (all nullable, set for files), `uploaded_by` nullable, timestamps; index (`training_session_id`, `week_number`) | `week_number` null = whole session. |
+| `activity_submissions`, `gate_evaluations`, `weekly_video_recordings` (changed) | + `training_session_id` FK (restrict) not null | Unique keys become (`training_session_id`, `training_gate_id`, `user_id`) and (`training_session_id`, `user_id`, `training_week_id`); submissions indexed (`training_session_id`, `user_id`, `activity_id`, `attempt_number`). Versions, evidence, reviews, scores and recovery requests inherit the session through the submission. |
+
+Enums (`app/Enums`, made with `php artisan make:enum … --string`): `JobRole` (`ProjectManager` = `project_manager` "Project Manager (PM)", `QaTester` = `qa_tester` "QA Tester", `Developer` = `developer` "Developer"; `label()`, `options()`; adding UI/UX Designer later is one case). `TrainingSessionStatus` (`Upcoming`, `Active`, `Completed`; derived, with `label()` and `tone()` for `x-ui.badge`). `TrainingSessionResourceType` (`File`, `Link`).
+
+`TrainingSession` model: relations `program`, `participants` (belongsToMany `User`, pivot `joined_at`, `added_by`), `mentors`, `mentorAssignments`, `resources`; `status()`, `isCompleted()`; scopes `notCompleted()` (`ends_on >= today`) and `completed()`; `weeks()` (the program's weeks with `week_number <= weeks_count`); `includesWeek(TrainingWeek)`; `weekOpensOn(int $weekNumber)` (`starts_on + (N − 1) weeks`). "Today" is `today()` in the app timezone (`Asia/Manila`).
+
+### Session rules
+
+- `ends_on = starts_on + weeks_count × 7 − 1 day` (4 weeks from Mon 2 Nov 2026 → Sun 29 Nov 2026; 4 weeks from Mon 9 Nov → Sun 6 Dec).
+- Status: *Upcoming* if `starts_on > today`, *Completed* if `ends_on < today`, else *Active*.
+- Week *N* is open from `weekOpensOn(N)`. It is locked for a participant when an earlier week of the same session has an *incomplete* review that has not since become *completed* (Phase 11).
+
+### Roles and permissions
+
+- `TrainingSessionPolicy`: `viewAny`, `create`, `update`, `manage` (participants, mentors, resources) → admin. `view` → admin; a participant in the session; a coach who is a mentor of the session (from 10.4; until then any coach, as today). `join` → active participant, not in the session, session not completed.
+- `TrainingSessionResourcePolicy::view` → `view` on its session (plus the date-or-previous-checklist rule for week resources from 11.6).
+- Mentor scope (10.4): `User::mentorsParticipantInSession(User $participant, TrainingSession $session)` → admin, or a coach holding the current `mentor_assignments` row. Records carry their session (`ActivitySubmission`, `GateEvaluation`, `WeeklyVideoRecording`), so every coach check resolves the session from the record.
+
+### Routes (names keep their current form where they exist)
+
+- Admin (`role:admin`, prefix `admin`): `admin.sessions.index|create|store|show|edit|update` (`admin/sessions…`); `admin.sessions.participants.store|destroy`; `admin.sessions.mentors.store|destroy`; `admin.sessions.assignments.update` (`PUT admin/sessions/{trainingSession}/participants/{participant}/mentor`); `admin.sessions.resources.store|update|destroy`.
+- Account: `account.employee-id.edit|update` (`account/employee-id`).
+- Participant: `dashboard` (landing), `training.sessions.show` (`training/sessions/{trainingSession}`), `training.sessions.join` (POST), `training.sessions.resources.show` (`…/resources/{resource}`, also used by mentors and admins).
+- Existing `training/weeks/{trainingWeek}/…` routes move under `training/sessions/{trainingSession}/weeks/{trainingWeek}/…`; coach gate review moves to `training/coach/sessions/{trainingSession}/weeks/{trainingWeek}/participants/{participant}/gates/{trainingGate}`. A small middleware (alias e.g. `session.week`) returns 404 unless `$trainingSession->includesWeek($trainingWeek)`, and `can:view,trainingSession` guards the group.
+
+### Main services and screens
+
+- `AdminAuditService::record(User $actor, string $action, ?User $target = null, array $metadata = [])`; session actions put `training_session_id` in `metadata`. Actions: `training_session_created`, `training_session_updated`, `session_participant_added`, `session_participant_removed`, `session_mentor_added`, `session_mentor_removed`, `session_mentor_assigned`, `session_resource_added`, `session_resource_renamed`, `session_resource_removed`.
+- `TrainingSessionService` (create, update, add/remove participants, join), `MentorAssignmentService`, `TrainingSessionResourceService`, `AdminTrainingSessionPageService` (list, dashboard tabs, form), `ParticipantTrainingSessionPageService` (landing lists, session details).
+- Controllers: `AdminTrainingSessionController`, `AdminTrainingSessionParticipantController`, `AdminTrainingSessionMentorController`, `AdminTrainingSessionResourceController`, `TrainingSessionController` (participant show, join), `TrainingSessionResourceController` (file/link), `EmployeeIdController`.
+- Views: `resources/views/admin/sessions/{index,form,show}.blade.php`, `resources/views/training-sessions/show.blade.php` (participant details), `resources/views/participant/dashboard.blade.php` (landing), `resources/views/account/employee-id.blade.php`. Use `x-ui.*` components and theme tokens; tabs via `x-ui.tab-list` / `x-ui.tab-panel` inside a `data-page-tabs` container; redirects after tab actions return to the tab's hash (e.g. `#resources`).
+
+## Assumptions
+
+### QA removal, generalization and the L4 program
+
+- **QA data scope.** DAT-2 deletes every row in the training tables (not only rows linked to the QA program), since the QA program is the only one with data; it deletes the QA program by name (*AI-Assisted QA Level 3*). Files on Google Drive are not deleted; only local storage files are. — Simplest correct reading of "all QA training data".
+- **DAT-1 coverage.** The existing exports (CSV reports, attendance CSV, per-participant Drive sync) do not bundle uploaded files, so the release checklist adds a database dump and an archive of `storage/app/private` taken by whoever runs the deploy, next to the CSV downloads. — Confirm with the user; building a bulk export UI is out of scope.
+- **QA participant accounts** = every user with role `participant`, including the seeded `test@example.com`. Admin and coach accounts stay, with their audit rows.
+- **Google Calendar.** With mentor interview booking gone, `GoogleCalendarService` and the Google Calendar status and verification on the admin settings pages are removed too, if no other caller remains when 2.7 runs (public interview scheduling uses external booking links). — Confirm; it is part of the mentor booking feature.
+- **The QA practice app card** on the participant dashboard (`services.qa_application.url`, membership features list) belongs to the Validation Lab and is removed in 2.2.
+- **Ordered Week 3 activities** (`ensurePriorWeekThreeActivities`) were part of the Week 3 workspace and go with it; no generic "complete activities in order" setting replaces it. — GEN-1 does not ask for one.
+- **Readiness.** Until 7.3, gate readiness still blocks a *Passed* review as today; from 7.3, only the checklist decides (LOG-4), and readiness is shown to the mentor as information.
+- **Weekly video in the checklist.** DEV-3 keeps weekly videos, but LOG-3 lists only deliverables and session logs. The placeholder checklists include a required `weekly_video` item so the flow stays "same as today"; the real curriculum can drop it per week. — Confirm with the user.
+- **Incomplete needs a missing item.** Marking a week *incomplete* with every required item ticked fails validation ("Leave at least one item unticked to mark the week incomplete."). — Otherwise WK-4 would show an empty missing list.
+- **Deliverables are submission fields** of type `github_url` (one per placeholder activity), not evidence links.
+- **Placeholder content:** 2 activities per week, each with a description ("Placeholder — objective and instructions to come"), a required `github_url` deliverable field, an optional notes field, no required evidence, and dimensions D1 to D4 (40/30/20/10). Program description is a placeholder sentence.
+- **"Coach" becomes "Mentor" in user-facing text** (REM-5 "generic text says … mentor"): sidebar, headings, emails, exports, role label. Route names, URLs (`/coach`), the `UserRole::Coach` case and its stored value `coach` stay. — Isolated in 6.3 so it can be dropped if the user disagrees.
+- **Root-level QA artefacts** (`QA_LAB_MASTER_PLAN.md`, `QA_Training_Working_Template.xlsx`, `training-plans/*.pptx`, `training-apps/membership-app`) are not app code and are left alone; listed under follow-ups.
+- **Seeding in production.** The L4 program and first session are seeded by running their seeders during the release (`php artisan db:seed --class=… --force`), recorded in the release checklist; demo users never are.
+
+### Users and sessions
+
+- **First and last name** are new columns; `name` stays as their combination, kept in sync on save. Existing users are backfilled by splitting `name` at the first space (one-word names → last name empty). — REG-1 asks for both; keeping `name` avoids touching every screen and sort.
+- **Employee ID** is free text, trimmed, max 50 characters, unique, no format rule. Users cannot change it themselves once set; admins can. — The spec gives no format; tighten later if the company format is known.
+- **Admin-created users** must have an employee ID; on admin edit it stays optional (so legacy users can still be edited) but unique. — REG-2 "every user has one"; MIG-3 covers legacy accounts.
+- **The employee ID prompt (MIG-3) applies to every role**, including admins and coaches. — REG-2 says every user.
+- **Job role** is required at registration for participants, optional and admin-editable for coaches and admins, and read-only on the profile. — REG-1 says it is informational.
+- **End date** is inclusive: start + weeks × 7 − 1 day. — Matches the spec's example; the literal "start plus weeks" would end on a Monday.
+- **No weekday rule** on the start date, and **past dates are allowed** when creating or editing. — The spec sets none; admins may record past runs.
+- **Weeks** count the program's active weeks; session week *N* is the program week with `week_number` N. Lowering a session's weeks hides later weeks but keeps their data. — GEN-2 numbers weeks from 1.
+- **Programs offered** in the create form are active programs only.
+- **Mentors are coaches only**; admins act on every session without being mentors. — TS spec Terms.
+- **Removing a mentor** from a session ends that mentor's current assignments there; those participants become unassigned. **Removing a participant** ends their current assignment.
+- **Admins can add participants to any session**, including completed ones; only self-joining is limited to non-completed sessions. — PAR-2 restricts participants, not admins.
+- **Attendance stays global** (one check-in per user, not per session), and the attendance card stays on the participant landing page with its heading renamed from "TRAINING SESSION" to "ATTENDANCE" to avoid a clash with the new term.
+- **Review outcomes.** *Completed* = `GateEvaluationStatus::Passed`, *incomplete* = `NeedsRevision` (and, before 7.3, `Failed`); an admin marks a week completed through the same gate review form (WK-3). 7.3 keeps these stored values, relabels them "Completed" / "Incomplete" and stops offering `Failed`; 11.1 reads them.
+- **"Marks an activity as incomplete" (PAR-5)** is the existing review decision *Needs revision* (`SubmissionStatus::NeedsRevision`). In a completed session only attempts in that status can be revised and resubmitted.
+- **Activities tab** lists the activities of the session's weeks with per-activity counts for the session's participants (not started, awaiting review, needs revision, approved). Its tab count is the number of activities. — The spec names the tab but not its content.
+- **Overview tab** shows today's admin dashboard training and review counts, scoped to the session (participants, mentors, participants with work per week, awaiting review, needs revision, pending gates). Week 4 interview and daily-log counts are gone after Phase 2.
+- **Mentors see their sessions** as a "My sessions" card on the coach dashboard plus a session filter on coach pages; there is no separate mentor session page. — SA-2 asks only that they see them.
+- **Exports** add an "Employee ID" column next to the name; session-scoped exports (Phase 10) also add a "Training session" column.
+- **No session deletion.** Not in the spec; sessions are only created and edited.
+- **Repository URL (LOG-2)** is asked on the session page after a one-click Join (Q1); a member without one sees a prompt there, but it does not block submissions. Mentors see "No repository yet". — The spec does not say it is required before submitting.
+
+### Migration squash (13.1)
+
+- **Scope.** It replaces every migration file present when it runs: the 81 existing ones plus every migration added by batches merged before it. The databases that must have run them are production, staging and any shared database; developers' local databases are rebuilt with `migrate:fresh --seed` or adopt the new names with the same command.
+- **Adopting the new migrations** is done by a one-time artisan command shipped in the squash release (not hand-run SQL), so it can check the database before changing it and is testable on SQLite. It only rewrites rows in the `migrations` table; it never runs migration code.
+- **Framework tables** (`password_reset_tokens`, `sessions`, `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`) also get one file each, written by hand like the rest.
+- **Rolling back across the squash.** After adoption, the previous release's `migrate:status` shows its old files as pending. Activating it again with `atomic-release.sh rollback` still works (rollback runs no migration check), but nobody may run `php artisan migrate` from a pre-squash release afterwards.
+
+### Answered questions (2026-10-23)
+
+- **Q1 — Join stays one click.** PAR-2 and REG-1 work as written: Join and registration add the membership immediately, with no extra form. The GitHub repository URL (LOG-2) is asked later, on the session page (9.11). Affects 9.7, 9.8, 9.11.
+- **Q2 — Checklist items belong to their week, not to an activity.** "Missing deliverables" are the week's required checklist items marked not met in the *incomplete* review, listed by title and linking to that week (its tab and activities). "Submitted after an incomplete review" means **at least one** activity version in that week, in that session, submitted after the review's `evaluated_at`. A new incomplete review resets the signal. **Trade-off:** resubmitting *any* activity in the week counts, even one unrelated to the missing item, so "Waiting for your mentor" and the mentor's waiting list can appear before the real gap is fixed; the mentor still verifies by hand before marking the week completed. This relies on every session week having at least one activity (the user confirmed it does) and at least one checklist item (4.1, 7.2). Affects 11.3, 11.5.
+- **Q3 — Week resources unlock by date or by the previous week's checklist.** In a session that is not completed (active or upcoming), a participant sees a week's resources once that week has opened by date (WK-1) **or** once their review of the previous week is *completed*; the second case can unlock them before the week's start date. Week 1 follows its open date only. Session-wide resources (no week) are always visible. In a completed session every resource is visible (PAR-5). Mentors and admins always see every resource. Affects 9.6, 11.6.
+  - **Interim:** 9.6 ships "show every resource to members" and 11.6 adds the week rule on top. This is the simpler order: 9.6 needs no week-state logic, and 11.6 only tightens one policy method and the tab rendering once 11.1 provides the week states. The deploy block means participants should not see the gap. If the app does reach participants between 9.6 and 11.6, week resources are visible early.
+  - **Assumption from this answer:** the resource rule is date-or-checklist only, so a week whose date has passed keeps its resources visible even while an *incomplete* review of an earlier week locks its activities (WK-2). Locking hides the week's activities and deliverables, not its resources. Confirm with the user if locked weeks should also hide resources.
+  - **Assumption from this answer:** unlocking resources early does not unlock the week's activities early; activities still follow WK-1 dates.
+
+## Open questions
+
+- **Q4 (blocking 13.2):** The training team has not supplied the developer curriculum (week themes, activities with objective and deliverable, mentor review, checklist items, scoring dimensions, program description, resources). 4.1 ships placeholders; 13.2 swaps in the real content. Needed: the filled "Developer curriculum" table from the DP spec. No recommendation; it is an input.
+
+## Phase 1 — User identity
+
+- [ ] **1.1 Add employee ID, first and last name, and job role to users** (REG-1, REG-2; prerequisite for 1.2 to 1.6 and 4.3) (was TS 1.1)
+  - **Do:** Migration adding `employee_id` (string 50, nullable, unique), `first_name`, `last_name` (nullable strings), `job_role` (nullable string) to `users`, and backfilling first/last name from `name` (split at the first space, query builder, chunked). Create `App\Enums\JobRole` (see Design). On `User`: fillable, `job_role` cast, a `saving` hook that sets `name` to the trimmed "first last" when either is dirty. `UserFactory`: fill the new fields (unique `employee_id`, `job_role` Developer) without changing existing tests' behavior.
+  - **Acceptance:** Migrating up and down works on SQLite and MySQL. A user saved with first "Ana" and last "Cruz" has `name` "Ana Cruz"; changing only `name` leaves first/last untouched. Two users with the same `employee_id` cannot be saved; two users with none can. Existing `name`-based screens are unchanged.
+  - **Tests:** New `tests/Feature/UserIdentityTest.php`: name sync, unique employee ID (database error), backfill split ("Ana Maria Cruz" → "Ana" / "Maria Cruz"; "Prince" → "Prince" / empty), `JobRole::options()` order and labels.
+
+- [ ] **1.2 Ask employee ID, names and job role at registration** (REG-1, REG-2, REG-3) (was TS 1.2)
+  - **Do:** `StoreRegisteredUserRequest`: add `employee_id` (required, string, max 50, unique), `first_name`, `last_name` (required, max 255), `job_role` (required, `Rule::enum(JobRole::class)`); replace `name`. Keep `training_path` until 5.2. `RegisteredUserController`: pass `JobRole::options()`; store the validated fields. `resources/views/auth/register.blade.php`: new fields with labels and errors, old input kept.
+  - **Acceptance:** A guest registering with all fields lands where they do today with `name` "First Last" and the job role stored. A taken employee ID shows "The employee ID has already been taken." and creates nothing. Missing employee ID or job role fails validation. Login with email and password is unchanged.
+  - **Tests:** Update `AuthPagesTest` / `AuthenticationAuthorizationTest` registration cases; add cases for duplicate employee ID, missing job role, invalid job role; keep one email+password login regression case.
+  - **Depends on:** 1.1.
+
+- [ ] **1.3 Edit first and last name on the profile; show employee ID and job role** (REG-1, REG-2) (was TS 1.3)
+  - **Do:** `UpdateProfileRequest`: replace `name` with `first_name`, `last_name` (keep email and, until 5.2, `training_path` rules identical). `ProfileController` / `ProfilePageService` / `resources/views/profile/show.blade.php`: first/last name inputs; employee ID and job role shown read-only ("Not set" when empty).
+  - **Acceptance:** Saving the profile with new first/last name updates `name`. Posting `employee_id` or `job_role` to the profile changes nothing. The page shows both values.
+  - **Tests:** Update `ProfilePageTest`; add "profile ignores employee_id and job_role" case.
+  - **Depends on:** 1.1.
+
+- [ ] **1.4 Let admins set employee ID, names and job role; list and search by employee ID** (REG-2, MIG-3, prerequisite for ADM-3) (was TS 1.4)
+  - **Do:** `StoreAdminUserRequest` / `UpdateAdminUserRequest`: `employee_id` (required on store, nullable on update, unique ignoring the user), `first_name`, `last_name` (replace `name`), `job_role` (nullable enum). `AdminUserController` store/update and `AdminUserPageService::formData()` / `indexData()`; `resources/views/admin/users/form.blade.php` and `index.blade.php`: inputs, an Employee ID column, and search matching `employee_id` as well as name and email (`FilterAdminUsersRequest` unchanged). Audit metadata records that the employee ID changed (not its value).
+  - **Acceptance:** An admin can create a coach with an employee ID and correct it later; a duplicate shows a validation error and nothing is saved. Searching the user list for an employee ID finds that user. Non-admins still get 403.
+  - **Tests:** Update `AdminUserManagementTest`, `AdminUserFormPageTest`, `AdminUserListPageTest`: create with/without employee ID, duplicate on update, search by employee ID, column shown.
+  - **Depends on:** 1.1.
+
+- [ ] **1.5 Require an employee ID on next login** (MIG-3, REG-3) (was TS 1.5)
+  - **Do:** Middleware `EnsureEmployeeIdIsSet` (alias in `bootstrap/app.php`) on the `auth` route group: a signed-in user without `employee_id` is redirected to `account.employee-id.edit`, except on that route, `account.employee-id.update` and `logout`. `EmployeeIdController` (edit/update), `UpdateEmployeeIdRequest` (required, max 50, unique), view `resources/views/account/employee-id.blade.php` (plain form, `x-ui.card`, `x-ui.button`). After saving, redirect to the role landing page; move the role → route mapping out of `AuthenticatedSessionController::store()` into one shared place (e.g. a `User` method) and use it in both.
+  - **Acceptance:** A coach with no employee ID who logs in is sent to the form; any other page (e.g. `/coach`) redirects there too; they can log out. After a valid save they land on their dashboard. A duplicate ID shows an error. Users with an ID never see the form. Requests expecting JSON (e.g. draft autosave) get 403 with "Add your employee ID to continue." instead of a redirect.
+  - **Tests:** New `tests/Feature/EmployeeIdPromptTest.php`: redirect after login, redirect from another page, logout allowed, save and continue, duplicate rejected, user with ID unaffected.
+  - **Depends on:** 1.1.
+
+- [ ] **1.6 Show employee IDs in exports** (REG-2) (was TS 1.6)
+  - **Do:** Add an "Employee ID" column right after the participant name in the CSV exports in `AttendanceController`, `CoachOperationsController` (progress, reviews, gates), `MissingSubmissionReportController` and `ScoringReportController` (scores, participant summary). Skip daily-log exports (removed in 2.3 and 2.4). Eager-load nothing new; the column is on `users`.
+  - **Acceptance:** Each CSV has the new header and the participant's employee ID (empty when not set) in every row.
+  - **Tests:** Update the header/row assertions in `AttendanceTest`, `CoachReportsTest`, `MissingSubmissionReportPageTest`, `ScoringReportControllerTest`.
+  - **Depends on:** 1.1.
+
+## Phase 2 — Remove QA data and tools
+
+- [ ] **2.1 Delete the QA training data and its files** (DAT-2, DAT-3, DAT-4, REM-1 data, MIG-1) (was DP 1.1)
+  - **Do:** One migration that, in FK-safe order with the query builder (no models): collects the local storage paths of `submission_evidence`, `weekly_video_recordings` and Validation Lab records; deletes rows from Drive export/sync tables, notifications, recovery requests, scores (and dimensions, history, suggestions), reviews, interactions, evidence, versions, submissions, gate criterion evaluations, gate evaluations, daily logs, attendance, weekly videos, Validation Lab records, Week 3 and Week 4 tables, `coach_participant_assignments` of deleted participants; deletes training sessions of the QA program if `training_sessions` exists (defensive; in this order the table is created later, in 8.1); deletes the QA program (weeks, activities, requirements, gates cascade); deletes every `participant` user; then deletes the collected files. `down()` is a no-op with a comment. Works on MySQL and SQLite.
+  - **Acceptance:** On a database seeded with the QA seeder plus participants, submissions with files, videos, logs, gate evaluations, notifications and Drive records, running the migration leaves: no participant users, no QA program, empty training tables, no referenced files on the fake disk, and admin/coach users and their audit rows intact. Running it on an empty database does nothing.
+  - **Tests:** New `tests/Feature/DeleteQaTrainingDataMigrationTest.php` (`Storage::fake('local')`, require the migration file and call `up()`): full cleanup, accounts kept, files deleted, idempotent on empty data.
+
+- [ ] **2.2 Remove the Validation Lab and open `/` on login or the dashboard** (REM-2, REM-6) (was DP 1.2)
+  - **Do:** Delete the Lab (see Current state), its routes and tests; drop `validation_submissions` and `submission_versions.validation_submission_id` (migration). Remove Lab branches from `Activity`, `SubmissionVersion`, `User`, `ActivitySubmissionService`, `ActivitySubmissionController`, `TrainingActivityController`, `ActivitySubmissionPageService`, `TrainingActivityPageService`, `CoachSubmissionReviewPageService`, `SubmissionWorkflowService`, `ParticipantDashboardService`, `SyncTrainingDataJob`, `TrainingWorkbookService`, the submissions and review views, and the QA practice app card from `ParticipantDashboardController` / `participant/dashboard` (plus `services.qa_application` config). `/` (`home`) becomes a small controller or closure: guests → `login`, signed-in users → their role landing page through the shared mapping from 1.5. Keep the brand link in `layouts/navigation` pointing at `home`.
+  - **Acceptance:** `/` redirects a guest to `/login` and a coach to `/coach`; `/lab/login`, `/checklist`, `/result/1` return 404; the activity and submission pages render with no Lab prerequisite.
+  - **Tests:** Delete `ValidationLab*Test`; replace `HomePageTest` / `HomeNavigationTest` cases with the redirects; update tests that referenced the Lab (`TrainingActivityPageTest`, `ParticipantWorkflowTest`, `CoachSubmissionReviewPageTest`, …).
+  - **Depends on:** 2.1, 1.5.
+
+- [ ] **2.3 Remove daily logs from reports, dashboards, notifications and exports** (REM-7) (was DP 1.3)
+  - **Do:** Remove daily-log counts, columns, filters and reasons from `WeekTwoGateService` (log readiness), `ParticipantDashboardService`, `AdminDashboardPageService`, `CoachGateOverviewService`, `CoachGateBoardPageService`, `CoachGateReviewPageService`, `ParticipantGatePageService`, `CoachParticipantListPageService`, `CoachParticipantPageService`, `CoachReportService`, `MissingSubmissionReportService` / `MissingSubmissionReportPageService` / `FilterMissingSubmissionsRequest`, `ParticipantNotificationService` (and the `DailyLogs` notification type; delete leftover rows of type `daily_logs` in a migration before removing the case), `TrainingExportCoordinator`, `TrainingExportService`, `TrainingWorkbookService`, the `ParticipantProgressObserver` hook, `x-ui.report-nav`, and their views.
+  - **Acceptance:** No page, report, CSV, workbook or notification mentions daily logs; gates no longer require logs; the daily-log pages still work (removed in 2.4).
+  - **Tests:** Update the affected page, report, notification, export and Drive tests; remove daily-log assertions.
+  - **Depends on:** 2.2.
+
+- [ ] **2.4 Remove the daily-log pages, model and table** (REM-7) (was DP 1.4)
+  - **Do:** Delete `DailyLogController`, `DailyLogExportController`, `DailyLogReportController`, `CoachParticipantController@dailyLogs`, their routes, Form Requests, `DailyLogPolicy`, `DailyLog`, `DailyLogFactory`, page services, views, sidebar links, `User::dailyLogs()`, `Activity::dailyLogs()`, config keys; drop `daily_logs`.
+  - **Acceptance:** `/daily-logs`, `/coach/reports/daily-logs`, `/coach/participants/1/daily-logs` return 404; `grep -rni "daily.log\|DailyLog" app resources routes config database/factories` finds nothing.
+  - **Tests:** Delete `DailyLogPagesTest`, `DailyLogReportPageTest`, `CoachParticipantDailyLogPageTest`, `ParticipantDailyLogsTableTest`; keep one 404 case in `AuthenticationAuthorizationTest`.
+  - **Depends on:** 2.3.
+
+- [ ] **2.5 Remove the Week 3 workspace** (REM-3, GEN-1) (was DP 1.5)
+  - **Do:** Delete the 4 models, service, presenter, controller, request, route, `submissions/week-three` view and the `week_three_snapshot` handling in `ActivitySubmissionService`, `ActivitySubmissionPageService`, `SubmissionAnswerPresenter`, `CoachSubmissionReviewPageService`, `ScoringPageService`, `TrainingWorkbookService`, the submission/review/scoring views and `WeekProgressionService::ensurePriorWeekThreeActivities()`; drop the Week 3 tables; remove `User::weekThreeWorkspaces()` and `TrainingPath::weekThreeTestPaths()`.
+  - **Acceptance:** Activities in any week 3 behave like any other activity; the workspace route returns 404.
+  - **Tests:** Delete `WeekThree*Test`; update tests asserting Week 3 snapshots.
+  - **Depends on:** 2.4.
+
+- [ ] **2.6 Remove Week 4 peer interviews** (REM-3, GEN-1) (was DP 1.6)
+  - **Do:** Delete pairing, partner feedback, waivers and the questionnaire: `WeekFourInterviewPair`, `WeekFourPartnerFeedback`, `WeekFourPeerInterviewWaiver`, `WeekFourInterviewService`, `WeekFourPeerInterviewController`, `AssignWeekFourPairRequest`, `WaiveWeekFourPeerInterviewRequest`, `InterviewPairStatus`, `WeekFourReviewPresenter`, `WeekFourSubmissionPresenter`, `x-week-four-review` component, `submissions/week-four-guidance`, `coach/week-four-questionnaire`, `participant_selector` handling and the week 4 activity 2 branches in `SubmissionWorkflowService`, `StoreSubmissionDraftRequest`, `ActivitySubmissionPageService`, `CoachSubmissionReviewPageService`, `ParticipantDashboardService`, `ParticipantDashboardController`, `CoachParticipantListPageService`, `AdminDashboardPageService`; `config/training.php` `week_four_interview_questions`; drop the tables.
+  - **Acceptance:** A week 4 activity 2 behaves like any other activity; the pairing and questionnaire routes return 404; admin and participant dashboards render without the Week 4 sections.
+  - **Tests:** Delete `WeekFourWorkflowTest`, `WeekFourReviewComponentTest`, `CoachWeekFourQuestionnairePageTest`; update dashboard and review tests.
+  - **Depends on:** 2.5.
+
+- [ ] **2.7 Remove mentor interview booking and the availability calendar** (REM-3) (was DP 1.7)
+  - **Do:** Delete `WeekFourMentorInterviewSchedule`, `MentorInterviewAvailability`, `MentorInterviewSchedulingService`, `MentorInterviewAvailabilityService` (if present), `MentorBookingCalendarPageService`, `WeekFourMentorInterviewController`, `MentorBookingCalendarController`, `ScheduleMentorInterviewRequest`, `StoreMentorBookingCalendarRequest`, the two schedule/availability enums, `MentorMockInterviewScheduled` and its email view, `ParticipantNotificationType::MentorInterviewScheduled` (delete its rows first), `EmailConfigurationService::isMentorInterviewEmailEnabled()`, `config/training.php` `week_four_mentor_interview_*`, the factory, routes, sidebar links and dashboard parts; then `GoogleCalendarService` and the calendar status/verification in admin settings if nothing else calls them (see Assumptions); drop the tables.
+  - **Acceptance:** Booking, cancel and calendar routes return 404; admin settings render without calendar items (or with them, if a caller remains, noted under Open decisions); `/interviews` public scheduling still works.
+  - **Tests:** Delete `MentorInterviewSchedulingTest`, `MentorBookingCalendarPageTest`; update `AdminSettingsPageTest`, `InterviewSchedulingTest`, `AppLayoutTest`.
+  - **Depends on:** 2.6.
+
+- [ ] **2.8 Remove the reusable asset library** (REM-3) (was DP 1.8)
+  - **Do:** Delete `ReusableAssetLibraryController`, both services, `FilterReusableAssetsRequest`, views, routes, sidebar and admin dashboard links, and `EvidenceFilePolicy::reusableAssetRules()` / `reusableAssetAcceptAttribute()` (check `StoreSubmissionEvidenceRequest` still validates with the general rules).
+  - **Acceptance:** `/training/reusable-assets` returns 404; evidence upload still validates as before.
+  - **Tests:** Delete `ReusableAssetLibrary*Test`; update `AppLayoutTest`, `AdminDashboardPageTest`.
+  - **Depends on:** 2.7.
+
+- [ ] **2.9 Remove the QA PDF guides** (REM-4) (was DP 1.9)
+  - **Do:** Delete `TrainingGuideController`, its routes, the dashboard "Training Guide" card, sidebar entries and the `training-guides/` directory.
+  - **Acceptance:** `/training/guides/2` returns 404; the dashboard week panels render without the guide card.
+  - **Tests:** Delete `TrainingGuideTest`; update `ParticipantDashboardControllerTest`.
+  - **Depends on:** 2.8.
+
+- [ ] **2.10 Replace the Week 2 gate rules with generic gate readiness** (REM-3, GEN-1) (was DP 1.10)
+  - **Do:** Create `GateReadinessService` (Design) and switch every `WeekTwoGateService` caller to it (`GateReviewController`, `CoachGateBoardPageService`, `CoachGateOverviewService`, `CoachGateReviewPageService`, `CoachParticipantPageService`, `MissingSubmissionReportService`, `ParticipantDashboardService`, `ParticipantGatePageService`, `ParticipantNotificationService`, `TrainingWeekPageService`); delete `WeekTwoGateService` and `weekly_loom` legacy handling. Add the `GateCriterion` type constants (Design) and replace the scattered `['weekly_video', 'weekly_loom']` literals. Missing-submission and notification surfaces require a video only when the week's gate has a `weekly_video` criterion.
+  - **Acceptance:** In a program with weeks 1 to 3, each week's gate readiness lists unsubmitted activities, missing required evidence and (only with a video criterion) a missing video; a week without a video criterion never reports a missing video.
+  - **Tests:** Replace `WeekTwoGateTest` with `tests/Feature/GateReadinessTest.php` on a factory-built 3-week program; update gate board, gate review, participant gate and notification tests.
+  - **Depends on:** 2.9.
+
+## Phase 3 — Generalize what stays
+
+- [ ] **3.1 Remove the remaining week-number and position checks** (GEN-1, GEN-2) (was DP 2.1)
+  - **Do:** Replace `[2, 3, 4]` and similar with "every active week of the program" in `CoachGateBoardPageService`, `CoachGateOverviewService`, `CoachReviewQueuePageService`, `ScoringPageService`, `ScoringService::summaries()`, `MissingSubmissionReportService`, `ParticipantNotificationService`, `GateReviewController::guard()` (any week of the participant's program), `ActivitySubmissionPageService`, `TrainingWorkbookService`, `participant/dashboard`. Week options in filters come from the program's weeks. Confirm with `grep -rnE "week_number(\s*)(===|!==|==)\s*[0-9]|\[2, 3, 4\]|position(\s*)(===|!==)\s*[0-9]" app resources` that nothing remains.
+  - **Acceptance:** With a factory program of weeks 1 to 4, week 1 work appears in the review queue, gate board, scoring overview, missing-submission report and notifications, and week 1's gate can be reviewed.
+  - **Tests:** Add a week-1 case to `CoachReviewQueuePageTest`, `CoachGateBoardPageTest`, `CoachGateReviewPageTest`, `ScoringOverviewPageTest`, `MissingSubmissionReportPageTest`, `ParticipantNotificationsTest`.
+  - **Depends on:** 2.10.
+
+- [ ] **3.2 Take scoring dimensions and AI prompts from the activity** (GEN-3) (was DP 2.2)
+  - **Do:** Add `Activity::scoringDimensions()` (Design); remove `ScoringService::DIMENSIONS`; `StoreActivityScoreRequest` validates the submitted dimensions against the version's activity (keys present, `0..max`), with readable attribute names (the label); `ScoringPageService`, `ScoringSuggestionService`, `ActivitySubmissionPageService`, `ParticipantDashboardService` (score max), `scoring/edit` and `scoring/criteria` read them; AI providers build the prompt from program, week, activity text and dimensions with no QA wording. An activity without dimensions cannot be scored (scoring page explains it).
+  - **Acceptance:** An activity with dimensions D1 to D3 (50/30/20) shows those three on the scoring form; posting D4 or D1 = 60 fails validation; the AI prompt contains the activity's dimension labels and no "QA".
+  - **Tests:** Update `ScoringTest`, `ScoringEditPageTest`, `ScoringCriteriaPageTest`, `AiProviderArchitectureTest`; add the validation cases.
+  - **Depends on:** 3.1.
+
+- [ ] **3.3 Handle "no active program" everywhere** (GEN-4, DAT-4) (was DP 2.3)
+  - **Do:** Replace the three `firstOrFail()` lookups (`ParticipantDashboardController`, `ScoringReportController`, `ScoringPageService`) with nullable lookups and empty states ("No training program is active yet."), and check the other active-program readers (`AdminDashboardPageService`, `CoachDashboardPageService`, `CoachReportService`, `MissingSubmissionReportService`, `ParticipantNotificationService`, `ExportParticipantScoreSummaryRequest`) return empty results without errors.
+  - **Acceptance:** With no programs and no training data, the participant, coach and admin dashboards, reports, scoring pages and CSV exports return 200 with empty states.
+  - **Tests:** New `tests/Feature/EmptyTrainingDataTest.php` hitting each page and CSV as the right role with no program.
+  - **Depends on:** 3.2.
+
+## Phase 4 — L4 program, demo users and release notes
+
+- [ ] **4.1 Seed L4 Accelerator Training with placeholder content** (DEV-1, DEV-2, DEV-3, DEV-6, GEN-2, LOG-3 seeding) (was DP 3.1)
+  - **Do:** Fill `database/seeders/L4TrainingProgramSeeder.php` (Design, Assumptions): program "L4 Accelerator Training", active; weeks 1 to 4 (`week_number` = `position`); 2 placeholder activities per week with "Placeholder" in the title, a required deliverable field (type `url` until 7.1 switches it to `github_url`), a notes field, and scoring dimensions; one active gate per week with one `deliverable` item per activity, a `session_logs` item and a `weekly_video` item, all required. The seeder throws if any active week ends with no required checklist item. Re-running updates in place and deactivates records it no longer defines.
+  - **Acceptance:** Running it twice yields one program, 4 weeks numbered 1 to 4, 8 activities, 4 gates and no duplicates; a submission made between runs is untouched; every week has at least one required checklist item; L4 is active.
+  - **Tests:** New `tests/Feature/L4TrainingProgramSeederTest.php`: structure, week numbering, re-run idempotence, submission preserved, deactivation of a removed record, checklist guard (a modified definition with an empty week throws).
+  - **Depends on:** 3.3.
+
+- [ ] **4.2 Remove the QA seeder** (REM-1) (was DP 3.2)
+  - **Do:** Delete `QaTrainingProgramSeeder`; remove its use from `database/migrations/2026_09_10_160000_add_week3_activity_fields.php` (inline nothing; drop the `guidance` lookup so the loop, which matches no activities on new installs, still runs; 13.1 later deletes that file with the other old migrations); `DatabaseSeeder` calls `L4TrainingProgramSeeder` and stops creating `test@example.com` with a path; `EnsureDevelopmentBaselineCommand` runs the L4 seeder ("Ensured the L4 training baseline."). Move the remaining tests that seeded the QA program (`CoachOperationsTest`, `ScoringTest`, `DataIntegrityTest`, `AttendancePagesTest`, `AttendanceTest`, `ParticipantFieldGuidanceTest`, `ActivityMarkdownRenderingTest`, `ParticipantNotificationsTest`, `GoogleDriveSyncTest`, `GoogleDriveExportTest`, `TrainingDomainTest`, `CoachReportsTest`, `DraftFieldLimitTest`, `InterviewSchedulingTest`, …) to factories or the L4 seeder. If more than about 8 files need real rewrites, split this batch by test file and note it here.
+  - **Acceptance:** `migrate:fresh --seed` works on SQLite and MySQL; `grep -rn QaTrainingProgramSeeder` finds only this plan and old docs; the suite passes.
+  - **Tests:** The moved tests; `DevelopmentAccountProvisioningTest` baseline case.
+  - **Depends on:** 4.1.
+
+- [ ] **4.3 Provision demo developers and mentors in local and staging** (DMO-1, DMO-3) (was DP 3.3)
+  - **Do:** `config/development_accounts.php`: 3 participants (job role Developer) and 3 coaches, each with employee ID (`DEV-0001`…), first and last name, `@example.test` email and a known password, next to the existing dev coach and admin. `DevelopmentAccountProvisioner` writes those fields and allows `local`, `staging` and `testing` only (throws in `production`); keep `app:ensure-development-accounts`.
+  - **Acceptance:** Provisioning in local or staging creates or updates the 8 accounts idempotently with names, employee IDs and job roles; in production it throws and creates nothing; the demo participants can log in.
+  - **Tests:** Update `DevelopmentAccountProvisioningTest`: fields, idempotence, staging allowed, production refused.
+  - **Depends on:** 4.2, 1.1.
+
+- [ ] **4.4 Write the release checklist** (DAT-1) (was DP 3.4)
+  - **Do:** Add a "Developer program release" section to `docs/ATOMIC_DEPLOYMENT.md`: before deploying, an admin downloads every existing export (coach progress, reviews, gates, scores, participant summary, missing submissions, attendance, daily logs; runs a Drive sync per participant) and the operator takes a database dump and an archive of `storage/app/private`; then deploy (the 2.1 migration deletes the data); then run `php artisan db:seed --class=L4TrainingProgramSeeder --force`; never run the demo provisioner in production.
+  - **Acceptance:** The section exists and lists the steps in that order. (Docs only; written while the daily-log export still exists in the released version, so note that the export must be taken from the version running before this release.)
+  - **Tests:** None (documentation).
+  - **Depends on:** 4.3.
+
+**Gate A is cleared here** (Phases 1 to 4 done): the QA code and data are gone and the app runs on the L4 program. Phase 5 onward relies on it. 13.1 (migration squash) may run from this point on, when Gate D opens.
+
+## Phase 5 — Remove training paths
+
+- [ ] **5.1 Apply every activity requirement to every participant** (REG-4, MIG-2) (was TS 3.1)
+  - **Do:** Remove `participant_path` / `eligibleTrainingPaths()` filtering everywhere requirements are read (e.g. `SubmissionWorkflowService::fieldDefinitions()` / `evidenceRequirements()`, `ActivitySubmissionPageService`, `TrainingActivityPageService`, `SubmissionEvidenceService`, `SubmissionAnswerPresenter`; find the rest with `grep -rn "participant_path\|eligibleTrainingPaths" app`). Seeders and factories stop writing `participant_path`.
+  - **Acceptance:** A participant with no path sees and must satisfy every requirement of an activity, including ones that had a path. Coaches see the same list.
+  - **Tests:** Update the affected tests (`SubmissionFormPageTest`, `TrainingActivityPageTest`, `ParticipantWorkflowTest`, …); add one case: a requirement formerly tied to a path is required for a participant without a path.
+  - **Depends on:** Gate A (4.4).
+
+- [ ] **5.2 Remove the path from registration, profile, admin user forms and commands** (REG-4, MIG-2) (was TS 3.2)
+  - **Do:** Drop `training_path` from `StoreRegisteredUserRequest`, `UpdateProfileRequest`, `auth/register`, `profile/show`, `ProfilePageService`. Admin user access types become `admin`, `coach`, `participant` (`StoreAdminUserRequest`, `UpdateAdminUserRequest`, `FilterAdminUsersRequest`, `AdminUserController::mapAccessType()` → role only, `AdminUserPageService`, `admin/users/*` views). `BootstrapAdminCommand`, `DevelopmentAccountProvisioner`, `DatabaseSeeder` stop setting paths.
+  - **Acceptance:** No form or admin filter shows or accepts a path. Old `qa_*` access types fail validation. An admin can still create participants, coaches and admins.
+  - **Tests:** Update `AuthPagesTest`, `ProfilePageTest`, `AdminUser*Test`, `BootstrapAdminCommandTest`, `DevelopmentAccountProvisioningTest`.
+  - **Depends on:** 5.1.
+
+- [ ] **5.3 Remove path filters and columns from lists, reports and exports** (MIG-2) (was TS 3.3)
+  - **Do:** Remove the `path` filter and path column/label from every remaining Filter Request (`FilterCoach*Request`, `FilterAttendanceSessionsRequest`, `FilterMissingSubmissionsRequest`, `FilterReviewQueueRequest`, `FilterScoring*Request`, `ExportCoachReportRequest`) and their page services, views and CSVs (`trainingPathLabel()` callers).
+  - **Acceptance:** No page, filter or CSV mentions Manual/Automation; old `?path=` query strings are ignored or rejected consistently (state which in tests).
+  - **Tests:** Update affected page/report tests; delete `TrainingPathFilterValidationTest`.
+  - **Depends on:** 5.2.
+
+- [ ] **5.4 Drop the path columns and the TrainingPath enum** (MIG-2) (was TS 3.4)
+  - **Do:** Migration dropping `users.training_path` (and its composite index with `role`; keep an index on `role`) and `activity_requirements.participant_path` (rebuild `activity_req_activity_path_pos_idx` as (`activity_id`, `position`)). Delete `App\Enums\TrainingPath`, `User::trainingPathLabel()`, `eligibleTrainingPaths()`, the `fillable`/cast entries and factory fields. `grep` must find no `training_path`, `participant_path` or `TrainingPath` outside old migrations.
+  - **Acceptance:** Migrations run up and down on SQLite and MySQL; the suite passes with no path references.
+  - **Tests:** Suite only; one schema assertion that the columns are gone.
+  - **Depends on:** 5.3.
+
+## Phase 6 — Developer and mentor wording (not needed for the 9 Nov 2026 session; see Rules)
+
+- [ ] **6.1 Reword participant pages, emails and legal pages** (REM-5) (was DP 5.1)
+  - **Do:** Replace QA wording in participant-facing views and components (dashboard, weeks, activities, submissions, gate, video, notifications, auth), email views and `legal/privacy-policy`, `legal/terms-of-service`; generic "training" and "participant". Keep exact-markup test expectations in sync.
+  - **Acceptance:** `grep -rniE "\bQA\b|tester" resources/views` finds nothing in these areas; pages render.
+  - **Tests:** Update text assertions in the affected page tests; `LegalPagesTest`.
+  - **Depends on:** 2.10.
+
+- [ ] **6.2 Reword coach and admin pages, exports and service text** (REM-5) (was DP 5.2)
+  - **Do:** Same for coach, admin and scoring views, CSV headers and filenames, workbook sheets, and strings built in services and controllers (`AttendanceController`, `MissingSubmissionReportController`, `ScoringReportController`, `TrainingActivityController`, `AdminUserPageService`, `CoachParticipantListPageService`, `ActivitySubmissionService`, `SubmissionWorkflowService`, `EnsureDevelopmentBaselineCommand`, …).
+  - **Acceptance:** `grep -rniE "\bQA\b|tester" app resources/views` finds nothing except enum/value names that are not shown to users (list any kept under Open decisions).
+  - **Tests:** Update header and text assertions.
+  - **Depends on:** 6.1.
+
+- [ ] **6.3 Say "mentor" instead of "coach" in user-facing text** (REM-5) (was DP 5.3)
+  - **Do:** `UserRole::Coach->label()` → "Mentor"; sidebar ("Mentor Dashboard"), page titles, buttons, emails, CSV headers and messages that show "Coach". Route names, URLs, enum case and stored value stay.
+  - **Acceptance:** No visible "Coach" text remains (`grep -rn "Coach" resources/views` only in non-visible names); `/coach` still works.
+  - **Tests:** Update text assertions (`AppLayoutTest`, coach page tests, `ProfilePageTest`).
+  - **Depends on:** 6.2.
+
+## Phase 7 — GitHub deliverables and the weekly checklist
+
+- [ ] **7.1 Accept only GitHub links as deliverables** (DEV-5) (was DP 4.1)
+  - **Do:** `App\Rules\GitHubUrl`; submission field type `github_url`: `StoreSubmissionDraftRequest` applies the rule when filled, `SubmissionWorkflowService` applies it on submit; the field renders as `type="url"` with a `https://github.com/` placeholder; `SubmissionAnswerPresenter` and the review/scoring views render the value as a link opening in a new tab. Switch the L4 seeder's deliverable fields to `github_url`.
+  - **Acceptance:** `https://github.com/ana/l4/pull/3` saves and shows as a link to the mentor; `http://github.com/x`, `https://gitlab.com/x` and plain text fail with "Enter a link to your public GitHub repository (https://github.com/…)."; other field types are unaffected.
+  - **Tests:** New `tests/Unit/GitHubUrlRuleTest.php`; extend `SubmissionFormPageTest` and `CoachSubmissionReviewPageTest`.
+  - **Depends on:** 4.4.
+
+- [ ] **7.2 Turn each week's gate into the mentor checklist** (LOG-1, LOG-3) (was DP 4.2)
+  - **Do:** `CoachGateReviewPageService` / `coach/gate_review`: show the week's checklist (deliverable items, "Session logs committed for this week", weekly video) as checkboxes the mentor ticks (stored as `GateCriterionStatus` Met / NotMet), with the participant's deliverable links for the week listed beside it for checking by hand; nothing is pre-ticked from readiness or submissions. Participant gate page and week page show the checklist read-only with each item's status. Add a check in `GateReadinessService` or a small `Program` helper used by the seeder test that every active week of an active program has an active gate with at least one required item.
+  - **Acceptance:** A mentor opening week 2's checklist sees every item unticked until they tick it, even when all activities are submitted; the participant sees the same items read-only; a program week without a checklist item is reported by the helper.
+  - **Tests:** Update `CoachGateReviewPageTest`, `ParticipantGatePageTest`, `TrainingWeekPageTest`; extend `L4TrainingProgramSeederTest` with the helper.
+  - **Depends on:** 7.1.
+
+- [ ] **7.3 Mark weeks completed or incomplete from the checklist** (LOG-4) (was DP 4.3)
+  - **Do:** `GateEvaluationStatus`: labels "Completed" / "Incomplete" for `Passed` / `NeedsRevision`, `decisions()` = `[Passed, NeedsRevision]`. `GateReviewController::update` / `StoreGateReviewRequest`: *Completed* requires every required item ticked (readiness no longer blocks; it is shown as information); *Incomplete* requires at least one required item unticked and saves the unticked items as `NotMet`. Admins can do both. Update labels on the gate board, participant pages and notifications (`GatePassed` / `GateIncomplete` texts).
+  - **Acceptance:** Completing with one item unticked fails with "Tick every checklist item to mark the week completed."; incomplete with all ticked fails (Assumptions); an incomplete review stores the unticked items as not met; an admin can mark a week completed; `Failed` is no longer offered.
+  - **Tests:** Update `CoachGateReviewPageTest`, `CoachGateBoardPageTest`, `ParticipantGatePageTest`, `ParticipantNotificationTriggersTest`; add the validation cases.
+  - **Depends on:** 7.2. **Needed by:** 11.1, 11.3, 11.5, 11.6.
+
+## Phase 8 — Training sessions: admin setup and the first session
+
+- [ ] **8.1 Add the TrainingSession model and session participants** (SES-1, SES-3, SA-1; prerequisite for the rest) (was TS 2.1)
+  - **Do:** Migrations for `training_sessions` and `training_session_participants` (see Design). Models `TrainingSession` (relations, `status()`, `isCompleted()`, scopes, `weeks()`, `includesWeek()`, `weekOpensOn()`) and `TrainingSessionParticipant` pivot if useful; `User::trainingSessions()`; `Program::trainingSessions()`. Enum `TrainingSessionStatus`. `TrainingSessionFactory` with `upcoming()`, `active()`, `completed()` states (dates relative to `today()`).
+  - **Acceptance:** Status is Upcoming/Active/Completed exactly at the boundaries (start today → Active; end today → Active; end yesterday → Completed). `weeks()` returns program weeks 1..N only. `weekOpensOn(2)` for a 9 Nov start is 16 Nov.
+  - **Tests:** New `tests/Feature/TrainingSessionModelTest.php` (uses `travelTo`): status boundaries, `weeks()`, `includesWeek()` for a week of another program, `weekOpensOn()`.
+  - **Depends on:** Gate A (4.4).
+
+- [ ] **8.2 Add the admin session list and create form** (SES-1, ADM-1 "View all", SA-2, SA-4) (was TS 2.2)
+  - **Do:** `TrainingSessionPolicy` (admin abilities; see Design). `AdminTrainingSessionController@index|create|store`, `StoreTrainingSessionRequest` (`program_id` exists and active; `title` required max 255; `weeks_count` integer 1..number of the program's active weeks with message "The program has only N weeks."; `starts_on` date; `ends_on` date equal to `starts_on + weeks × 7 − 1` with message "The end date must be N weeks after the start date (DD Mon YYYY)."). `TrainingSessionService::create()`. `AdminAuditService` (new) records `training_session_created`. `AdminTrainingSessionPageService` index rows: title, program, date range ("9 Nov – 6 Dec 2026"), status badge, participant count (`withCount`), paginated (20), newest start first. Views `admin/sessions/index` and `admin/sessions/form`. JS initializer `initializeSessionEndDate` in `resources/js/app.js` fills `ends_on` from `starts_on` and `weeks_count` (server stays the source of truth). Sidebar link "Training Sessions" for admins in `SidebarNavigationService`.
+  - **Acceptance:** An admin creates "L4 Accelerator Training — November 2026", 4 weeks, 9 Nov to 6 Dec 2026, and sees it in the list. End 7 Dec → validation error, nothing saved. 5 weeks for a 4-week program → error. Two overlapping sessions of the same program both save. Participants and coaches get 403 on every route. An audit row exists.
+  - **Tests:** New `tests/Feature/AdminTrainingSessionTest.php`: create happy path, mismatched end date, too many weeks, inactive program, overlap allowed, authorization (participant, coach, guest), pagination order, audit row.
+  - **Depends on:** 8.1.
+
+- [ ] **8.3 Edit a session** (SES-2, SA-4) (was TS 2.3)
+  - **Do:** `AdminTrainingSessionController@edit|update`, `UpdateTrainingSessionRequest` (same rules as store; `program_id` must equal the current one once the session has participants: "The program cannot change after participants have joined."). Shared form view with the program select disabled (and explained) when locked. Audit `training_session_updated` with the changed field names.
+  - **Acceptance:** Title, weeks and dates update under SES-1 rules. With one participant, a changed `program_id` fails and nothing is saved; without participants it saves.
+  - **Tests:** Extend `AdminTrainingSessionTest`: update happy path, mismatched dates, program change with and without participants, authorization.
+  - **Depends on:** 8.2.
+
+- [ ] **8.4 Add the session dashboard with tabs and the Participants tab** (ADM-2, ADM-3) (was TS 2.4)
+  - **Do:** `AdminTrainingSessionController@show`, view `admin/sessions/show` with header (title, program, dates, status, Edit link) and tabs Overview, Participants (n), Mentors (n), Activities (n), Resources (n) using `x-ui.tab-list`. Overview shows the header facts only (filled in 12.1); Mentors and Resources show their empty states until 10.2 and 8.6; Activities lists the session weeks' activities (week, title) until 12.2. Participants tab: name, employee ID, job role label, joined date (current mentor column added in 10.3), one eager-loaded query.
+  - **Acceptance:** Tab labels show live counts (e.g. "Participants (12)"). Participant rows show the listed fields. Hash links open the right tab. Non-admins get 403; an unknown session 404.
+  - **Tests:** New `tests/Feature/AdminTrainingSessionDashboardTest.php`: tab labels with counts, participant row fields, authorization, query count stays flat with more participants.
+  - **Depends on:** 8.3.
+
+- [ ] **8.5 Add and remove session participants** (SES-3, ADM-3, SA-4) (was TS 2.5)
+  - **Do:** `AdminTrainingSessionParticipantController@store|destroy`; `StoreTrainingSessionParticipantsRequest` (`user_ids` array of active participants not already in the session); `TrainingSessionService::addParticipants()` / `removeParticipant()` (sets `added_by`, `joined_at`). Participants tab: multi-select labelled "Name (Employee ID)" and a Remove button with the existing confirmation initializer. Audit `session_participant_added` / `session_participant_removed` per user. Return to `#participants`.
+  - **Acceptance:** Adding two participants lists both with today's joined date; adding someone already in the session or a coach fails validation. Removing a participant deletes only the membership row; their (later) submissions are kept (assert in 9.3 tests).
+  - **Tests:** Extend `AdminTrainingSessionDashboardTest` or new `AdminTrainingSessionParticipantTest`: add, duplicate, wrong role, inactive user, remove, authorization, audit rows.
+  - **Depends on:** 8.4.
+
+- [ ] **8.6 Manage session resources** (SES-4, ADM-5, SA-3, SA-4) (was TS 2.6)
+  - **Do:** Migration + model `TrainingSessionResource`, enum `TrainingSessionResourceType`, factory. Config in `config/training.php`: `session_resource_max_kb` (102400) and allowed extensions/MIME types (pdf, doc, docx, xls, xlsx, ppt, pptx, png, jpg, jpeg, gif, webp, mp4). `StoreTrainingSessionResourceRequest` (`title` required; `type`; `file` required for files with those rules; `url` required http(s) for links; `week_number` nullable 1..`weeks_count`), `UpdateTrainingSessionResourceRequest` (title only). `TrainingSessionResourceService` stores files on the private `local` disk under `training-sessions/{id}/resources`, deletes them on removal. `AdminTrainingSessionResourceController@store|update|destroy`; `TrainingSessionResourceController@show` (admin-only for now; opened to members in 9.6) streams files inline or redirects to links. Resources tab grouped "Whole session", "Week 1", …, each row with type, size, Rename (inline form) and Remove. Add `admin/sessions/*/resources` to the `PostTooLargeException` handler in `bootstrap/app.php` with "The file must not exceed 100 MB." Audit add/rename/remove.
+  - **Acceptance:** An admin uploads a 2 MB PDF to Week 1 and adds a YouTube link to the whole session; both appear grouped. A `.exe` or a 101 MB file fails validation. Week 5 on a 4-week session fails. Rename changes only the title. Remove deletes the row and the stored file. Non-admins get 403 on all write routes.
+  - **Tests:** New `tests/Feature/AdminTrainingSessionResourceTest.php` with `Storage::fake('local')`: upload, link, invalid type, too large, week out of range, rename, remove (file gone), grouping on the tab, authorization, audit rows.
+  - **Depends on:** 8.4.
+
+- [ ] **8.7 Show recent sessions on the admin dashboard** (ADM-1) (was TS 2.7)
+  - **Do:** `AdminDashboardPageService::showData()` adds `recentSessions`: the 5 sessions with the latest `starts_on` (with program and participant count), same row data as the list; `resources/views/admin/dashboard.blade.php` renders a "Training sessions" card with linked rows to `admin.sessions.show`, a "View all sessions" link and an empty state with a "Create session" link.
+  - **Acceptance:** With 6 sessions the card shows the 5 newest by start date, newest first, each with title, program, dates, status and participant count; clicking opens its dashboard. With none it shows the empty state.
+  - **Tests:** Update `AdminDashboardPageTest`: 6 sessions → 5 rows in order, link targets, empty state.
+  - **Depends on:** 8.2.
+
+- [ ] **8.8 Seed the first L4 session** (DEV-4) (was DP 6.1)
+  - **Do:** `L4FirstSessionSeeder`: `firstOrCreate` "L4 Accelerator Training — November 2026", 4 weeks, Mon 9 Nov 2026 to Sun 6 Dec 2026, on the L4 program, via `TrainingSessionService::create()`; called from `DatabaseSeeder` and the baseline command after the L4 seeder; add the production seed command to the release checklist.
+  - **Acceptance:** Running it twice leaves one session with those dates; it passes the SES-1 rules.
+  - **Tests:** New `tests/Feature/L4FirstSessionSeederTest.php`.
+  - **Depends on:** 4.1, 8.2.
+
+## Phase 9 — Session-scoped training for participants, and repository links
+
+- [ ] **9.1 Tie submissions, gate evaluations and weekly videos to a session** (PAR-3, MIG-1) (was TS 4.1)
+  - **Do:** Migration adding `training_session_id` (not null, FK restrict) to `activity_submissions`, `gate_evaluations`, `weekly_video_recordings`, swapping the unique keys and index (see Design). The migration first checks the three tables are empty and throws a clear exception otherwise (MIG-1 guarantees they are after 2.1, DAT-2). Models: fillable, `trainingSession()` relations, `TrainingSession::activitySubmissions()` etc. Factories: default `training_session_id` from a `TrainingSession` factory whose program owns the activity's/gate's/week's program where practical.
+  - **Acceptance:** Migrates on SQLite and MySQL; refuses to run with existing rows. The same participant can have a gate evaluation for the same gate in two sessions.
+  - **Tests:** New `tests/Feature/SessionScopedRecordsTest.php`: two sessions, same gate/user → two evaluations; same user/week → two videos; existing factories still work across the suite.
+  - **Depends on:** Gate A (4.4), 8.1.
+
+- [ ] **9.2 Add session access control and nest the week and activity pages** (PAR-4, PAR-6, SES-3) (was TS 4.2)
+  - **Do:** `TrainingSessionPolicy::view` (admin, member participant, any coach until 10.4). The week-in-session middleware (Design). Move `training.weeks.show` and `training.activities.show` under `training/sessions/{trainingSession}/weeks/{trainingWeek}`; update `TrainingWeekController`, `TrainingActivityController`, `TrainingWeekPageService`, `TrainingActivityPageService` and every `route()` call to pass the session (find them with `grep -rn "training.weeks.show\|training.activities.show" app resources tests`). Sidebar "active" patterns updated.
+  - **Acceptance:** A member opens their session's week and activity pages. A participant not in the session gets 403 on both; a participant removed from the session gets 403. A week from another program, or beyond `weeks_count`, returns 404.
+  - **Tests:** New `tests/Feature/TrainingSessionAccessTest.php`: member 200, non-member 403, removed 403, foreign week 404, week beyond length 404, admin 200; update `TrainingWeekPageTest`, `TrainingActivityPageTest`.
+  - **Depends on:** 9.1.
+
+- [ ] **9.3 Keep submissions within their session** (PAR-3) (was TS 4.3)
+  - **Do:** Nest the submission, evidence-upload and activity-export routes under the session (`ActivitySubmissionController`, `SubmissionEvidenceController@store`, `ActivityExportController`, `StoreSubmissionDraftRequest` if it reads route models). `SubmissionWorkflowService::saveDraft()` and every attempt lookup filter and write `training_session_id`; retries in `SubmissionReviewService` and `RecoveryRequestController` copy it. `ActivitySubmissionPageService`, `ParticipantDashboardService::attachActivityProgress()` read only the session's attempts.
+  - **Acceptance:** A participant in two sessions of the same program has separate drafts, attempts and scores for the same activity in each; work in session A never shows in session B. A submission URL with a version from another session returns 404. Removing the participant from a session keeps the rows (assert `assertDatabaseHas`).
+  - **Tests:** Extend `SessionScopedRecordsTest` or new `SessionSubmissionTest`: separate drafts per session, cross-session version 404, retry keeps session, removal keeps submissions; update `ParticipantWorkflowTest`, `SubmissionFormPageTest`, `SubmissionVersionPageTest`.
+  - **Depends on:** 9.2.
+
+- [ ] **9.4 Keep gates and weekly videos within their session** (PAR-3) (was TS 4.4)
+  - **Do:** Nest the participant gate page and video routes (`GateReviewController@participant`, `WeeklyVideoRecordingController`) and the coach gate review (`GateReviewController@show|update`, `StoreGateReviewRequest`) under the session; `GateEvaluation::updateOrCreate` keys include `training_session_id`; the participant must be a member of the session (404 otherwise). `WeekProgressionService` takes the `TrainingSession` in every public method and reads only that session's evaluations (keep its gate-chain rule until 11.1); update its callers. The coach Gate board (`CoachGateOverviewService`, `CoachGateBoardPageService`) builds one row per session membership × gate and links with the session (scoping to the mentor comes in 10.7). Update the `PostTooLargeException` path in `bootstrap/app.php`.
+  - **Acceptance:** Passing week 1 in session A does not pass it in session B. A video uploaded in session A is not shown in session B. A coach gate review URL for a participant who is not in that session returns 404. An oversized video upload still shows "The video must not exceed 350 MB."
+  - **Tests:** Update `ParticipantGatePageTest`, `CoachGateReviewPageTest`, `CoachGateBoardPageTest`, `WeeklyVideoRecording*Test`; add cross-session isolation cases.
+  - **Depends on:** 9.3.
+
+- [ ] **9.5 Add the session details page and turn the dashboard into the landing page** (PAR-1, PAR-4) (was TS 4.5)
+  - **Do:** `TrainingSessionController@show` (`training.sessions.show`, policy `view`) renders `resources/views/training-sessions/show.blade.php`: header (title, program, dates, status) and the week tabs moved from `participant/dashboard.blade.php` (one tab per session week, activities, gate card, video card), built by `ParticipantTrainingSessionPageService` reusing `ParticipantDashboardService`. `/dashboard` (`ParticipantDashboardController`) becomes the landing page: attendance card (heading "ATTENDANCE"), notifications summary, **My trainings** (joined, not completed) and **Past trainings** (joined, completed), each row linking to the session; empty states. No active-program lookup remains in the controller.
+  - **Acceptance:** A participant in one active and one completed session sees each in the right list and can open both; a participant in no session sees empty states and no error. The session page shows one tab per session week with the same activity/gate/video content as today, scoped to the session.
+  - **Tests:** Rewrite `ParticipantDashboardControllerTest` for the landing lists; new `tests/Feature/ParticipantTrainingSessionPageTest.php` for the tabs and scoping.
+  - **Depends on:** 9.4.
+
+- [ ] **9.6 Add the participant Resources tab and resource access** (PAR-4, PAR-6) (was TS 4.6)
+  - **Do:** "Resources (n)" tab on the session details page, grouped like the admin tab, read-only; links open `training.sessions.resources.show`. `TrainingSessionResourcePolicy::view` delegates to the session's `view`; `TrainingSessionResourceController@show` uses it. Interim (Q3): every resource is shown to members; 11.6 adds the week rule.
+  - **Acceptance:** A member opens a session-wide and a week resource. A non-member gets 403 on the resource URL even with a valid ID; a resource ID from another session in the URL returns 404.
+  - **Tests:** Extend `TrainingSessionAccessTest`: member 200 (file streamed, link redirected), non-member 403, mismatched session 404.
+  - **Depends on:** 9.5, 8.6.
+
+- [ ] **9.7 List available sessions and let participants join** (PAR-1, PAR-2) (was TS 4.7)
+  - **Do:** Landing page **Available trainings**: every non-completed session the participant is not in, with a one-click **Join** button (POST `training.sessions.join`, policy `join`, no form fields; Q1). `TrainingSessionService::join()` inserts the membership idempotently (`firstOrCreate`), `added_by` null. No repository URL here (9.11 adds it on the session page).
+  - **Acceptance:** Joining moves the session from Available to My trainings and redirects to the session page with a status message. Joining twice leaves one row and no error. Joining a completed session returns 403 and creates nothing; coaches and admins get 403.
+  - **Tests:** New `tests/Feature/JoinTrainingSessionTest.php`: join, double join, completed 403, other roles 403, lists after join.
+  - **Depends on:** 9.5.
+
+- [ ] **9.8 Let new participants pick sessions at registration** (REG-1) (was TS 4.8)
+  - **Do:** `auth/register` lists non-completed sessions as optional checkboxes (title, dates); `StoreRegisteredUserRequest` accepts `training_session_ids` (array, exists, not completed); `RegisteredUserController` joins each through `TrainingSessionService::join()` after creating the user, in one transaction. No per-session fields (Q1).
+  - **Acceptance:** Registering with two sessions ticked shows both under My trainings. A completed or unknown session ID fails validation and creates no user. Registering with none works.
+  - **Tests:** Extend the registration tests from 1.2.
+  - **Depends on:** 9.7.
+
+- [ ] **9.9 Generate participant notifications per session** (PAR-3) (was TS 4.9)
+  - **Do:** `ParticipantNotificationService::sync()` iterates the participant's non-completed sessions instead of the active program, with keys prefixed `session:{id}:` and action URLs to the nested routes; delete or resolve notifications whose session the participant left. `ParticipantProgressObserver` keeps queuing per participant.
+  - **Acceptance:** A participant in two sessions gets separate "missing submission" notifications per session, each linking to the right session's activity. Removal from a session resolves its notifications.
+  - **Tests:** Update `ParticipantNotificationsTest`, `ParticipantNotificationTriggersTest`; add a two-session case.
+  - **Depends on:** 9.5.
+
+- [ ] **9.10 Sync Drive workbooks per session** (PAR-3) (was TS 4.10)
+  - **Do:** `SyncTrainingDataJob` and `TrainingWorkbookService::forWeek()` work per (session, week): one managed folder per session (named by session title) containing its week workbooks, evidence and videos; `google_drive_exports.scope_key` includes the session ID. Workbook rows add the employee ID.
+  - **Acceptance:** A participant in two sessions gets two folders whose workbooks contain only that session's work. Re-running the sync updates rather than duplicates files.
+  - **Tests:** Update `GoogleDriveSyncTest` / `GoogleDriveExportTest` with two sessions.
+  - **Depends on:** 9.4.
+
+- [ ] **9.11 Ask for the repository URL on the session page** (LOG-2) (was DP 6.3)
+  - **Do:** Migration adding `repository_url` (nullable string 255) to `training_session_participants`; `App\Rules\GitHubRepositoryUrl`; `UpdateSessionRepositoryRequest` (member only); a form on the participant session page (prompt "Add your GitHub repository for this session" until set, then the link with a Change action); show the URL (or "No repository yet") on the mentor's submission review, scoring and gate checklist pages for that participant and session.
+  - **Acceptance:** A member saves `https://github.com/ana/l4-accelerator` and sees it; `https://github.com/ana`, `https://github.com/ana/repo/tree/main` and non-GitHub URLs fail; a non-member gets 403; the mentor sees the link on review, scoring and checklist pages; Join stays one click.
+  - **Tests:** New `tests/Unit/GitHubRepositoryUrlRuleTest.php`, `tests/Feature/SessionRepositoryUrlTest.php`; extend `CoachGateReviewPageTest`.
+  - **Depends on:** 7.2, 9.5 (session page; submissions and gate reviews already carry their session from 9.3 and 9.4).
+
+## Phase 10 — Mentors, and demo enrollment
+
+- [ ] **10.1 Add session mentors and mentor assignments** (MEN-1, MEN-2, MEN-3; prerequisite) (was TS 5.1)
+  - **Do:** Migrations and models for `training_session_mentors` and `mentor_assignments` (Design), factories. `MentorAssignmentService`: `addMentors()`, `removeMentor()` (ends that mentor's current assignments in the session), `assign(TrainingSession, User $participant, User $mentor, User $actor)` (ends the current row and opens a new one in a transaction; no-op when unchanged), `currentMentor()`, `history()`. `TrainingSessionService::removeParticipant()` ends the participant's current assignment. Relations on `TrainingSession` and `User` (`mentoredSessions()`, `currentMentorAssignments()`).
+  - **Acceptance:** Assigning B after A leaves A's row ended at the change time and B's current; history lists both in order. Assigning a mentor who is not a session mentor, or a participant not in the session, throws a validation error.
+  - **Tests:** New `tests/Feature/MentorAssignmentServiceTest.php`: assign, change, unchanged no-op, remove mentor ends assignments, remove participant ends assignment, invalid mentor/participant.
+  - **Depends on:** 8.5.
+
+- [ ] **10.2 Manage mentors on the Mentors tab** (MEN-1, ADM-4, SA-4) (was TS 5.2)
+  - **Do:** `AdminTrainingSessionMentorController@store|destroy`, `StoreTrainingSessionMentorRequest` (`user_ids` of active coaches not yet mentors). Mentors tab: list (name, employee ID, number of current participants), add multi-select, Remove with confirmation warning that their participants become unassigned. Audit add/remove.
+  - **Acceptance:** Adding two coaches lists both; adding a participant or admin fails validation. Removing a mentor leaves their participants unassigned. Counts on the tab label update.
+  - **Tests:** New `tests/Feature/AdminTrainingSessionMentorTest.php`: add, wrong role, duplicate, remove (assignments ended), authorization, audit rows.
+  - **Depends on:** 10.1, 8.4.
+
+- [ ] **10.3 Assign and change mentors, and show the current mentor** (MEN-2, MEN-3, ADM-3, ADM-4, SA-4) (was TS 5.3)
+  - **Do:** `AssignMentorRequest` (`mentor_id` among the session's mentors); `admin.sessions.assignments.update` calls `MentorAssignmentService::assign()`. Mentors tab: per participant a mentor select ("Not assigned" when none) and a collapsible history ("Mentor A, 9 Nov – 23 Nov · Mentor B, since 23 Nov"). Participants tab: current mentor column. Audit `session_mentor_assigned` with previous and new mentor IDs.
+  - **Acceptance:** An admin assigns A, then changes to B in week 3; the Participants tab shows B, history shows both with dates. Choosing a coach who is not a session mentor fails validation.
+  - **Tests:** Extend `AdminTrainingSessionMentorTest`: assign, change, history shown, invalid mentor, authorization, audit row.
+  - **Depends on:** 10.2.
+
+- [ ] **10.4 Authorize mentors per session and retire global coach assignments** (MEN-3, MEN-4) (was TS 5.4)
+  - **Do:** Add `User::mentorsParticipantInSession()` (Design) and replace every `canManageParticipant()` use with it, resolving the session from the record (`SubmissionVersionPolicy`, `GateEvaluationPolicy`, `SubmissionEvidencePolicy`, the six Form Requests, `GateReviewController`, `ScoringController`, `WeeklyVideoRecordingController`, `ScoringPageService`, `CoachSubmissionReviewPageService`, `CoachGateReviewPageService`, `CoachParticipantPageService`). `TrainingSessionPolicy::view` for coaches → session mentors only. Remove `admin.users.assignments`, `UpdateParticipantAssignmentsRequest`, the assignments section of the admin user form, `CoachParticipantAssignment`, `assignedCoaches()` / `assignedParticipants()` / `canManageParticipant()`, and drop `coach_participant_assignments` (migration). Remaining readers of `assignedCoaches` (reports) switch to current mentor assignments in the batches below; make them compile here by reading the current mentor through `mentor_assignments`.
+  - **Acceptance:** After a change from A to B, B can review, score and decide the gate on the participant's week 1 work in that session; A gets 403 on the same URLs; A's earlier reviews still show A as reviewer. A mentor of the participant in session X gets 403 on that participant's work in session Y. Admins keep full access.
+  - **Tests:** New `tests/Feature/MentorScopeAuthorizationTest.php` covering review, score, second reader, gate review, recovery decision, video view, evidence download for current/previous/other-session mentors and admin; update tests that used `assignedCoaches()`.
+  - **Depends on:** 10.3, 9.4.
+
+- [ ] **10.5 Scope the coach participants list and participant page** (MEN-4, SA-2) (was TS 5.5)
+  - **Do:** `CoachParticipantListPageService` lists one row per (participant, session) where the viewer is the current mentor (admins: all), with a session filter (`FilterCoachParticipantsRequest` gains `session`), employee ID and session columns, and the "Assigned to me" label removed. `CoachParticipantPageService` / `coach.participants.show` take the session (route or query) and show only that session's work; 403 for non-mentors.
+  - **Acceptance:** A mentor sees only their current participants; after reassignment the participant disappears from the old mentor's list. Admin sees everyone and can filter by session.
+  - **Tests:** Update `CoachParticipantListPageTest`, `CoachParticipantPageTest`.
+  - **Depends on:** 10.4.
+
+- [ ] **10.6 Scope the review queue, review page and recovery requests** (MEN-4) (was TS 5.6)
+  - **Do:** `CoachReportService::reviewQueue()` / `CoachReviewQueuePageService` and `CoachRecoveryRequestPageService` filter to submissions whose session + participant the viewer currently mentors (admins: all), add a session filter and column; the review CSV adds a "Training session" column.
+  - **Acceptance:** A mentor's queue shows only their current participants' submissions in their sessions; a previous mentor no longer sees them.
+  - **Tests:** Update `CoachReviewQueuePageTest`, `CoachRecoveryRequestPageTest`, `CoachReportsTest`.
+  - **Depends on:** 10.4.
+
+- [ ] **10.7 Scope the Gate board and Gate review** (MEN-4) (was TS 5.7)
+  - **Do:** Gate board rows limited to the viewer's current mentees per session (admins: all), with a session filter (`FilterCoachGatesRequest`); gates CSV adds the session column. Unassigned mentors get 403 on the gate review page (replaces today's read-only view).
+  - **Acceptance:** Board and CSV list only the mentor's participants; review page 403 for others.
+  - **Tests:** Update `CoachGateBoardPageTest`, `CoachGateReviewPageTest`.
+  - **Depends on:** 10.4.
+
+- [ ] **10.8 Scope scoring pages and scoring reports** (MEN-4) (was TS 5.8)
+  - **Do:** `ScoringPageService` (overview, participant page) and `ScoringReportService` / `ScoringReportController` / `ExportParticipantScoreSummaryRequest` replace the active-program lookup and `assigned_coach` filter with session + current-mentor filters; CSVs add the session column; per-session summaries for participants in several sessions.
+  - **Acceptance:** A mentor sees and exports only their mentees' scores, per session; admins can filter by session and by mentor.
+  - **Tests:** Update `ScoringOverviewPageTest`, `ScoringParticipantPageTest`, `ScoringReportControllerTest`, `ScoringReportsPageTest`.
+  - **Depends on:** 10.4.
+
+- [ ] **10.9 Scope the coach dashboard, reports and attendance; list a mentor's sessions** (MEN-4, SA-2) (was TS 5.9)
+  - **Do:** `CoachDashboardPageService` drops the active-program lookup: counts cover the viewer's current mentees (admins: all) and a "My sessions" card lists the sessions where the viewer is a mentor (title, dates, status, my participant count, link to the participants list filtered by session). `CoachReportService` progress report and `MissingSubmissionReportService` take a session filter and the mentor scope; `AttendancePageService` (coach view) lists only current mentees. CSVs add the session column.
+  - **Acceptance:** A mentor in two sessions sees both in "My sessions" and counts only their mentees; reports and attendance exclude other participants. A coach with no sessions sees empty states.
+  - **Tests:** Update `CoachDashboardPageTest`, `CoachProgressReportPageTest`, `MissingSubmissionReportPageTest`, `AttendancePagesTest`.
+  - **Depends on:** 10.4.
+
+- [ ] **10.10 Enroll the demo participants with demo mentors** (DMO-2, DMO-3) (was DP 6.2)
+  - **Do:** `DevelopmentAccountProvisioner` (local, staging, testing only) adds the 3 demo participants and 3 demo mentors to the first session and assigns demo mentor *n* to demo participant *n* through `TrainingSessionService` and `MentorAssignmentService`; skips with a message when the session does not exist.
+  - **Acceptance:** After provisioning, each demo participant sees the session under My trainings and has a current mentor; re-running changes nothing; production still refuses.
+  - **Tests:** Extend `DevelopmentAccountProvisioningTest`.
+  - **Depends on:** 8.8, 4.3, 10.1.
+
+## Phase 11 — Week schedule and unlocking
+
+- [ ] **11.1 Open weeks by date and lock them after an incomplete review** (WK-1, WK-2, WK-3, DEV-3) (was TS 6.1)
+  - **Do:** Rewrite `WeekProgressionService` access rules for a session: week *N* is accessible to a participant when `today >= weekOpensOn(N)` and no earlier week of the session has a gate evaluation whose status is *incomplete* (see Assumptions); coaches and admins always have access. Return a state per week: `open`, `not_open` (with date), `locked` (with the blocking week number). "Current week" = the latest open, unlocked week of an active session; `requiresAttendanceForActivity()` uses it. Remove the gate-chain rule and `ensurePriorWeekThreeActivities()` if still present. Check the review statuses 7.3 left (Completed = `Passed`, Incomplete = `NeedsRevision`) and adjust the mapping if they changed.
+  - **Acceptance:** In a session starting Mon 9 Nov, on 15 Nov week 1 is open and week 2 shows "not open"; on 16 Nov week 2 is open without week 1's gate being passed. After a mentor records week 1 *incomplete*, weeks 2 to 4 are locked even if open; submitting the missing work alone does not unlock; marking week 1 *completed* (by mentor or admin) unlocks the weeks whose date has come, and later weeks stay date-locked. Earlier weeks are never locked.
+  - **Tests:** Rewrite the progression parts of `TrainingDomainTest` / `ParticipantWorkflowTest` with `travelTo`: date opening, lock after incomplete, no unlock on resubmission, unlock on completed (mentor and admin), date lock kept after unlock, earlier weeks open.
+  - **Depends on:** Phase 10, 7.3.
+
+- [ ] **11.2 Explain locked and unopened weeks on their tabs** (WK-4) (was TS 6.2)
+  - **Do:** On the session details page every session week keeps its tab (title visible, `locked` state icon). An unopened week's panel shows "Opens on Mon 16 Nov" (format `D j M`); a review-locked week shows "Complete your Week 1 deliverables to unlock" instead of its contents. Week, activity and submission URLs of such weeks return 403 for participants with the same message.
+  - **Acceptance:** Tabs and messages match the cases in 11.1; the earlier weeks' contents remain reachable.
+  - **Tests:** Extend `ParticipantTrainingSessionPageTest` and `TrainingSessionAccessTest` with `travelTo`.
+  - **Depends on:** 11.1.
+
+- [ ] **11.3 List the missing deliverables and show when they await verification** (WK-4) (was TS 6.3)
+  - **Do:** Under the locked message, list the incomplete review's required checklist items marked not met (titles), each linking to the incomplete week (its tab on the session page, where its activities are). Put the "has new work since the review" check in `WeekProgressionService`, so 11.5 reuses it: at least one activity version of that week, in that session, by that participant, with `submitted_at` after the review's `evaluated_at` (Q2). When it holds, replace the message and list with "Waiting for your mentor to verify Week 1".
+  - **Acceptance:** After an incomplete review of week 1 with two unmet items, a later week's tab shows "Complete your Week 1 deliverables to unlock" and both item titles linking to week 1. After the participant submits any week 1 activity, it shows "Waiting for your mentor to verify Week 1" and the later weeks stay locked (WK-3). A submission made *before* the review, or in another week or session, does not change the message. A new incomplete review brings the list back.
+  - **Tests:** Extend `ParticipantTrainingSessionPageTest`: missing list, waiting after one submission, earlier/other-week/other-session submissions ignored, re-review resets.
+  - **Depends on:** 11.2.
+
+- [ ] **11.4 Make completed sessions read-only, except reopened activities** (PAR-5) (was TS 6.4)
+  - **Do:** When the session is completed, every week's contents, own submissions, scores and resources are viewable (no date or review locks for viewing), and draft/submit/revise/evidence/video writes are refused with "This training session has ended." — except an attempt in `NeedsRevision`, which can be revised and resubmitted. Hide write buttons accordingly.
+  - **Acceptance:** After the end date a participant can open everything but cannot start or submit work (403 / validation message); an activity a mentor marks *Needs revision* after the end can be resubmitted, and the mentor can review it.
+  - **Tests:** New `tests/Feature/CompletedTrainingSessionTest.php`: view allowed, writes refused, reopened attempt resubmitted, mentor reviews it.
+  - **Depends on:** 11.1.
+
+- [ ] **11.5 Show mentors which locked weeks await verification** (WK-3) (was TS 6.5)
+  - **Do:** Coach dashboard card "Waiting for verification": the viewer's current mentees (admins: all) with an incomplete week that has new work since the review (the 11.3 check, Q2), showing participant, session, week, the latest submission time and a link to the gate review. Built with a fixed number of queries.
+  - **Acceptance:** The participant from 11.3 appears for their current mentor (not for other or previous mentors) once any activity of the incomplete week is submitted after the review, and disappears once the week is marked completed.
+  - **Tests:** Extend `CoachDashboardPageTest`: appears after a later submission, absent before it, absent for another mentor, gone after completed.
+  - **Depends on:** 11.3, 10.9.
+
+- [ ] **11.6 Unlock week resources by date or by the previous week's checklist** (WK-1, PAR-4, PAR-5) (was TS 6.6)
+  - **Do:** Apply the Q3 rule in `TrainingSessionResourcePolicy::view` and in the participant Resources tab, using the week states from 11.1. Session not completed: a participant can open a week *N* resource when `today >= weekOpensOn(N)` or their week *N − 1* review in that session is *completed* (week 1: date only). Session-wide resources are always open; a completed session opens everything; mentors and admins are not restricted. Resources that are not open yet are listed with "Opens on Mon 16 Nov" and no link; their URLs return 403 to participants. An *incomplete* review of an earlier week does not hide resources of weeks whose date has passed (see Assumptions).
+  - **Acceptance:** In a session starting Mon 9 Nov, on 12 Nov a Week 2 resource shows "Opens on Mon 16 Nov" and its URL returns 403. Once the participant's week 1 review is marked completed on 13 Nov, it opens for that participant but not for others. On 16 Nov it opens for everyone. Week 2 *activities* stay closed until 16 Nov either way. Session-wide resources are always open. After the session ends every resource opens. Mentors and admins can open everything at any time.
+  - **Tests:** Extend `TrainingSessionAccessTest` with `travelTo`: date rule, early unlock by a completed previous review (only for that participant), week 1 date-only, session-wide, completed session, mentor/admin, activities still date-locked.
+  - **Depends on:** 11.1, 9.6.
+
+## Phase 12 — Session overview and admin dashboard
+
+- [ ] **12.1 Fill the Overview tab** (ADM-2) (was TS 7.1)
+  - **Do:** `AdminTrainingSessionPageService` overview stats for the session using `x-ui.stat`: participants, mentors, unassigned participants, participants with work per week, awaiting review, needs revision, pending gates, participants with locked weeks. Counts in a fixed number of queries.
+  - **Acceptance:** Counts include only the session's participants and records; another session's submissions do not change them.
+  - **Tests:** Extend `AdminTrainingSessionDashboardTest` with two sessions.
+  - **Depends on:** Phase 11.
+
+- [ ] **12.2 Fill the Activities tab** (ADM-2) (was TS 7.2)
+  - **Do:** Per activity of the session's weeks: week, title, and counts among the session's participants of not started, awaiting review, needs revision, approved; link to the review queue filtered by session.
+  - **Acceptance:** Counts match the session's submissions; the tab label shows the number of activities.
+  - **Tests:** Extend `AdminTrainingSessionDashboardTest`.
+  - **Depends on:** 12.1.
+
+- [ ] **12.3 Drop program-wide training stats from the admin dashboard** (ADM-1, ADM-2, GEN-4) (was TS 7.3)
+  - **Do:** `AdminDashboardPageService` stops reading the active program: keep account counts, recent sessions (8.7), global review counts and integrations; remove the per-week training stats (now per session in 12.1).
+  - **Acceptance:** The admin dashboard renders with zero, one or many programs and sessions; no `Program::query()->where('is_active', true)` remains in it.
+  - **Tests:** Update `AdminDashboardPageTest`.
+  - **Depends on:** 12.1.
+
+## Phase 13 — When ready (run by name when the gate opens; see Rules)
+
+- [ ] **13.1 Replace the old migrations with fresh hand-written ones** (maintenance, user request 2026-10-23) — **Gate D** (was DP 3.5)
+  - **When:** right after a production deploy that has run every migration, and before the next batch that adds a migration is merged. Earliest point: after Phase 4.
+  - **Precondition (record it here before starting):** every database that will run this code has applied every migration file present on `main` when the batch starts, including 2.1 (QA data deletion) and the table drops in 2.2 to 2.10. That means the release containing them has been deployed and migrated on **production and staging** (deploying `main` is currently blocked by the code quality plan's Phase 7 "Production values" check, so this waits for that too). A reviewer checks it by running, from the currently live release on each environment, `php artisan migrate:status --no-ansi` (no `Pending` line) and comparing its "Ran" list with the files in `database/migrations` at the batch's starting commit (same names, same count). Paste the date, environment, commit and result under this item.
+  - **Do:**
+    - **Capture the reference schema** from the starting commit, before deleting anything: run `migrate:fresh` on a scratch MySQL database and a scratch SQLite file, then export `php artisan db:show --json` and `php artisan db:table <table> --json` for every table (columns with types, nullability, defaults; indexes; foreign keys with on-delete/on-update) and row counts. Do the same read-only export from production and staging (to catch drift). Keep the exports in the session scratchpad, not in the repo.
+    - **Write one migration per table** (`php artisan make:migration create_<table>_table --no-interaction`, then hand-edit), all with the same date prefix and increasing sequence numbers in foreign-key order (`users` first, then `programs`, `training_weeks`, …), reproducing the reference schema exactly: same column names, order, types, lengths, nullability, defaults, index names, unique keys and foreign keys. Framework tables included (Assumptions). Simple `down()` that drops the table. No data inserts, no model or seeder imports, no `DB::statement` unless a reference index cannot be expressed otherwise (note it).
+    - **Delete every old migration file**, including Laravel's `0001_01_01_*` files and the data migrations (their only targets, QA rows, were deleted by 2.1 and they match nothing on a fresh database). Do not use `schema:dump`/`--prune`; no `database/schema` dump is committed.
+    - **Add `App\Console\Commands\AdoptSquashedMigrationsCommand`** (`app:adopt-squashed-migrations`, options `--pretend`, `--force` required outside local) holding two constants: the replaced migration names and the new ones. In a transaction it: refuses (exit 1, no change) unless every replaced name is recorded in `migrations` and no row outside both lists exists; does nothing ("Already adopted.") when every new name is recorded and no replaced name is; otherwise deletes the replaced rows and inserts the new names with `batch = max(batch) + 1`. `--pretend` prints the rows it would delete and insert. It never runs a migration.
+    - **Document the one-time release step** in `docs/ATOMIC_DEPLOYMENT.md`, section "One-time: adopting the squashed migrations", fitting the existing flow: (1) confirm the Precondition on that environment; (2) run `atomic-release.sh prepare` for the squash release, which stops at "unexpected pending migrations" after extracting and installing the release (expected: the new files are not recorded yet); (3) from that release directory run `php artisan app:adopt-squashed-migrations --pretend`, check the output, then run it with `--force`; (4) re-run `prepare` (it re-extracts and now passes the pending-migration check); (5) `activate` as usual; (6) never run `php artisan migrate` from a pre-squash release afterwards. Add the same note for developers' local databases (adopt or `migrate:fresh --seed`).
+  - **Acceptance:**
+    - `migrate:fresh` with the new files yields the same `db:table --json` output as the reference for every table on MySQL and on SQLite (ignoring only the `migrations` table's rows), and matches the production and staging exports; any difference is listed and explained under this item (e.g. drift found on production).
+    - The reference fresh database has zero rows in every table except `migrations`, so no seed rows are lost.
+    - `migrate:fresh --seed` works on SQLite and MySQL; the full suite passes on in-memory SQLite (`phpunit.xml`) unchanged.
+    - On a copy of the staging database, `app:adopt-squashed-migrations --pretend` lists every old name and every new one; the real run leaves `migrate:status` with no `Pending` line; a second run prints "Already adopted."; running it on a database missing one old migration refuses and changes nothing.
+  - **Tests:** New `tests/Feature/AdoptSquashedMigrationsCommandTest.php` (SQLite): adopt (replace rows, new batch number), already adopted (no-op), missing replaced row (refuse, unchanged), unknown extra row (refuse), `--pretend` (no change). The schema comparison is a one-time check recorded on this item, not a committed test (the old files are gone).
+  - **Depends on:** 4.4, 1.1, every migration merged before it, the Precondition.
+
+- [ ] **13.2 Swap in the real developer curriculum** (DEV-2) — **Gate C, blocked by Q4** (was DP 6.4)
+  - **When:** the training team delivers the curriculum.
+  - **Do:** Replace the placeholder definitions in `L4TrainingProgramSeeder` with the supplied curriculum (description, activities, deliverable fields, checklist items, scoring dimensions per activity); run it on staging; record which session resources (guides, VS Code hook setup) the admins must upload.
+  - **Acceptance:** Re-running the seeder replaces placeholder content in place, deactivates removed placeholders, keeps existing submissions, and every week still has at least one checklist item.
+  - **Tests:** Update `L4TrainingProgramSeederTest` expectations.
+  - **Depends on:** 4.1, Q4.
+
+## Out of scope / follow-ups
+
+- The AI checker for GitHub deliverables, private repositories, the VS Code session-log hooks and any automatic session-log check (DP spec Out of scope).
+- Program, week and activity editing UI; content for other job roles; bringing back mock interviews or an asset library (both specs' Out of scope).
+- Leaving a session as a participant, deleting sessions, certificates, per-session reports beyond the scoped exports; showing the participant's current mentor on their session page; mentor change notifications (TS spec Out of scope).
+- Root-level QA artefacts not used by the app: `QA_LAB_MASTER_PLAN.md`, `QA_Training_Working_Template.xlsx`, `training-plans/*.pptx`, `training-apps/membership-app`. Delete or archive by hand if the user wants.
+- A bulk admin export of all uploads (DAT-1 relies on an ops archive instead).
+- Linking checklist items to individual activities, which would let "Waiting for your mentor" track the actual missing deliverable (Q2 trade-off).
+- Switching the existing inline audit writers (`AdminUserController`, `AdminAiSettingsController`, `AdminGoogleDriveController`, `BootstrapAdminCommand`) to `AdminAuditService`.
+- Searchable participant/mentor pickers instead of selects for large user lists.
+- Deployment note: PHP `upload_max_filesize` / `post_max_size` must allow 100 MB resource uploads; record it in the release checklist when 8.6 ships.
+- Deleting `AdoptSquashedMigrationsCommand` once production, staging and every shared database have adopted the squashed migrations.
+
+## Open decisions
+
+Problems found during implementation that need a decision. Starts empty.

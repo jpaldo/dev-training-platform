@@ -62,4 +62,53 @@ class UpdateWeekThreeWorkspaceRequest extends FormRequest
             'findings.*.tests.*.fix_validation.*' => ['nullable', 'string', 'max:10000'],
         ];
     }
+
+    /**
+     * Get the readable names of the workspace fields, numbering each finding by its position.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'regression_areas' => 'areas tested',
+            'regression_issues' => 'regression issues discovered',
+            'coverage_gaps' => 'coverage gaps',
+            'final_conclusion' => 'final conclusion',
+            'findings' => 'findings',
+            'findings.*' => 'Finding :position',
+            'findings.*.title' => 'Finding :position issue title',
+            'findings.*.description' => 'Finding :position description',
+            'findings.*.steps_to_reproduce' => 'Finding :position steps to reproduce',
+            'findings.*.expected_result' => 'Finding :position expected result',
+            'findings.*.actual_result' => 'Finding :position actual result',
+            'findings.*.observed_evidence' => 'Finding :position observed behavior / evidence',
+            'findings.*.ai_tool' => 'Finding :position AI tool',
+            'findings.*.ai_proposed_root_cause' => 'Finding :position AI-proposed root cause',
+            'findings.*.human_validation' => 'Finding :position human validation',
+            'findings.*.human_validation_explanation' => 'Finding :position human validation evidence',
+            'findings.*.severity' => 'Finding :position severity',
+            'findings.*.blast_radius' => 'Finding :position blast radius',
+            'findings.*.affected_areas' => 'Finding :position affected features / areas',
+            'findings.*.next_step' => 'Finding :position next step',
+            'findings.*.tests' => 'Finding :position tests',
+            'findings.*.tests.*' => 'Finding :position test',
+            'findings.*.tests.*.name' => 'Finding :position test case name',
+            'findings.*.tests.*.preconditions' => 'Finding :position test preconditions',
+            'findings.*.tests.*.steps' => 'Finding :position test steps',
+            'findings.*.tests.*.expected_result' => 'Finding :position test expected result',
+            'findings.*.tests.*.actual_result' => 'Finding :position test actual result',
+            'findings.*.tests.*.execution_result' => 'Finding :position test execution result',
+            'findings.*.tests.*.framework' => 'Finding :position test framework',
+            'findings.*.tests.*.script_location' => 'Finding :position test script location',
+            'findings.*.tests.*.artifact_evidence' => 'Finding :position test artifact evidence',
+            'findings.*.tests.*.execution_evidence' => 'Finding :position test evidence',
+            'findings.*.tests.*.fix_validation' => 'Finding :position fix validation',
+            'findings.*.tests.*.fix_validation.buggy_result' => 'Finding :position buggy branch result',
+            'findings.*.tests.*.fix_validation.bug_free_result' => 'Finding :position bug-free branch result',
+            'findings.*.tests.*.fix_validation.evidence' => 'Finding :position fix validation evidence',
+            'findings.*.tests.*.fix_validation.status' => 'Finding :position fix validation status',
+            'findings.*.tests.*.fix_validation.*' => 'Finding :position fix validation field',
+        ];
+    }
 }

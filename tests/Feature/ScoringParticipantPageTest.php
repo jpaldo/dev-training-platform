@@ -9,8 +9,10 @@ use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Services\ScoringService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class ScoringParticipantPageTest extends TestCase
@@ -73,6 +75,22 @@ class ScoringParticipantPageTest extends TestCase
             ->assertOk()
             ->assertSee('href="'.route('coach.scoring.edit', $submittedVersion).'"', false)
             ->assertDontSee(route('coach.scoring.edit', $draftVersion), false);
+    }
+
+    public function test_a_saved_score_returns_to_the_page_with_the_saved_status(): void
+    {
+        Queue::fake();
+        $activity = Activity::factory()->for($this->week(Program::factory()->create(), 2), 'week')->create();
+        $participant = User::factory()->create();
+        $coach = User::factory()->create(['role' => 'coach']);
+        $coach->assignedParticipants()->attach($participant->id);
+        $version = $this->version($participant, $activity, 'submitted');
+        $dimensions = collect(ScoringService::DIMENSIONS)->map(fn (array $dimension): array => ['points' => 1, 'evidence_reasoning' => 'Reason'])->all();
+
+        $this->actingAs($coach)->followingRedirects()
+            ->post(route('coach.scoring.store', $version), ['dimensions' => $dimensions])
+            ->assertOk()
+            ->assertSeeInOrder(['SCORING · PARTICIPANT', 'role="status"', 'Activity score saved.', 'OVERALL SCORE</dt>'], false);
     }
 
     public function test_a_user_who_is_not_a_participant_is_not_found(): void

@@ -109,8 +109,28 @@ class MentorBookingCalendarPageTest extends TestCase
             ->followingRedirects()
             ->post(route('coach.mentor-booking-calendar.store'), ['booking_url' => 'http://booking.example.com/insecure'])
             ->assertOk()
-            ->assertSee('value="http://booking.example.com/insecure"', false)
+            ->assertSeeInOrder(['>Mentor Mock Interview Booking</h1>', 'role="alert"', 'Enter a valid HTTPS booking page URL.', 'value="http://booking.example.com/insecure"'], false)
             ->assertSee('href="https://booking.example.com/mock"', false);
+    }
+
+    public function test_saving_and_removing_the_link_return_to_the_page_with_the_status(): void
+    {
+        $mentor = User::factory()->create(['role' => 'coach']);
+
+        $this->actingAs($mentor)
+            ->from(route('coach.mentor-availability.index'))
+            ->followingRedirects()
+            ->post(route('coach.mentor-booking-calendar.store'), ['booking_url' => 'https://booking.example.com/mock'])
+            ->assertOk()
+            ->assertSeeInOrder(['>Mentor Mock Interview Booking</h1>', 'role="status"', 'Mock Interview booking link saved.', 'Status: Booking Link Configured'], false);
+
+        $this->actingAs($mentor)
+            ->from(route('coach.mentor-availability.index'))
+            ->followingRedirects()
+            ->delete(route('coach.mentor-booking-calendar.destroy'))
+            ->assertOk()
+            ->assertSeeInOrder(['>Mentor Mock Interview Booking</h1>', 'role="status"', 'Mock Interview booking link removed.'], false)
+            ->assertDontSee('Status: Booking Link Configured');
     }
 
     private function bookingFor(User $mentor, string $bookingUrl, ?string $mockBookingUrl): InterviewScheduler

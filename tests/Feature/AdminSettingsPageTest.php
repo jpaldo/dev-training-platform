@@ -15,6 +15,8 @@ use App\Services\GoogleCalendarService;
 use App\Services\GoogleDriveConfigurationService;
 use App\Services\InterviewBookingLinkService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Mail;
+use RuntimeException;
 use Tests\TestCase;
 
 class AdminSettingsPageTest extends TestCase
@@ -201,19 +203,44 @@ class AdminSettingsPageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder(['role="status"', 'Email configuration saved securely.', 'From address:', 'saved@example.test'], false);
 
-        $this->actingAs($admin)
+        $response = $this->actingAs($admin)
             ->from(route('admin.settings.email'))
             ->followingRedirects()
             ->put(route('admin.settings.email.update'), ['mailer' => 'smtp', 'smtp_password' => 'rejected-password', 'from_address' => 'not-an-email', 'from_name' => 'Rejected Sender', 'mentor_emails_enabled' => '0'])
             ->assertOk()
             ->assertSeeInOrder([
-                'role="alert"',
                 '<option value="smtp" selected>SMTP</option>',
-                'value="not-an-email"',
+                'id="smtp_host"', 'role="alert">The smtp host field is required when mailer is smtp.</p>',
+                'id="smtp_port"', 'role="alert">The smtp port field is required when mailer is smtp.</p>',
+                'value="not-an-email"', 'role="alert">The from address field must be a valid email address.</p>',
                 'value="Rejected Sender"',
+                'Send test email',
             ], false)
             ->assertDontSee('name="mentor_emails_enabled" value="1" checked', false)
             ->assertDontSee('rejected-password');
+        $this->assertSame(3, substr_count($response->getContent(), 'role="alert"'));
+    }
+
+    public function test_email_page_shows_a_rejected_or_failed_test_email_under_the_test_recipient(): void
+    {
+        $admin = $this->admin();
+
+        $response = $this->actingAs($admin)
+            ->from(route('admin.settings.email'))
+            ->followingRedirects()
+            ->post(route('admin.settings.email.test'), ['recipient' => 'not-an-email'])
+            ->assertOk()
+            ->assertSeeInOrder(['Send test email', 'id="test-recipient"', 'value="not-an-email"', 'role="alert">The recipient field must be a valid email address.</p>', 'Send Test Email'], false);
+        $this->assertSame(1, substr_count($response->getContent(), 'role="alert"'));
+
+        Mail::shouldReceive('raw')->andThrow(new RuntimeException('Transport unavailable.'));
+
+        $this->actingAs($admin)
+            ->from(route('admin.settings.email'))
+            ->followingRedirects()
+            ->post(route('admin.settings.email.test'), ['recipient' => 'admin@example.test'])
+            ->assertOk()
+            ->assertSeeInOrder(['Send test email', 'id="test-recipient"', 'role="alert">Unable to send the test email. Please verify the email configuration.</p>', 'Send Test Email'], false);
     }
 
     public function test_training_page_shows_the_read_only_limits_in_megabytes(): void
@@ -431,18 +458,53 @@ class AdminSettingsPageTest extends TestCase
                 'Add Interviewer',
                 'action="'.route('admin.settings.interview-scheduling.store').'" id="admin-interviewer-form" data-interviewer-type-form',
                 'id="admin_interview_type" name="interview_type" required',
-                '<option value="mock">Mock Interview</option>', '<option value="final_reassessment">Final Re-assessment Interview</option>', '<option value="both">Both</option>',
-                'name="full_name" required', 'name="email" type="email"',
+                '<option value="mock" >Mock Interview</option>', '<option value="final_reassessment" >Final Re-assessment Interview</option>', '<option value="both" >Both</option>',
+                'name="full_name" value="" required', 'name="email" type="email" value=""',
                 'name="user_id"', '<option value="">External interviewer</option>',
-                '<option value="'.$coach->id.'">Casey Coach (casey@example.com)</option>',
-                'name="mock_booking_url" type="url" placeholder="https://booking.example.com/mock"',
-                'data-final-booking-field hidden', 'name="final_booking_url" type="url" placeholder="https://booking.example.com/final"',
+                '<option value="'.$coach->id.'" >Casey Coach (casey@example.com)</option>',
+                'name="mock_booking_url" type="url" value="" placeholder="https://booking.example.com/mock"',
+                'data-final-booking-field hidden', 'name="final_booking_url" type="url" value="" placeholder="https://booking.example.com/final"',
                 'Add Interviewer',
             ], false)
-            ->assertSee('<option value="'.$admin->id.'">'.e($admin->name).' ('.e($admin->email).')</option>', false)
+            ->assertSee('<option value="'.$admin->id.'" >'.e($admin->name).' ('.e($admin->email).')</option>', false)
             ->assertDontSee('Pat Participant')
             ->assertDontSee('Pending Interviewer Requests')
             ->assertDontSee('from-brand');
+    }
+
+    public function test_a_rejected_new_interviewer_returns_with_the_error_and_the_old_input_and_a_saved_one_with_the_status(): void
+    {
+        $admin = $this->admin();
+        $coach = User::factory()->create(['role' => 'coach', 'name' => 'Casey Coach', 'email' => 'casey@example.com']);
+        $payload = [
+            'interview_type' => InterviewType::Both->value, 'full_name' => 'Nia New', 'email' => 'nia@example.com', 'user_id' => $coach->id,
+            'mock_booking_url' => 'https://booking.example.com/nia-mock', 'final_booking_url' => 'http://booking.example.com/nia-final',
+        ];
+
+        $this->actingAs($admin)
+            ->from(route('admin.settings.interview-scheduling'))
+            ->followingRedirects()
+            ->post(route('admin.settings.interview-scheduling.store'), $payload)
+            ->assertOk()
+            ->assertSeeInOrder([
+                '>Interview Scheduling</h1>',
+                'role="alert"', 'Enter a valid HTTPS booking page URL.',
+                'Add Interviewer',
+                '<option value="both" selected>Both</option>',
+                'name="full_name" value="Nia New" required',
+                'name="email" type="email" value="nia@example.com"',
+                '<option value="'.$coach->id.'" selected>Casey Coach (casey@example.com)</option>',
+                'name="mock_booking_url" type="url" value="https://booking.example.com/nia-mock"',
+                'name="final_booking_url" type="url" value="http://booking.example.com/nia-final"',
+            ], false);
+        $this->assertSame(0, InterviewScheduler::query()->count());
+
+        $this->actingAs($admin)
+            ->from(route('admin.settings.interview-scheduling'))
+            ->followingRedirects()
+            ->post(route('admin.settings.interview-scheduling.store'), [...$payload, 'final_booking_url' => 'https://booking.example.com/nia-final'])
+            ->assertOk()
+            ->assertSeeInOrder(['>Interview Scheduling</h1>', 'role="status"', 'Both interviewer added.', 'Add Interviewer', 'name="full_name" value="" required'], false);
     }
 
     public function test_interview_scheduling_page_shows_the_title_fallback_and_empty_interviewer_sections(): void

@@ -21,6 +21,13 @@
         </div>
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
+            @if(session('status'))
+                <x-ui.alert tone="success" role="status" class="max-w-190">{{ session('status') }}</x-ui.alert>
+            @endif
+            @if($errors->any())
+                <x-ui.alert tone="error" role="alert" class="max-w-190">{{ $errors->first() }}</x-ui.alert>
+            @endif
+
             <x-ui.card class="grid w-full max-w-190 grid-cols-1 gap-4">
                 <p class="m-0 leading-relaxed text-muted">Create your Mock Interview appointment schedule with your preferred scheduling service, then paste the public booking link below.</p>
 

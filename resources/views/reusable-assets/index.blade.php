@@ -13,6 +13,10 @@
             <p class="m-0 leading-relaxed text-muted">Explore reusable AI assets created and validated by participants during Week 4.</p>
         </header>
 
+        @if($errors->any())
+            <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
+        @endif
+
         <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] md:items-end" aria-label="Filter reusable assets">
             <div class="grid min-w-0 gap-2">
                 <label for="asset-search" class="{{ $labelClasses }}">Search reusable assets</label>

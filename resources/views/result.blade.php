@@ -10,6 +10,9 @@
         @if(session('status'))
             <x-ui.alert tone="info" role="status">{{ session('status') }}</x-ui.alert>
         @endif
+        @if($errors->any())
+            <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
+        @endif
 
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>ACTIVITY 1 · RESULT</x-ui.eyebrow>

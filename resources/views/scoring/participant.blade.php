@@ -13,6 +13,10 @@
             <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $participantEmail }} · {{ $path }}</p>
         </header>
 
+        @if(session('status'))
+            <x-ui.alert tone="success" role="status">{{ session('status') }}</x-ui.alert>
+        @endif
+
         <section aria-labelledby="overall-scoring-title">
             <h2 id="overall-scoring-title" class="sr-only">Overall scoring</h2>
             <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2">

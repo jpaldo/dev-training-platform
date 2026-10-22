@@ -18,6 +18,9 @@
         @if(session('status'))
             <x-ui.alert tone="success" role="status">{{ session('status') }}</x-ui.alert>
         @endif
+        @if($errors->any())
+            <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
+        @endif
 
         <x-ui.card as="section" class="grid grid-cols-1 gap-5" aria-labelledby="week-four-pairs-title">
             <div class="grid gap-2">

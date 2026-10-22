@@ -95,12 +95,37 @@ class ValidationLabPagesTest extends TestCase
         $this->get(route('lab.activity'))
             ->assertOk()
             ->assertSeeInOrder([
+                'id="trainee_name"', 'role="alert">The trainee name field is required.</p>',
                 '<option value="Other" selected>Other</option>',
                 'id="other_feature_area" name="other_feature_area" value="Payments"',
                 '<option value="Other" selected>Other</option>',
                 'id="other_artifact_type" name="other_artifact_type" value="Load test"',
                 'id="ai_tool" name="ai_tool" value="Copilot"',
             ], false);
+    }
+
+    public function test_rejected_artifact_details_show_each_error_under_its_field(): void
+    {
+        $response = $this->from(route('lab.activity'))
+            ->followingRedirects()
+            ->post(route('start'), [
+                'trainee_name' => 'Tess Trainee',
+                'feature_area' => 'Other',
+                'other_feature_area' => '',
+                'artifact_type' => 'Other',
+                'other_artifact_type' => 'Load test',
+                'ai_tool' => 'Copilot',
+                'artifact_content' => 'Some output.',
+            ])
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="other_feature_area"', 'role="alert">The other feature area field is required when feature area is Other.</p>',
+                'id="artifact_type"',
+                'id="artifact_name"', 'role="alert">The artifact name field is required.</p>',
+                'id="artifact_content"',
+            ], false);
+
+        $this->assertSame(2, substr_count($response->getContent(), 'role="alert"'));
     }
 
     public function test_mock_login_keeps_its_unnamed_prefilled_demo_fields_and_posts_to_send_otp(): void
@@ -347,6 +372,31 @@ class ValidationLabPagesTest extends TestCase
             ->assertDontSee('Proceed to Activity 1 Submission');
 
         $this->assertSame(6, substr_count($response->getContent(), '>View Details</summary>'));
+    }
+
+    public function test_submitting_an_incomplete_draft_returns_to_the_lab_record_with_the_error(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        $draft = ValidationSubmission::create([
+            'user_id' => $participant->id,
+            'trainee_name' => 'Draft Owner',
+            'artifact_code' => 'AI-TC-051',
+            'source_status' => 'pass',
+            'status' => ValidationSubmissionStatus::Draft,
+        ]);
+
+        $this->actingAs($participant)
+            ->from(route('result', $draft))
+            ->followingRedirects()
+            ->post(route('lab.records.submit', $draft))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'role="alert">Complete every six-check result and its notes before submitting the Lab record.</div>',
+                '>Validation recorded.</h1>',
+                '>Submit Lab Record</button>',
+            ], false);
+
+        $this->assertTrue($draft->fresh()->isDraft());
     }
 
     public function test_submitted_lab_record_shows_its_decision_and_uploaded_evidence(): void

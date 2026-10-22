@@ -251,6 +251,22 @@ class WeekThreeWorkspaceTest extends TestCase
         $this->assertSame(0, WeekThreeFinding::query()->count());
     }
 
+    public function test_workspace_validation_errors_name_the_finding_by_its_position(): void
+    {
+        [$participant, $week] = $this->workspaceFixture();
+
+        $this->actingAs($participant)
+            ->postJson(route('training.week-three.workspace.update', $week), ['findings' => [
+                ['title' => 'Valid finding'],
+                ['human_validation' => 'not-an-assessment', 'tests' => ['manual' => ['name' => str_repeat('a', 256)]]],
+            ]])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'findings.1.human_validation' => 'The selected Finding 2 human validation is invalid.',
+                'findings.1.tests.manual.name' => 'The Finding 2 test case name field must not be greater than 255 characters.',
+            ]);
+    }
+
     public function test_workspace_form_post_redirects_back_with_the_saved_status(): void
     {
         [$participant, $week] = $this->workspaceFixture();

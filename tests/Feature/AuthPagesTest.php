@@ -166,4 +166,21 @@ class AuthPagesTest extends TestCase
             ], false)
             ->assertDontSee('A-secure-password-2026!');
     }
+
+    public function test_completed_password_setup_shows_its_status_on_the_sign_in_page(): void
+    {
+        $token = app(PasswordSetupService::class)->issue(User::factory()->create());
+
+        $this->followingRedirects()
+            ->post(route('password.setup.store', $token), [
+                'password' => 'A-secure-password-2026!',
+                'password_confirmation' => 'A-secure-password-2026!',
+            ])
+            ->assertOk()
+            ->assertSeeInOrder([
+                '>Sign in</h1>',
+                'role="status">Your password has been set. You can now sign in.</div>',
+                'action="'.route('login.store').'"',
+            ], false);
+    }
 }

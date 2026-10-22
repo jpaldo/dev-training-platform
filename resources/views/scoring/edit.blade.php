@@ -11,6 +11,7 @@
         $hintClasses = 'm-0 text-sm/relaxed text-muted';
         $improveButtonClasses = 'inline-flex cursor-pointer items-center justify-center rounded-lg border border-line bg-raised px-2.5 py-1.5 font-sans text-xs font-extrabold text-white transition hover:border-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent/50 disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:border-line';
         $improveStatusClasses = 'm-0 text-sm text-muted data-error:text-rose-300';
+        $fieldErrorClasses = 'm-0 text-sm text-rose-200';
     @endphp
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -190,8 +191,14 @@
                                     </div>
                                     <textarea id="{{ $field['evidence_id'] }}" name="dimensions[{{ $field['key'] }}][evidence_reasoning]" required class="{{ $controlClasses }} min-h-28 resize-y leading-relaxed">{{ old("dimensions.{$field['key']}.evidence_reasoning", $field['evidence_reasoning']) }}</textarea>
                                     <p class="{{ $improveStatusClasses }}" data-improve-status="{{ $field['evidence_id'] }}" aria-live="polite"></p>
+                                    @error("dimensions.{$field['key']}.evidence_reasoning")
+                                        <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                                    @enderror
                                     <label for="{{ $field['points_id'] }}" class="{{ $labelClasses }}">{{ $field['key'] }} points</label>
                                     <input data-score-points data-max="{{ $field['max'] }}" id="{{ $field['points_id'] }}" type="number" name="dimensions[{{ $field['key'] }}][points]" min="0" max="{{ $field['max'] }}" value="{{ old("dimensions.{$field['key']}.points", $field['points']) }}" required class="{{ $controlClasses }} min-h-12">
+                                    @error("dimensions.{$field['key']}.points")
+                                        <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                                    @enderror
                                 </div>
                             @endforeach
 
@@ -203,6 +210,9 @@
                                 <textarea id="overall_feedback" name="overall_feedback" rows="4" maxlength="10000" placeholder="Overall feedback for this submission." aria-describedby="overall-feedback-help" class="{{ $controlClasses }} min-h-28 resize-y leading-relaxed">{{ old('overall_feedback', $overallFeedback) }}</textarea>
                                 <p class="{{ $improveStatusClasses }}" data-improve-status="overall_feedback" aria-live="polite"></p>
                                 <p id="overall-feedback-help" class="{{ $hintClasses }}">Overall feedback for this submission.</p>
+                                @error('overall_feedback')
+                                    <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                                @enderror
                             </div>
 
                             <div class="grid gap-2">
@@ -212,6 +222,9 @@
                                 </div>
                                 <textarea id="history_reason" name="history_reason" class="{{ $controlClasses }} min-h-28 resize-y leading-relaxed">{{ old('history_reason') }}</textarea>
                                 <p class="{{ $improveStatusClasses }}" data-improve-status="history_reason" aria-live="polite"></p>
+                                @error('history_reason')
+                                    <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                                @enderror
                             </div>
                         </form>
                     @else
@@ -239,25 +252,40 @@
                             <select id="second_reader_id" name="second_reader_id" required class="{{ $controlClasses }} min-h-12">
                                 <option value="">Select reader</option>
                                 @foreach($readers as $reader)
-                                    <option value="{{ $reader->id }}" @selected($score->second_reader_id === $reader->id)>{{ $reader->name }} ({{ $reader->role }})</option>
+                                    <option value="{{ $reader->id }}" @selected((int) old('second_reader_id', $score->second_reader_id) === $reader->id)>{{ $reader->name }} ({{ $reader->role }})</option>
                                 @endforeach
                             </select>
+                            @error('second_reader_id')
+                                <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                            @enderror
                         </div>
                         <div class="grid w-full gap-2">
                             <label for="second_score" class="{{ $labelClasses }}">Second-reader score</label>
-                            <input id="second_score" type="number" min="0" max="100" name="second_score" value="{{ $score->second_score }}" required class="{{ $controlClasses }} min-h-12">
+                            <input id="second_score" type="number" min="0" max="100" name="second_score" value="{{ old('second_score', $score->second_score) }}" required class="{{ $controlClasses }} min-h-12">
+                            @error('second_score')
+                                <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                            @enderror
                         </div>
                         <div class="grid w-full gap-2">
                             <label for="second_reasoning" class="{{ $labelClasses }}">Second-reader reasoning</label>
-                            <textarea id="second_reasoning" name="second_reasoning" required class="{{ $controlClasses }} min-h-28 resize-y leading-relaxed">{{ $score->second_reasoning }}</textarea>
+                            <textarea id="second_reasoning" name="second_reasoning" required class="{{ $controlClasses }} min-h-28 resize-y leading-relaxed">{{ old('second_reasoning', $score->second_reasoning) }}</textarea>
+                            @error('second_reasoning')
+                                <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                            @enderror
                         </div>
                         <div class="grid w-full gap-2">
                             <label for="moderation_outcome" class="{{ $labelClasses }}">Moderation outcome</label>
-                            <input id="moderation_outcome" name="moderation_outcome" value="{{ $score->moderation_outcome }}" placeholder="Agreed, reconciled, or escalated" class="{{ $controlClasses }} min-h-12">
+                            <input id="moderation_outcome" name="moderation_outcome" value="{{ old('moderation_outcome', $score->moderation_outcome) }}" placeholder="Agreed, reconciled, or escalated" class="{{ $controlClasses }} min-h-12">
+                            @error('moderation_outcome')
+                                <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                            @enderror
                         </div>
                         <div class="grid w-full gap-2">
                             <label for="moderation_reason" class="{{ $labelClasses }}">Moderation notes</label>
-                            <textarea id="moderation_reason" name="moderation_reason" class="{{ $controlClasses }} min-h-28 resize-y leading-relaxed">{{ $score->moderation_reason }}</textarea>
+                            <textarea id="moderation_reason" name="moderation_reason" class="{{ $controlClasses }} min-h-28 resize-y leading-relaxed">{{ old('moderation_reason', $score->moderation_reason) }}</textarea>
+                            @error('moderation_reason')
+                                <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                            @enderror
                         </div>
                         <x-ui.button variant="secondary" type="submit">Save second-reader review</x-ui.button>
                     </form>

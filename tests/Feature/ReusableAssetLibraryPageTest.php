@@ -72,6 +72,16 @@ class ReusableAssetLibraryPageTest extends TestCase
             ->assertDontSee('Requirement Test Generator');
     }
 
+    public function test_an_invalid_filter_returns_to_the_library_with_the_error(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->from(route('training.reusable-assets.index'))
+            ->followingRedirects()
+            ->get(route('training.reusable-assets.index', ['search' => str_repeat('a', 101)]))
+            ->assertOk()
+            ->assertSeeInOrder(['>Reusable AI Asset Library</h1>', 'role="alert"', 'The search field must not be greater than 100 characters.', 'aria-label="Filter reusable assets"'], false);
+    }
+
     public function test_library_lists_twelve_assets_per_page_and_keeps_the_filters_in_the_page_links(): void
     {
         foreach (range(1, 13) as $day) {

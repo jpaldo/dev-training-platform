@@ -155,9 +155,40 @@ class ScoringEditPageTest extends TestCase
             ->assertSeeInOrder([
                 'role="alert"',
                 'name="dimensions[D1][points]" min="0" max="30" value="31" required',
+                'role="alert">', 'must not be greater than 30.</p>',
+                'name="dimensions[D2][points]"',
                 '>Old overall</textarea>',
             ], false);
         $this->assertDatabaseCount('activity_scores', 0);
+    }
+
+    public function test_a_rejected_second_reader_review_keeps_the_typed_values_with_the_field_errors(): void
+    {
+        [$coach, $version] = $this->assignedCoachWithVersion();
+        $reader = User::factory()->create(['role' => 'coach', 'name' => 'Bob Reader']);
+        $this->score($version, ['D1' => [25, 'Saved D1']], null, ['second_reader_required' => true, 'second_score' => 70, 'second_reasoning' => 'Saved reasoning']);
+        $url = route('coach.scoring.edit', $version);
+
+        $this->actingAs($coach)->from($url)->followingRedirects()
+            ->post(route('coach.scoring.second-reader', $version), [
+                'second_reader_id' => $reader->id,
+                'second_score' => 101,
+                'second_reasoning' => 'Typed reasoning',
+                'moderation_outcome' => 'Typed outcome',
+                'moderation_reason' => 'Typed notes',
+            ])
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Second reader',
+                '<option value="'.$reader->id.'" selected>Bob Reader (coach)</option>',
+                'name="second_score" value="101" required',
+                'role="alert">The second score field must not be greater than 100.</p>',
+                '>Typed reasoning</textarea>',
+                'name="moderation_outcome" value="Typed outcome"',
+                '>Typed notes</textarea>',
+            ], false)
+            ->assertDontSee('Saved reasoning');
+        $this->assertSame(70, $version->activityScore()->value('second_score'));
     }
 
     public function test_a_week_three_version_shows_the_workspace_checkpoint_instead_of_answers(): void

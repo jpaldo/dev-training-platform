@@ -132,6 +132,23 @@ class CoachParticipantListPageTest extends TestCase
             ->assertSee(route('coach.week-four.pairs.unpair', $otherPair), false);
     }
 
+    public function test_a_rejected_pair_assignment_returns_to_the_page_with_the_error(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $managed = User::factory()->create();
+        $unmanaged = User::factory()->create();
+        $coach->assignedParticipants()->attach($managed->id);
+
+        $this->actingAs($coach)
+            ->from(route('coach.participants'))
+            ->followingRedirects()
+            ->post(route('coach.week-four.pairs.assign'), ['participant_one_id' => $managed->id, 'participant_two_id' => $unmanaged->id])
+            ->assertOk()
+            ->assertSeeInOrder(['>Participants</h1>', 'role="alert"', 'You are not authorized to pair both participants.', 'Assign reciprocal partners'], false);
+
+        $this->assertSame(0, WeekFourInterviewPair::query()->count());
+    }
+
     public function test_filters_keep_their_values_and_an_empty_result_shows_a_notice_instead_of_the_table(): void
     {
         User::factory()->create(['name' => 'Manual Person', 'training_path' => 'manual']);

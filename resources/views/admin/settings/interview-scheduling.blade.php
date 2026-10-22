@@ -19,6 +19,13 @@
             <p class="m-0 leading-relaxed text-muted">Store public booking pages managed by interviewers through external scheduling services. The Developer Training Platform does not create events or Meet links.</p>
         </header>
 
+        @if(session('status'))
+            <x-ui.alert tone="success" role="status">{{ session('status') }}</x-ui.alert>
+        @endif
+        @if($errors->any())
+            <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
+        @endif
+
         <x-ui.card as="section" class="grid grid-cols-1 gap-5" aria-labelledby="public-interview-page-title">
             <h2 id="public-interview-page-title" class="{{ $sectionTitleClasses }}">Public Interview Page</h2>
 
@@ -70,19 +77,19 @@
                         <label for="admin_interview_type" class="{{ $labelClasses }}">Interview Type</label>
                         <select id="admin_interview_type" name="interview_type" required class="{{ $controlClasses }}">
                             @foreach($interviewTypes as $interviewType)
-                                <option value="{{ $interviewType['value'] }}">{{ $interviewType['label'] }}</option>
+                                <option value="{{ $interviewType['value'] }}" @selected(old('interview_type') === $interviewType['value'])>{{ $interviewType['label'] }}</option>
                             @endforeach
                         </select>
                     </div>
 
                     <div class="{{ $fieldClasses }}">
                         <label for="admin_full_name" class="{{ $labelClasses }}">Full Name</label>
-                        <input id="admin_full_name" name="full_name" required class="{{ $controlClasses }}">
+                        <input id="admin_full_name" name="full_name" value="{{ old('full_name') }}" required class="{{ $controlClasses }}">
                     </div>
 
                     <div class="{{ $fieldClasses }}">
                         <label for="admin_email" class="{{ $labelClasses }}">Email (optional)</label>
-                        <input id="admin_email" name="email" type="email" class="{{ $controlClasses }}">
+                        <input id="admin_email" name="email" type="email" value="{{ old('email') }}" class="{{ $controlClasses }}">
                     </div>
 
                     <div class="{{ $fieldClasses }}">
@@ -90,20 +97,20 @@
                         <select id="admin_user_id" name="user_id" class="{{ $controlClasses }}">
                             <option value="">External interviewer</option>
                             @foreach($users as $user)
-                                <option value="{{ $user['id'] }}">{{ $user['label'] }}</option>
+                                <option value="{{ $user['id'] }}" @selected((int) old('user_id') === $user['id'])>{{ $user['label'] }}</option>
                             @endforeach
                         </select>
                     </div>
 
                     <div class="{{ $fieldClasses }}">
                         <label for="admin_mock_booking_url" class="{{ $labelClasses }}">Mock Interview Booking Link</label>
-                        <input id="admin_mock_booking_url" name="mock_booking_url" type="url" placeholder="https://booking.example.com/mock" class="{{ $controlClasses }}">
+                        <input id="admin_mock_booking_url" name="mock_booking_url" type="url" value="{{ old('mock_booking_url') }}" placeholder="https://booking.example.com/mock" class="{{ $controlClasses }}">
                     </div>
 
                     <div data-final-booking-field hidden>
                         <div class="{{ $fieldClasses }}">
                             <label for="admin_final_booking_url" class="{{ $labelClasses }}">Final Re-assessment Booking Link</label>
-                            <input id="admin_final_booking_url" name="final_booking_url" type="url" placeholder="https://booking.example.com/final" class="{{ $controlClasses }}">
+                            <input id="admin_final_booking_url" name="final_booking_url" type="url" value="{{ old('final_booking_url') }}" placeholder="https://booking.example.com/final" class="{{ $controlClasses }}">
                         </div>
                     </div>
                 </div>

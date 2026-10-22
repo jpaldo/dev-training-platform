@@ -91,6 +91,34 @@ class CoachRecoveryRequestPageTest extends TestCase
             ->assertDontSee('aria-label="Pending recovery requests"', false);
     }
 
+    public function test_a_decision_returns_to_the_page_with_the_saved_status(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $recoveryRequest = $this->recoveryRequest($coach, Activity::factory()->create(), 'Ada Approved', 1, null, now());
+
+        $this->actingAs($coach)
+            ->from(route('coach.recovery.index'))
+            ->followingRedirects()
+            ->post(route('coach.recovery.decide', $recoveryRequest), ['decision' => 'approved'])
+            ->assertOk()
+            ->assertSeeInOrder(['>Recovery requests</h1>', 'role="status"', 'Recovery request updated.'], false);
+    }
+
+    public function test_a_rejected_decision_returns_to_the_page_with_the_error(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $recoveryRequest = $this->recoveryRequest($coach, Activity::factory()->create(), 'Rita Rejected', 1, null, now());
+
+        $this->actingAs($coach)
+            ->from(route('coach.recovery.index'))
+            ->followingRedirects()
+            ->post(route('coach.recovery.decide', $recoveryRequest), ['decision' => 'approved', 'coach_response' => str_repeat('a', 2001)])
+            ->assertOk()
+            ->assertSeeInOrder(['>Recovery requests</h1>', 'role="alert"', 'The coach response field must not be greater than 2000 characters.', 'Rita Rejected · Attempt 1'], false);
+
+        $this->assertTrue($recoveryRequest->fresh()->isPending());
+    }
+
     public function test_page_query_count_does_not_grow_with_the_number_of_requests(): void
     {
         $this->assertSame($this->recoveryRequestPageQueryCount(1), $this->recoveryRequestPageQueryCount(3));

@@ -14,6 +14,10 @@
             <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Sign in</h1>
         </header>
 
+        @if(session('status'))
+            <x-ui.alert tone="success" role="status">{{ session('status') }}</x-ui.alert>
+        @endif
+
         <x-ui.card class="grid min-w-0 grid-cols-1 gap-5">
             <form method="post" action="{{ route('login.store') }}" class="m-0 grid grid-cols-1 gap-5">
                 @csrf

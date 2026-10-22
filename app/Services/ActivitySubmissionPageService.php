@@ -29,7 +29,6 @@ class ActivitySubmissionPageService
         private readonly GoogleDriveConfigurationService $googleConfiguration,
         private readonly SubmissionAnswerPresenter $answers,
         private readonly WeekFourReviewPresenter $weekFour,
-        private readonly WeekThreeWorkspacePresenter $weekThreeWorkspace,
         private readonly WeekFourSubmissionPresenter $weekFourSubmission,
         private readonly SafeMarkdownRenderer $markdown,
         private readonly EvidenceFilePolicy $evidenceFiles,
@@ -37,8 +36,7 @@ class ActivitySubmissionPageService
 
     /**
      * Data for the submission form: the latest attempt and version, the main action, the coach feedback, the field
-     * sections and evidence rows, the version history, the Week 3 workspace, and for Week 4 the activity guide and the
-     * mock interview context.
+     * sections and evidence rows, the version history, and for Week 4 the activity guide and the mock interview context.
      *
      * @return array<string, mixed>
      */
@@ -73,7 +71,6 @@ class ActivitySubmissionPageService
             'artifactTypes' => config('training.artifact_types'),
             'evidenceRows' => $this->evidenceRows($this->workflow->evidenceRequirements($activity, $participant), $version),
             'versionRows' => $this->versionRows($submission?->versions ?? collect(), $version),
-            'weekThreeWorkspace' => $trainingWeek->week_number === 3 ? $this->weekThreeWorkspace->present($participant, $trainingWeek, $activity) : null,
             ...$weekFourInterview,
             'weekFourGuide' => $trainingWeek->week_number === 4 ? $this->weekFourSubmission->guide($participant, $activity, $version) : null,
             'participantCalendarEnabled' => $this->googleConfiguration->participantCalendarEnabled(),
@@ -82,20 +79,19 @@ class ActivitySubmissionPageService
 
     /**
      * Data for a submitted version: the status summary, the labelled answers, the evidence, the coach reviews with the
-     * published score and its dimension rows, the Week 3 and Week 4 review blocks, and the submitted version history.
+     * published score and its dimension rows, the Week 4 review block, and the submitted version history.
      *
-     * @return array{pathLabel: string, statusLabel: string, statusTone: string, responses: Collection<int|string, array{label: string, value: mixed, text: mixed}>, evidenceItems: Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, reviewRows: list<array{decision_label: string, tone: string, comments: ?string}>, finalScore: ?ActivityScore, dimensionRows: list<array{dimension: string, points: int, evidence_reasoning: string}>, isAwaitingRevision: bool, weekThreeReview: ?array<string, mixed>, weekFourReview: ?array<string, mixed>, weekFourTitle: ?string, versionRows: list<array{version: SubmissionVersion, status_label: string, tone: string, is_current: bool}>}
+     * @return array{pathLabel: string, statusLabel: string, statusTone: string, responses: Collection<int|string, array{label: string, value: mixed, text: mixed}>, evidenceItems: Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, reviewRows: list<array{decision_label: string, tone: string, comments: ?string}>, finalScore: ?ActivityScore, dimensionRows: list<array{dimension: string, points: int, evidence_reasoning: string}>, isAwaitingRevision: bool, weekFourReview: ?array<string, mixed>, weekFourTitle: ?string, versionRows: list<array{version: SubmissionVersion, status_label: string, tone: string, is_current: bool}>}
      */
-    public function showData(User $participant, TrainingWeek $trainingWeek, Activity $activity, SubmissionVersion $version): array
+    public function showData(User $participant, Activity $activity, SubmissionVersion $version): array
     {
         $configured = collect($this->workflow->fieldDefinitions($activity, $participant))->mapWithKeys(fn (array $field): array => [$field['key'] => $field['label']])->all();
-        $responses = collect($version->field_values ?? [])->except(['week_three_snapshot'])->map(fn (mixed $value, int|string $key): array => [
+        $responses = collect($version->field_values ?? [])->map(fn (mixed $value, int|string $key): array => [
             'label' => $configured[$key] ?? self::LEGACY_LABELS[$key] ?? ucwords(str_replace('_', ' ', $key)),
             'value' => $value,
             'text' => is_scalar($value) ? $value : json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ]);
         $finalScore = $version->publishedActivityScore;
-        $weekThreeSnapshot = $trainingWeek->week_number === 3 ? ($version->field_values['week_three_snapshot'] ?? null) : null;
         $weekFourReview = $this->weekFour->present($activity, $version->field_values ?? []);
         $versions = $version->submission->versions;
 
@@ -113,7 +109,6 @@ class ActivitySubmissionPageService
             'finalScore' => $finalScore,
             'dimensionRows' => $this->dimensionRows($finalScore),
             'isAwaitingRevision' => $version->submission->needsRevision(),
-            'weekThreeReview' => $weekThreeSnapshot ? $this->answers->weekThreeReview($weekThreeSnapshot, (int) $activity->position, $version->submission->participant->training_path) : null,
             'weekFourReview' => $weekFourReview,
             'weekFourTitle' => $weekFourReview ? match ($activity->position) {
                 1 => 'Reusable AI Asset',

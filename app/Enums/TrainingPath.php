@@ -5,8 +5,7 @@ namespace App\Enums;
 /**
  * A participant's QA training path (stored in `users.training_path`; coaches and admins have none). An
  * `AutomationManual` participant follows both the Manual and the Automation requirements. Also the path of an
- * activity requirement (`activity_requirements.participant_path`; none for every path) and of a Week 3 test
- * (`week_three_tests.path`; `Manual` or `Automation` only).
+ * activity requirement (`activity_requirements.participant_path`; none for every path).
  */
 enum TrainingPath: string
 {
@@ -48,16 +47,5 @@ enum TrainingPath: string
     public function eligiblePaths(): array
     {
         return $this === self::AutomationManual ? self::cases() : [$this];
-    }
-
-    /**
-     * The paths a participant on this path writes Week 3 tests for: Manual and Automation for `AutomationManual`,
-     * otherwise its own.
-     *
-     * @return list<self>
-     */
-    public function weekThreeTestPaths(): array
-    {
-        return $this === self::AutomationManual ? [self::Manual, self::Automation] : [$this];
     }
 }

@@ -49,12 +49,12 @@ class ScoringPageService
 
     /**
      * Everything the coach scoring page of a submission version renders: the header, the immutable submission (answers,
-     * Week 3 snapshot, prompt / output history, evidence), the AI suggestions, the scoring fields with their values
+     * prompt / output history, evidence), the AI suggestions, the scoring fields with their values
      * (a suggestion draft kept from the page, otherwise the saved score, otherwise the suggestion when nothing is saved
      * yet), the live score context and the second-reader review. The single main action is Save / Publish Score.
      *
      * @param  array<string, mixed>|null  $draft  The scoring form values flashed when a suggestion was generated.
-     * @return array{version: SubmissionVersion, activityTitle: string, participantName: string, weekNumber: int, submissionStatus: string, submittedAt: string, answers: list<array{label: string, text: mixed}>, weekThreeReview: ?array<string, mixed>, evidenceRows: list<array{title: string, detail: ?string}>, suggestion: ?ActivityScoreSuggestion, suggestionRows: list<array{heading: string, feedback: mixed, evidence_basis: mixed}>, evidenceProcessing: list<string>, suggestionData: ?array{dimensions: mixed, overall_feedback: ?string}, aiStatus: string, isAiConfigured: bool, canManage: bool, scoreFields: list<array{key: string, label: string, max: int, evidence_id: string, points_id: string, points: mixed, evidence_reasoning: mixed}>, overallFeedback: mixed, previousAverage: ?int, score: ?ActivityScore, canManageSecondReader: bool, readers: Collection<int, User>}
+     * @return array{version: SubmissionVersion, activityTitle: string, participantName: string, weekNumber: int, submissionStatus: string, submittedAt: string, answers: list<array{label: string, text: mixed}>, evidenceRows: list<array{title: string, detail: ?string}>, suggestion: ?ActivityScoreSuggestion, suggestionRows: list<array{heading: string, feedback: mixed, evidence_basis: mixed}>, evidenceProcessing: list<string>, suggestionData: ?array{dimensions: mixed, overall_feedback: ?string}, aiStatus: string, isAiConfigured: bool, canManage: bool, scoreFields: list<array{key: string, label: string, max: int, evidence_id: string, points_id: string, points: mixed, evidence_reasoning: mixed}>, overallFeedback: mixed, previousAverage: ?int, score: ?ActivityScore, canManageSecondReader: bool, readers: Collection<int, User>}
      */
     public function editData(SubmissionVersion $version, User $viewer, ?array $draft): array
     {
@@ -74,7 +74,6 @@ class ScoringPageService
             'submissionStatus' => $submission->status->value,
             'submittedAt' => $version->submitted_at?->format('M j, Y g:i A') ?? '—',
             'answers' => $this->answerRows($version),
-            'weekThreeReview' => $this->answers->versionWeekThreeReview($version),
             'evidenceRows' => $this->evidenceRows($version->evidence),
             'suggestion' => $suggestion,
             'suggestionRows' => $this->suggestionRows($suggestion),

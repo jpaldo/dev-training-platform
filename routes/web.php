@@ -40,7 +40,6 @@ use App\Http\Controllers\TrainingWeekController;
 use App\Http\Controllers\WeekFourMentorInterviewController;
 use App\Http\Controllers\WeekFourPeerInterviewController;
 use App\Http\Controllers\WeeklyVideoRecordingController;
-use App\Http\Controllers\WeekThreeWorkspaceController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
@@ -183,7 +182,6 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
             Route::post('/weeks/{trainingWeek}/activities/{activity}/mentor-interview/schedule', [WeekFourMentorInterviewController::class, 'store'])->name('mentor-interview.schedule');
             Route::put('/weeks/{trainingWeek}/activities/{activity}/mentor-interview/schedule', [WeekFourMentorInterviewController::class, 'update'])->name('mentor-interview.reschedule');
             Route::post('/mentor-interviews/{schedule}/cancel', [WeekFourMentorInterviewController::class, 'cancel'])->name('mentor-interview.cancel');
-            Route::post('/weeks/{trainingWeek}/week-three/workspace', [WeekThreeWorkspaceController::class, 'update'])->name('week-three.workspace.update');
             Route::post('/weeks/{trainingWeek}/activities/{activity}/submission/versions/{submissionVersion}/evidence', [SubmissionEvidenceController::class, 'store'])->name('evidence.store');
             Route::post('/weeks/{trainingWeek}/activities/{activity}/export', [ActivityExportController::class, 'export'])->name('activities.export');
         });

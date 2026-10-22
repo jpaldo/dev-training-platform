@@ -850,6 +850,29 @@ class ParticipantWorkflowTest extends TestCase
         $this->actingAs($participant)->get(route('training.weeks.show', $week4))->assertOk();
     }
 
+    public function test_a_later_week_three_activity_is_submitted_like_any_other_activity(): void
+    {
+        [$participant, $week2] = $this->trainingFixture();
+        $week3 = TrainingWeek::factory()->for($week2->program)->create(['week_number' => 3, 'position' => 2]);
+        Activity::factory()->for($week3, 'week')->create(['position' => 1]);
+        $activity = Activity::factory()->for($week3, 'week')->create(['position' => 2]);
+        ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea', 'required' => true]]);
+        GateEvaluation::factory()->for(TrainingGate::factory()->for($week2, 'week'), 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+
+        $this->actingAs($participant)->post(route('training.submission.draft', [$week3, $activity]), ['field_values' => ['finding' => '']])->assertRedirect();
+        $version = ActivitySubmission::query()->firstOrFail()->versions()->firstOrFail();
+        $this->actingAs($participant)->post(route('training.submission.submit', [$week3, $activity, $version]))
+            ->assertSessionHasErrors(['field_values.finding' => 'Finding is required before submission.']);
+
+        $this->actingAs($participant)->post(route('training.submission.draft', [$week3, $activity]), ['field_values' => ['finding' => 'Checkout times out']])->assertRedirect();
+        $this->actingAs($participant)->post(route('training.submission.submit', [$week3, $activity, $version]))->assertSessionHasNoErrors();
+
+        $version->refresh();
+        $this->assertSame(SubmissionStatus::Submitted, $version->status);
+        $this->assertSame(['finding' => 'Checkout times out'], $version->field_values);
+    }
+
     public function test_coach_can_open_a_locked_participant_week(): void
     {
         [, $week2] = $this->trainingFixture();

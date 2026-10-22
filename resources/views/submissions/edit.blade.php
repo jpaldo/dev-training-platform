@@ -89,361 +89,348 @@
                 @endif
 
                 @if($isEditable)
-                    @if($trainingWeek->week_number === 3)
-                        @include('submissions.week-three', [
-                            'activity' => $activity,
-                            'trainingWeek' => $trainingWeek,
-                            'version' => $version,
-                            'workspace' => $weekThreeWorkspace,
-                            'sectionHeadingClasses' => $sectionHeadingClasses,
-                            'labelClasses' => $labelClasses,
-                            'controlClasses' => $controlClasses,
-                            'hintClasses' => $hintClasses,
-                        ])
-                    @else
-                        <form class="m-0 grid grid-cols-1 gap-5" method="post" action="{{ route('training.submission.draft', [$trainingWeek, $activity]) }}" data-submission-form>
-                            @csrf
-                            @if($showInteractions)
-                                @include('submissions.interactions', [
-                                    'rows' => $interactionRows,
-                                    'sectionHeadingClasses' => $sectionHeadingClasses,
-                                    'rowClasses' => $rowClasses,
-                                    'labelClasses' => $labelClasses,
-                                    'textareaClasses' => $textareaClasses,
-                                    'hintClasses' => $hintClasses,
-                                ])
-                            @endif
+                    <form class="m-0 grid grid-cols-1 gap-5" method="post" action="{{ route('training.submission.draft', [$trainingWeek, $activity]) }}" data-submission-form>
+                        @csrf
+                        @if($showInteractions)
+                            @include('submissions.interactions', [
+                                'rows' => $interactionRows,
+                                'sectionHeadingClasses' => $sectionHeadingClasses,
+                                'rowClasses' => $rowClasses,
+                                'labelClasses' => $labelClasses,
+                                'textareaClasses' => $textareaClasses,
+                                'hintClasses' => $hintClasses,
+                            ])
+                        @endif
 
-                            @if($isPeerInterview)
-                                <div class="{{ $sectionHeadingClasses }}">
-                                    <x-ui.eyebrow as="span">MOCK LEVEL 3 INTERVIEW</x-ui.eyebrow>
-                                    <p class="{{ $hintClasses }}">Create your own peer-practice questions, answer your partner's questions, and exchange feedback. The official assessment questionnaire is reserved for Coach/Mentor/Admin use.</p>
-                                </div>
+                        @if($isPeerInterview)
+                            <div class="{{ $sectionHeadingClasses }}">
+                                <x-ui.eyebrow as="span">MOCK LEVEL 3 INTERVIEW</x-ui.eyebrow>
+                                <p class="{{ $hintClasses }}">Create your own peer-practice questions, answer your partner's questions, and exchange feedback. The official assessment questionnaire is reserved for Coach/Mentor/Admin use.</p>
+                            </div>
 
-                                <section class="{{ $rowClasses }}" aria-labelledby="mock-interview-partners-title">
-                                    <h3 id="mock-interview-partners-title" class="{{ $rowTitleClasses }}">YOUR MOCK INTERVIEW PARTNERS</h3>
-                                    @if($partnerRows !== [])
-                                        <p class="{{ $hintClasses }}">Assigned by your QA Coach/Mentor. Each partner's interview content is kept separate.</p>
-                                        <ul class="m-0 grid list-none gap-3 p-0">
-                                            @foreach($partnerRows as $partnerRow)
-                                                <li class="grid gap-2">
-                                                    <div class="flex flex-wrap items-center gap-2">
-                                                        <strong class="wrap-break-word">{{ $partnerRow['partner']->name }}</strong>
-                                                        <x-ui.badge :tone="$partnerRow['week_four_unlocked'] ? 'success' : 'danger'">{{ $partnerRow['week_four_unlocked'] ? 'WEEK 4: UNLOCKED' : 'WEEK 4: LOCKED' }}</x-ui.badge>
-                                                    </div>
-                                                    <span class="text-sm wrap-anywhere text-muted">{{ $partnerRow['partner']->email }}</span>
-                                                    @if(! $partnerRow['week_four_unlocked'])
-                                                        <x-ui.alert tone="error" class="grid gap-1">
-                                                            <strong>PARTNER WEEK 4 STATUS</strong>
-                                                            <span>Your partner has not unlocked Week 4 yet. Please follow up with them to complete their remaining activities. You can continue preparing your own Week 4 work while you wait.</span>
-                                                        </x-ui.alert>
-                                                    @endif
-                                                </li>
-                                            @endforeach
-                                        </ul>
-                                    @else
-                                        <x-ui.alert tone="error">Partner Assignment Pending</x-ui.alert>
-                                        <p class="{{ $hintClasses }}">Your QA Coach/Mentor has not assigned your mock interview partner yet.</p>
-                                    @endif
-                                </section>
-                                <input type="hidden" name="field_values[partner_user_id]" value="{{ $interviewPartner?->id }}">
-
-                                <details class="{{ $guidanceClasses }}">
-                                    <summary class="{{ $guidanceSummaryClasses }}">Interview Guidance</summary>
-                                    <div class="{{ $guidanceBodyClasses }}">
-                                        <p>Hi {{ $user->name ?? 'there' }}, thanks for joining. Quick context before we start:</p>
-                                        <p>We're doing this to understand where everyone at Full Scale stands with AI — not to evaluate your performance, but to figure out where to invest in the right development for the right people.</p>
-                                        <p>One thing to keep in mind throughout: don't limit your answers to just what I ask. The questions are starting points. If a question makes you think of a specific project, tool, or experience — go there. The more detail and story you give me, the better.</p>
-                                        <p>Think of it less like a quiz and more like telling a teammate what you've been working on. There are no wrong answers. If you haven't used something yet, just say so — that's useful too.</p>
-                                    </div>
-                                </details>
-
-                                <section class="{{ $rowClasses }}" aria-labelledby="peer-interview-progress-title">
-                                    <h3 id="peer-interview-progress-title" class="{{ $rowTitleClasses }}">PEER INTERVIEW PROGRESS</h3>
-                                    <ul class="m-0 grid list-none gap-2 p-0">
-                                        @foreach($peerInterviewProgress as $step)
-                                            <li class="{{ $stepClasses[$step['complete'] ? 'complete' : 'incomplete'] }}">
-                                                <span class="w-4 shrink-0" aria-hidden="true">{{ $step['complete'] ? '✓' : '○' }}</span>
-                                                {{ $step['label'] }} <span class="sr-only">({{ $step['complete'] ? 'complete' : 'incomplete' }})</span>
+                            <section class="{{ $rowClasses }}" aria-labelledby="mock-interview-partners-title">
+                                <h3 id="mock-interview-partners-title" class="{{ $rowTitleClasses }}">YOUR MOCK INTERVIEW PARTNERS</h3>
+                                @if($partnerRows !== [])
+                                    <p class="{{ $hintClasses }}">Assigned by your QA Coach/Mentor. Each partner's interview content is kept separate.</p>
+                                    <ul class="m-0 grid list-none gap-3 p-0">
+                                        @foreach($partnerRows as $partnerRow)
+                                            <li class="grid gap-2">
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <strong class="wrap-break-word">{{ $partnerRow['partner']->name }}</strong>
+                                                    <x-ui.badge :tone="$partnerRow['week_four_unlocked'] ? 'success' : 'danger'">{{ $partnerRow['week_four_unlocked'] ? 'WEEK 4: UNLOCKED' : 'WEEK 4: LOCKED' }}</x-ui.badge>
+                                                </div>
+                                                <span class="text-sm wrap-anywhere text-muted">{{ $partnerRow['partner']->email }}</span>
+                                                @if(! $partnerRow['week_four_unlocked'])
+                                                    <x-ui.alert tone="error" class="grid gap-1">
+                                                        <strong>PARTNER WEEK 4 STATUS</strong>
+                                                        <span>Your partner has not unlocked Week 4 yet. Please follow up with them to complete their remaining activities. You can continue preparing your own Week 4 work while you wait.</span>
+                                                    </x-ui.alert>
+                                                @endif
                                             </li>
                                         @endforeach
                                     </ul>
-                                </section>
+                                @else
+                                    <x-ui.alert tone="error">Partner Assignment Pending</x-ui.alert>
+                                    <p class="{{ $hintClasses }}">Your QA Coach/Mentor has not assigned your mock interview partner yet.</p>
+                                @endif
+                            </section>
+                            <input type="hidden" name="field_values[partner_user_id]" value="{{ $interviewPartner?->id }}">
 
-                                <div class="grid gap-2">
-                                    <label for="about_you" class="{{ $labelClasses }}">ABOUT YOU *</label>
-                                    <p class="{{ $hintClasses }}">Briefly introduce yourself, your role, and your primary responsibilities.</p>
-                                    <textarea id="about_you" name="field_values[about_you]" rows="5" required class="{{ $textareaClasses }}">{{ old('field_values.about_you', $version?->field_values['about_you'] ?? '') }}</textarea>
+                            <details class="{{ $guidanceClasses }}">
+                                <summary class="{{ $guidanceSummaryClasses }}">Interview Guidance</summary>
+                                <div class="{{ $guidanceBodyClasses }}">
+                                    <p>Hi {{ $user->name ?? 'there' }}, thanks for joining. Quick context before we start:</p>
+                                    <p>We're doing this to understand where everyone at Full Scale stands with AI — not to evaluate your performance, but to figure out where to invest in the right development for the right people.</p>
+                                    <p>One thing to keep in mind throughout: don't limit your answers to just what I ask. The questions are starting points. If a question makes you think of a specific project, tool, or experience — go there. The more detail and story you give me, the better.</p>
+                                    <p>Think of it less like a quiz and more like telling a teammate what you've been working on. There are no wrong answers. If you haven't used something yet, just say so — that's useful too.</p>
                                 </div>
+                            </details>
 
+                            <section class="{{ $rowClasses }}" aria-labelledby="peer-interview-progress-title">
+                                <h3 id="peer-interview-progress-title" class="{{ $rowTitleClasses }}">PEER INTERVIEW PROGRESS</h3>
+                                <ul class="m-0 grid list-none gap-2 p-0">
+                                    @foreach($peerInterviewProgress as $step)
+                                        <li class="{{ $stepClasses[$step['complete'] ? 'complete' : 'incomplete'] }}">
+                                            <span class="w-4 shrink-0" aria-hidden="true">{{ $step['complete'] ? '✓' : '○' }}</span>
+                                            {{ $step['label'] }} <span class="sr-only">({{ $step['complete'] ? 'complete' : 'incomplete' }})</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </section>
+
+                            <div class="grid gap-2">
+                                <label for="about_you" class="{{ $labelClasses }}">ABOUT YOU *</label>
+                                <p class="{{ $hintClasses }}">Briefly introduce yourself, your role, and your primary responsibilities.</p>
+                                <textarea id="about_you" name="field_values[about_you]" rows="5" required class="{{ $textareaClasses }}">{{ old('field_values.about_you', $version?->field_values['about_you'] ?? '') }}</textarea>
+                            </div>
+
+                            <div class="{{ $sectionHeadingClasses }}">
+                                <x-ui.eyebrow as="span">PEER MOCK INTERVIEW</x-ui.eyebrow>
+                                <p class="{{ $hintClasses }}">Prepare your questions and answer your partner's questions. Partner questions and answers remain owned by the other participant.</p>
+                            </div>
+
+                            <section class="grid grid-cols-1 gap-3" aria-labelledby="partner-practice-questions-title">
                                 <div class="{{ $sectionHeadingClasses }}">
-                                    <x-ui.eyebrow as="span">PEER MOCK INTERVIEW</x-ui.eyebrow>
-                                    <p class="{{ $hintClasses }}">Prepare your questions and answer your partner's questions. Partner questions and answers remain owned by the other participant.</p>
+                                    <x-ui.eyebrow as="h3" id="partner-practice-questions-title" class="m-0">{{ strtoupper($interviewPartner?->name ?? 'PARTNER') }}'S PRACTICE QUESTIONS FOR ME</x-ui.eyebrow>
                                 </div>
+                                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                    @foreach($practiceRows as $practice)
+                                        <div class="{{ $rowClasses }}">
+                                            <strong>Q{{ $practice['number'] }}</strong>
+                                            @if($practice['partner_question'])
+                                                <p class="m-0 font-bold">Partner Question</p>
+                                                <div class="min-w-0 rounded-xl bg-surface-sunken p-4">
+                                                    <x-formatted-text :text="$practice['partner_question']" />
+                                                </div>
+                                                <label for="practice-answer-{{ $practice['number'] }}" class="{{ $labelClasses }}">My Answer</label>
+                                                <textarea id="practice-answer-{{ $practice['number'] }}" name="field_values[practice_answers][{{ $practice['number'] }}]" rows="4" maxlength="10000" class="{{ $textareaClasses }}">{{ old('field_values.practice_answers.'.$practice['number'], $practice['answer']) }}</textarea>
+                                            @else
+                                                <p class="{{ $hintClasses }}">Waiting for your partner to prepare this question.</p>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </section>
 
-                                <section class="grid grid-cols-1 gap-3" aria-labelledby="partner-practice-questions-title">
-                                    <div class="{{ $sectionHeadingClasses }}">
-                                        <x-ui.eyebrow as="h3" id="partner-practice-questions-title" class="m-0">{{ strtoupper($interviewPartner?->name ?? 'PARTNER') }}'S PRACTICE QUESTIONS FOR ME</x-ui.eyebrow>
-                                    </div>
-                                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                        @foreach($practiceRows as $practice)
+                            <section class="grid grid-cols-1 gap-3" aria-labelledby="my-practice-questions-title">
+                                <div class="{{ $sectionHeadingClasses }}">
+                                    <x-ui.eyebrow as="h3" id="my-practice-questions-title" class="m-0">MY PRACTICE QUESTIONS FOR {{ strtoupper($interviewPartner?->name ?? 'MY PARTNER') }}</x-ui.eyebrow>
+                                    <p class="{{ $hintClasses }}">Write open-ended questions. Do not reproduce the official questionnaire.</p>
+                                </div>
+                                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                    @foreach($practiceRows as $practice)
+                                        <div class="{{ $rowClasses }}">
+                                            <label for="practice-question-{{ $practice['number'] }}" class="{{ $labelClasses }}">Q{{ $practice['number'] }} · My Question</label>
+                                            <textarea id="practice-question-{{ $practice['number'] }}" name="field_values[practice_questions][{{ $practice['number'] }}]" rows="4" maxlength="5000" @disabled($practice['is_locked']) class="{{ $textareaClasses }}">{{ old('field_values.practice_questions.'.$practice['number'], $practice['own_question']) }}</textarea>
+                                            @if($practice['is_locked'])
+                                                <p class="{{ $hintClasses }}">Answered by {{ $interviewPartner?->name }} — question locked.</p>
+                                            @else
+                                                <p class="{{ $hintClasses }}">Partner Answer: Waiting for {{ $interviewPartner?->name ?? 'your partner' }} to answer.</p>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </section>
+
+                            <section class="grid grid-cols-1 gap-3" aria-labelledby="partner-answers-title">
+                                <div class="{{ $sectionHeadingClasses }}">
+                                    <x-ui.eyebrow as="h3" id="partner-answers-title" class="m-0">PARTNER ANSWERS</x-ui.eyebrow>
+                                </div>
+                                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                    @foreach($practiceRows as $practice)
+                                        @if($practice['is_locked'])
                                             <div class="{{ $rowClasses }}">
                                                 <strong>Q{{ $practice['number'] }}</strong>
-                                                @if($practice['partner_question'])
-                                                    <p class="m-0 font-bold">Partner Question</p>
-                                                    <div class="min-w-0 rounded-xl bg-surface-sunken p-4">
-                                                        <x-formatted-text :text="$practice['partner_question']" />
-                                                    </div>
-                                                    <label for="practice-answer-{{ $practice['number'] }}" class="{{ $labelClasses }}">My Answer</label>
-                                                    <textarea id="practice-answer-{{ $practice['number'] }}" name="field_values[practice_answers][{{ $practice['number'] }}]" rows="4" maxlength="10000" class="{{ $textareaClasses }}">{{ old('field_values.practice_answers.'.$practice['number'], $practice['answer']) }}</textarea>
-                                                @else
-                                                    <p class="{{ $hintClasses }}">Waiting for your partner to prepare this question.</p>
-                                                @endif
+                                                <p class="{{ $hintClasses }}">Answered by {{ $interviewPartner?->name }} — question locked.</p>
+                                                <x-formatted-text :text="$practice['partner_answer']" />
                                             </div>
-                                        @endforeach
-                                    </div>
-                                </section>
-
-                                <section class="grid grid-cols-1 gap-3" aria-labelledby="my-practice-questions-title">
-                                    <div class="{{ $sectionHeadingClasses }}">
-                                        <x-ui.eyebrow as="h3" id="my-practice-questions-title" class="m-0">MY PRACTICE QUESTIONS FOR {{ strtoupper($interviewPartner?->name ?? 'MY PARTNER') }}</x-ui.eyebrow>
-                                        <p class="{{ $hintClasses }}">Write open-ended questions. Do not reproduce the official questionnaire.</p>
-                                    </div>
-                                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                        @foreach($practiceRows as $practice)
-                                            <div class="{{ $rowClasses }}">
-                                                <label for="practice-question-{{ $practice['number'] }}" class="{{ $labelClasses }}">Q{{ $practice['number'] }} · My Question</label>
-                                                <textarea id="practice-question-{{ $practice['number'] }}" name="field_values[practice_questions][{{ $practice['number'] }}]" rows="4" maxlength="5000" @disabled($practice['is_locked']) class="{{ $textareaClasses }}">{{ old('field_values.practice_questions.'.$practice['number'], $practice['own_question']) }}</textarea>
-                                                @if($practice['is_locked'])
-                                                    <p class="{{ $hintClasses }}">Answered by {{ $interviewPartner?->name }} — question locked.</p>
-                                                @else
-                                                    <p class="{{ $hintClasses }}">Partner Answer: Waiting for {{ $interviewPartner?->name ?? 'your partner' }} to answer.</p>
-                                                @endif
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                </section>
-
-                                <section class="grid grid-cols-1 gap-3" aria-labelledby="partner-answers-title">
-                                    <div class="{{ $sectionHeadingClasses }}">
-                                        <x-ui.eyebrow as="h3" id="partner-answers-title" class="m-0">PARTNER ANSWERS</x-ui.eyebrow>
-                                    </div>
-                                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                        @foreach($practiceRows as $practice)
-                                            @if($practice['is_locked'])
-                                                <div class="{{ $rowClasses }}">
-                                                    <strong>Q{{ $practice['number'] }}</strong>
-                                                    <p class="{{ $hintClasses }}">Answered by {{ $interviewPartner?->name }} — question locked.</p>
-                                                    <x-formatted-text :text="$practice['partner_answer']" />
-                                                </div>
-                                            @endif
-                                        @endforeach
-                                    </div>
-                                </section>
-                            @endif
-
-                            @foreach($fieldSections as $section)
-                                <div class="{{ $sectionHeadingClasses }}">
-                                    <x-ui.eyebrow as="span">{{ $section['title'] }}</x-ui.eyebrow>
-                                    <p class="{{ $hintClasses }}">{{ $section['description'] }}</p>
+                                        @endif
+                                    @endforeach
                                 </div>
-
-                                @foreach($section['fields'] as $field)
-                                    @php
-                                        $key = $field['key'];
-                                        $isRequired = $field['required'] ?? false;
-                                        $value = old('field_values.'.$key, $version?->field_values[$key] ?? '');
-                                        $isCustomArtifactType = $field['control'] === 'artifact_type' && $value !== '' && ! in_array($value, $artifactTypes, true);
-                                    @endphp
-                                    <div class="grid min-w-0 gap-2" data-character-counter>
-                                        <label for="{{ $key }}" class="{{ $labelClasses }}">{{ $field['label'] }}{{ $isRequired ? ' *' : '' }}</label>
-                                        @if($field['has_length_note'])
-                                            <p class="{{ $hintClasses }}">Maximum 50,000 characters.</p>
-                                        @endif
-
-                                        @if($field['control'] === 'date')
-                                            <input id="{{ $key }}" type="date" name="field_values[{{ $key }}]" value="{{ $value }}" @required($isRequired) class="{{ $controlClasses }}">
-                                        @elseif($field['control'] === 'artifact_type')
-                                            <select id="{{ $key }}" name="field_values[{{ $key }}]" data-artifact-type-select @required($isRequired) @disabled($isCustomArtifactType) class="{{ $controlClasses }}">
-                                                <option value="">Select artifact type</option>
-                                                @foreach($artifactTypes as $type)
-                                                    <option value="{{ $type }}" @selected(! $isCustomArtifactType && $value === $type)>{{ $type }}</option>
-                                                @endforeach
-                                            </select>
-                                            <div data-artifact-type-other @if(! $isCustomArtifactType) hidden @endif>
-                                                <div class="grid gap-2">
-                                                    <label for="{{ $key }}-other" class="{{ $labelClasses }}">Other Artifact Type{{ $isRequired ? ' *' : '' }}</label>
-                                                    <input id="{{ $key }}-other" type="text" name="field_values[{{ $key }}_other]" value="{{ $isCustomArtifactType ? $value : '' }}" maxlength="120" placeholder="Enter the artifact type…" @disabled(! $isCustomArtifactType) @required($isCustomArtifactType && $isRequired) class="{{ $controlClasses }}">
-                                                    <p class="{{ $hintClasses }}">Select Other only when the artifact does not fit the configured options.</p>
-                                                </div>
-                                            </div>
-                                            <p class="{{ $hintClasses }}">Select the type of AI-generated QA artifact you are validating or using for this activity.</p>
-                                            <script>
-                                                (() => {
-                                                    const select = document.querySelector('[data-artifact-type-select]');
-                                                    const wrap = document.querySelector('[data-artifact-type-other]');
-                                                    const input = wrap?.querySelector('input');
-                                                    if (!select || !wrap || !input) return;
-                                                    const sync = () => {
-                                                        const custom = select.value === 'Other';
-                                                        wrap.hidden = !custom;
-                                                        select.disabled = custom;
-                                                        input.disabled = !custom;
-                                                        input.required = custom && select.required;
-                                                        if (!custom) input.value = '';
-                                                    };
-                                                    select.addEventListener('change', sync);
-                                                    sync();
-                                                })();
-                                            </script>
-                                        @elseif($field['control'] === 'select')
-                                            <select id="{{ $key }}" name="field_values[{{ $key }}]" @required($isRequired) class="{{ $controlClasses }}">
-                                                <option value="">Select an option</option>
-                                                @foreach(($field['options'] ?? []) as $option)
-                                                    <option value="{{ $option }}" @selected($value === $option)>{{ $option }}</option>
-                                                @endforeach
-                                            </select>
-                                            @if($key === 'decision')
-                                                <p class="{{ $hintClasses }}">Accept — Validation passed; no changes needed.<br>Revise — An issue was found, but you can correct the artifact yourself.<br>Re-prompt AI — The AI output needs substantial changes, so use AI to generate an improved version.<br>Reject — The artifact is unreliable or unsuitable and should not be used.</p>
-                                            @endif
-                                        @elseif($field['control'] === 'url' || $field['control'] === 'text')
-                                            <input id="{{ $key }}" type="{{ $field['control'] }}" name="field_values[{{ $key }}]" value="{{ $value }}" maxlength="{{ $field['max_length'] }}" @required($isRequired) class="{{ $controlClasses }}">
-                                            <span class="text-sm text-muted" data-char-count></span>
-                                        @elseif($field['control'] === 'markdown')
-                                            <x-markdown-field :id="$key" :name="'field_values['.$key.']'" :value="$value" :maxlength="$field['max_length']" :required="$isRequired" class="{{ $textareaClasses }}" />
-                                        @else
-                                            <textarea id="{{ $key }}" name="field_values[{{ $key }}]" rows="8" maxlength="{{ $field['max_length'] }}" @required($isRequired) class="{{ $textareaClasses }}">{{ $value }}</textarea>
-                                            <span class="text-sm text-muted" data-char-count></span>
-                                        @endif
-
-                                        @if(! empty($field['help']))
-                                            <p class="{{ $hintClasses }}">{{ $field['help'] }}</p>
-                                        @endif
-                                        @if(! empty($field['guidance']))
-                                            <details class="{{ $guidanceClasses }}">
-                                                <summary class="{{ $guidanceSummaryClasses }}">Field guidance</summary>
-                                                <div class="{{ $guidanceBodyClasses }}">
-                                                    <p><strong>What to enter</strong><br>{{ $field['guidance']['what'] ?? '' }}</p>
-                                                    <p><strong>Why it matters</strong><br>{{ $field['guidance']['why'] ?? '' }}</p>
-                                                    @if(! empty($field['guidance']['example']))
-                                                        <p><strong>Good example</strong><br>{{ $field['guidance']['example'] }}</p>
-                                                    @endif
-                                                    @if(! empty($field['guidance']['avoid']))
-                                                        <p><strong>Avoid</strong><br>{{ $field['guidance']['avoid'] }}</p>
-                                                    @endif
-                                                    @if(! empty($field['guidance']['evidence']))
-                                                        <p><strong>Evidence</strong><br>{{ $field['guidance']['evidence'] }}</p>
-                                                    @endif
-                                                </div>
-                                            </details>
-                                        @endif
-                                    </div>
-                                @endforeach
-                            @endforeach
-
-                            <div class="grid min-w-0 gap-2">
-                                <label for="participant_note" class="{{ $labelClasses }}">Participant note (optional)</label>
-                                <x-markdown-field id="participant_note" name="participant_note" :value="old('participant_note', $version?->participant_note)" :maxlength="\App\Support\FieldLimits::NOTE" class="{{ $textareaClasses }}" />
-                                <details class="{{ $guidanceClasses }}">
-                                    <summary class="{{ $guidanceSummaryClasses }}">Field guidance</summary>
-                                    <div class="{{ $guidanceBodyClasses }}">
-                                        <p><strong>What to enter</strong><br>Add context that will help your coach understand a limitation, assumption, follow-up, or decision not captured in the activity fields.</p>
-                                        <p><strong>Why it matters</strong><br>Clear notes make your reasoning and next steps traceable without changing the submitted answers.</p>
-                                        <p><strong>Good example</strong><br>I could not run the production-like check, so I documented the staging result and the follow-up needed.</p>
-                                        <p><strong>Avoid</strong><br>Do not use this as a replacement for required fields or claim work that you did not perform.</p>
-                                    </div>
-                                </details>
-                            </div>
-                            <p class="m-0 text-sm text-muted data-error:text-rose-300" data-autosave-status role="status" aria-live="polite">Changes save automatically.</p>
-                        </form>
-
-                        @if($isPeerInterview)
-                            <section class="grid grid-cols-1 gap-5 border-t border-line pt-5" aria-label="Mentor mock interview">
-                                <div class="{{ $sectionHeadingClasses }}">
-                                    <x-ui.eyebrow as="span">MENTOR MOCK INTERVIEW</x-ui.eyebrow>
-                                    <p class="{{ $hintClasses }}">Schedule a separate {{ $mentorInterviewDurationMinutes }}-minute mock interview with your assigned Mentor/Coach.</p>
-                                </div>
-
-                                @if($mentor)
-                                    <section class="{{ $rowClasses }} justify-items-start" aria-labelledby="mentor-title">
-                                        <h3 id="mentor-title" class="{{ $rowTitleClasses }}">YOUR MENTOR</h3>
-                                        <p class="m-0 wrap-anywhere"><strong>{{ $mentor->name }}</strong><br>{{ $mentor->email }}</p>
-                                        @if(! $participantCalendarEnabled)
-                                            <x-ui.alert tone="warning" class="grid w-full gap-1">
-                                                <strong>CALENDAR / GOOGLE MEET UNAVAILABLE</strong>
-                                                <span>Calendar / Google Meet scheduling is temporarily unavailable while the integration is being configured. Your existing Google Drive connection is not affected.</span>
-                                            </x-ui.alert>
-                                        @elseif($peerWaiver)
-                                            <x-ui.alert tone="success" class="w-full">✓ Peer mock interview requirement waived by Coach/Admin.</x-ui.alert>
-                                        @elseif(! $peerPrerequisiteSatisfied)
-                                            <x-ui.alert tone="error" class="grid w-full gap-1">
-                                                <strong>MENTOR SCHEDULING UNAVAILABLE</strong>
-                                                <span>Your partner mock interview is still incomplete. Complete the required peer interview steps before scheduling with your Mentor.</span>
-                                            </x-ui.alert>
-                                        @endif
-
-                                        @if($mentorSchedule?->isScheduled())
-                                            <p class="{{ $stepClasses['complete'] }} m-0 w-full">
-                                                <span class="w-4 shrink-0" aria-hidden="true">✓</span>
-                                                Mentor mock interview scheduled <span class="sr-only">(complete)</span>
-                                            </p>
-                                            <p class="m-0"><strong>{{ $mentorSchedule->startsAtInTimezone()->format('F j, Y') }}</strong><br>{{ $mentorSchedule->startsAtInTimezone()->format('g:i A') }} – {{ $mentorSchedule->endsAtInTimezone()->format('g:i A') }} ({{ $mentorSchedule->timezone }})</p>
-                                            <x-ui.button variant="secondary" :href="$mentorSchedule->google_meet_url" target="_blank" rel="noopener noreferrer">Join Google Meet</x-ui.button>
-                                            <details class="{{ $guidanceClasses }} w-full">
-                                                <summary class="{{ $guidanceSummaryClasses }}">Reschedule</summary>
-                                                <form method="POST" action="{{ route('training.mentor-interview.reschedule', [$trainingWeek, $activity]) }}" class="m-0 grid justify-items-start gap-3 px-3 pb-3">
-                                                    @csrf
-                                                    @method('PUT')
-                                                    <div class="grid w-full gap-2">
-                                                        <label for="mentor-interview-reschedule-at" class="{{ $labelClasses }}">New date and time <span aria-hidden="true">*</span></label>
-                                                        <input id="mentor-interview-reschedule-at" type="datetime-local" name="scheduled_at" required min="{{ now($mentorSchedule->timezone)->format('Y-m-d\\TH:i') }}" value="{{ $mentorSchedule->startsAtInTimezone()->format('Y-m-d\\TH:i') }}" aria-describedby="mentor-interview-timezone" class="{{ $controlClasses }}">
-                                                    </div>
-                                                    <p id="mentor-interview-timezone" class="{{ $hintClasses }}">Timezone: {{ $mentorSchedule->timezone }} · Duration: {{ $mentorSchedule->duration_minutes }} minutes</p>
-                                                    <x-ui.button variant="secondary" type="submit">Update Schedule</x-ui.button>
-                                                </form>
-                                            </details>
-                                        @else
-                                            @if(! $peerPrerequisiteSatisfied)
-                                                <x-ui.button variant="secondary" disabled aria-disabled="true">Schedule Mock Interview — disabled</x-ui.button>
-                                            @endif
-                                            <p class="{{ $stepClasses['incomplete'] }} m-0 w-full">
-                                                <span class="w-4 shrink-0" aria-hidden="true">○</span>
-                                                Mentor mock interview scheduled <span class="sr-only">(incomplete)</span>
-                                            </p>
-                                            <form method="POST" action="{{ route('training.mentor-interview.schedule', [$trainingWeek, $activity]) }}" class="m-0 grid w-full justify-items-start gap-3">
-                                                @csrf
-                                                <div class="grid w-full gap-2">
-                                                    <label for="mentor-interview-at" class="{{ $labelClasses }}">Schedule <span aria-hidden="true">*</span></label>
-                                                    <input id="mentor-interview-at" type="datetime-local" name="scheduled_at" required min="{{ now($mentorInterviewTimezone)->format('Y-m-d\\TH:i') }}" aria-describedby="mentor-interview-timezone" class="{{ $controlClasses }}">
-                                                </div>
-                                                <p id="mentor-interview-timezone" class="{{ $hintClasses }}">Timezone: {{ $mentorInterviewTimezone }} · Duration: {{ $mentorInterviewDurationMinutes }} minutes</p>
-                                                <x-ui.button variant="secondary" type="submit">Schedule Mock Interview</x-ui.button>
-                                            </form>
-                                        @endif
-                                    </section>
-                                @else
-                                    <x-ui.alert tone="error" class="grid gap-1">
-                                        <strong>MENTOR MOCK INTERVIEW</strong>
-                                        <span>Waiting for Mentor Assignment</span>
-                                        <span class="opacity-80">A Mentor/Coach must be assigned before you can schedule your mock interview.</span>
-                                    </x-ui.alert>
-                                @endif
-                                <script>
-                                    (() => {
-                                        const mentorEligible = @json($peerPrerequisiteSatisfied && $participantCalendarEnabled);
-                                        if (mentorEligible) {
-                                            return;
-                                        }
-                                        document.querySelectorAll('input[name="scheduled_at"], button[type="submit"]').forEach((control) => {
-                                            if (control.closest('form[action*="mentor-interview"]')) {
-                                                control.disabled = true;
-                                                control.setAttribute('aria-disabled', 'true');
-                                            }
-                                        });
-                                    })();
-                                </script>
                             </section>
                         @endif
+
+                        @foreach($fieldSections as $section)
+                            <div class="{{ $sectionHeadingClasses }}">
+                                <x-ui.eyebrow as="span">{{ $section['title'] }}</x-ui.eyebrow>
+                                <p class="{{ $hintClasses }}">{{ $section['description'] }}</p>
+                            </div>
+
+                            @foreach($section['fields'] as $field)
+                                @php
+                                    $key = $field['key'];
+                                    $isRequired = $field['required'] ?? false;
+                                    $value = old('field_values.'.$key, $version?->field_values[$key] ?? '');
+                                    $isCustomArtifactType = $field['control'] === 'artifact_type' && $value !== '' && ! in_array($value, $artifactTypes, true);
+                                @endphp
+                                <div class="grid min-w-0 gap-2" data-character-counter>
+                                    <label for="{{ $key }}" class="{{ $labelClasses }}">{{ $field['label'] }}{{ $isRequired ? ' *' : '' }}</label>
+                                    @if($field['has_length_note'])
+                                        <p class="{{ $hintClasses }}">Maximum 50,000 characters.</p>
+                                    @endif
+
+                                    @if($field['control'] === 'date')
+                                        <input id="{{ $key }}" type="date" name="field_values[{{ $key }}]" value="{{ $value }}" @required($isRequired) class="{{ $controlClasses }}">
+                                    @elseif($field['control'] === 'artifact_type')
+                                        <select id="{{ $key }}" name="field_values[{{ $key }}]" data-artifact-type-select @required($isRequired) @disabled($isCustomArtifactType) class="{{ $controlClasses }}">
+                                            <option value="">Select artifact type</option>
+                                            @foreach($artifactTypes as $type)
+                                                <option value="{{ $type }}" @selected(! $isCustomArtifactType && $value === $type)>{{ $type }}</option>
+                                            @endforeach
+                                        </select>
+                                        <div data-artifact-type-other @if(! $isCustomArtifactType) hidden @endif>
+                                            <div class="grid gap-2">
+                                                <label for="{{ $key }}-other" class="{{ $labelClasses }}">Other Artifact Type{{ $isRequired ? ' *' : '' }}</label>
+                                                <input id="{{ $key }}-other" type="text" name="field_values[{{ $key }}_other]" value="{{ $isCustomArtifactType ? $value : '' }}" maxlength="120" placeholder="Enter the artifact type…" @disabled(! $isCustomArtifactType) @required($isCustomArtifactType && $isRequired) class="{{ $controlClasses }}">
+                                                <p class="{{ $hintClasses }}">Select Other only when the artifact does not fit the configured options.</p>
+                                            </div>
+                                        </div>
+                                        <p class="{{ $hintClasses }}">Select the type of AI-generated QA artifact you are validating or using for this activity.</p>
+                                        <script>
+                                            (() => {
+                                                const select = document.querySelector('[data-artifact-type-select]');
+                                                const wrap = document.querySelector('[data-artifact-type-other]');
+                                                const input = wrap?.querySelector('input');
+                                                if (!select || !wrap || !input) return;
+                                                const sync = () => {
+                                                    const custom = select.value === 'Other';
+                                                    wrap.hidden = !custom;
+                                                    select.disabled = custom;
+                                                    input.disabled = !custom;
+                                                    input.required = custom && select.required;
+                                                    if (!custom) input.value = '';
+                                                };
+                                                select.addEventListener('change', sync);
+                                                sync();
+                                            })();
+                                        </script>
+                                    @elseif($field['control'] === 'select')
+                                        <select id="{{ $key }}" name="field_values[{{ $key }}]" @required($isRequired) class="{{ $controlClasses }}">
+                                            <option value="">Select an option</option>
+                                            @foreach(($field['options'] ?? []) as $option)
+                                                <option value="{{ $option }}" @selected($value === $option)>{{ $option }}</option>
+                                            @endforeach
+                                        </select>
+                                        @if($key === 'decision')
+                                            <p class="{{ $hintClasses }}">Accept — Validation passed; no changes needed.<br>Revise — An issue was found, but you can correct the artifact yourself.<br>Re-prompt AI — The AI output needs substantial changes, so use AI to generate an improved version.<br>Reject — The artifact is unreliable or unsuitable and should not be used.</p>
+                                        @endif
+                                    @elseif($field['control'] === 'url' || $field['control'] === 'text')
+                                        <input id="{{ $key }}" type="{{ $field['control'] }}" name="field_values[{{ $key }}]" value="{{ $value }}" maxlength="{{ $field['max_length'] }}" @required($isRequired) class="{{ $controlClasses }}">
+                                        <span class="text-sm text-muted" data-char-count></span>
+                                    @elseif($field['control'] === 'markdown')
+                                        <x-markdown-field :id="$key" :name="'field_values['.$key.']'" :value="$value" :maxlength="$field['max_length']" :required="$isRequired" class="{{ $textareaClasses }}" />
+                                    @else
+                                        <textarea id="{{ $key }}" name="field_values[{{ $key }}]" rows="8" maxlength="{{ $field['max_length'] }}" @required($isRequired) class="{{ $textareaClasses }}">{{ $value }}</textarea>
+                                        <span class="text-sm text-muted" data-char-count></span>
+                                    @endif
+
+                                    @if(! empty($field['help']))
+                                        <p class="{{ $hintClasses }}">{{ $field['help'] }}</p>
+                                    @endif
+                                    @if(! empty($field['guidance']))
+                                        <details class="{{ $guidanceClasses }}">
+                                            <summary class="{{ $guidanceSummaryClasses }}">Field guidance</summary>
+                                            <div class="{{ $guidanceBodyClasses }}">
+                                                <p><strong>What to enter</strong><br>{{ $field['guidance']['what'] ?? '' }}</p>
+                                                <p><strong>Why it matters</strong><br>{{ $field['guidance']['why'] ?? '' }}</p>
+                                                @if(! empty($field['guidance']['example']))
+                                                    <p><strong>Good example</strong><br>{{ $field['guidance']['example'] }}</p>
+                                                @endif
+                                                @if(! empty($field['guidance']['avoid']))
+                                                    <p><strong>Avoid</strong><br>{{ $field['guidance']['avoid'] }}</p>
+                                                @endif
+                                                @if(! empty($field['guidance']['evidence']))
+                                                    <p><strong>Evidence</strong><br>{{ $field['guidance']['evidence'] }}</p>
+                                                @endif
+                                            </div>
+                                        </details>
+                                    @endif
+                                </div>
+                            @endforeach
+                        @endforeach
+
+                        <div class="grid min-w-0 gap-2">
+                            <label for="participant_note" class="{{ $labelClasses }}">Participant note (optional)</label>
+                            <x-markdown-field id="participant_note" name="participant_note" :value="old('participant_note', $version?->participant_note)" :maxlength="\App\Support\FieldLimits::NOTE" class="{{ $textareaClasses }}" />
+                            <details class="{{ $guidanceClasses }}">
+                                <summary class="{{ $guidanceSummaryClasses }}">Field guidance</summary>
+                                <div class="{{ $guidanceBodyClasses }}">
+                                    <p><strong>What to enter</strong><br>Add context that will help your coach understand a limitation, assumption, follow-up, or decision not captured in the activity fields.</p>
+                                    <p><strong>Why it matters</strong><br>Clear notes make your reasoning and next steps traceable without changing the submitted answers.</p>
+                                    <p><strong>Good example</strong><br>I could not run the production-like check, so I documented the staging result and the follow-up needed.</p>
+                                    <p><strong>Avoid</strong><br>Do not use this as a replacement for required fields or claim work that you did not perform.</p>
+                                </div>
+                            </details>
+                        </div>
+                        <p class="m-0 text-sm text-muted data-error:text-rose-300" data-autosave-status role="status" aria-live="polite">Changes save automatically.</p>
+                    </form>
+
+                    @if($isPeerInterview)
+                        <section class="grid grid-cols-1 gap-5 border-t border-line pt-5" aria-label="Mentor mock interview">
+                            <div class="{{ $sectionHeadingClasses }}">
+                                <x-ui.eyebrow as="span">MENTOR MOCK INTERVIEW</x-ui.eyebrow>
+                                <p class="{{ $hintClasses }}">Schedule a separate {{ $mentorInterviewDurationMinutes }}-minute mock interview with your assigned Mentor/Coach.</p>
+                            </div>
+
+                            @if($mentor)
+                                <section class="{{ $rowClasses }} justify-items-start" aria-labelledby="mentor-title">
+                                    <h3 id="mentor-title" class="{{ $rowTitleClasses }}">YOUR MENTOR</h3>
+                                    <p class="m-0 wrap-anywhere"><strong>{{ $mentor->name }}</strong><br>{{ $mentor->email }}</p>
+                                    @if(! $participantCalendarEnabled)
+                                        <x-ui.alert tone="warning" class="grid w-full gap-1">
+                                            <strong>CALENDAR / GOOGLE MEET UNAVAILABLE</strong>
+                                            <span>Calendar / Google Meet scheduling is temporarily unavailable while the integration is being configured. Your existing Google Drive connection is not affected.</span>
+                                        </x-ui.alert>
+                                    @elseif($peerWaiver)
+                                        <x-ui.alert tone="success" class="w-full">✓ Peer mock interview requirement waived by Coach/Admin.</x-ui.alert>
+                                    @elseif(! $peerPrerequisiteSatisfied)
+                                        <x-ui.alert tone="error" class="grid w-full gap-1">
+                                            <strong>MENTOR SCHEDULING UNAVAILABLE</strong>
+                                            <span>Your partner mock interview is still incomplete. Complete the required peer interview steps before scheduling with your Mentor.</span>
+                                        </x-ui.alert>
+                                    @endif
+
+                                    @if($mentorSchedule?->isScheduled())
+                                        <p class="{{ $stepClasses['complete'] }} m-0 w-full">
+                                            <span class="w-4 shrink-0" aria-hidden="true">✓</span>
+                                            Mentor mock interview scheduled <span class="sr-only">(complete)</span>
+                                        </p>
+                                        <p class="m-0"><strong>{{ $mentorSchedule->startsAtInTimezone()->format('F j, Y') }}</strong><br>{{ $mentorSchedule->startsAtInTimezone()->format('g:i A') }} – {{ $mentorSchedule->endsAtInTimezone()->format('g:i A') }} ({{ $mentorSchedule->timezone }})</p>
+                                        <x-ui.button variant="secondary" :href="$mentorSchedule->google_meet_url" target="_blank" rel="noopener noreferrer">Join Google Meet</x-ui.button>
+                                        <details class="{{ $guidanceClasses }} w-full">
+                                            <summary class="{{ $guidanceSummaryClasses }}">Reschedule</summary>
+                                            <form method="POST" action="{{ route('training.mentor-interview.reschedule', [$trainingWeek, $activity]) }}" class="m-0 grid justify-items-start gap-3 px-3 pb-3">
+                                                @csrf
+                                                @method('PUT')
+                                                <div class="grid w-full gap-2">
+                                                    <label for="mentor-interview-reschedule-at" class="{{ $labelClasses }}">New date and time <span aria-hidden="true">*</span></label>
+                                                    <input id="mentor-interview-reschedule-at" type="datetime-local" name="scheduled_at" required min="{{ now($mentorSchedule->timezone)->format('Y-m-d\\TH:i') }}" value="{{ $mentorSchedule->startsAtInTimezone()->format('Y-m-d\\TH:i') }}" aria-describedby="mentor-interview-timezone" class="{{ $controlClasses }}">
+                                                </div>
+                                                <p id="mentor-interview-timezone" class="{{ $hintClasses }}">Timezone: {{ $mentorSchedule->timezone }} · Duration: {{ $mentorSchedule->duration_minutes }} minutes</p>
+                                                <x-ui.button variant="secondary" type="submit">Update Schedule</x-ui.button>
+                                            </form>
+                                        </details>
+                                    @else
+                                        @if(! $peerPrerequisiteSatisfied)
+                                            <x-ui.button variant="secondary" disabled aria-disabled="true">Schedule Mock Interview — disabled</x-ui.button>
+                                        @endif
+                                        <p class="{{ $stepClasses['incomplete'] }} m-0 w-full">
+                                            <span class="w-4 shrink-0" aria-hidden="true">○</span>
+                                            Mentor mock interview scheduled <span class="sr-only">(incomplete)</span>
+                                        </p>
+                                        <form method="POST" action="{{ route('training.mentor-interview.schedule', [$trainingWeek, $activity]) }}" class="m-0 grid w-full justify-items-start gap-3">
+                                            @csrf
+                                            <div class="grid w-full gap-2">
+                                                <label for="mentor-interview-at" class="{{ $labelClasses }}">Schedule <span aria-hidden="true">*</span></label>
+                                                <input id="mentor-interview-at" type="datetime-local" name="scheduled_at" required min="{{ now($mentorInterviewTimezone)->format('Y-m-d\\TH:i') }}" aria-describedby="mentor-interview-timezone" class="{{ $controlClasses }}">
+                                            </div>
+                                            <p id="mentor-interview-timezone" class="{{ $hintClasses }}">Timezone: {{ $mentorInterviewTimezone }} · Duration: {{ $mentorInterviewDurationMinutes }} minutes</p>
+                                            <x-ui.button variant="secondary" type="submit">Schedule Mock Interview</x-ui.button>
+                                        </form>
+                                    @endif
+                                </section>
+                            @else
+                                <x-ui.alert tone="error" class="grid gap-1">
+                                    <strong>MENTOR MOCK INTERVIEW</strong>
+                                    <span>Waiting for Mentor Assignment</span>
+                                    <span class="opacity-80">A Mentor/Coach must be assigned before you can schedule your mock interview.</span>
+                                </x-ui.alert>
+                            @endif
+                            <script>
+                                (() => {
+                                    const mentorEligible = @json($peerPrerequisiteSatisfied && $participantCalendarEnabled);
+                                    if (mentorEligible) {
+                                        return;
+                                    }
+                                    document.querySelectorAll('input[name="scheduled_at"], button[type="submit"]').forEach((control) => {
+                                        if (control.closest('form[action*="mentor-interview"]')) {
+                                            control.disabled = true;
+                                            control.setAttribute('aria-disabled', 'true');
+                                        }
+                                    });
+                                })();
+                            </script>
+                        </section>
                     @endif
                 @else
                     <p class="m-0 leading-relaxed">This submitted version is immutable. If a coach requests revision, a new version will be created.</p>

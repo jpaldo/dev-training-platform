@@ -14,7 +14,6 @@ use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeekFourInterviewPair;
 use App\Models\WeekFourPartnerFeedback;
-use App\Services\WeekThreeWorkspaceService;
 use App\Support\FieldLimits;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -317,99 +316,17 @@ class SubmissionFormPageTest extends TestCase
             ->assertDontSee('Ready to submit');
     }
 
-    public function test_week_three_findings_activity_edits_each_finding_with_its_saved_answers(): void
-    {
-        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 3, position: 1);
-        app(WeekThreeWorkspaceService::class)->save($participant, $week, ['findings' => [['title' => 'Checkout total rounds down', 'human_validation' => 'partially_supported']]]);
-
-        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'WEEK 3 WORKSPACE', 'Activity 1 target:',
-                '1/5 Findings', '0/5 Tests', '0/5 Fix Validations',
-                'Start official Activity 1 draft',
-                'Finding 1', 'Checkout total rounds down',
-                'id="week-three-findings-0-title" name="findings[0][title]" rows="2"', 'Checkout total rounds down</textarea>',
-                'AI-proposed root cause (optional)', 'Human validation *', '<option value="partially_supported" selected>Partially Supported</option>', 'Evidence supporting your assessment *',
-                'Finding 5', 'Not started',
-                'Save Week 3 workspace',
-            ], false)
-            ->assertDontSee('[tests]', false)
-            ->getContent();
-
-        $this->assertSame(5 * 14, substr_count($html, 'name="findings['));
-    }
-
-    public function test_week_three_testing_activity_shows_findings_read_only_with_a_test_per_required_path(): void
+    public function test_a_later_week_three_activity_opens_the_standard_form_before_earlier_activities_are_submitted(): void
     {
         [$participant, $week, $activity] = $this->activityFixture(weekNumber: 3, position: 2);
-        $participant->update(['training_path' => 'automation_manual']);
-        app(WeekThreeWorkspaceService::class)->save($participant, $week, ['findings' => [[
-            'title' => 'Checkout total rounds down',
-            'actual_result' => 'Total shows 9.99',
-            'human_validation' => 'supported',
-            'tests' => [
-                'manual' => ['name' => 'Manual rounding check', 'execution_evidence' => 'Screenshot of the total'],
-                'automation' => ['name' => 'Rounding spec', 'framework' => 'Playwright'],
-            ],
-        ]]]);
+        Activity::factory()->for($week, 'week')->create(['position' => 1]);
+        ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea', 'required' => true]]);
 
         $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
             ->assertOk()
-            ->assertSeeInOrder([
-                'Activity 2 target:', '1/5 Findings', '2/5 Tests',
-                'Finding 1', 'Finding / RCA (read-only)', 'Checkout total rounds down', 'Total shows 9.99', 'Human assessment:</strong> supported',
-                'Manual test', 'Test case name *', 'Manual rounding check</textarea>', 'Test evidence *', 'Screenshot of the total</textarea>',
-                'Automation test', 'Rounding spec</textarea>', 'Framework *', 'Playwright</textarea>', 'Execution report / evidence *',
-                'Finding 2', 'Finding not yet completed', 'Manual test', 'Automation test',
-            ], false)
-            ->assertDontSee('name="findings[0][title]"', false)
-            ->assertDontSee('[fix_validation]', false)
-            ->assertDontSee('Regression summary');
-    }
-
-    public function test_week_three_fix_validation_activity_adds_fix_fields_for_saved_tests_and_the_regression_summary(): void
-    {
-        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 3, position: 3);
-        app(WeekThreeWorkspaceService::class)->save($participant, $week, [
-            'regression_areas' => 'Checkout totals',
-            'findings' => [[
-                'title' => 'Checkout total rounds down',
-                'tests' => ['manual' => ['name' => 'Manual rounding check', 'fix_validation' => ['buggy_result' => 'Rounds down', 'status' => 'fixed']]],
-            ]],
-        ]);
-
-        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'Activity 3 comparison:', '1/5 Tests', '1/5 Fix Validations',
-                'Finding 1', 'Manual test', 'Manual rounding check</textarea>',
-                'Fix validation', 'Buggy branch result (l3/week-3) *', 'Rounds down</textarea>', '<option value="fixed" selected>Fixed</option>',
-                'Finding 2', 'Manual test',
-                'Regression summary', 'Areas tested *', 'Checkout totals</textarea>', 'Final conclusion *',
-                'Save Week 3 workspace',
-            ], false)
-            ->assertDontSee('Automation test')
-            ->getContent();
-
-        $this->assertSame(1, substr_count($html, 'name="findings[0][tests][manual][fix_validation][status]"'));
-        $this->assertSame(1, substr_count($html, '[fix_validation][status]'));
-    }
-
-    public function test_week_three_workspace_redisplays_the_unsaved_input_after_a_failed_save(): void
-    {
-        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 3, position: 2);
-        $editUrl = route('training.submission.edit', [$week, $activity]);
-
-        $this->actingAs($participant)->from($editUrl)->post(route('training.week-three.workspace.update', $week), ['findings' => [[
-            'human_validation' => 'not-an-assessment',
-            'tests' => ['manual' => ['name' => 'Unsaved test name']],
-        ]]])->assertRedirect($editUrl)->assertSessionHasErrors('findings.0.human_validation');
-
-        $this->actingAs($participant)->get($editUrl)
-            ->assertOk()
-            ->assertSee('name="findings[0][tests][manual][name]" rows="2" class="', false)
-            ->assertSee('Unsaved test name</textarea>', false);
+            ->assertSee('action="'.route('training.submission.draft', [$week, $activity]).'" data-submission-form>', false)
+            ->assertSee('name="field_values[finding]"', false)
+            ->assertDontSee('WEEK 3 WORKSPACE');
     }
 
     public function test_version_history_offers_a_read_only_view_of_earlier_submitted_versions_only(): void

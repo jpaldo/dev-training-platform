@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
-use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\Program;
@@ -191,22 +190,6 @@ class WeekProgressionService
     {
         abort_unless($activity->training_week_id === $week->id, 404);
         $this->ensureCanAccessWeek($user, $week);
-        $this->ensurePriorWeekThreeActivities($user, $week, $activity);
-    }
-
-    private function ensurePriorWeekThreeActivities(User $user, TrainingWeek $week, Activity $activity): void
-    {
-        if ($user->role !== UserRole::Participant || $week->week_number !== 3 || $activity->position <= 1) {
-            return;
-        }
-
-        $priorActivities = $week->activities()->where('position', '<', $activity->position)->orderBy('position')->get();
-        foreach ($priorActivities as $prior) {
-            $completed = $prior->submissions()->where('user_id', $user->id)->whereIn('status', [...SubmissionStatus::handedIn(), SubmissionStatus::UnderReview])->exists();
-            if (! $completed) {
-                throw new AuthorizationException("Complete and submit Activity {$prior->position} before starting Activity {$activity->position}.");
-            }
-        }
     }
 
     public function isCurrentWeek(User $user, TrainingWeek $week): bool

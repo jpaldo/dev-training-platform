@@ -34,7 +34,7 @@ class ActivitySubmissionController extends Controller
             'trainingWeek' => $trainingWeek,
             'activity' => $activity,
             'submissionVersion' => $submissionVersion,
-            ...$pages->showData($user, $trainingWeek, $activity, $submissionVersion),
+            ...$pages->showData($user, $activity, $submissionVersion),
         ]);
     }
 
@@ -66,7 +66,7 @@ class ActivitySubmissionController extends Controller
         $user = $request->user();
         $this->ensureCanEdit($user, $trainingWeek, $activity, $progression, $readiness);
         Gate::authorize('create', ActivitySubmission::class);
-        $version = $submissions->saveDraft($user, $trainingWeek, $activity, $request->validated('field_values', []), $request->validated('participant_note'), $request->validated('interactions'));
+        $version = $submissions->saveDraft($user, $activity, $request->validated('field_values', []), $request->validated('participant_note'), $request->validated('interactions'));
 
         if ($request->expectsJson()) {
             return response()->json(['saved' => true, 'version_id' => $version->id, 'status' => 'Saved']);
@@ -97,7 +97,7 @@ class ActivitySubmissionController extends Controller
         $this->ensureCanEdit($user, $trainingWeek, $activity, $progression, $readiness);
         abort_unless($submissionVersion->submission->activity_id === $activity->id, 404);
         Gate::authorize('update', $submissionVersion);
-        $submissions->submit($user, $trainingWeek, $activity, $submissionVersion);
+        $submissions->submit($user, $submissionVersion);
 
         return redirect()->route('training.submission.edit', [$trainingWeek, $activity])->with('status', 'Submission sent for review.');
     }

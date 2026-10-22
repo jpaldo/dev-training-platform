@@ -2,10 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\Program;
-use App\Models\SubmissionVersion;
 use App\Models\User;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -28,10 +26,6 @@ class DraftFieldLimitTest extends TestCase
             'evaluated_at' => now(),
         ]);
         $activity = $week3->activities->firstWhere('title', 'Script from Description');
-
-        $prior = $week3->activities->firstWhere('position', 1);
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($prior)->create(['status' => 'submitted']);
-        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
 
         return [$week3, $activity, $participant];
     }

@@ -180,8 +180,8 @@ class SubmissionWorkflowService
     }
 
     /**
-     * Throw the first unmet submission requirement: the Week 4 rules, then the required and select fields (not on Week 3
-     * or the Week 4 peer interview), then the required evidence.
+     * Throw the first unmet submission requirement: the Week 4 rules, then the required and select fields (not on the
+     * Week 4 peer interview), then the required evidence.
      *
      * @throws ValidationException
      */
@@ -192,7 +192,7 @@ class SubmissionWorkflowService
         $isPeerInterview = $activity->week?->week_number === 4 && $activity->position === 2;
         $legacyInterview = $isPeerInterview && app(WeekFourInterviewService::class)->isLegacyAnswers($values);
         $practiceInterview = $isPeerInterview && array_key_exists('practice_questions', $values);
-        if ($activity->week?->week_number !== 3 && ! $legacyInterview && ! $practiceInterview) {
+        if (! $legacyInterview && ! $practiceInterview) {
             foreach ($this->fieldDefinitions($activity, $user) as $field) {
                 if (($field['required'] ?? false) && blank($values[$field['key']] ?? null)) {
                     throw ValidationException::withMessages(['field_values.'.$field['key'] => $field['label'].' is required before submission.']);

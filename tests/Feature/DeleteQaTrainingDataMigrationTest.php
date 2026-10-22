@@ -47,10 +47,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         'gate_evaluations',
         'attendance_sessions',
         'weekly_video_recordings',
-        'week_three_fix_validations',
-        'week_three_tests',
-        'week_three_findings',
-        'week_three_workspaces',
         'week_four_partner_feedback',
         'week_four_interview_pairs',
         'week_four_peer_interview_waivers',
@@ -170,9 +166,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         ]);
         $scoreId = DB::table('activity_scores')->insertGetId(['submission_version_id' => $versionId, 'scorer_id' => $coach->id]);
         $gateEvaluationId = DB::table('gate_evaluations')->insertGetId(['training_gate_id' => $criterion->training_gate_id, 'user_id' => $participant->id, 'reviewer_id' => $coach->id]);
-        $workspaceId = DB::table('week_three_workspaces')->insertGetId(['user_id' => $participant->id, 'training_week_id' => $week->id]);
-        $findingId = DB::table('week_three_findings')->insertGetId(['week_three_workspace_id' => $workspaceId, 'position' => 1]);
-        $testId = DB::table('week_three_tests')->insertGetId(['week_three_finding_id' => $findingId, 'path' => 'automated']);
         $pairId = DB::table('week_four_interview_pairs')->insertGetId(['participant_one_id' => $participant->id, 'participant_two_id' => $partner->id, 'assigned_by_id' => $coach->id]);
         $availabilityId = DB::table('mentor_interview_availabilities')->insertGetId(['mentor_id' => $coach->id, 'available_date' => '2026-10-01', 'start_time' => '09:00', 'end_time' => '10:00']);
 
@@ -197,7 +190,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
             'mime_type' => 'video/mp4',
             'size_bytes' => 5,
         ]);
-        DB::table('week_three_fix_validations')->insert(['week_three_test_id' => $testId]);
         DB::table('week_four_partner_feedback')->insert(['pair_id' => $pairId, 'author_id' => $partner->id, 'recipient_id' => $participant->id, 'question_number' => 1, 'content' => 'Clear answer.']);
         DB::table('week_four_peer_interview_waivers')->insert(['participant_id' => $participant->id, 'activity_id' => $activity->id, 'authorized_by_id' => $coach->id, 'waived_at' => now()]);
         DB::table('week_four_mentor_interview_schedules')->insert([

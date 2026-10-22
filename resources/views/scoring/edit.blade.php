@@ -53,7 +53,7 @@
                             </li>
                         @endforeach
                     </ul>
-                @elseif(! $weekThreeReview)
+                @else
                     <p class="{{ $hintClasses }}">No submitted activity answers.</p>
                 @endif
 
@@ -87,13 +87,6 @@
                     </ul>
                 @endif
             </x-ui.card>
-
-            @if($weekThreeReview)
-                <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-3" aria-label="Week 3 snapshot">
-                    <p class="{{ $hintClasses }}">Participant submission · immutable Week 3 snapshot for Version {{ $version->version_number }}</p>
-                    @include('components.week-three-review', ['review' => $weekThreeReview])
-                </x-ui.card>
-            @endif
 
             <x-ui.card as="section" class="grid grid-cols-1 gap-2" aria-labelledby="rubric-title">
                 <h2 id="rubric-title" class="{{ $sectionTitleClasses }}">Rubric reference</h2>

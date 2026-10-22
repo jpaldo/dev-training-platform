@@ -191,51 +191,6 @@ class ScoringEditPageTest extends TestCase
         $this->assertSame(70, $version->activityScore()->value('second_score'));
     }
 
-    public function test_a_week_three_version_shows_the_shared_snapshot_review_with_the_participants_path_tests(): void
-    {
-        [$coach, $version] = $this->assignedCoachWithVersion([
-            'week_three_snapshot' => [
-                'findings' => [
-                    [
-                        'title' => 'Checkout total',
-                        'severity' => 'High',
-                        'tests' => [
-                            ['path' => 'manual', 'name' => 'Pay with tax', 'steps' => 'Add a taxed item', 'execution_result' => 'Failed'],
-                            ['path' => 'automation', 'name' => 'Automated tax check'],
-                        ],
-                    ],
-                ],
-            ],
-        ], 3);
-        $version->submission->activity->update(['position' => 2]);
-
-        $response = $this->actingAs($coach)->get(route('coach.scoring.edit', $version))->assertOk();
-
-        $response->assertSeeInOrder([
-            'aria-label="Week 3 snapshot"',
-            'Participant submission · immutable Week 3 snapshot for Version '.$version->version_number,
-            '>AI-Assisted Testing</h2>',
-            'Finding #1 — Checkout total',
-            'Pay with tax', '>Manual</span>',
-            '>Steps</dt>', 'Add a taxed item',
-            '>Execution Result</dt>', 'Failed',
-        ], false);
-        $response->assertDontSee('Automated tax check')
-            ->assertDontSee('Week 3 workspace checkpoint')
-            ->assertDontSee('No submitted activity answers.')
-            ->assertDontSee('Week Three Snapshot');
-    }
-
-    public function test_a_week_two_version_does_not_show_a_week_three_snapshot(): void
-    {
-        [$coach, $version] = $this->assignedCoachWithVersion(['week_three_snapshot' => ['findings' => [['title' => 'Stale finding']]]]);
-
-        $this->actingAs($coach)->get(route('coach.scoring.edit', $version))
-            ->assertOk()
-            ->assertDontSee('aria-label="Week 3 snapshot"', false)
-            ->assertDontSee('Stale finding');
-    }
-
     public function test_unassigned_coach_sees_a_read_only_page_without_the_score_or_second_reader_forms(): void
     {
         $version = $this->version();
@@ -305,10 +260,10 @@ class ScoringEditPageTest extends TestCase
      * @param  array<string, mixed>  $fieldValues
      * @return array{0: User, 1: SubmissionVersion}
      */
-    private function assignedCoachWithVersion(array $fieldValues = [], int $weekNumber = 2): array
+    private function assignedCoachWithVersion(array $fieldValues = []): array
     {
         $coach = User::factory()->create(['role' => 'coach']);
-        $version = $this->version($fieldValues, $weekNumber);
+        $version = $this->version($fieldValues);
         $coach->assignedParticipants()->attach($version->submission->user_id);
 
         return [$coach, $version];
@@ -319,10 +274,10 @@ class ScoringEditPageTest extends TestCase
      *
      * @param  array<string, mixed>  $fieldValues
      */
-    private function version(array $fieldValues = [], int $weekNumber = 2): SubmissionVersion
+    private function version(array $fieldValues = []): SubmissionVersion
     {
         $activity = Activity::factory()
-            ->for(TrainingWeek::factory()->state(['week_number' => $weekNumber]), 'week')
+            ->for(TrainingWeek::factory()->state(['week_number' => 2]), 'week')
             ->create(['title' => 'Exploratory charter']);
         $submission = ActivitySubmission::factory()
             ->for($activity)

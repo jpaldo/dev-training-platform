@@ -160,18 +160,21 @@ class GoogleDriveSyncTest extends TestCase
         $this->assertStringNotContainsString('Revision draft note', $xml);
     }
 
-    public function test_week_workbooks_print_the_submission_status_of_the_activity_and_the_week_three_checkpoint(): void
+    public function test_week_workbooks_print_the_submission_status_and_configured_answers_of_the_activity(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);
         $participant = User::factory()->create(['training_path' => 'manual']);
         foreach ([2 => 'under_review', 3 => 'needs_revision'] as $weekNumber => $status) {
             $activity = Activity::query()->whereHas('week', fn (Builder $query): Builder => $query->where('week_number', $weekNumber))->where('is_active', true)->orderBy('position')->firstOrFail();
             $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $status]);
-            SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'field_values' => []]);
+            SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'field_values' => $weekNumber === 3 ? ['failure_description' => 'Checkout times out'] : []]);
         }
 
         $this->assertStringContainsString('<t xml:space="preserve">under_review</t>', $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, 2)));
-        $this->assertStringContainsString('<t xml:space="preserve">needs_revision</t>', $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, 3)));
+        $weekThreeWorkbook = $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, 3));
+        $this->assertStringContainsString('<t xml:space="preserve">needs_revision</t>', $weekThreeWorkbook);
+        $this->assertStringContainsString('<t xml:space="preserve">Failure Description</t>', $weekThreeWorkbook);
+        $this->assertStringContainsString('<t xml:space="preserve">Checkout times out</t>', $weekThreeWorkbook);
     }
 
     public function test_sqlite_evidence_tracking_references_submission_evidence_table(): void

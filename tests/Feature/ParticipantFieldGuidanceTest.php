@@ -7,7 +7,6 @@ use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\EvidenceRequirement;
-use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\User;
@@ -197,81 +196,5 @@ class ParticipantFieldGuidanceTest extends TestCase
             }
             $this->assertSame('Historical tool', $previous->fresh()->field_values['ai_tool']);
         }
-    }
-
-    public function test_week_three_submission_pages_render_connected_workspace_fields(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
-        $week2 = $program->weeks()->where('week_number', 2)->firstOrFail();
-        $week3 = $program->weeks()->where('week_number', 3)->firstOrFail();
-        $participant = User::factory()->create(['training_path' => 'automation']);
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-
-        GateEvaluation::create([
-            'training_gate_id' => $week2->gates()->firstOrFail()->id,
-            'user_id' => $participant->id,
-            'status' => 'passed',
-            'evaluated_at' => now(),
-        ]);
-
-        $expectedLabels = [
-            'Test-Failure Root-Cause Analysis' => ['WEEK 3 WORKSPACE', 'Issue title', 'Human validation'],
-            'Script from Description' => ['WEEK 3 WORKSPACE', 'Finding / RCA (read-only)', 'Automation test'],
-            'Regression Prioritization and Coverage Gaps' => ['WEEK 3 WORKSPACE', 'Areas tested', 'Coverage gaps'],
-        ];
-
-        foreach ($expectedLabels as $title => $labels) {
-            $activity = $week3->activities()->where('title', $title)->firstOrFail();
-            if ($activity->position === 2) {
-                $activity1 = $week3->activities()->where('position', 1)->firstOrFail();
-                $activity1Submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity1)->create(['status' => 'submitted']);
-                SubmissionVersion::factory()->for($activity1Submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
-            }
-            if ($activity->position === 3) {
-                $activity2 = $week3->activities()->where('position', 2)->firstOrFail();
-                $activity2Submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity2)->create(['status' => 'submitted']);
-                SubmissionVersion::factory()->for($activity2Submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
-            }
-            $response = $this->actingAs($participant)->get(route('training.submission.edit', [$week3, $activity]));
-
-            $response->assertOk();
-            foreach ($labels as $label) {
-                $response->assertSee($label);
-            }
-        }
-    }
-
-    public function test_historical_week_three_field_values_remain_readable(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
-        $week2 = $program->weeks()->where('week_number', 2)->firstOrFail();
-        $week3 = $program->weeks()->where('week_number', 3)->firstOrFail();
-        $participant = User::factory()->create();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-
-        GateEvaluation::create([
-            'training_gate_id' => $week2->gates()->firstOrFail()->id,
-            'user_id' => $participant->id,
-            'status' => 'passed',
-            'evaluated_at' => now(),
-        ]);
-
-        $activity = $week3->activities()->where('title', 'Test-Failure Root-Cause Analysis')->firstOrFail();
-        $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'draft']);
-        $submission->versions()->create([
-            'version_number' => 1,
-            'status' => 'draft',
-            'field_values' => [
-                'failed_runs' => 'Legacy run history',
-                'shared_cause' => 'Legacy shared cause',
-                'impact_next_step' => 'Legacy next step',
-            ],
-        ]);
-
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week3, $activity]))
-            ->assertOk()->assertSee('WEEK 3 WORKSPACE')->assertDontSee('Legacy run history');
-        $this->assertSame('Legacy run history', $submission->versions()->first()->fresh()->field_values['failed_runs']);
     }
 }

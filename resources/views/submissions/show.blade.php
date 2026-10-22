@@ -40,13 +40,6 @@
             @endif
         </x-ui.card>
 
-        @if($weekThreeReview)
-            <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-3" aria-label="Week 3 snapshot">
-                <p class="{{ $hintClasses }}">Participant submission · immutable Week 3 snapshot for Version {{ $submissionVersion->version_number }}</p>
-                @include('components.week-three-review', ['review' => $weekThreeReview])
-            </x-ui.card>
-        @endif
-
         @if($weekFourReview)
             <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-3" aria-labelledby="week-four-review-title">
                 <p class="{{ $hintClasses }}">Participant submission · immutable Week 4 snapshot for Version {{ $submissionVersion->version_number }}</p>

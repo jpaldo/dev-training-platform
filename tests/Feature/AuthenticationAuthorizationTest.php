@@ -9,6 +9,7 @@ use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Routing\Route as IlluminateRoute;
@@ -357,6 +358,14 @@ class AuthenticationAuthorizationTest extends TestCase
         $this->actingAs($participant)->get('/daily-logs')->assertNotFound();
         $this->actingAs($coach)->get('/coach/reports/daily-logs')->assertNotFound();
         $this->actingAs($coach)->get('/coach/participants/'.$participant->id.'/daily-logs')->assertNotFound();
+    }
+
+    public function test_week_three_workspace_route_is_gone(): void
+    {
+        $participant = User::factory()->create();
+        $week = TrainingWeek::factory()->create(['week_number' => 3]);
+
+        $this->actingAs($participant)->post('/training/weeks/'.$week->id.'/week-three/workspace', ['findings' => []])->assertNotFound();
     }
 
     /**

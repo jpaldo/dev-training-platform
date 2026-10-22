@@ -7,28 +7,23 @@ use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionInteraction;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingWeek;
 use App\Models\User;
 
 class ActivitySubmissionService
 {
     public function __construct(
         private readonly SubmissionWorkflowService $workflow,
-        private readonly WeekThreeWorkspaceService $weekThree,
         private readonly TrainingSyncCoordinator $syncs,
     ) {}
 
     /**
-     * Save the participant's draft (opening the Week 3 workspace first), then request a Drive sync.
+     * Save the participant's draft, then request a Drive sync.
      *
      * @param  array<string, mixed>  $fieldValues
      * @param  array<int, array{prompt?: ?string, output?: ?string}>|null  $interactions
      */
-    public function saveDraft(User $participant, TrainingWeek $trainingWeek, Activity $activity, array $fieldValues, ?string $note, ?array $interactions): SubmissionVersion
+    public function saveDraft(User $participant, Activity $activity, array $fieldValues, ?string $note, ?array $interactions): SubmissionVersion
     {
-        if ($trainingWeek->week_number === 3) {
-            $this->weekThree->workspace($participant, $trainingWeek);
-        }
         $version = $this->workflow->saveDraft($participant, $activity, $fieldValues, $note, $interactions);
         $this->syncs->request($participant, 'activity_saved');
 
@@ -67,15 +62,10 @@ class ActivitySubmissionService
     }
 
     /**
-     * Submit the draft for review (checkpointing the Week 3 workspace onto it first), then request a Drive sync.
+     * Submit the draft for review, then request a Drive sync.
      */
-    public function submit(User $participant, TrainingWeek $trainingWeek, Activity $activity, SubmissionVersion $version): void
+    public function submit(User $participant, SubmissionVersion $version): void
     {
-        $this->weekThree->validateForSubmission($participant, $activity);
-        if ($trainingWeek->week_number === 3) {
-            $version->field_values = array_merge($version->field_values ?? [], ['week_three_snapshot' => $this->weekThree->snapshot($participant, $trainingWeek)]);
-            $version->save();
-        }
         $this->workflow->submit($participant, $version);
         $this->syncs->request($participant, 'activity_submitted');
     }

@@ -18,11 +18,11 @@ class CoachSubmissionReviewPageService
     ) {}
 
     /**
-     * Everything the coach review page of a submission version renders: the header, the Week 3 / Week 4 snapshots, the
+     * Everything the coach review page of a submission version renders: the header, the Week 4 snapshot, the
      * submitted fields and evidence, the latest review and which review actions the viewer may take. The single main
      * action is Save Review.
      *
-     * @return array{submissionVersion: SubmissionVersion, activityTitle: string, participantName: string, versionStatusLabel: string, weekThreeReview: ?array<string, mixed>, weekFourReview: ?array<string, mixed>, officialQuestions: array<int, array<string, mixed>>, canManage: bool, canClaim: bool, canRetry: bool, submittedFields: list<array{label: string, text: mixed}>, evidenceItems: list<array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, currentReview: ?array{decision_label: string, reviewer_name: string, reviewed_at: string, comments: ?string}, decisionOptions: list<array{value: string, label: string}>}
+     * @return array{submissionVersion: SubmissionVersion, activityTitle: string, participantName: string, versionStatusLabel: string, weekFourReview: ?array<string, mixed>, officialQuestions: array<int, array<string, mixed>>, canManage: bool, canClaim: bool, canRetry: bool, submittedFields: list<array{label: string, text: mixed}>, evidenceItems: list<array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, currentReview: ?array{decision_label: string, reviewer_name: string, reviewed_at: string, comments: ?string}, decisionOptions: list<array{value: string, label: string}>}
      */
     public function showData(SubmissionVersion $submissionVersion, User $viewer): array
     {
@@ -36,7 +36,6 @@ class CoachSubmissionReviewPageService
             'activityTitle' => $activity->title,
             'participantName' => $submission->participant->name,
             'versionStatusLabel' => $submissionVersion->status->label(),
-            'weekThreeReview' => $this->answers->versionWeekThreeReview($submissionVersion),
             'weekFourReview' => $this->weekFour->present($activity, $submissionVersion->field_values ?? [], true),
             'officialQuestions' => $activity->week->week_number === 4 && $activity->position === 2 ? $this->interviews->questionnaire() : [],
             'canManage' => $canManage,

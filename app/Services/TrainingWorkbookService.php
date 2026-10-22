@@ -49,9 +49,6 @@ class TrainingWorkbookService
         $version = $submission?->versions->first(fn (SubmissionVersion $candidate): bool => ! $candidate->isDraft())
             ?? $submission?->versions->first();
         $version?->setRelation('submission', $submission);
-        if ($activity->week->week_number === 3) {
-            return $this->weekThreeActivityRows($participant, $activity, $version);
-        }
         $historicalFields = collect();
         if ($version) {
             $historicalFields = $allRequirements->filter(fn (ActivityRequirement $requirement): bool => ($requirement->configuration['deprecated'] ?? false) && array_key_exists($requirement->configuration['key'], $version->field_values ?? []))->mapWithKeys(fn (ActivityRequirement $requirement): array => [$requirement->configuration['key'] => $requirement->configuration['label'] ?? $requirement->title]);
@@ -70,29 +67,6 @@ class TrainingWorkbookService
         }
 
         return [$headers, $row];
-    }
-
-    /** Serialize the immutable Week 3 workspace checkpoint without exporting legacy field requirements. */
-    private function weekThreeActivityRows(User $participant, Activity $activity, ?SubmissionVersion $version): array
-    {
-        $headers = ['Participant', 'QA Path', 'Week', 'Activity', 'Submission ID', 'Attempt', 'Submission Version', 'Submission Status', 'Submitted At', 'Participant Notes', 'Findings / RCA', 'Tests', 'Fix Validation', 'Regression Analysis'];
-        $row = array_fill(0, count($headers), null);
-        if (! $version) {
-            return [$headers, $row];
-        }
-
-        $snapshot = $version->field_values['week_three_snapshot'] ?? [];
-        $findings = collect($snapshot['findings'] ?? []);
-        $tests = $findings->flatMap(fn (mixed $finding): mixed => $finding['tests'] ?? [])->values()->all();
-        $fixes = collect($tests)->map(fn (mixed $test): mixed => $test['fix_validation'] ?? null)->filter()->values()->all();
-        $regression = collect($snapshot)->only(['regression_areas', 'regression_issues', 'coverage_gaps', 'final_conclusion'])->all();
-        $values = [$participant->name, $participant->trainingPathLabel(), 3, $activity->title, $version->submission->id, $version->submission->attempt_number, $version->version_number, $version->submission->status->value, $version->submitted_at, $version->participant_note];
-        $values[] = json_encode($findings->map(fn (mixed $finding): array => collect($finding)->except(['tests'])->all())->values()->all(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $values[] = json_encode($tests, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $values[] = json_encode($fixes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $values[] = json_encode($regression, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-        return [$headers, $values];
     }
 
     private function sheetName(string $name): string

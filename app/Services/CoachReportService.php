@@ -6,7 +6,6 @@ use App\Enums\GateEvaluationStatus;
 use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\TrainingWeek;
@@ -183,22 +182,6 @@ class CoachReportService
             ->where('program_id', Program::query()->select('id')->where('is_active', true)->orderBy('id')->limit(1))
             ->orderBy('week_number')
             ->get();
-    }
-
-    /**
-     * A participant's daily logs, newest first, optionally limited to one week and one date.
-     *
-     * @return Builder<DailyLog>
-     */
-    public function participantDailyLogs(User $participant, ?TrainingWeek $week, ?string $date): Builder
-    {
-        return DailyLog::query()
-            ->where('user_id', $participant->id)
-            ->with(['activity.week'])
-            ->when($week, fn (Builder $query): Builder => $query->whereHas('activity', fn (Builder $activity): Builder => $activity->where('training_week_id', $week->id)))
-            ->when($date, fn (Builder $query, string $date): Builder => $query->whereDate('logged_on', $date))
-            ->latest('logged_on')
-            ->latest('id');
     }
 
     /**

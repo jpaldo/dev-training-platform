@@ -131,11 +131,6 @@ class User extends Authenticatable
         return $this->hasMany(ActivitySubmission::class);
     }
 
-    public function dailyLogs(): HasMany
-    {
-        return $this->hasMany(DailyLog::class);
-    }
-
     public function weekThreeWorkspaces(): HasMany
     {
         return $this->hasMany(WeekThreeWorkspace::class);

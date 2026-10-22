@@ -7,7 +7,6 @@ use App\Enums\GateEvaluationStatus;
 use App\Enums\RecoveryRequestStatus;
 use App\Enums\SubmissionStatus;
 use App\Enums\TrainingPath;
-use App\Jobs\SyncTrainingDataJob;
 use App\Models\Activity;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivityRequirement;
@@ -824,72 +823,6 @@ class ParticipantWorkflowTest extends TestCase
         $this->actingAs($participant)->get(route('training.evidence.preview', $evidence))
             ->assertUnprocessable()
             ->assertExactJson(['message' => 'Unable to preview this evidence.']);
-    }
-
-    public function test_participant_daily_logs_are_owned_and_activity_associations_are_checked(): void
-    {
-        [$participant, , $activity] = $this->trainingFixture();
-        $other = User::factory()->create();
-        $log = $other->dailyLogs()->create(['activity_id' => $activity->id, 'logged_on' => now()->toDateString(), 'content' => 'Private log']);
-        $this->actingAs($participant)->get(route('daily-logs.edit', $log))->assertForbidden();
-        $this->actingAs($participant)->post(route('daily-logs.store'), ['activity_id' => $activity->id, 'logged_on' => now()->toDateString(), 'content' => 'My work'])->assertRedirect();
-        $this->assertDatabaseHas('daily_logs', ['user_id' => $participant->id, 'content' => 'My work']);
-    }
-
-    public function test_daily_log_future_date_is_rejected_server_side(): void
-    {
-        [$participant, , $activity] = $this->trainingFixture();
-
-        $this->actingAs($participant)->post(route('daily-logs.store'), [
-            'activity_id' => $activity->id,
-            'logged_on' => now(config('app.timezone', 'Asia/Manila'))->addDay()->toDateString(),
-            'content' => 'Future work',
-        ])->assertSessionHasErrors('logged_on');
-        $this->assertDatabaseMissing('daily_logs', ['user_id' => $participant->id, 'content' => 'Future work']);
-    }
-
-    public function test_daily_log_accepts_today_and_past_dates(): void
-    {
-        [$participant, , $activity] = $this->trainingFixture();
-        $timezone = config('app.timezone', 'Asia/Manila');
-
-        foreach ([now($timezone)->toDateString(), now($timezone)->subDay()->toDateString(), now($timezone)->subDays(14)->toDateString()] as $date) {
-            $this->actingAs($participant)->post(route('daily-logs.store'), [
-                'activity_id' => $activity->id,
-                'logged_on' => $date,
-                'content' => 'Work on '.$date,
-            ])->assertRedirect();
-        }
-
-        $this->assertSame(3, $participant->dailyLogs()->count());
-    }
-
-    public function test_daily_log_date_picker_defaults_to_manila_today_and_edit_preserves_stored_date(): void
-    {
-        [$participant, , $activity] = $this->trainingFixture();
-        $today = now(config('app.timezone', 'Asia/Manila'))->toDateString();
-
-        $this->actingAs($participant)->get(route('daily-logs.create'))
-            ->assertOk()
-            ->assertSee('type="date"', false)
-            ->assertSee('data-date-picker', false)
-            ->assertSee('value="'.$today.'"', false)
-            ->assertSee('max="'.$today.'"', false);
-
-        $storedDate = now(config('app.timezone', 'Asia/Manila'))->subDays(3)->toDateString();
-        $log = $participant->dailyLogs()->create(['activity_id' => $activity->id, 'logged_on' => $storedDate, 'content' => 'Existing entry']);
-        $this->actingAs($participant)->get(route('daily-logs.edit', $log))
-            ->assertOk()
-            ->assertSee('data-date-picker', false)
-            ->assertSee('value="'.$storedDate.'"', false);
-    }
-
-    public function test_daily_log_create_and_manual_export_queue_participant_week_export(): void
-    {
-        Queue::fake();
-        [$participant, , $activity] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('daily-logs.store'), ['activity_id' => $activity->id, 'logged_on' => now()->toDateString(), 'content' => 'Exportable log'])->assertRedirect();
-        Queue::assertNotPushed(SyncTrainingDataJob::class);
     }
 
     public function test_guests_cannot_access_participant_training_pages(): void

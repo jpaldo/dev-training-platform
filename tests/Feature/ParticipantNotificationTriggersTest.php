@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Jobs\GenerateParticipantNotificationsJob;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\GateCriterion;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
@@ -62,16 +61,6 @@ class ParticipantNotificationTriggersTest extends TestCase
         Queue::fake();
 
         $participant->update(['name' => 'Renamed Participant']);
-
-        Queue::assertNotPushed(GenerateParticipantNotificationsJob::class);
-    }
-
-    public function test_creating_a_daily_log_does_not_queue_a_sync(): void
-    {
-        $participant = User::factory()->create();
-        Queue::fake();
-
-        DailyLog::factory()->for($participant, 'participant')->create();
 
         Queue::assertNotPushed(GenerateParticipantNotificationsJob::class);
     }

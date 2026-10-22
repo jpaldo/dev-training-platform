@@ -4,9 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\UserRole;
 use App\Http\Requests\FilterCoachParticipantsRequest;
-use App\Http\Requests\FilterParticipantDailyLogsRequest;
 use App\Models\User;
-use App\Services\CoachParticipantDailyLogPageService;
 use App\Services\CoachParticipantListPageService;
 use App\Services\CoachParticipantPageService;
 use Illuminate\Http\Request;
@@ -26,10 +24,5 @@ class CoachParticipantController extends Controller
         Gate::authorize('view', $participant);
 
         return view('coach.participant', $page->showData($request->user(), $participant));
-    }
-
-    public function dailyLogs(FilterParticipantDailyLogsRequest $request, User $participant, CoachParticipantDailyLogPageService $page): View
-    {
-        return view('coach.participant-daily-logs', $page->indexData($participant, $request->validated()));
     }
 }

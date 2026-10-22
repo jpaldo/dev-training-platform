@@ -34,9 +34,4 @@ class Activity extends Model
     {
         return $this->hasMany(ActivitySubmission::class);
     }
-
-    public function dailyLogs(): HasMany
-    {
-        return $this->hasMany(DailyLog::class);
-    }
 }

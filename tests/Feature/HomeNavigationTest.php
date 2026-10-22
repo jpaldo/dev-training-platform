@@ -22,7 +22,7 @@ class HomeNavigationTest extends TestCase
         $this->get(route('login'))->assertOk()->assertSee(route('privacy-policy'))->assertSee(route('terms-of-service'));
     }
 
-    public function test_participant_sidebar_contains_daily_log_profile_and_logout(): void
+    public function test_participant_sidebar_contains_profile_and_logout(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant']);
@@ -30,7 +30,6 @@ class HomeNavigationTest extends TestCase
         $html = $this->actingAs($participant)->get(route('dashboard'))->assertOk()->getContent();
         $sidebar = substr($html, strpos($html, 'id="app-sidebar"'), strpos($html, '</aside>') - strpos($html, 'id="app-sidebar"'));
 
-        $this->assertStringContainsString('href="'.route('daily-logs.index').'"', $sidebar);
         $this->assertStringContainsString('href="'.route('profile.show').'"', $sidebar);
         $this->assertStringContainsString('action="'.route('logout').'"', $sidebar);
         $this->assertStringNotContainsString('href="'.route('admin.dashboard').'"', $sidebar);

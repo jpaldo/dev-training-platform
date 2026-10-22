@@ -8,7 +8,6 @@ use App\Enums\SubmissionStatus;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
-use App\Models\DailyLog;
 use App\Models\GateEvaluation;
 use App\Models\GoogleDriveConnection;
 use App\Models\Program;
@@ -154,59 +153,6 @@ class CoachOperationsTest extends TestCase
 
         $this->actingAs($coach)->get(route('coach.participants', ['path' => 'manual', 'page' => 2]))
             ->assertOk()->assertSee($participants->last()->name);
-    }
-
-    public function test_coach_daily_log_history_is_paginated_newest_first_and_filterable_by_real_week(): void
-    {
-        $this->seedProgram();
-        $coach = User::factory()->create(['role' => 'coach']);
-        $participant = User::factory()->create(['name' => 'Logs Participant']);
-        $other = User::factory()->create(['name' => 'Other Participant']);
-        $program = Program::where('name', 'AI-Assisted QA Level 3')->firstOrFail();
-        $week2 = $program->weeks()->where('week_number', 2)->firstOrFail();
-        $week3 = $program->weeks()->where('week_number', 3)->firstOrFail();
-        $week2Activity = $week2->activities()->firstOrFail();
-        $week3Activity = $week3->activities()->firstOrFail();
-        DailyLog::create(['user_id' => $participant->id, 'activity_id' => $week2Activity->id, 'logged_on' => now()->subDay()->toDateString(), 'content' => 'Older week two log']);
-        DailyLog::create(['user_id' => $participant->id, 'activity_id' => $week3Activity->id, 'logged_on' => now()->toDateString(), 'content' => 'Newest week three log']);
-        DailyLog::create(['user_id' => $other->id, 'activity_id' => $week2Activity->id, 'logged_on' => now()->toDateString(), 'content' => 'Other private log']);
-
-        $response = $this->actingAs($coach)->get(route('coach.participants.daily-logs', $participant));
-        $response->assertOk()->assertSee($participant->name)->assertSee('Newest week three log')->assertSee('Older week two log')->assertDontSee('Other private log')->assertSee('2 total logs');
-        $this->actingAs($coach)->get(route('coach.participants.daily-logs', [$participant, 'week' => $week3->week_number]))
-            ->assertOk()->assertSee('Newest week three log')->assertDontSee('Older week two log');
-        $this->actingAs($coach)->get(route('coach.participants.daily-logs', [$participant, 'date' => now()->toDateString()]))
-            ->assertOk()->assertSee('Newest week three log')->assertDontSee('Older week two log');
-        $this->actingAs($coach)->get(route('coach.participants.daily-logs', [$participant, 'week' => $week3->week_number, 'date' => now()->toDateString()]))
-            ->assertOk()->assertSee('name="date" value="'.now()->toDateString().'"', false);
-
-        for ($i = 0; $i < 25; $i++) {
-            DailyLog::create(['user_id' => $participant->id, 'activity_id' => $week2Activity->id, 'logged_on' => now()->subDays($i + 2)->toDateString(), 'content' => "Additional log {$i}"]);
-        }
-        $this->actingAs($coach)->get(route('coach.participants.daily-logs', [$participant, 'page' => 2]))
-            ->assertOk()
-            ->assertSee('Showing 26–27 of 27 Daily Logs')
-            ->assertSeeInOrder(['Additional log 23', 'Additional log 24'])
-            ->assertDontSee('Additional log 22')
-            ->assertDontSee('Newest week three log');
-    }
-
-    public function test_coach_daily_log_history_for_non_participant_is_not_found_even_with_invalid_filters(): void
-    {
-        $this->seedProgram();
-        $coach = User::factory()->create(['role' => 'coach']);
-        $otherCoach = User::factory()->create(['role' => 'coach']);
-
-        $this->actingAs($coach)->get(route('coach.participants.daily-logs', [$otherCoach, 'date' => now()->addWeek()->toDateString()]))->assertNotFound();
-    }
-
-    public function test_participants_cannot_access_coach_daily_log_history(): void
-    {
-        $this->seedProgram();
-        $participant = User::factory()->create();
-        $other = User::factory()->create();
-
-        $this->actingAs($participant)->get(route('coach.participants.daily-logs', $other))->assertForbidden();
     }
 
     public function test_gate_management_is_a_filtered_table_using_gate_readiness_data(): void

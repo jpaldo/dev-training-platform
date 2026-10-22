@@ -24,23 +24,6 @@ class GoogleDriveExportTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_manual_daily_log_export_requires_owned_connection(): void
-    {
-        Queue::fake();
-        config(['services.google_drive.enabled' => true, 'services.google_drive.client_id' => 'client', 'services.google_drive.client_secret' => 'secret', 'services.google_drive.redirect_uri' => 'https://example.test/callback']);
-        ApplicationSetting::create(['key' => 'google_drive.enabled', 'value' => '1', 'is_encrypted' => false]);
-        ApplicationSetting::create(['key' => 'google_drive.client_id', 'value' => 'client', 'is_encrypted' => false]);
-        ApplicationSetting::create(['key' => 'google_drive.redirect_uri', 'value' => 'https://example.test/callback', 'is_encrypted' => false]);
-        ApplicationSetting::create(['key' => 'google_drive.client_secret', 'value' => Crypt::encryptString('secret'), 'is_encrypted' => true]);
-        $participant = User::factory()->create(['drive_link' => 'https://drive.google.com/drive/folders/folder']);
-        $this->actingAs($participant)->post(route('daily-logs.export'), ['week' => 2])->assertRedirect()->assertSessionHasErrors('google_drive');
-        GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'a', 'google_email' => 'p@example.com', 'access_token' => 'token', 'token_expires_at' => now()->addHour(), 'connected_at' => now(), 'drive_folder_id' => 'folder']);
-        Http::fake(['https://www.googleapis.com/drive/v3/files/folder*' => Http::response(['id' => 'folder', 'mimeType' => 'application/vnd.google-apps.folder', 'capabilities' => ['canAddChildren' => true]], 200)]);
-        $this->assertTrue(app(GoogleDriveConnectionService::class)->enabled());
-        $this->actingAs($participant)->post(route('daily-logs.export'), ['week' => 2])->assertRedirect()->assertSessionHas('status');
-        Queue::assertPushed(SyncTrainingDataJob::class);
-    }
-
     public function test_successful_workbook_update_without_projected_id_preserves_tracked_identity(): void
     {
         $participant = User::factory()->create();
@@ -242,23 +225,6 @@ class GoogleDriveExportTest extends TestCase
         Http::fake(['https://www.googleapis.com/*' => Http::response(['error' => ['code' => 403]], 403)]);
 
         $this->actingAs($participant)->post(route('reports.export'))->assertRedirect()->assertSessionHas('status');
-
-        Queue::assertPushed(SyncTrainingDataJob::class);
-        Http::assertNothingSent();
-    }
-
-    public function test_daily_log_export_enqueues_before_remote_destination_validation(): void
-    {
-        Queue::fake();
-        config(['services.google_drive.enabled' => true, 'services.google_drive.client_id' => 'client', 'services.google_drive.client_secret' => 'secret', 'services.google_drive.redirect_uri' => 'https://example.test/callback']);
-        ApplicationSetting::create(['key' => 'google_drive.enabled', 'value' => '1', 'is_encrypted' => false]);
-        ApplicationSetting::create(['key' => 'google_drive.client_id', 'value' => 'client', 'is_encrypted' => false]);
-        ApplicationSetting::create(['key' => 'google_drive.redirect_uri', 'value' => 'https://example.test/callback', 'is_encrypted' => false]);
-        ApplicationSetting::create(['key' => 'google_drive.client_secret', 'value' => Crypt::encryptString('secret'), 'is_encrypted' => true]);
-        $participant = User::factory()->create(['drive_link' => 'https://drive.google.com/drive/folders/inaccessible']);
-        GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'account', 'google_email' => 'p@example.com', 'access_token' => 'token', 'token_expires_at' => now()->addHour(), 'connected_at' => now(), 'drive_folder_id' => 'old-folder']);
-
-        $this->actingAs($participant)->post(route('daily-logs.export'), ['week' => 2])->assertRedirect()->assertSessionHas('status');
 
         Queue::assertPushed(SyncTrainingDataJob::class);
         Http::assertNothingSent();

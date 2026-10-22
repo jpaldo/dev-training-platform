@@ -7,14 +7,6 @@ use App\Models\User;
 
 class TrainingExportCoordinator
 {
-    public function queueDailyLogs(User $participant, int $weekNumber): void
-    {
-        if (! $participant->googleDriveConnection || blank($participant->googleDriveConnection->drive_folder_id)) {
-            return;
-        }
-        app(TrainingSyncCoordinator::class)->queue($participant, 'daily_log_export');
-    }
-
     public function queueActivity(int $versionId): void
     {
         $version = SubmissionVersion::query()->with('submission')->findOrFail($versionId);

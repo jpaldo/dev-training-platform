@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\User;
@@ -15,96 +14,6 @@ class CoachReportsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_daily_log_completion_groups_logs_by_participant_week_and_activity(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $coach = User::factory()->create(['role' => 'coach', 'name' => 'Coach Kate']);
-        $participant = User::factory()->create(['name' => 'Ely QA', 'training_path' => 'automation_manual']);
-        $participant->assignedCoaches()->attach($coach->id);
-        $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
-        $week = $program->weeks()->where('week_number', 2)->firstOrFail();
-        $activity = $week->activities()->firstOrFail();
-        foreach (['2026-09-10', '2026-09-11', '2026-09-12'] as $date) {
-            DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => $date, 'content' => 'Work'])->update(['created_at' => now()]);
-        }
-        $otherActivity = $week->activities()->skip(1)->firstOrFail();
-        DailyLog::create(['user_id' => $participant->id, 'activity_id' => $otherActivity->id, 'logged_on' => '2026-09-13', 'content' => 'Other work']);
-
-        $response = $this->actingAs($coach)->get(route('coach.reports.daily-logs'));
-
-        $response->assertOk()->assertSee('Automation / Manual')->assertSee('Coach Kate')->assertSee('Sep 10, 2026')->assertSee('Sep 11, 2026')->assertSee('Sep 12, 2026')->assertSee($activity->title);
-        $this->assertSame(1, substr_count($response->getContent(), '<strong>3</strong>'));
-        $this->assertStringContainsString('Total Logs', $response->getContent());
-    }
-
-    public function test_daily_log_completion_filters_count_and_dates_and_csv_use_log_date(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $coach = User::factory()->create(['role' => 'coach']);
-        $participant = User::factory()->create(['name' => 'Manual Participant', 'training_path' => 'manual']);
-        $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
-        $activity = $program->weeks()->where('week_number', 2)->firstOrFail()->activities()->firstOrFail();
-        DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => '2026-09-10', 'content' => 'Old'])->update(['created_at' => '2026-09-16 12:00:00']);
-        DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => '2026-09-11', 'content' => 'New'])->update(['created_at' => '2026-09-16 12:00:00']);
-
-        $response = $this->actingAs($coach)->get(route('coach.reports.daily-logs', ['from' => '2026-09-11', 'to' => '2026-09-11']));
-        $response->assertOk()->assertSee('>1</strong>', false)->assertSee('Sep 11, 2026')->assertDontSee('Sep 10, 2026');
-
-        $csv = $this->actingAs($coach)->get(route('coach.reports.daily-logs.export'))->streamedContent();
-        $this->assertStringContainsString('"Manual Participant",Manual,2,2,"2026-09-10; 2026-09-11"', $csv);
-        $this->assertStringNotContainsString('2026-09-16', $csv);
-    }
-
-    public function test_daily_log_completion_paginates_grouped_rows_and_preserves_filters(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $coach = User::factory()->create(['role' => 'coach']);
-        $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
-        $activity = $program->weeks()->where('week_number', 2)->firstOrFail()->activities()->firstOrFail();
-        User::factory()->count(26)->create(['role' => 'participant'])->each(function (User $participant) use ($activity): void {
-            DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => '2026-09-10', 'content' => 'Work']);
-        });
-
-        $response = $this->actingAs($coach)->get(route('coach.reports.daily-logs', ['path' => 'manual', 'page' => 2]));
-
-        $response->assertOk()->assertSee('page=2')->assertSee('Completion summary');
-    }
-
-    public function test_daily_log_completion_export_applies_participant_mentor_week_and_activity_filters(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $coach = User::factory()->create(['role' => 'coach']);
-        $mentored = User::factory()->create(['name' => 'Mentored Participant']);
-        $mentoredPeer = User::factory()->create(['name' => 'Mentored Peer']);
-        $unassigned = User::factory()->create(['name' => 'Unassigned Participant']);
-        $mentored->assignedCoaches()->attach($coach->id);
-        $mentoredPeer->assignedCoaches()->attach($coach->id);
-        $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
-        $weekTwo = $program->weeks()->where('week_number', 2)->firstOrFail();
-        $weekTwoActivity = $weekTwo->activities()->firstOrFail();
-        $otherWeekTwoActivity = $weekTwo->activities()->skip(1)->firstOrFail();
-        $weekThreeActivity = $program->weeks()->where('week_number', 3)->firstOrFail()->activities()->firstOrFail();
-        DailyLog::create(['user_id' => $mentored->id, 'activity_id' => $weekTwoActivity->id, 'logged_on' => '2026-09-10', 'content' => 'Work']);
-        DailyLog::create(['user_id' => $mentored->id, 'activity_id' => $otherWeekTwoActivity->id, 'logged_on' => '2026-09-11', 'content' => 'Work']);
-        DailyLog::create(['user_id' => $mentored->id, 'activity_id' => $weekThreeActivity->id, 'logged_on' => '2026-09-17', 'content' => 'Work']);
-        DailyLog::create(['user_id' => $mentoredPeer->id, 'activity_id' => $weekTwoActivity->id, 'logged_on' => '2026-09-10', 'content' => 'Work']);
-        DailyLog::create(['user_id' => $unassigned->id, 'activity_id' => $weekTwoActivity->id, 'logged_on' => '2026-09-10', 'content' => 'Work']);
-
-        $mentorAndWeekCsv = $this->actingAs($coach)->get(route('coach.reports.daily-logs.export', ['mentor' => $coach->id, 'week' => 2]))->assertOk()->streamedContent();
-
-        $this->assertStringContainsString('2026-09-11', $mentorAndWeekCsv);
-        $this->assertStringContainsString('Mentored Peer', $mentorAndWeekCsv);
-        $this->assertStringNotContainsString('2026-09-17', $mentorAndWeekCsv);
-        $this->assertStringNotContainsString('Unassigned Participant', $mentorAndWeekCsv);
-
-        $participantAndActivityCsv = $this->actingAs($coach)->get(route('coach.reports.daily-logs.export', ['participant' => $mentored->id, 'activity' => $weekTwoActivity->id]))->assertOk()->streamedContent();
-
-        $rows = array_values(array_filter(explode("\n", $participantAndActivityCsv)));
-        $this->assertCount(2, $rows);
-        $this->assertStringContainsString('"Mentored Participant"', $rows[1]);
-        $this->assertStringContainsString('2026-09-10', $rows[1]);
-    }
-
     public function test_progress_report_uses_friendly_paths_and_mentor_filter(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);
@@ -114,20 +23,6 @@ class CoachReportsTest extends TestCase
 
         $this->actingAs($coach)->get(route('coach.reports', ['mentor' => $coach->id]))
             ->assertOk()->assertSee('Automation / Manual')->assertSee('Mentor Ely')->assertSee('Gates Passed')->assertSee('Total Participants');
-    }
-
-    public function test_coach_can_view_detailed_daily_logs_with_filters_and_participant_cannot(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $coach = User::factory()->create(['role' => 'coach', 'name' => 'Mentor Detail']);
-        $participant = User::factory()->create(['training_path' => 'automation_manual']);
-        $participant->assignedCoaches()->attach($coach->id);
-        $activity = Program::query()->where('is_active', true)->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail()->activities()->firstOrFail();
-        DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => '2026-09-10', 'content' => "Found a blocker\nRetested the flow."]);
-
-        $this->actingAs($coach)->get(route('coach.reports.daily-logs.details', ['path' => 'automation_manual', 'mentor' => $coach->id]))
-            ->assertOk()->assertSee('Detailed Daily Logs')->assertSee('Found a blocker')->assertSee('Automation / Manual')->assertSee('Mentor Detail')->assertSee('Sep 10, 2026');
-        $this->actingAs($participant)->get(route('coach.reports.daily-logs.details'))->assertForbidden();
     }
 
     public function test_admin_can_view_missing_submissions_and_participants_cannot(): void

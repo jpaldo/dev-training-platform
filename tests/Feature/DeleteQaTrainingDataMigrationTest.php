@@ -45,7 +45,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         'activity_submissions',
         'gate_criterion_evaluations',
         'gate_evaluations',
-        'daily_logs',
         'attendance_sessions',
         'weekly_video_recordings',
         'week_three_fix_validations',
@@ -188,7 +187,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         DB::table('submission_reviews')->insert(['submission_version_id' => $versionId, 'reviewer_id' => $coach->id, 'decision' => 'approved', 'reviewed_at' => now()]);
         DB::table('submission_interactions')->insert(['submission_version_id' => $versionId, 'sequence' => 1]);
         DB::table('gate_criterion_evaluations')->insert(['gate_evaluation_id' => $gateEvaluationId, 'gate_criterion_id' => $criterion->id, 'reviewer_id' => $coach->id]);
-        DB::table('daily_logs')->insert(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => '2026-10-01', 'content' => 'Worked on the checklist.']);
         DB::table('attendance_sessions')->insert(['user_id' => $participant->id, 'check_in_at' => now()]);
         DB::table('weekly_video_recordings')->insert([
             'user_id' => $participant->id,

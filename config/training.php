@@ -1,9 +1,6 @@
 <?php
 
 return [
-    // Reporting-only Week 1 (General Training); this does not affect progression.
-    'general_training_daily_logs_expected' => 5,
-    'daily_logs_per_week' => 5,
     // Application-level limits are independent of local PHP upload settings.
     // Increase only alongside the hosting/PHP limits during deployment.
     'evidence_max_kb' => 307200,

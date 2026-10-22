@@ -3,9 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
-use App\Models\Activity;
 use App\Models\ActivitySubmission;
-use App\Models\DailyLog;
 use App\Models\GateEvaluation;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
@@ -220,14 +218,12 @@ class AuthenticationAuthorizationTest extends TestCase
         $submission = ActivitySubmission::factory()->for($otherParticipant, 'participant')->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create();
         $evidence = SubmissionEvidence::factory()->for($version)->create();
-        $dailyLog = DailyLog::factory()->for($otherParticipant, 'participant')->for(Activity::factory())->create();
         $gateEvaluation = GateEvaluation::factory()->for($otherParticipant, 'participant')->create();
         $review = SubmissionReview::factory()->for($version)->create();
 
         $this->assertFalse($participant->can('view', $submission));
         $this->assertFalse($participant->can('view', $version));
         $this->assertFalse($participant->can('view', $evidence));
-        $this->assertFalse($participant->can('view', $dailyLog));
         $this->assertFalse($participant->can('view', $gateEvaluation));
         $this->assertFalse($participant->can('view', $review));
     }
@@ -256,7 +252,7 @@ class AuthenticationAuthorizationTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
         $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
 
-        foreach ([ActivitySubmission::class, SubmissionVersion::class, SubmissionEvidence::class, DailyLog::class] as $record) {
+        foreach ([ActivitySubmission::class, SubmissionVersion::class, SubmissionEvidence::class] as $record) {
             $this->assertTrue($participant->can('create', $record), $record);
             $this->assertFalse($coach->can('create', $record), $record);
             $this->assertFalse($admin->can('create', $record), $record);
@@ -351,6 +347,16 @@ class AuthenticationAuthorizationTest extends TestCase
         $this->get('/lab/login')->assertNotFound();
         $this->get('/checklist')->assertNotFound();
         $this->get('/result/1')->assertNotFound();
+    }
+
+    public function test_daily_log_pages_are_gone(): void
+    {
+        $participant = User::factory()->create();
+        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+
+        $this->actingAs($participant)->get('/daily-logs')->assertNotFound();
+        $this->actingAs($coach)->get('/coach/reports/daily-logs')->assertNotFound();
+        $this->actingAs($coach)->get('/coach/participants/'.$participant->id.'/daily-logs')->assertNotFound();
     }
 
     /**

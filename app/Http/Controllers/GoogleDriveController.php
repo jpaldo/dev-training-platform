@@ -28,22 +28,10 @@ class GoogleDriveController extends Controller
         return redirect()->away($google->authorizationUrl($state, false));
     }
 
-    public function mentorConnect(Request $request, GoogleDriveConnectionService $google): RedirectResponse
-    {
-        abort_unless($request->user()->isCoachOrAdmin(), 403);
-        $state = $google->newState();
-        $request->session()->put('mentor_google_oauth', ['state' => $state, 'user_id' => $request->user()->id, 'expires_at' => now()->addMinutes(10)->timestamp]);
-
-        return redirect()->away($google->calendarAuthorizationUrl($state));
-    }
-
     public function callback(Request $request, GoogleDriveConnectionService $google, GoogleDriveConfigurationService $configuration): RedirectResponse
     {
         if ($this->isVerificationCallback($request)) {
             return $this->completeVerificationCallback($request, $google);
-        }
-        if ($this->isMentorCallback($request)) {
-            return $this->completeMentorCallback($request, $google);
         }
 
         if ($request->user()?->role !== UserRole::Participant) {
@@ -72,35 +60,6 @@ class GoogleDriveController extends Controller
         }
 
         return redirect()->route('profile.show')->with('status', 'Google Drive connected successfully.');
-    }
-
-    private function isMentorCallback(Request $request): bool
-    {
-        $pending = $request->session()->get('mentor_google_oauth');
-        $state = (string) $request->query('state', '');
-
-        return is_array($pending) && filled($state) && hash_equals((string) ($pending['state'] ?? ''), $state);
-    }
-
-    private function completeMentorCallback(Request $request, GoogleDriveConnectionService $google): RedirectResponse
-    {
-        $pending = $request->session()->pull('mentor_google_oauth');
-        $coach = $request->user();
-        if (! is_array($pending) || ! $coach?->isCoachOrAdmin() || (int) ($pending['user_id'] ?? 0) !== (int) $coach?->id || (int) ($pending['expires_at'] ?? 0) < now()->timestamp) {
-            return redirect()->route('login')->withErrors(['google_calendar' => 'Google Calendar authorization could not be verified. Please start again.']);
-        }
-        if ($request->query('error') || blank($request->query('code'))) {
-            return redirect()->route('coach.mentor-availability.index')->withErrors(['google_calendar' => 'Google Calendar authorization was not granted.']);
-        }
-        try {
-            $google->connect($coach, (string) $request->query('code'), true);
-        } catch (Throwable $exception) {
-            Log::warning('Mentor Google Calendar OAuth failed.', ['exception' => $exception::class]);
-
-            return redirect()->route('coach.mentor-availability.index')->withErrors(['google_calendar' => 'Google Calendar authorization could not be completed.']);
-        }
-
-        return redirect()->route('coach.mentor-availability.index')->with('status', 'Google Calendar connected for Mentor interviews.');
     }
 
     private function isVerificationCallback(Request $request): bool

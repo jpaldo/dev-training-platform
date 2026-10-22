@@ -142,11 +142,6 @@ class GoogleDriveConfigurationService
         }
     }
 
-    public function saveParticipantCalendarAvailability(bool $enabled): void
-    {
-        $this->put(self::PARTICIPANT_CALENDAR_ENABLED, $enabled ? '1' : '0');
-    }
-
     public function validateConfiguration(): array
     {
         $missing = [];

@@ -81,7 +81,7 @@ class MentorInterviewSchedulingTest extends TestCase
     public function test_participant_calendar_disabled_blocks_scheduling_without_telling_participant_to_reconnect(): void
     {
         [$participant, , $activity] = $this->fixture();
-        app(GoogleDriveConfigurationService::class)->saveParticipantCalendarAvailability(false);
+        ApplicationSetting::query()->updateOrCreate(['key' => GoogleDriveConfigurationService::PARTICIPANT_CALENDAR_ENABLED], ['value' => '0', 'is_encrypted' => false]);
 
         $this->actingAs($participant)->post(route('training.mentor-interview.schedule', [$activity->week, $activity]), ['scheduled_at' => now('Asia/Manila')->addDay()->setTime(15, 0)->format('Y-m-d\\TH:i')])->assertRedirect()->assertSessionHasErrors('mentor_schedule');
         $message = session('errors')->first('mentor_schedule');
@@ -253,7 +253,7 @@ class MentorInterviewSchedulingTest extends TestCase
     /** @return array{0:User,1:User,2:Activity} */
     private function fixture(bool $calendarScope = true): array
     {
-        app(GoogleDriveConfigurationService::class)->saveParticipantCalendarAvailability(true);
+        ApplicationSetting::query()->updateOrCreate(['key' => GoogleDriveConfigurationService::PARTICIPANT_CALENDAR_ENABLED], ['value' => '1', 'is_encrypted' => false]);
         $this->seed(QaTrainingProgramSeeder::class);
         $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
         $week = $program->weeks()->where('week_number', 4)->firstOrFail();

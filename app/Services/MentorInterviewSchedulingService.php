@@ -15,7 +15,6 @@ use App\Models\User;
 use App\Models\WeekFourMentorInterviewSchedule;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -95,52 +94,6 @@ class MentorInterviewSchedulingService
             $schedule->update(['status' => MentorInterviewScheduleStatus::Failed, 'failure_reason' => 'Google Calendar could not create the meeting.']);
             throw ValidationException::withMessages(['mentor_schedule' => 'We could not create your Google Calendar meeting yet. Please try again or reconnect Google Calendar.']);
         }
-    }
-
-    public function scheduleFromAvailability(User $participant, MentorInterviewAvailability $availability, string $slotStart): WeekFourMentorInterviewSchedule
-    {
-        $mentor = $this->assignedMentor($participant);
-        abort_unless($mentor && $mentor->id === $availability->mentor_id, 403);
-        $timezone = (string) config('training.week_four_mentor_interview_timezone', config('app.timezone'));
-        $duration = (int) $availability->slot_duration_minutes;
-
-        return DB::transaction(function () use ($participant, $availability, $slotStart, $mentor, $timezone, $duration): WeekFourMentorInterviewSchedule {
-            $locked = MentorInterviewAvailability::query()->whereKey($availability->id)->lockForUpdate()->firstOrFail();
-            if (! $locked->isOpen()) {
-                throw ValidationException::withMessages(['slot_start' => 'This interview availability is closed.']);
-            }
-            $slot = app(MentorInterviewAvailabilityService::class)->slot($locked, $slotStart);
-            $booked = WeekFourMentorInterviewSchedule::query()->where('availability_id', $locked->id)->where('status', MentorInterviewScheduleStatus::Scheduled)->where('starts_at', $slot['starts_at']->utc())->where('ends_at', $slot['ends_at']->utc())->count();
-            if ($slot['starts_at']->isPast() || $booked >= (int) $locked->capacity) {
-                throw ValidationException::withMessages(['slot_start' => 'This interview slot is no longer available. Please choose another time.']);
-            }
-            $existing = WeekFourMentorInterviewSchedule::query()->where('participant_id', $participant->id)->whereIn('status', [MentorInterviewScheduleStatus::Pending, MentorInterviewScheduleStatus::Scheduled])->first();
-            if ($existing?->isScheduled()) {
-                return $existing->load(['participant', 'mentor']);
-            }
-            $schedule = $existing ?: new WeekFourMentorInterviewSchedule;
-            $schedule->fill(['participant_id' => $participant->id, 'mentor_id' => $mentor->id, 'activity_id' => null, 'availability_id' => $locked->id, 'starts_at' => $slot['starts_at']->utc(), 'ends_at' => $slot['ends_at']->utc(), 'timezone' => $timezone, 'duration_minutes' => $duration, 'status' => MentorInterviewScheduleStatus::Pending, 'failure_reason' => null]);
-            $schedule->save();
-
-            try {
-                $connection = $mentor->googleDriveConnection;
-                if (! $connection || ! in_array(GoogleCalendarService::CALENDAR_SCOPE, $connection->scopes ?? [], true)) {
-                    throw ValidationException::withMessages(['mentor_schedule' => "Online scheduling is temporarily unavailable because your Mentor's calendar has not been connected yet."]);
-                }
-                $event = $this->calendar->create($connection, "QA L3 Mock Interview - {$participant->name}", 'QA Level 3 Mentor mock interview.', $slot['starts_at']->format('c'), $slot['ends_at']->format('c'), $timezone, [$participant->email, $mentor->email], "qa-l3-{$schedule->id}");
-                $schedule->update(['status' => MentorInterviewScheduleStatus::Scheduled, 'google_event_id' => $event['event_id'], 'google_meet_url' => $event['meet_url'], 'google_conference_id' => $event['conference_id'], 'scheduled_at' => now(), 'failure_reason' => null]);
-                $schedule->load(['participant', 'mentor']);
-                $this->queueNotifications($schedule, $participant, $mentor);
-
-                return $schedule;
-            } catch (ValidationException $exception) {
-                $schedule->update(['status' => MentorInterviewScheduleStatus::Failed, 'failure_reason' => 'Google Calendar permission is required.']);
-                throw $exception;
-            } catch (Throwable) {
-                $schedule->update(['status' => MentorInterviewScheduleStatus::Failed, 'failure_reason' => 'Google Calendar could not create the meeting.']);
-                throw ValidationException::withMessages(['mentor_schedule' => 'We could not create your Google Calendar meeting yet. Please try again or reconnect Google Calendar.']);
-            }
-        });
     }
 
     public function reschedule(User $participant, Activity $activity, string $scheduledAt): WeekFourMentorInterviewSchedule

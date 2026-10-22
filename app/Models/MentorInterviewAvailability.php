@@ -32,11 +32,6 @@ class MentorInterviewAvailability extends Model
         return $this->hasMany(WeekFourMentorInterviewSchedule::class, 'availability_id');
     }
 
-    public function isOpen(): bool
-    {
-        return $this->status === MentorInterviewAvailabilityStatus::Open;
-    }
-
     /** @return list<array{starts_at:CarbonImmutable,ends_at:CarbonImmutable}> */
     public function slots(?string $timezone = null): array
     {

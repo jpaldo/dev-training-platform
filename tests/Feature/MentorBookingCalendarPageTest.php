@@ -34,6 +34,15 @@ class MentorBookingCalendarPageTest extends TestCase
             ->assertDontSee('Status: Booking Link Configured');
     }
 
+    public function test_admin_can_open_the_mentor_booking_calendar(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)->get(route('coach.mentor-booking-calendar.index'))
+            ->assertOk()
+            ->assertSee('>Mentor Mock Interview Booking</h1>', false);
+    }
+
     public function test_mentor_with_a_booking_link_sees_it_with_the_remove_form_and_status(): void
     {
         $mentor = User::factory()->create(['role' => 'coach']);

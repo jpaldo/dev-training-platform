@@ -52,7 +52,7 @@ class AdminSettingsPageTest extends TestCase
     {
         $admin = $this->admin();
         $this->configureGoogle('client-id.apps.googleusercontent.com');
-        app(GoogleDriveConfigurationService::class)->saveParticipantCalendarAvailability(true);
+        ApplicationSetting::query()->updateOrCreate(['key' => GoogleDriveConfigurationService::PARTICIPANT_CALENDAR_ENABLED], ['value' => '1', 'is_encrypted' => false]);
         GoogleDriveConnection::create(['user_id' => $admin->id, 'google_account_id' => 'admin-account', 'access_token' => 'admin-access-token', 'scopes' => [GoogleCalendarService::CALENDAR_SCOPE], 'connected_at' => now()]);
 
         $this->actingAs($admin)->get(route('admin.settings.google'))

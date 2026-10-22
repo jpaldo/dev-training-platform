@@ -172,17 +172,12 @@ class AdminSettingsAndDashboardTest extends TestCase
         $this->actingAs($admin)->get(route('admin.settings.google'))->assertOk()->assertSee('Reauthorization required for some connections');
     }
 
-    public function test_calendar_participant_availability_is_admin_controlled_and_defaults_disabled(): void
+    public function test_participant_calendar_setting_defaults_to_disabled(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $coach = User::factory()->create(['role' => 'coach']);
-        $participant = User::factory()->create(['role' => 'participant']);
 
-        $this->actingAs($admin)->get(route('admin.settings.google'))->assertOk()->assertSee('Disabled');
-        $this->actingAs($admin)->put(route('admin.settings.google.calendar-availability'), ['enabled' => 1])->assertRedirect();
-        $this->assertTrue(app(GoogleDriveConfigurationService::class)->participantCalendarEnabled());
-        $this->actingAs($coach)->put(route('admin.settings.google.calendar-availability'), ['enabled' => 0])->assertForbidden();
-        $this->actingAs($participant)->put(route('admin.settings.google.calendar-availability'), ['enabled' => 0])->assertForbidden();
+        $this->actingAs($admin)->get(route('admin.settings.google'))->assertOk()->assertSee('<strong>Legacy Calendar scope setting:</strong> Disabled', false);
+        $this->assertFalse(app(GoogleDriveConfigurationService::class)->participantCalendarEnabled());
     }
 
     public function test_admin_verification_oauth_is_admin_only_and_requests_calendar_scope_when_participants_are_disabled(): void

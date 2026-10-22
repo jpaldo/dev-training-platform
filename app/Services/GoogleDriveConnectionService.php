@@ -28,11 +28,6 @@ class GoogleDriveConnectionService
         return $this->authorizationUrlForScopes($state, $this->configuration->getScopes($includeCalendar));
     }
 
-    public function calendarAuthorizationUrl(string $state): string
-    {
-        return $this->authorizationUrlForScopes($state, ['openid', 'email', 'profile', GoogleCalendarService::CALENDAR_SCOPE]);
-    }
-
     private function authorizationUrlForScopes(string $state, array $scopes): string
     {
         $query = http_build_query([

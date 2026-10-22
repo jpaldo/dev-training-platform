@@ -21,7 +21,6 @@ use App\Http\Controllers\GoogleDriveController;
 use App\Http\Controllers\GoogleDriveDestinationController;
 use App\Http\Controllers\MarkdownPreviewController;
 use App\Http\Controllers\MentorBookingCalendarController;
-use App\Http\Controllers\MentorInterviewAvailabilityController;
 use App\Http\Controllers\MissingSubmissionReportController;
 use App\Http\Controllers\ParticipantDashboardController;
 use App\Http\Controllers\ParticipantNotificationController;
@@ -87,8 +86,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/profile/google-drive/destination', [GoogleDriveDestinationController::class, 'store'])->middleware('role:participant')->name('profile.google-drive.destination');
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
     Route::middleware('role:participant')->group(function () {
-        Route::get('/mentor-interview', [MentorInterviewAvailabilityController::class, 'participantIndex'])->name('participant.mentor-interview.index');
-        Route::post('/mentor-interview/book', [MentorInterviewAvailabilityController::class, 'book'])->name('participant.mentor-interview.book');
         Route::post('/training/week-four/partner-feedback', [WeekFourPeerInterviewController::class, 'storePartnerFeedback'])->name('training.week-four.partner-feedback');
         Route::get('/attendance', [AttendanceController::class, 'participant'])->name('participant.attendance.index');
         Route::post('/attendance/check-in', [AttendanceController::class, 'checkIn'])->name('participant.attendance.check-in');
@@ -98,7 +95,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
         Route::get('/settings', [AdminSettingsController::class, 'index'])->name('settings.index');
         Route::get('/settings/google', [AdminSettingsController::class, 'google'])->name('settings.google');
-        Route::put('/settings/google/calendar-availability', [AdminSettingsController::class, 'updateCalendarAvailability'])->name('settings.google.calendar-availability');
         Route::get('/settings/google/verification/connect', [AdminSettingsController::class, 'verificationConnect'])->name('settings.google.verification.connect');
         Route::get('/settings/google/verification/callback', [AdminSettingsController::class, 'verificationCallback'])->name('settings.google.verification.callback');
         Route::get('/settings/email', [AdminSettingsController::class, 'email'])->name('settings.email');
@@ -138,14 +134,10 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('role:coach,admin')->prefix('coach')->name('coach.')->group(function () {
         Route::get('/', [CoachOperationsController::class, 'dashboard'])->name('dashboard');
-        Route::get('/mentor-availability/google/connect', [GoogleDriveController::class, 'mentorConnect'])->name('mentor-availability.google.connect');
         Route::get('/mentor-availability', [MentorBookingCalendarController::class, 'index'])->name('mentor-availability.index');
         Route::get('/mentor-booking-calendar', [MentorBookingCalendarController::class, 'index'])->name('mentor-booking-calendar.index');
         Route::post('/mentor-booking-calendar', [MentorBookingCalendarController::class, 'store'])->name('mentor-booking-calendar.store');
         Route::delete('/mentor-booking-calendar', [MentorBookingCalendarController::class, 'destroy'])->name('mentor-booking-calendar.destroy');
-        Route::post('/mentor-availability', [MentorInterviewAvailabilityController::class, 'store'])->name('mentor-availability.store');
-        Route::patch('/mentor-availability/{availability}', [MentorInterviewAvailabilityController::class, 'update'])->name('mentor-availability.update');
-        Route::patch('/mentor-availability/{availability}/close', [MentorInterviewAvailabilityController::class, 'close'])->name('mentor-availability.close');
         Route::get('/week-four/interview-questionnaire', [WeekFourPeerInterviewController::class, 'questionnaire'])->name('week-four.questionnaire');
         Route::get('/participants', [CoachParticipantController::class, 'index'])->name('participants');
         Route::post('/week-four/interview-pairs', [WeekFourPeerInterviewController::class, 'assignPair'])->name('week-four.pairs.assign');

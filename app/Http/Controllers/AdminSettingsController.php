@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\SendEmailTestRequest;
-use App\Http\Requests\UpdateCalendarAvailabilityRequest;
 use App\Http\Requests\UpdateEmailSettingsRequest;
 use App\Models\User;
 use App\Services\AdminSettingsPageService;
@@ -28,15 +27,6 @@ class AdminSettingsController extends Controller
     public function google(AdminSettingsPageService $page): View
     {
         return view('admin.settings.google', $page->googleData());
-    }
-
-    public function updateCalendarAvailability(UpdateCalendarAvailabilityRequest $request, GoogleDriveConfigurationService $configuration): RedirectResponse
-    {
-        $configuration->saveParticipantCalendarAvailability((bool) $request->validated('enabled'));
-
-        return back()->with('status', $request->boolean('enabled')
-            ? 'Participant Calendar / Google Meet scheduling enabled.'
-            : 'Participant Calendar / Google Meet scheduling disabled. Existing Drive connections and scheduled interviews were preserved.');
     }
 
     public function verificationConnect(Request $request, GoogleDriveConfigurationService $configuration, GoogleDriveConnectionService $google): RedirectResponse

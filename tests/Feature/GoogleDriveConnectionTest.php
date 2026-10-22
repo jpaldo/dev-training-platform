@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\GoogleDriveSyncStatus;
+use App\Models\ApplicationSetting;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveSync;
 use App\Models\User;
@@ -62,7 +63,7 @@ class GoogleDriveConnectionTest extends TestCase
     public function test_oauth_request_keeps_participant_drive_scope_without_calendar_scope(): void
     {
         $participant = User::factory()->create(['role' => 'participant']);
-        app(GoogleDriveConfigurationService::class)->saveParticipantCalendarAvailability(true);
+        ApplicationSetting::query()->updateOrCreate(['key' => GoogleDriveConfigurationService::PARTICIPANT_CALENDAR_ENABLED], ['value' => '1', 'is_encrypted' => false]);
 
         $response = $this->actingAs($participant)->get(route('profile.google-drive.connect'))->assertRedirect();
         $location = $response->headers->get('Location');

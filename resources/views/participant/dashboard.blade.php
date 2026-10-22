@@ -197,17 +197,6 @@
                                 </div>
                             </x-ui.card>
 
-                            @if(in_array($item['week']->week_number, [2, 3, 4], true))
-                                <x-ui.card padding="p-5" class="grid gap-2.5">
-                                    <h3 class="m-0 text-base font-extrabold">Training Guide</h3>
-                                    <span class="text-sm text-muted">Week {{ $item['week']->week_number }} Activity Guide</span>
-                                    <div class="flex flex-wrap gap-2.5">
-                                        <x-ui.button variant="secondary" :href="route('training.guides.view', $item['week']->week_number)" target="_blank" rel="noopener">View Guide</x-ui.button>
-                                        <x-ui.button variant="secondary" :href="route('training.guides.download', $item['week']->week_number)">Download Guide</x-ui.button>
-                                    </div>
-                                </x-ui.card>
-                            @endif
-
                             @if($item['available'])
                                 <x-ui.card padding="p-5" class="grid gap-2.5">
                                     <h3 class="m-0 text-base font-extrabold">Video Recording</h3>

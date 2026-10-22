@@ -145,6 +145,19 @@ class ParticipantDashboardControllerTest extends TestCase
             ->assertDontSee('daily log');
     }
 
+    public function test_week_panels_show_no_training_guide_card(): void
+    {
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
+        Activity::factory()->for($week, 'week')->create();
+
+        $this->actingAs($participant)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('aria-label="Week 2 progress"', false)
+            ->assertDontSee('Training Guide')
+            ->assertDontSee('/training/guides/', false);
+    }
+
     public function test_a_week_four_activity_two_is_listed_like_any_other_activity_without_peer_or_mentor_interviews(): void
     {
         $participant = User::factory()->create(['training_path' => 'manual']);

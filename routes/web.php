@@ -32,7 +32,6 @@ use App\Http\Controllers\ScoringReportController;
 use App\Http\Controllers\SubmissionEvidenceController;
 use App\Http\Controllers\SummaryExportController;
 use App\Http\Controllers\TrainingActivityController;
-use App\Http\Controllers\TrainingGuideController;
 use App\Http\Controllers\TrainingSyncController;
 use App\Http\Controllers\TrainingWeekController;
 use App\Http\Controllers\WeeklyVideoRecordingController;
@@ -60,8 +59,6 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
     Route::get('/account/employee-id', [EmployeeIdController::class, 'edit'])->name('account.employee-id.edit');
     Route::patch('/account/employee-id', [EmployeeIdController::class, 'update'])->name('account.employee-id.update');
     Route::get('/dashboard', [ParticipantDashboardController::class, 'index'])->middleware('role:participant')->name('dashboard');
-    Route::get('/training/guides/{week}', [TrainingGuideController::class, 'view'])->name('training.guides.view');
-    Route::get('/training/guides/{week}/download', [TrainingGuideController::class, 'download'])->name('training.guides.download');
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::get('/profile/google-drive/connect', [GoogleDriveController::class, 'connect'])->middleware('role:participant')->name('profile.google-drive.connect');

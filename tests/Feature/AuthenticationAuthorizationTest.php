@@ -410,6 +410,14 @@ class AuthenticationAuthorizationTest extends TestCase
         $this->actingAs($participant)->get('/training/reusable-assets/1/download')->assertNotFound();
     }
 
+    public function test_training_guide_routes_are_gone(): void
+    {
+        $participant = User::factory()->create();
+
+        $this->actingAs($participant)->get('/training/guides/2')->assertNotFound();
+        $this->actingAs($participant)->get('/training/guides/2/download')->assertNotFound();
+    }
+
     /**
      * A complete, valid self-registration.
      *

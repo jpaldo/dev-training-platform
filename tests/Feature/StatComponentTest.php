@@ -44,4 +44,28 @@ class StatComponentTest extends TestCase
             ->assertSee('<dd class="m-0">4 participants</dd>', false)
             ->assertDontSee('>9</dd>', false);
     }
+
+    public function test_an_href_links_the_label_across_the_whole_stat_with_a_focus_ring_and_a_descriptive_name(): void
+    {
+        $this->blade('<x-ui.stat label="Needs review" :value="2" href="/coach/reviews" link-label="open the review queue" />')
+            ->assertSee('relative transition hover:border-brand has-[a:focus-visible]:outline-3 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-accent/50', false)
+            ->assertSeeInOrder([
+                '<dt class="text-xs font-black tracking-[0.12em] wrap-break-word text-muted uppercase"><a href="/coach/reviews" class="outline-hidden after:absolute after:inset-0">Needs review<span class="sr-only">, open the review queue</span></a></dt>',
+                '<dd class="m-0 text-3xl font-black">2</dd>',
+            ], false);
+
+        $this->blade('<x-ui.stat variant="field" label="Daily logs" value="5" href="/logs" link-label="open the daily logs" />')
+            ->assertSeeInOrder([
+                '<dt><a href="/logs" class="outline-hidden after:absolute after:inset-0"><span class="text-xs font-black tracking-[0.12em] text-accent uppercase">Daily logs</span>',
+                '<span class="sr-only">, open the daily logs</span></a></dt>',
+            ], false);
+    }
+
+    public function test_without_an_href_the_stat_has_no_link_or_focus_ring(): void
+    {
+        $this->blade('<x-ui.stat label="Completed" :value="0" :href="null" :link-label="null" />')
+            ->assertSee('<dt class="text-xs font-black tracking-[0.12em] wrap-break-word text-muted uppercase">Completed</dt>', false)
+            ->assertDontSee('<a ', false)
+            ->assertDontSee('has-[a:focus-visible]', false);
+    }
 }

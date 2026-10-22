@@ -35,16 +35,17 @@ class AdminGoogleDriveSettingsTest extends TestCase
         $participant = User::factory()->create(['role' => 'participant']);
         Program::factory()->create(['is_active' => true]);
 
+        $settingsLink = 'href="'.route('admin.settings.google-drive').'"';
+
         $this->actingAs($admin)->get(route('coach.dashboard'))
             ->assertOk()
-            ->assertSee('Settings · Google Drive')
-            ->assertSee(route('admin.settings.google-drive'));
+            ->assertSee($settingsLink, false);
         $this->actingAs($coach)->get(route('coach.dashboard'))
             ->assertOk()
-            ->assertDontSee('Settings · Google Drive');
+            ->assertDontSee($settingsLink, false);
         $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
-            ->assertDontSee('Settings · Google Drive');
+            ->assertDontSee($settingsLink, false);
     }
 
     public function test_admin_can_save_configuration_without_exposing_secret(): void

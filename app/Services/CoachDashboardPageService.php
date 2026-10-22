@@ -2,9 +2,8 @@
 
 namespace App\Services;
 
-use App\Enums\UserRole;
+use App\Enums\SubmissionStatus;
 use App\Models\Program;
-use App\Models\User;
 
 class CoachDashboardPageService
 {
@@ -20,50 +19,50 @@ class CoachDashboardPageService
 
     /**
      * Everything the coach dashboard renders: whether a program is active (the page shows a notice when none is), the
-     * headline counts with their labels, the mentor booking calendar link and the coach tool links (plus Users and
-     * Settings · Google Drive for admins). The page has no single main action, so every link is secondary.
+     * headline counts with their labels and, where a page lists that set, the link to it with its accessible text,
+     * and the mentor booking calendar link. The page has no single main action, so every link is secondary.
      *
-     * @return array{hasActiveProgram: bool, stats: array<string, array{label: string, value: int}>, calendarUrl: string, toolLinks: list<array{label: string, url: string}>}
+     * @return array{hasActiveProgram: bool, stats: array<string, array{label: string, value: int, url: ?string, link_label: ?string}>, calendarUrl: string}
      */
-    public function showData(User $viewer): array
+    public function showData(): array
     {
         $activeProgram = Program::query()->where('is_active', true)->first();
+        $links = $this->statLinks();
         $stats = [];
 
         foreach ($this->reports->dashboardStats($activeProgram) as $key => $value) {
-            $stats[$key] = ['label' => self::STAT_LABELS[$key], 'value' => $value];
+            $stats[$key] = [
+                'label' => self::STAT_LABELS[$key],
+                'value' => $value,
+                'url' => $links[$key]['url'] ?? null,
+                'link_label' => $links[$key]['link_label'] ?? null,
+            ];
         }
 
         return [
             'hasActiveProgram' => $activeProgram !== null,
             'stats' => $stats,
             'calendarUrl' => route('coach.mentor-booking-calendar.index'),
-            'toolLinks' => $this->toolLinks($viewer),
         ];
     }
 
     /**
-     * The coach tool links in display order; the Users and Google Drive settings links are for admins only.
+     * The page listing each stat's set, keyed by stat: all participants, the review queue (submissions awaiting review
+     * are listed there with those needing revision), the queue filtered to needs revision and the progress report's
+     * at-risk table. No page lists the completed participants, so that stat has no link.
      *
-     * @return list<array{label: string, url: string}>
+     * @return array<string, array{url: string, link_label: string}>
      */
-    private function toolLinks(User $viewer): array
+    private function statLinks(): array
     {
-        $links = [
-            ['label' => 'Participants', 'url' => route('coach.participants')],
-            ['label' => 'Review queue', 'url' => route('coach.reviews')],
-            ['label' => 'Recovery Requests', 'url' => route('coach.recovery.index')],
-            ['label' => 'Gates', 'url' => route('coach.gates')],
-            ['label' => 'Reports', 'url' => route('coach.reports')],
-            ['label' => 'Attendance', 'url' => route('coach.attendance.index')],
-            ['label' => 'Scoring', 'url' => route('coach.scoring.index')],
+        return [
+            'participants' => ['url' => route('coach.participants'), 'link_label' => 'open the participants list'],
+            'needs_review' => ['url' => route('coach.reviews'), 'link_label' => 'open the review queue'],
+            'needs_revision' => [
+                'url' => route('coach.reviews', ['status' => SubmissionStatus::NeedsRevision->value]),
+                'link_label' => 'open the review queue filtered to needs revision',
+            ],
+            'at_risk' => ['url' => route('coach.reports').'#at-risk-title', 'link_label' => 'open the at-risk participants in the progress report'],
         ];
-
-        if ($viewer->hasAnyRole(UserRole::Admin)) {
-            $links[] = ['label' => 'Users', 'url' => route('admin.users.index')];
-            $links[] = ['label' => 'Settings · Google Drive', 'url' => route('admin.settings.google-drive')];
-        }
-
-        return $links;
     }
 }

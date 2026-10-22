@@ -12,7 +12,7 @@ class CoachDashboardPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_coach_sees_the_calendar_card_the_labelled_counts_and_the_coach_tool_links(): void
+    public function test_coach_sees_the_calendar_card_and_the_labelled_counts_linked_to_the_pages_that_list_them(): void
     {
         $activity = Activity::factory()->create();
         foreach (['submitted', 'under_review', 'needs_revision'] as $status) {
@@ -29,23 +29,22 @@ class CoachDashboardPageTest extends TestCase
                 'Configure your interview calendar',
                 'href="'.route('coach.mentor-booking-calendar.index').'"',
                 'Manage Booking Calendar',
-                '<dt', 'PARTICIPANTS', '<dd', '3',
-                '<dt', 'COMPLETED', '<dd', '0',
-                '<dt', 'NEEDS REVIEW', '<dd', '2',
-                '<dt', 'NEEDS REVISION', '<dd', '1',
-                '<dt', 'AT RISK', '<dd', '1',
-                'aria-label="Coach tools"',
-                'href="'.route('coach.participants').'"', 'Participants',
-                'href="'.route('coach.reviews').'"', 'Review queue',
-                'href="'.route('coach.recovery.index').'"', 'Recovery Requests',
-                'href="'.route('coach.gates').'"', 'Gates',
-                'href="'.route('coach.reports').'"', 'Reports',
-                'href="'.route('coach.attendance.index').'"', 'Attendance',
-                'href="'.route('coach.scoring.index').'"', 'Scoring',
+                '<dt', 'href="'.route('coach.participants').'" class="outline-hidden after:absolute after:inset-0">PARTICIPANTS<span class="sr-only">, open the participants list</span></a>', '<dd', '3',
+                '<dt class="text-xs font-black tracking-[0.12em] wrap-break-word text-muted uppercase">COMPLETED</dt>', '<dd', '0',
+                '<dt', 'href="'.route('coach.reviews').'" class="outline-hidden after:absolute after:inset-0">NEEDS REVIEW<span class="sr-only">, open the review queue</span></a>', '<dd', '2',
+                '<dt', 'href="'.route('coach.reviews', ['status' => 'needs_revision']).'" class="outline-hidden after:absolute after:inset-0">NEEDS REVISION<span class="sr-only">, open the review queue filtered to needs revision</span></a>', '<dd', '1',
+                '<dt', 'href="'.route('coach.reports').'#at-risk-title" class="outline-hidden after:absolute after:inset-0">AT RISK<span class="sr-only">, open the at-risk participants in the progress report</span></a>', '<dd', '1',
             ], false)
-            ->assertDontSee('href="'.route('admin.users.index').'"', false)
-            ->assertDontSee('Settings · Google Drive')
+            ->assertDontSee('aria-label="Coach tools"', false)
             ->assertDontSee('No active program.');
+    }
+
+    public function test_the_at_risk_link_target_exists_on_the_progress_report(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'coach']))
+            ->get(route('coach.reports'))
+            ->assertOk()
+            ->assertSee('id="at-risk-title"', false);
     }
 
     public function test_without_an_active_program_the_dashboard_shows_a_notice_and_no_completions(): void
@@ -69,7 +68,7 @@ class CoachDashboardPageTest extends TestCase
             ], false);
     }
 
-    public function test_admin_also_sees_the_users_and_google_drive_settings_links(): void
+    public function test_admin_sees_the_same_stat_links_and_no_coach_tool_links(): void
     {
         Activity::factory()->create();
 
@@ -77,10 +76,13 @@ class CoachDashboardPageTest extends TestCase
             ->get(route('coach.dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                'aria-label="Coach tools"',
-                'href="'.route('coach.scoring.index').'"', 'Scoring',
-                'href="'.route('admin.users.index').'"', 'Users',
-                'href="'.route('admin.settings.google-drive').'"', 'Settings · Google Drive',
-            ], false);
+                'href="'.route('coach.participants').'" class="outline-hidden after:absolute after:inset-0">PARTICIPANTS',
+                'COMPLETED</dt>',
+                'href="'.route('coach.reviews').'" class="outline-hidden after:absolute after:inset-0">NEEDS REVIEW',
+                'href="'.route('coach.reviews', ['status' => 'needs_revision']).'" class="outline-hidden after:absolute after:inset-0">NEEDS REVISION',
+                'href="'.route('coach.reports').'#at-risk-title" class="outline-hidden after:absolute after:inset-0">AT RISK',
+            ], false)
+            ->assertDontSee('aria-label="Coach tools"', false)
+            ->assertDontSee('Settings · Google Drive');
     }
 }

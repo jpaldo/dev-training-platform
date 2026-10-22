@@ -24,19 +24,14 @@
             <h2 id="coach-stats-title" class="sr-only">Training stats</h2>
             <dl class="m-0 grid grid-cols-2 gap-4 lg:grid-cols-5">
                 @foreach($stats as $stat)
-                    <x-ui.stat :label="$stat['label']" :value="$stat['value']" />
+                    <x-ui.stat
+                        :label="$stat['label']"
+                        :value="$stat['value']"
+                        :href="$stat['url']"
+                        :link-label="$stat['link_label']"
+                    />
                 @endforeach
             </dl>
         </section>
-
-        <nav aria-label="Coach tools">
-            <ul class="m-0 flex list-none flex-wrap gap-3 p-0">
-                @foreach($toolLinks as $link)
-                    <li>
-                        <x-ui.button variant="secondary" :href="$link['url']">{{ $link['label'] }}</x-ui.button>
-                    </li>
-                @endforeach
-            </ul>
-        </nav>
     </div>
 @endsection

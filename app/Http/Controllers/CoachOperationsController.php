@@ -6,23 +6,18 @@ use App\Enums\GateEvaluationStatus;
 use App\Http\Requests\ExportCoachReportRequest;
 use App\Http\Requests\FilterCoachGatesRequest;
 use App\Http\Requests\FilterCoachReportsRequest;
-use App\Models\User;
 use App\Services\CoachDashboardPageService;
 use App\Services\CoachGateBoardPageService;
 use App\Services\CoachProgressReportPageService;
 use App\Services\CoachReportService;
-use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CoachOperationsController extends Controller
 {
-    public function dashboard(Request $request, CoachDashboardPageService $page): View
+    public function dashboard(CoachDashboardPageService $page): View
     {
-        /** @var User $user */
-        $user = $request->user();
-
-        return view('coach.dashboard', $page->showData($user));
+        return view('coach.dashboard', $page->showData());
     }
 
     public function gates(FilterCoachGatesRequest $request, CoachGateBoardPageService $page): View

@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\User;
+use App\Enums\TrainingPath;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -27,7 +27,7 @@ class StoreRegisteredUserRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users')],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'training_path' => ['required', Rule::in(array_keys(User::trainingPathOptions()))],
+            'training_path' => ['required', Rule::enum(TrainingPath::class)],
         ];
     }
 }

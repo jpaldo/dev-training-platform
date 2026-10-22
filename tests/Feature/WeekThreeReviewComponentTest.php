@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TrainingPath;
 use App\Services\SubmissionAnswerPresenter;
 use Illuminate\Testing\TestView;
 use Tests\TestCase;
@@ -78,7 +79,7 @@ class WeekThreeReviewComponentTest extends TestCase
 
     private function renderReview(int $activityPosition, mixed $snapshot): TestView
     {
-        $review = app(SubmissionAnswerPresenter::class)->weekThreeReview($snapshot, $activityPosition, 'manual');
+        $review = app(SubmissionAnswerPresenter::class)->weekThreeReview($snapshot, $activityPosition, TrainingPath::Manual);
 
         return $this->view('components.week-three-review', ['review' => $review]);
     }

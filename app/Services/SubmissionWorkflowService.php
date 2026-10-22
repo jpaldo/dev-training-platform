@@ -143,7 +143,7 @@ class SubmissionWorkflowService
             $practiceInterview = $submission->activity->week?->week_number === 4 && $submission->activity->position === 2 && array_key_exists('practice_questions', $values);
             if ($submission->activity->week?->week_number === 4 && $submission->activity->position === 2 && filled($values['partner_user_id'] ?? null)) {
                 $partner = User::query()->where('role', 'participant')->where('is_active', true)->where('id', '<>', $user->id)->find((int) $values['partner_user_id']);
-                $values['partner_snapshot'] = ['display_name' => $partner?->name, 'email' => $partner?->email, 'training_path' => $partner?->training_path];
+                $values['partner_snapshot'] = ['display_name' => $partner?->name, 'email' => $partner?->email, 'training_path' => $partner?->training_path?->value];
                 // debug
                 $pair = WeekFourInterviewPair::forParticipant($user->id);
                 $values['mutual_feedback_snapshot'] = ['given' => $pair?->feedback()->where('author_id', $user->id)->get()->mapWithKeys(fn (WeekFourPartnerFeedback $feedback): array => [(string) $feedback->question_number => ['content' => $feedback->content, 'author_name' => $user->name, 'recipient_name' => $partner?->name]])->all() ?? [], 'received' => $pair?->feedback()->where('recipient_id', $user->id)->get()->mapWithKeys(fn (WeekFourPartnerFeedback $feedback): array => [(string) $feedback->question_number => ['content' => $feedback->content, 'author_name' => $partner?->name, 'recipient_name' => $user->name]])->all() ?? []];

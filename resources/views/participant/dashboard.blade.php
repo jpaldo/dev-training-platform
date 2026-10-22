@@ -29,7 +29,7 @@
         <header class="grid gap-2">
             <x-ui.eyebrow>PARTICIPANT DASHBOARD</x-ui.eyebrow>
             <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black text-transparent sm:text-5xl/tight">{{ $program->name }}</h1>
-            <p class="m-0 text-muted">{{ $user->name }} · {{ ucfirst($user->training_path ?? 'unassigned') }} QA · Start at Week 2.</p>
+            <p class="m-0 text-muted">{{ $user->name }} · {{ ucfirst($user->training_path?->value ?? 'unassigned') }} QA · Start at Week 2.</p>
         </header>
 
         <x-ui.card as="section" class="flex flex-wrap gap-x-8 gap-y-6" aria-labelledby="attendance-title">

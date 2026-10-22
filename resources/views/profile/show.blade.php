@@ -57,7 +57,7 @@
                                 <label for="training_path" class="{{ $labelClasses }}">Training path</label>
                                 <select id="training_path" name="training_path" class="{{ $controlClasses }}">
                                     @foreach($trainingPathOptions as $option)
-                                        <option value="{{ $option['value'] }}" @selected(old('training_path', $user->training_path) === $option['value'])>{{ $option['label'] }}</option>
+                                        <option value="{{ $option['value'] }}" @selected(old('training_path', $user->training_path?->value) === $option['value'])>{{ $option['label'] }}</option>
                                     @endforeach
                                 </select>
                                 @error('training_path')

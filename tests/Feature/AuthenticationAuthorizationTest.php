@@ -65,6 +65,24 @@ class AuthenticationAuthorizationTest extends TestCase
         ]);
     }
 
+    public function test_registration_and_profile_updates_reject_an_unknown_training_path(): void
+    {
+        $this->post(route('register.store'), [
+            'name' => 'Unknown Path',
+            'email' => 'unknown-path@example.test',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'training_path' => 'performance',
+        ])->assertSessionHasErrors(['training_path' => 'The selected training path is invalid.']);
+        $this->assertGuest();
+
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        $this->actingAs($participant)
+            ->patch(route('profile.update'), ['name' => $participant->name, 'email' => $participant->email, 'training_path' => 'performance'])
+            ->assertSessionHasErrors(['training_path' => 'The selected training path is invalid.']);
+        $this->assertDatabaseHas('users', ['id' => $participant->id, 'training_path' => 'manual']);
+    }
+
     public function test_invalid_credentials_are_rejected_without_authenticating_the_user(): void
     {
         $participant = User::factory()->create(['email' => 'participant@example.test']);

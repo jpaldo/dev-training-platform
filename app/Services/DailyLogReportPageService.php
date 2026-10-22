@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TrainingPath;
 use App\Models\Activity;
 use App\Models\DailyLog;
 use App\Models\User;
@@ -146,13 +147,12 @@ class DailyLogReportPageService
                 'name',
                 $filters['participant'] ?? null,
             ),
-            'pathOptions' => collect(User::TRAINING_PATHS)
-                ->map(fn (string $label, string $value): array => [
-                    'value' => $value,
-                    'label' => $label,
-                    'is_selected' => ($filters['path'] ?? '') === $value,
+            'pathOptions' => collect(TrainingPath::cases())
+                ->map(fn (TrainingPath $path): array => [
+                    'value' => $path->value,
+                    'label' => $path->label(),
+                    'is_selected' => ($filters['path'] ?? '') === $path->value,
                 ])
-                ->values()
                 ->all(),
             'mentorOptions' => $this->modelOptions($this->reports->mentors(), 'name', $filters['mentor'] ?? null),
             'weekOptions' => collect(self::WEEK_OPTIONS)

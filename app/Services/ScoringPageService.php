@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ActivityScoreStatus;
+use App\Enums\TrainingPath;
 use App\Models\ActivityScore;
 use App\Models\ActivityScoreSuggestion;
 use App\Models\Program;
@@ -309,7 +310,7 @@ class ScoringPageService
      */
     private function pathLabel(User $participant): string
     {
-        return $participant->training_path === 'automation' ? 'Automation QA' : 'Manual QA';
+        return $participant->training_path === TrainingPath::Automation ? 'Automation QA' : 'Manual QA';
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TrainingPath;
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
@@ -48,13 +49,12 @@ class CoachProgressReportPageService
         return [
             'exportUrl' => route('coach.reports.export', array_merge($query, ['type' => 'progress'])),
             'search' => (string) ($filters['search'] ?? ''),
-            'pathOptions' => collect(User::TRAINING_PATHS)
-                ->map(fn (string $label, string $value): array => [
-                    'value' => $value,
-                    'label' => $label,
-                    'is_selected' => ($filters['path'] ?? '') === $value,
+            'pathOptions' => collect(TrainingPath::cases())
+                ->map(fn (TrainingPath $path): array => [
+                    'value' => $path->value,
+                    'label' => $path->label(),
+                    'is_selected' => ($filters['path'] ?? '') === $path->value,
                 ])
-                ->values()
                 ->all(),
             'mentorOptions' => $this->reports->mentors()
                 ->map(fn (User $mentor): array => [

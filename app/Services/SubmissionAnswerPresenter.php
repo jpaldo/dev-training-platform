@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TrainingPath;
 use App\Models\ActivityRequirement;
 use App\Models\SubmissionVersion;
 use App\Support\Markdown;
@@ -57,7 +58,7 @@ class SubmissionAnswerPresenter
     }
 
     /** @return array<string,mixed> */
-    public function weekThreeReview(mixed $snapshot, int $activityPosition, ?string $trainingPath = null): array
+    public function weekThreeReview(mixed $snapshot, int $activityPosition, ?TrainingPath $trainingPath = null): array
     {
         if (! is_array($snapshot)) {
             return [];
@@ -65,8 +66,8 @@ class SubmissionAnswerPresenter
 
         $findings = collect($snapshot['findings'] ?? [])->filter(fn (mixed $finding): bool => is_array($finding))->values();
         $allowedPaths = match ($trainingPath) {
-            'automation' => ['automation'],
-            'automation_manual' => ['manual', 'automation'],
+            TrainingPath::Automation => ['automation'],
+            TrainingPath::AutomationManual => ['manual', 'automation'],
             default => ['manual'],
         };
         $cleanFinding = fn (array $finding, int $index): array => [

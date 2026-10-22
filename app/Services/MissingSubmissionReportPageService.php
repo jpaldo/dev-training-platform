@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TrainingPath;
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
@@ -80,7 +81,10 @@ class MissingSubmissionReportPageService
                 User::query()->where('role', 'participant')->orderBy('name')->get(['id', 'name']),
                 $filters['participant'] ?? null,
             ),
-            'pathOptions' => $this->options(User::TRAINING_PATHS, $filters['path'] ?? null),
+            'pathOptions' => $this->options(
+                collect(TrainingPath::cases())->mapWithKeys(fn (TrainingPath $path): array => [$path->value => $path->label()])->all(),
+                $filters['path'] ?? null,
+            ),
             'mentorOptions' => $this->modelOptions(
                 User::query()->whereIn('role', ['coach', 'admin'])->orderBy('name')->get(['id', 'name']),
                 $filters['mentor'] ?? null,

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TrainingPath;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
@@ -163,8 +164,9 @@ class MissingSubmissionReportService
     private function activityApplies(User $participant, Activity $activity): bool
     {
         $paths = $activity->requirements->whereNotNull('participant_path')->pluck('participant_path')->unique();
+        $eligiblePaths = array_map(fn (TrainingPath $path): string => $path->value, $participant->eligibleTrainingPaths());
 
-        return $paths->isEmpty() || $paths->intersect($participant->eligibleTrainingPaths())->isNotEmpty();
+        return $paths->isEmpty() || $paths->intersect($eligiblePaths)->isNotEmpty();
     }
 
     private function matches(array $row, array $filters): bool

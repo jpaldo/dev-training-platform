@@ -114,7 +114,7 @@ class ActivitySubmissionPageService
         $versions = $version->submission->versions;
 
         return [
-            'pathLabel' => ucfirst($version->submission->participant->training_path ?? 'QA'),
+            'pathLabel' => ucfirst($version->submission->participant->training_path?->value ?? 'QA'),
             'statusLabel' => $this->statusLabel($version->status),
             'statusTone' => $this->statusTone($version->status),
             'responses' => $responses,

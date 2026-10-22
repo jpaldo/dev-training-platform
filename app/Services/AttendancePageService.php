@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TrainingPath;
 use App\Models\AttendanceSession;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -77,7 +78,7 @@ class AttendancePageService
                 ->through(fn (AttendanceSession $session): array => [
                     'participant_name' => $session->participant->name,
                     'participant_email' => $session->participant->email,
-                    'path' => $session->participant->training_path === 'automation' ? 'QA Automation' : 'QA Manual',
+                    'path' => $session->participant->training_path === TrainingPath::Automation ? 'QA Automation' : 'QA Manual',
                     'check_in' => $session->check_in_at->format('M j, Y · g:i A'),
                     'check_out' => $session->check_out_at?->format('M j, Y · g:i A') ?? '—',
                     'total_hours' => number_format($session->totalHours(), 2),

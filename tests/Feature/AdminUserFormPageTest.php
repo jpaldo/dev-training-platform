@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TrainingPath;
 use App\Models\AttendanceSession;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class AdminUserFormPageTest extends TestCase
@@ -82,6 +84,28 @@ class AdminUserFormPageTest extends TestCase
             ->assertDontSee('name="is_active" value="1" checked', false)
             ->assertDontSee('Ina Inactive')
             ->assertDontSee('Secure password setup');
+    }
+
+    #[DataProvider('participantAccessTypes')]
+    public function test_editing_a_participant_preselects_the_access_type_of_their_training_path(TrainingPath $trainingPath, string $selectedOption): void
+    {
+        $participant = User::factory()->create(['training_path' => $trainingPath]);
+
+        $this->actingAs($this->admin())->get(route('admin.users.edit', $participant))
+            ->assertOk()
+            ->assertSee($selectedOption, false);
+    }
+
+    /**
+     * @return array<string, array{TrainingPath, string}>
+     */
+    public static function participantAccessTypes(): array
+    {
+        return [
+            'manual' => [TrainingPath::Manual, '<option value="qa_manual" selected>QA Manual</option>'],
+            'automation' => [TrainingPath::Automation, '<option value="qa_automation" selected>QA Automation</option>'],
+            'automation / manual' => [TrainingPath::AutomationManual, '<option value="qa_automation_manual" selected>QA Automation / Manual</option>'],
+        ];
     }
 
     public function test_editing_a_coach_has_no_coach_assignment_and_shows_a_missing_drive_link(): void

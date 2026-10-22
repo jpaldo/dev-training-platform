@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TrainingPath;
 use App\Models\AttendanceSession;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -119,10 +120,10 @@ class AdminUserPageService
             'access_type' => match (true) {
                 $user->hasAnyRole(['admin']) => 'Admin',
                 $user->hasAnyRole(['coach']) => 'Mentor / Coach',
-                $user->training_path === 'automation' => 'QA Automation',
+                $user->training_path === TrainingPath::Automation => 'QA Automation',
                 default => 'QA Manual',
             },
-            'path' => $user->training_path ? ucfirst($user->training_path) : '—',
+            'path' => $user->training_path ? ucfirst($user->training_path->value) : '—',
             'is_active' => (bool) $user->is_active,
             'created' => (string) $user->created_at?->format('M j, Y'),
             'edit_url' => route('admin.users.edit', $user),
@@ -139,8 +140,8 @@ class AdminUserPageService
         return match (true) {
             $user->hasAnyRole(['admin']) => 'admin',
             $user->hasAnyRole(['coach']) => 'coach',
-            $user->training_path === 'automation' => 'qa_automation',
-            $user->training_path === 'automation_manual' => 'qa_automation_manual',
+            $user->training_path === TrainingPath::Automation => 'qa_automation',
+            $user->training_path === TrainingPath::AutomationManual => 'qa_automation_manual',
             default => 'qa_manual',
         };
     }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TrainingPath;
 use App\Models\ParticipantNotification;
 use App\Models\Program;
 use App\Models\User;
@@ -222,7 +223,7 @@ class HomeNavigationTest extends TestCase
         $this->seed(QaTrainingProgramSeeder::class);
         $participant = User::factory()->create(['training_path' => 'automation_manual']);
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('Automation / Manual');
-        $this->assertSame(['manual', 'automation', 'automation_manual'], $participant->eligibleTrainingPaths());
+        $this->assertSame([TrainingPath::Manual, TrainingPath::Automation, TrainingPath::AutomationManual], $participant->eligibleTrainingPaths());
     }
 
     public function test_dashboard_shows_assigned_mentors_or_neutral_unassigned_state(): void

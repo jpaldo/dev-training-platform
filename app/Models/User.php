@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\TrainingPath;
 use App\Observers\ParticipantProgressObserver;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -20,12 +21,6 @@ use Illuminate\Notifications\Notifiable;
 #[ObservedBy([ParticipantProgressObserver::class])]
 class User extends Authenticatable
 {
-    public const TRAINING_PATHS = [
-        'manual' => 'Manual',
-        'automation' => 'Automation',
-        'automation_manual' => 'Automation / Manual',
-    ];
-
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
@@ -40,6 +35,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'training_path' => TrainingPath::class,
         ];
     }
 
@@ -48,22 +44,19 @@ class User extends Authenticatable
         return in_array($this->role, $roles, true);
     }
 
-    public static function trainingPathOptions(): array
-    {
-        return self::TRAINING_PATHS;
-    }
-
     public function trainingPathLabel(): string
     {
-        return self::TRAINING_PATHS[$this->training_path] ?? 'Unassigned';
+        return $this->training_path?->label() ?? 'Unassigned';
     }
 
-    /** Paths whose requirements should be available to this participant. */
+    /**
+     * Paths whose requirements should be available to this participant (none without a path).
+     *
+     * @return list<TrainingPath>
+     */
     public function eligibleTrainingPaths(): array
     {
-        return $this->training_path === 'automation_manual'
-            ? ['manual', 'automation', 'automation_manual']
-            : array_filter([$this->training_path]);
+        return $this->training_path?->eligiblePaths() ?? [];
     }
 
     public function isCoachOrAdmin(): bool

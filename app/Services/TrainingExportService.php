@@ -49,7 +49,7 @@ class TrainingExportService
             $review = $version->reviews->sortByDesc('reviewed_at')->first();
             $metadata = [
                 'Participant' => $participant->name,
-                'QA Path' => $participant->training_path,
+                'QA Path' => $participant->training_path?->value,
                 'Week' => $submission->activity->week->week_number,
                 'Activity' => $submission->activity->title,
                 'Submission ID' => $submission->id,
@@ -112,7 +112,7 @@ class TrainingExportService
                 $gateStatus = $progression->isWeekPassed($participant, $week) ? 'passed' : ($progression->canAccessWeek($participant, $week) ? 'in progress' : 'locked');
                 $weekStatus = $gateStatus === 'passed' ? 'Completed' : ($gateStatus === 'locked' ? 'Locked' : 'In progress');
                 $nextAction = $weekStatus === 'Completed' ? 'Continue to next week' : ($weekStatus === 'Locked' ? 'Pass previous Gate' : ($completed < $required ? 'Complete activities' : ($logs < 5 ? 'Complete daily logs' : 'Complete Gate requirements')));
-                $rows->push([$participant->name, $participant->training_path, $week->week_number, $weekStatus, $completed, $required, $logs, 5, $gateStatus, $required ? round($completed / $required * 100).'%' : '0%', $nextAction]);
+                $rows->push([$participant->name, $participant->training_path?->value, $week->week_number, $weekStatus, $completed, $required, $logs, 5, $gateStatus, $required ? round($completed / $required * 100).'%' : '0%', $nextAction]);
             }
         }
 

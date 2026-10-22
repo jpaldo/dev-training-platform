@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TrainingPath;
 use App\Models\Activity;
 use App\Models\TrainingWeek;
 use App\Models\User;
@@ -63,9 +64,19 @@ class WeekThreeWorkspaceService
         return $workspace->fresh(['findings.tests.fixValidation']);
     }
 
+    /**
+     * The Week 3 test paths the participant must cover: both for an Automation / Manual participant, otherwise the
+     * participant's own (Manual without a path).
+     *
+     * @return list<string>
+     */
     public function requiredPaths(User $user): array
     {
-        return $user->training_path === 'automation' ? ['automation'] : ($user->training_path === 'automation_manual' ? self::PATHS : ['manual']);
+        return match ($user->training_path) {
+            TrainingPath::Automation => ['automation'],
+            TrainingPath::AutomationManual => self::PATHS,
+            default => ['manual'],
+        };
     }
 
     public function validateForSubmission(User $user, Activity $activity): void

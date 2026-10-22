@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TrainingPath;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -37,7 +38,7 @@ class AdminUserManagementTest extends TestCase
         $this->actingAs($admin)->put(route('admin.users.update', $participant), ['name' => $participant->name, 'email' => $participant->email, 'access_type' => 'qa_automation', 'is_active' => 1])->assertRedirect();
         $participant->refresh();
         $this->assertSame('participant', $participant->role);
-        $this->assertSame('automation', $participant->training_path);
+        $this->assertSame(TrainingPath::Automation, $participant->training_path);
         $this->actingAs($admin)->post(route('admin.users.disable', $participant))->assertRedirect();
         $this->assertFalse($participant->fresh()->is_active);
         $this->assertFalse(Hash::check('PasswordDoesNotMatter', $participant->password));

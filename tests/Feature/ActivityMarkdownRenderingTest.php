@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TrainingPath;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
@@ -14,6 +15,7 @@ use App\Support\FieldLimits;
 use App\Support\Markdown;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ActivityMarkdownRenderingTest extends TestCase
@@ -135,6 +137,39 @@ class ActivityMarkdownRenderingTest extends TestCase
         $response = $this->actingAs($coach)->get(route('coach.reviews.show', $version))->assertOk();
 
         $response->assertSee('Fix &amp; Regression Validation', false)->assertSee('Validation Status')->assertSee('Fixed')->assertSee('Original Issue / Buggy Result')->assertSee('Regression Summary')->assertSee('Ready');
+    }
+
+    /**
+     * @param  list<string>  $shownTests
+     */
+    #[DataProvider('weekThreeReviewPaths')]
+    public function test_week_three_review_shows_only_the_snapshot_tests_of_the_participants_training_path(TrainingPath $trainingPath, array $shownTests, ?string $hiddenTest): void
+    {
+        [, $activity, $participant, $coach] = $this->weekThreeReviewFixture(2);
+        $participant->update(['training_path' => $trainingPath]);
+        $version = $this->snapshotFor($activity, $participant, ['findings' => [['title' => 'Login fails', 'tests' => [
+            ['path' => 'manual', 'name' => 'Manual login regression'],
+            ['path' => 'automation', 'name' => 'Scripted login regression'],
+        ]]]]);
+
+        $response = $this->actingAs($coach)->get(route('coach.reviews.show', $version))->assertOk();
+
+        $response->assertSeeInOrder(['Finding #1', ...$shownTests]);
+        if ($hiddenTest !== null) {
+            $response->assertDontSee($hiddenTest);
+        }
+    }
+
+    /**
+     * @return array<string, array{TrainingPath, list<string>, ?string}>
+     */
+    public static function weekThreeReviewPaths(): array
+    {
+        return [
+            'manual' => [TrainingPath::Manual, ['Manual login regression'], 'Scripted login regression'],
+            'automation' => [TrainingPath::Automation, ['Scripted login regression'], 'Manual login regression'],
+            'automation / manual' => [TrainingPath::AutomationManual, ['Manual login regression', 'Scripted login regression'], null],
+        ];
     }
 
     /** @return array{0:TrainingWeek,1:Activity,2:User,3:User} */

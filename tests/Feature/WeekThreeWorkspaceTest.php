@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TrainingPath;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\Program;
@@ -16,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class WeekThreeWorkspaceTest extends TestCase
@@ -59,6 +61,36 @@ class WeekThreeWorkspaceTest extends TestCase
         $this->assertSame($first->id, $second->id);
         $this->assertCount(5, $second->findings);
         $this->assertCount(2, $second->findings->first()->tests);
+    }
+
+    /**
+     * @param  list<string>  $savedPaths
+     */
+    #[DataProvider('requiredTestPaths')]
+    public function test_workspace_saves_only_the_tests_of_the_participants_training_path(TrainingPath $trainingPath, array $savedPaths): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $week = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 3)->firstOrFail();
+        $participant = User::factory()->create(['training_path' => $trainingPath]);
+
+        $workspace = app(WeekThreeWorkspaceService::class)->save($participant, $week, ['findings' => [[
+            'title' => 'Login fails',
+            'tests' => ['manual' => ['name' => 'Manual test'], 'automation' => ['name' => 'Automation test']],
+        ]]]);
+
+        $this->assertSame($savedPaths, $workspace->findings->first()->tests->pluck('path')->sort()->values()->all());
+    }
+
+    /**
+     * @return array<string, array{TrainingPath, list<string>}>
+     */
+    public static function requiredTestPaths(): array
+    {
+        return [
+            'manual' => [TrainingPath::Manual, ['manual']],
+            'automation' => [TrainingPath::Automation, ['automation']],
+            'automation / manual' => [TrainingPath::AutomationManual, ['automation', 'manual']],
+        ];
     }
 
     public function test_workspace_checkpoint_is_immutable_when_live_workspace_changes(): void

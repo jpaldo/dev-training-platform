@@ -4,17 +4,30 @@ namespace App\Services;
 
 use App\Enums\GoogleDriveExportStatus;
 use App\Enums\GoogleDriveSyncStatus;
+use App\Jobs\ExportActivityJob;
+use App\Jobs\ExportDailyLogsJob;
+use App\Jobs\ExportSummaryReportsJob;
+use App\Jobs\SyncTrainingDataJob;
 use App\Models\GoogleDriveExport;
 use App\Models\GoogleDriveSync;
 use Illuminate\Contracts\Queue\Job;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class ExportLifecycleService
 {
     public const STALE_AFTER_MINUTES = 10;
+
+    /**
+     * The queued jobs that move a tracked export or a Drive sync forward; while one of them waits in the queue, an
+     * export or sync record may look stale without being lost.
+     *
+     * @var list<class-string>
+     */
+    private const EXPORT_JOBS = [ExportActivityJob::class, ExportDailyLogsJob::class, ExportSummaryReportsJob::class, SyncTrainingDataJob::class];
 
     public function shouldRetry(?Job $job, int $tries, Throwable $exception): bool
     {
@@ -78,13 +91,13 @@ class ExportLifecycleService
     }
 
     /**
-     * Reconcile only stale active records when the database queue has no work.
-     * This avoids changing a legitimately running export while repairing jobs
-     * that disappeared before Laravel could call failed().
+     * Reconcile only stale active records when the database queue holds no export or sync job (other queued work, such
+     * as participant notifications, does not block the repair). This avoids changing a legitimately running export
+     * while repairing jobs that disappeared before Laravel could call failed().
      */
     public function reconcileStale(?int $userId = null): int
     {
-        if ((int) DB::table('jobs')->count() > 0) {
+        if ($this->hasQueuedExportJobs()) {
             return 0;
         }
 
@@ -144,5 +157,19 @@ class ExportLifecycleService
             ]);
 
         return $reconciled;
+    }
+
+    /**
+     * Whether the database queue holds an export or sync job, matched on the class name in its payload.
+     */
+    private function hasQueuedExportJobs(): bool
+    {
+        return DB::table('jobs')
+            ->where(function (QueryBuilder $query): void {
+                foreach (self::EXPORT_JOBS as $job) {
+                    $query->orWhere('payload', 'like', '%'.class_basename($job).'"%');
+                }
+            })
+            ->exists();
     }
 }

@@ -11,6 +11,7 @@ use App\Services\ReusableAssetLibraryService;
 use App\Services\SubmissionEvidenceFileService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -38,12 +39,12 @@ class ReusableAssetLibraryController extends Controller
         return $evidenceFiles->previewResponse($asset);
     }
 
-    public function view(Request $request, SubmissionVersion $submissionVersion, ReusableAssetLibraryService $library, SubmissionEvidenceFileService $evidenceFiles): BinaryFileResponse|StreamedResponse|View
+    public function view(Request $request, SubmissionVersion $submissionVersion, ReusableAssetLibraryService $library, SubmissionEvidenceFileService $evidenceFiles): BinaryFileResponse|StreamedResponse|Response
     {
         $this->authorizeTrainingUser($request);
         $asset = $library->assetForVersion($submissionVersion);
 
-        return $evidenceFiles->viewResponse($asset);
+        return $evidenceFiles->viewResponse($asset, route('training.reusable-assets.download', $submissionVersion));
     }
 
     public function download(Request $request, SubmissionVersion $submissionVersion, ReusableAssetLibraryService $library): StreamedResponse

@@ -135,6 +135,18 @@ class MentorInterviewSchedulingTest extends TestCase
         $this->assertStringContainsString('input[name="scheduled_at"]', $frontend);
     }
 
+    public function test_the_mentor_schedule_and_reschedule_forms_follow_the_draft_form_instead_of_nesting_in_it(): void
+    {
+        [$participant, $mentor, $activity] = $this->fixture();
+        $pageUrl = route('training.submission.edit', [$activity->week, $activity]);
+
+        $this->assertFormFollowsTheDraftForm($this->actingAs($participant)->get($pageUrl)->assertOk()->getContent(), route('training.mentor-interview.schedule', [$activity->week, $activity]));
+
+        WeekFourMentorInterviewSchedule::create(['participant_id' => $participant->id, 'mentor_id' => $mentor->id, 'activity_id' => $activity->id, 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHour(), 'timezone' => 'Asia/Manila', 'duration_minutes' => 60, 'status' => MentorInterviewScheduleStatus::Scheduled, 'google_meet_url' => 'https://meet.google.com/scheduled']);
+
+        $this->assertFormFollowsTheDraftForm($this->actingAs($participant)->get($pageUrl)->assertOk()->getContent(), route('training.mentor-interview.reschedule', [$activity->week, $activity]));
+    }
+
     public function test_missing_or_past_date_time_is_rejected_with_a_friendly_message(): void
     {
         [$participant, , $activity] = $this->fixture();
@@ -219,6 +231,23 @@ class MentorInterviewSchedulingTest extends TestCase
             ->get(route('training.submission.show', [$activity->week, $activity, $version]))
             ->assertOk()
             ->assertSee('<strong>Status:</strong> Scheduled', false);
+    }
+
+    /**
+     * Assert that the draft form closes, holding the participant note and the autosave status and no other form,
+     * before the form posting to the given action opens.
+     */
+    private function assertFormFollowsTheDraftForm(string $content, string $action): void
+    {
+        $draftStart = strpos($content, 'data-submission-form>');
+        $this->assertNotFalse($draftStart);
+        $draftEnd = strpos($content, '</form>', $draftStart);
+        $draftForm = substr($content, $draftStart, $draftEnd - $draftStart);
+
+        $this->assertStringNotContainsString('<form', $draftForm);
+        $this->assertStringContainsString('name="participant_note"', $draftForm);
+        $this->assertStringContainsString('data-autosave-status', $draftForm);
+        $this->assertGreaterThan($draftEnd, strpos($content, 'action="'.$action.'"'));
     }
 
     /** @return array{0:User,1:User,2:Activity} */

@@ -33,13 +33,13 @@ enum GoogleDriveSyncStatus: string
     }
 
     /**
-     * The statuses of a sync that is still running: it blocks a new sync, shows as syncing and is polled, and a stale
-     * one is marked failed. Unlike `GoogleDriveExportStatus::active()`, `Retrying` is not among them.
+     * The statuses of a sync that is still running (a `Retrying` sync waits for its next attempt): it blocks a new
+     * sync, shows as syncing and is polled, and a stale one is marked failed.
      *
      * @return list<self>
      */
     public static function active(): array
     {
-        return [self::Enqueued, self::InProgress];
+        return [self::Enqueued, self::InProgress, self::Retrying];
     }
 }

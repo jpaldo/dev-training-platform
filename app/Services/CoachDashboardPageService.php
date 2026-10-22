@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\UserRole;
+use App\Models\Program;
 use App\Models\User;
 
 class CoachDashboardPageService
@@ -18,21 +19,23 @@ class CoachDashboardPageService
     public function __construct(private readonly CoachReportService $reports) {}
 
     /**
-     * Everything the coach dashboard renders: the headline counts with their labels, the mentor booking
-     * calendar link and the coach tool links (plus Users and Settings · Google Drive for admins). The page has
-     * no single main action, so every link is secondary.
+     * Everything the coach dashboard renders: whether a program is active (the page shows a notice when none is), the
+     * headline counts with their labels, the mentor booking calendar link and the coach tool links (plus Users and
+     * Settings · Google Drive for admins). The page has no single main action, so every link is secondary.
      *
-     * @return array{stats: array<string, array{label: string, value: int}>, calendarUrl: string, toolLinks: list<array{label: string, url: string}>}
+     * @return array{hasActiveProgram: bool, stats: array<string, array{label: string, value: int}>, calendarUrl: string, toolLinks: list<array{label: string, url: string}>}
      */
     public function showData(User $viewer): array
     {
+        $activeProgram = Program::query()->where('is_active', true)->first();
         $stats = [];
 
-        foreach ($this->reports->dashboardStats() as $key => $value) {
+        foreach ($this->reports->dashboardStats($activeProgram) as $key => $value) {
             $stats[$key] = ['label' => self::STAT_LABELS[$key], 'value' => $value];
         }
 
         return [
+            'hasActiveProgram' => $activeProgram !== null,
             'stats' => $stats,
             'calendarUrl' => route('coach.mentor-booking-calendar.index'),
             'toolLinks' => $this->toolLinks($viewer),

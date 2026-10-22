@@ -69,15 +69,17 @@ class CoachGateReviewPageTest extends TestCase
                 'View Video',
                 'action="'.route('training.coach.gates.update', [$week, $participant, $gate]).'" id="gate-review-form"',
                 'name="status"',
-                '<option value="passed">Passed</option>',
-                '<option value="needs_revision">Needs Revision</option>',
-                '<option value="failed">Failed</option>',
+                '<option value="passed" >Passed</option>',
+                '<option value="needs_revision" selected>Needs Revision</option>',
+                '<option value="failed" >Failed</option>',
                 'Criterion decisions',
                 'name="criteria['.$activityCriterion->id.']"',
-                'value="met"', '>Met</option>',
-                'value="not_met" selected>Not met</option>',
+                'value="met" selected>Met</option>',
+                'value="not_met" >Not met</option>',
                 '>Required Weekly Video Recording</label>',
                 'name="criteria['.$videoCriterion->id.']"',
+                'value="met" >Met</option>',
+                'value="not_met" selected>Not met</option>',
                 'name="comments"',
                 'Strong week, finish the video.',
             ], false)
@@ -111,6 +113,19 @@ class CoachGateReviewPageTest extends TestCase
                 'Gate criteria',
             ])
             ->assertDontSee('View Video');
+    }
+
+    public function test_without_a_saved_evaluation_no_decision_is_preselected_and_every_criterion_opens_on_not_met(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        ['week' => $week, 'gate' => $gate] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+
+        $content = $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertSame(2, substr_count($content, ' selected>'));
+        $this->assertSame(2, substr_count($content, 'value="not_met" selected>Not met</option>'));
     }
 
     public function test_met_criteria_count_the_video_criterion_once_its_recording_is_reviewed_as_met(): void
@@ -170,7 +185,9 @@ class CoachGateReviewPageTest extends TestCase
             ->assertOk()
             ->assertSee('role="alert"', false)
             ->assertSee('The Week 2 Gate cannot pass until every required criterion and objective requirement is satisfied.')
-            ->assertSee('Passing early.');
+            ->assertSee('Passing early.')
+            ->assertSee('<option value="passed" selected>Passed</option>', false)
+            ->assertDontSee('value="not_met" selected', false);
     }
 
     public function test_saving_a_review_stores_each_required_criterion_decision_and_a_left_out_criterion_as_not_met(): void

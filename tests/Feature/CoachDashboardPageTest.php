@@ -44,7 +44,29 @@ class CoachDashboardPageTest extends TestCase
                 'href="'.route('coach.scoring.index').'"', 'Scoring',
             ], false)
             ->assertDontSee('href="'.route('admin.users.index').'"', false)
-            ->assertDontSee('Settings · Google Drive');
+            ->assertDontSee('Settings · Google Drive')
+            ->assertDontSee('No active program.');
+    }
+
+    public function test_without_an_active_program_the_dashboard_shows_a_notice_and_no_completions(): void
+    {
+        $activity = Activity::factory()->create();
+        $activity->week->program->update(['is_active' => false]);
+        ActivitySubmission::factory()->for($activity)->create(['status' => 'submitted']);
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))
+            ->get(route('coach.dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Training overview',
+                'role="status"',
+                'No active program.',
+                'Completion counts start once a training program is active.',
+                'MENTOR INTERVIEW AVAILABILITY',
+                '<dt', 'PARTICIPANTS', '<dd', '1',
+                '<dt', 'COMPLETED', '<dd', '0',
+                '<dt', 'NEEDS REVIEW', '<dd', '1',
+            ], false);
     }
 
     public function test_admin_also_sees_the_users_and_google_drive_settings_links(): void

@@ -21,18 +21,17 @@ class CoachReportService
     public function __construct(private readonly WeekProgressionService $progression) {}
 
     /**
-     * Headline counts of the coach dashboard.
+     * Headline counts of the coach dashboard; no participant has completed a program while none is active.
      *
      * @return array{participants: int, completed: int, needs_review: int, needs_revision: int, at_risk: int}
      */
-    public function dashboardStats(): array
+    public function dashboardStats(?Program $activeProgram): array
     {
         $participants = $this->participants()->get();
-        $program = Program::query()->where('is_active', true)->firstOrFail();
 
         return [
             'participants' => $participants->count(),
-            'completed' => $this->progression->completedParticipantIds($participants, $program)->count(),
+            'completed' => $activeProgram ? $this->progression->completedParticipantIds($participants, $activeProgram)->count() : 0,
             'needs_review' => $this->reviewQueue()->whereIn('status', SubmissionStatus::awaitingReview())->count(),
             'needs_revision' => $this->reviewQueue()->where('status', SubmissionStatus::NeedsRevision)->count(),
             'at_risk' => $this->atRisk()->count(),

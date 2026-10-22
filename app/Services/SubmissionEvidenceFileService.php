@@ -37,9 +37,10 @@ class SubmissionEvidenceFileService
     }
 
     /**
-     * Serve the stored file inline when the browser can render it safely; otherwise show the preview-unavailable page.
+     * Serve the stored file inline when the browser can render it safely; otherwise show the preview-unavailable page,
+     * whose download action points at the given URL (the evidence download route by default).
      */
-    public function viewResponse(SubmissionEvidence $evidence): BinaryFileResponse|StreamedResponse|Response
+    public function viewResponse(SubmissionEvidence $evidence, ?string $downloadUrl = null): BinaryFileResponse|StreamedResponse|Response
     {
         $this->ensureFileExists($evidence);
 
@@ -59,6 +60,7 @@ class SubmissionEvidenceFileService
             return response()->view('evidence.preview-unavailable', [
                 'evidence' => $evidence,
                 'mime' => $mime,
+                'downloadUrl' => $downloadUrl ?? route('training.evidence.download', $evidence),
                 'preview' => method_exists($disk, 'path') ? $this->officePreview($disk->path($evidence->path), $mime) : null,
             ]);
         }

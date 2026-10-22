@@ -238,6 +238,7 @@ class ProfilePageTest extends TestCase
         $this->assertSame($isRunning ? 2 : 0, substr_count($content, 'SYNCING...'));
         $this->assertSame($isRunning ? 0 : 2, substr_count($content, 'SYNC TO GOOGLE DRIVE'));
         $this->assertSame($isRunning, str_contains($content, 'data-drive-sync-status-url="'.route('google-drive.sync.status').'"'));
+        $this->assertSame($isRunning, str_contains($content, '<button type="submit" disabled'));
     }
 
     /**
@@ -248,7 +249,7 @@ class ProfilePageTest extends TestCase
         return [
             'enqueued' => ['enqueued', 'Syncing…', true],
             'in progress' => ['in_progress', 'Syncing…', true],
-            'retrying' => ['retrying', 'Retrying', false],
+            'retrying' => ['retrying', 'Syncing…', true],
             'completed' => ['completed', 'Successfully synced to Google Drive.', false],
             'completed with errors' => ['completed_with_errors', 'Completed with errors', false],
             'failed' => ['failed', 'Failed', false],

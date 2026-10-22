@@ -7,6 +7,12 @@
             <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Training overview</h1>
         </header>
 
+        @if(! $hasActiveProgram)
+            <x-ui.alert tone="warning" role="status">
+                <strong>No active program.</strong> Completion counts start once a training program is active.
+            </x-ui.alert>
+        @endif
+
         <x-ui.card as="section" class="grid justify-items-start gap-3" aria-labelledby="coach-calendar-title">
             <x-ui.eyebrow>MENTOR INTERVIEW AVAILABILITY</x-ui.eyebrow>
             <h2 id="coach-calendar-title" class="m-0 text-xl font-extrabold">Configure your interview calendar</h2>

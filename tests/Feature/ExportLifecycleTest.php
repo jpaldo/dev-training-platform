@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Enums\GoogleDriveExportStatus;
 use App\Enums\GoogleDriveSyncStatus;
+use App\Jobs\GenerateParticipantNotificationsJob;
+use App\Jobs\SyncTrainingDataJob;
 use App\Models\GoogleDriveExport;
 use App\Models\GoogleDriveSync;
 use App\Models\User;
@@ -87,7 +89,7 @@ class ExportLifecycleTest extends TestCase
         $this->assertSame('Export stopped before completion. Please retry the export.', $enqueued->fresh()->error);
     }
 
-    public function test_stale_running_syncs_are_failed_but_recent_retrying_and_finished_syncs_are_untouched(): void
+    public function test_stale_running_and_retrying_syncs_are_failed_but_recent_and_finished_syncs_are_untouched(): void
     {
         $userId = $this->userId();
         $syncs = collect([
@@ -95,19 +97,46 @@ class ExportLifecycleTest extends TestCase
             'inProgress' => GoogleDriveSyncStatus::InProgress,
             'recentInProgress' => GoogleDriveSyncStatus::InProgress,
             'retrying' => GoogleDriveSyncStatus::Retrying,
+            'recentRetrying' => GoogleDriveSyncStatus::Retrying,
             'completed' => GoogleDriveSyncStatus::Completed,
         ])->map(fn (GoogleDriveSyncStatus $status): GoogleDriveSync => GoogleDriveSync::create(['user_id' => $userId, 'destination_folder_id' => 'root', 'status' => $status]));
-        DB::table('google_drive_syncs')->where('id', '!=', $syncs['recentInProgress']->id)->update(['updated_at' => Carbon::now()->subMinutes(15)]);
+        DB::table('google_drive_syncs')->whereNotIn('id', [$syncs['recentInProgress']->id, $syncs['recentRetrying']->id])->update(['updated_at' => Carbon::now()->subMinutes(15)]);
 
         $count = app(ExportLifecycleService::class)->reconcileStale($userId);
 
-        $this->assertSame(2, $count);
+        $this->assertSame(3, $count);
         $this->assertSame(GoogleDriveSyncStatus::Failed, $syncs['enqueued']->fresh()->status);
         $this->assertSame(GoogleDriveSyncStatus::Failed, $syncs['inProgress']->fresh()->status);
         $this->assertSame('Synchronization stopped before completion. Please retry the sync.', $syncs['inProgress']->fresh()->error);
+        $this->assertSame(GoogleDriveSyncStatus::Failed, $syncs['retrying']->fresh()->status);
         $this->assertSame(GoogleDriveSyncStatus::InProgress, $syncs['recentInProgress']->fresh()->status);
-        $this->assertSame(GoogleDriveSyncStatus::Retrying, $syncs['retrying']->fresh()->status);
+        $this->assertSame(GoogleDriveSyncStatus::Retrying, $syncs['recentRetrying']->fresh()->status);
         $this->assertSame(GoogleDriveSyncStatus::Completed, $syncs['completed']->fresh()->status);
+    }
+
+    public function test_queued_jobs_other_than_exports_do_not_hold_back_the_stale_repair(): void
+    {
+        config(['queue.default' => 'database']);
+        $userId = $this->userId();
+        $record = GoogleDriveExport::create(['user_id' => $userId, 'export_type' => 'summary', 'scope_key' => 'training_progress', 'status' => GoogleDriveExportStatus::InProgress, 'last_attempt_at' => Carbon::now()->subMinutes(15)]);
+        GenerateParticipantNotificationsJob::dispatch($userId);
+        $this->assertSame(1, DB::table('jobs')->count());
+
+        $this->assertSame(1, app(ExportLifecycleService::class)->reconcileStale($userId));
+        $this->assertSame(GoogleDriveExportStatus::Failed, $record->fresh()->status);
+    }
+
+    public function test_a_queued_export_or_sync_job_holds_back_the_stale_repair(): void
+    {
+        config(['queue.default' => 'database']);
+        $userId = $this->userId();
+        $record = GoogleDriveExport::create(['user_id' => $userId, 'export_type' => 'summary', 'scope_key' => 'training_progress', 'status' => GoogleDriveExportStatus::InProgress, 'last_attempt_at' => Carbon::now()->subMinutes(15)]);
+        SyncTrainingDataJob::dispatch(GoogleDriveSync::create(['user_id' => $userId, 'destination_folder_id' => 'root'])->id);
+        GenerateParticipantNotificationsJob::dispatch($userId);
+        $this->assertSame(2, DB::table('jobs')->count());
+
+        $this->assertSame(0, app(ExportLifecycleService::class)->reconcileStale($userId));
+        $this->assertSame(GoogleDriveExportStatus::InProgress, $record->fresh()->status);
     }
 
     public function test_failed_queue_reservation_reconciles_active_summary_immediately(): void

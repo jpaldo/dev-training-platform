@@ -24,7 +24,7 @@
 
             <p class="m-0 wrap-anywhere"><strong>Detected type:</strong> {{ $mime }}</p>
 
-            <x-ui.button :href="route('training.evidence.download', $evidence)" class="justify-self-start">Download evidence</x-ui.button>
+            <x-ui.button :href="$downloadUrl" class="justify-self-start">Download evidence</x-ui.button>
         </x-ui.card>
     </div>
 @endsection

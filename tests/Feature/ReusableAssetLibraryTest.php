@@ -79,6 +79,23 @@ class ReusableAssetLibraryTest extends TestCase
             ->assertHeader('Content-Disposition', 'attachment; filename=asset.md');
     }
 
+    public function test_an_asset_the_browser_cannot_render_shows_the_preview_unavailable_page_with_the_library_download(): void
+    {
+        Storage::fake('local');
+        [, $version] = $this->assetFixture('approved');
+        $asset = $version->evidence()->sole();
+        Storage::disk('local')->put($asset->path, 'zip bytes');
+        $asset->update(['original_filename' => 'asset.zip', 'mime_type' => 'application/zip']);
+        $viewer = User::factory()->create();
+
+        $this->actingAs($viewer)
+            ->get(route('training.reusable-assets.view', $version))
+            ->assertOk()
+            ->assertSee('This file type cannot be safely rendered in the browser.')
+            ->assertSee('href="'.route('training.reusable-assets.download', $version).'"', false)
+            ->assertDontSee(route('training.evidence.download', $asset), false);
+    }
+
     public function test_draft_assets_and_arbitrary_versions_are_not_exposed(): void
     {
         Storage::fake('local');

@@ -21,12 +21,13 @@ class CoachGateReviewPageService
     /**
      * Everything the coach Gate review page renders: the readiness summary (the required criteria met: the weekly
      * video criterion once its recording is reviewed as met, every other one when the saved evaluation marks it met),
-     * the blockers, the required criteria (with the weekly video link on the video criterion), the Gate decision options
-     * (none preselected, so the first one shows), the criterion decision options (Not met preselected), the saved
-     * evaluation for the comments field and whether the viewer may decide the Gate (a coach who is not assigned to the
-     * participant sees the page read only).
+     * the blockers, the required criteria (with the weekly video link on the video criterion and the criterion decision
+     * to preselect: the saved one, Not met without one), the Gate decision options, the decision to preselect (the saved
+     * evaluation's when it is a coach decision; none otherwise, so the first one shows), the criterion decision options,
+     * the saved evaluation for the comments field and whether the viewer may decide the Gate (a coach who is not
+     * assigned to the participant sees the page read only). Old input overrides the preselected values in the view.
      *
-     * @return array{trainingWeek: TrainingWeek, participant: User, gate: TrainingGate, evaluation: ?GateEvaluation, canManage: bool, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, criteria: list<array{id: int, title: string, field_label: string, description: ?string, video_url: ?string}>, decisionOptions: list<array{value: string, label: string}>, criterionStatusOptions: list<array{value: string, label: string, is_selected: bool}>}
+     * @return array{trainingWeek: TrainingWeek, participant: User, gate: TrainingGate, evaluation: ?GateEvaluation, canManage: bool, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, criteria: list<array{id: int, title: string, field_label: string, description: ?string, video_url: ?string, selected_status: string}>, decisionOptions: list<array{value: string, label: string}>, selectedDecision: ?string, criterionStatusOptions: list<array{value: string, label: string}>}
      */
     public function showData(TrainingWeek $week, User $participant, TrainingGate $gate, ?GateEvaluation $evaluation, User $viewer): array
     {
@@ -54,8 +55,9 @@ class CoachGateReviewPageService
                 ['label' => 'Video Recording', 'value' => $weeklyVideo['url'] ? 'Uploaded' : 'Missing'],
             ],
             'blockers' => array_values($readiness),
-            'criteria' => $requiredCriteria->map(function (GateCriterion $criterion) use ($weeklyVideo): array {
+            'criteria' => $requiredCriteria->map(function (GateCriterion $criterion) use ($weeklyVideo, $evaluation): array {
                 $isVideo = in_array($criterion->criterion_type, self::VIDEO_CRITERION_TYPES, true);
+                $savedStatus = $evaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id)?->status;
 
                 return [
                     'id' => $criterion->id,
@@ -63,16 +65,17 @@ class CoachGateReviewPageService
                     'field_label' => $isVideo ? 'Required Weekly Video Recording' : $criterion->title,
                     'description' => $criterion->description,
                     'video_url' => $isVideo ? $weeklyVideo['url'] : null,
+                    'selected_status' => ($savedStatus ?? GateCriterionStatus::NotMet)->value,
                 ];
             })->all(),
             'decisionOptions' => array_map(fn (GateEvaluationStatus $status): array => [
                 'value' => $status->value,
                 'label' => $this->decisionLabel($status),
             ], GateEvaluationStatus::decisions()),
+            'selectedDecision' => in_array($evaluation?->status, GateEvaluationStatus::decisions(), true) ? $evaluation->status->value : null,
             'criterionStatusOptions' => array_map(fn (GateCriterionStatus $status): array => [
                 'value' => $status->value,
                 'label' => $status->label(),
-                'is_selected' => $status === GateCriterionStatus::NotMet,
             ], GateCriterionStatus::cases()),
         ];
     }

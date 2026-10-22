@@ -275,6 +275,19 @@ class GoogleDriveSyncTest extends TestCase
         $this->assertDatabaseCount('google_drive_syncs', 1);
     }
 
+    public function test_a_sync_waiting_for_its_retry_blocks_a_second_sync(): void
+    {
+        $this->configureDrive();
+        $participant = User::factory()->create(['role' => 'participant']);
+        GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'refresh_token' => 'refresh', 'drive_folder_id' => 'folder', 'destination_source' => 'picker', 'connected_at' => now()]);
+        GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => GoogleDriveSyncStatus::Retrying]);
+        Queue::fake();
+
+        $this->actingAs($participant)->post(route('google-drive.sync'))->assertRedirect()->assertSessionHas('status', 'Google Drive sync is already in progress.');
+        Queue::assertNotPushed(SyncTrainingDataJob::class);
+        $this->assertDatabaseCount('google_drive_syncs', 1);
+    }
+
     public function test_stale_queued_sync_is_failed_by_status_endpoint_instead_of_polling_forever(): void
     {
         $this->configureDrive();

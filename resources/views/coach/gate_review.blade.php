@@ -82,7 +82,7 @@
                         <label for="gate-status" class="{{ $labelClasses }}">Decision</label>
                         <select id="gate-status" name="status" class="{{ $controlClasses }}">
                             @foreach($decisionOptions as $option)
-                                <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
+                                <option value="{{ $option['value'] }}" @selected(old('status', $selectedDecision) === $option['value'])>{{ $option['label'] }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -94,7 +94,7 @@
                                 <label for="criterion-{{ $criterion['id'] }}" class="{{ $labelClasses }}">{{ $criterion['field_label'] }}</label>
                                 <select id="criterion-{{ $criterion['id'] }}" name="criteria[{{ $criterion['id'] }}]" class="{{ $controlClasses }}">
                                     @foreach($criterionStatusOptions as $option)
-                                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                                        <option value="{{ $option['value'] }}" @selected(old('criteria.'.$criterion['id'], $criterion['selected_status']) === $option['value'])>{{ $option['label'] }}</option>
                                     @endforeach
                                 </select>
                             </div>

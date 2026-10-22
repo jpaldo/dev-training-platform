@@ -56,7 +56,7 @@ class ProfilePageService
     /**
      * The participant's Google Drive card: the availability state (connected, unavailable when Drive is disabled,
      * not ready when OAuth is incomplete, or ready to connect) and, once connected, the account, export folder,
-     * latest sync and folder actions.
+     * latest sync and folder actions (the sync button is disabled while a sync is running).
      *
      * @return array{state: string, connection: ?array{account_label: string, connected_at_label: ?string, folder_state: string, folder_name: ?string, legacy_folder_label: string}, sync: ?array{status_label: string, last_successful_sync_label: ?string, error: ?string, failed_components: ?list<array{name: string, message: ?string}>, status_url: ?string}, can_sync: bool, sync_button_label: string, picker: array{is_configured: bool, label: string, api_key: ?string, app_id: ?string, is_enabled: bool}}
      */
@@ -81,7 +81,7 @@ class ProfilePageService
             },
             'connection' => $connection ? $this->connection($participant, $connection, $hasPickerFolder) : null,
             'sync' => $latestSync ? $this->sync($latestSync, $isSyncing) : null,
-            'can_sync' => $canSync,
+            'can_sync' => $canSync && ! $isSyncing,
             'sync_button_label' => match (true) {
                 $isSyncing => 'SYNCING...',
                 $canSync => 'SYNC TO GOOGLE DRIVE',

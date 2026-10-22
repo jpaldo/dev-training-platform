@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\GateCriterionStatus;
 use App\Models\GateCriterion;
 use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
@@ -22,7 +23,7 @@ class GateCriterionEvaluationFactory extends Factory
         return [
             'gate_evaluation_id' => GateEvaluation::factory(),
             'gate_criterion_id' => GateCriterion::factory(),
-            'status' => 'not_met',
+            'status' => GateCriterionStatus::NotMet,
             'notes' => null,
             'reviewer_id' => null,
             'evaluated_at' => null,

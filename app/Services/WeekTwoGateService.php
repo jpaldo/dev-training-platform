@@ -231,7 +231,7 @@ class WeekTwoGateService
             $criterionEvaluation = $evaluations->get($participant->id.':'.$gate->id)?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id);
 
             return [$gate->id => [
-                'status' => ! $recording && ! $legacyUrl ? 'missing' : ($criterionEvaluation?->status === 'met' ? 'met' : 'awaiting_review'),
+                'status' => ! $recording && ! $legacyUrl ? 'missing' : ($criterionEvaluation?->isMet() ? 'met' : 'awaiting_review'),
                 'url' => $recording ? route('training.video-recording.view', [$week, $recording]) : $legacyUrl,
                 'activity' => null,
                 'criterion' => $criterion,

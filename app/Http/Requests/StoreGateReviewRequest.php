@@ -2,9 +2,12 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\GateCriterionStatus;
+use App\Models\GateCriterion;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreGateReviewRequest extends FormRequest
 {
@@ -25,6 +28,19 @@ class StoreGateReviewRequest extends FormRequest
      */
     public function rules(): array
     {
-        return ['status' => ['required', 'in:failed,needs_revision,passed'], 'comments' => ['nullable', 'string', 'max:5000'], 'criteria' => ['required', 'array'], 'criteria.*' => ['required', 'in:met,not_met']];
+        return [
+            'status' => ['required', 'in:failed,needs_revision,passed'],
+            'comments' => ['nullable', 'string', 'max:5000'],
+            'criteria' => ['required', 'array'],
+            'criteria.*' => ['required', Rule::enum(GateCriterionStatus::class)],
+        ];
+    }
+
+    /**
+     * The coach's decision on a criterion; a criterion left out of the review is not met.
+     */
+    public function criterionStatus(GateCriterion $criterion): GateCriterionStatus
+    {
+        return $this->enum('criteria.'.$criterion->id, GateCriterionStatus::class) ?? GateCriterionStatus::NotMet;
     }
 }

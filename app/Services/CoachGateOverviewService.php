@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GateCriterionStatus;
 use App\Models\DailyLog;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
@@ -45,7 +46,7 @@ class CoachGateOverviewService
                     'readiness' => $readinessReasons,
                     'status' => $status,
                     'daily_log_count' => $participant->dailyLogs->filter(fn (DailyLog $log): bool => $log->activity?->training_week_id === $gate->week->id)->count(),
-                    'criteria_met' => $evaluation?->criterionEvaluations->where('status', 'met')->count() ?? 0,
+                    'criteria_met' => $evaluation?->criterionEvaluations->where('status', GateCriterionStatus::Met)->count() ?? 0,
                     'criteria_total' => $gate->criteria->where('is_required', true)->count(),
                     'loom' => $weeklyVideosByParticipant->get($participant->id)->get($gate->id),
                 ]);

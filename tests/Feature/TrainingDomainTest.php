@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GateCriterionStatus;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
@@ -82,6 +83,6 @@ class TrainingDomainTest extends TestCase
 
         $this->assertSame($gate->id, $evaluation->gate->id);
         $this->assertSame($evaluation->id, $criterionEvaluation->gateEvaluation->id);
-        $this->assertSame('met', $criterionEvaluation->status);
+        $this->assertSame(GateCriterionStatus::Met, $criterionEvaluation->status);
     }
 }

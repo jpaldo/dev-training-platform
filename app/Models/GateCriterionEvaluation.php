@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\GateCriterionStatus;
 use Database\Factories\GateCriterionEvaluationFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,7 +17,7 @@ class GateCriterionEvaluation extends Model
 
     protected function casts(): array
     {
-        return ['evaluated_at' => 'datetime'];
+        return ['status' => GateCriterionStatus::class, 'evaluated_at' => 'datetime'];
     }
 
     public function gateEvaluation(): BelongsTo
@@ -32,5 +33,10 @@ class GateCriterionEvaluation extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewer_id');
+    }
+
+    public function isMet(): bool
+    {
+        return $this->status === GateCriterionStatus::Met;
     }
 }

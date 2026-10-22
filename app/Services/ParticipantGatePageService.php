@@ -108,12 +108,12 @@ class ParticipantGatePageService
                 return [
                     'title' => $criterion->title,
                     'status_label' => match (true) {
-                        $criterionEvaluation?->status === 'met' => 'Met',
+                        $criterionEvaluation?->isMet() === true => 'Met',
                         $criterionEvaluation !== null => 'Missing',
                         default => 'Awaiting Review',
                     },
                     'status_tone' => match (true) {
-                        $criterionEvaluation?->status === 'met' => 'success',
+                        $criterionEvaluation?->isMet() === true => 'success',
                         $criterionEvaluation !== null => 'danger',
                         default => 'neutral',
                     },

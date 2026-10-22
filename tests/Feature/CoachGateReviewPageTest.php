@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GateCriterionStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
@@ -65,6 +66,8 @@ class CoachGateReviewPageTest extends TestCase
                 'name="status"',
                 'Criterion decisions',
                 'name="criteria['.$activityCriterion->id.']"',
+                'value="met"', '>Met</option>',
+                'value="not_met" selected>Not met</option>',
                 '>Required Weekly Video Recording</label>',
                 'name="criteria['.$videoCriterion->id.']"',
                 'name="comments"',
@@ -115,6 +118,70 @@ class CoachGateReviewPageTest extends TestCase
             ->assertSee('role="alert"', false)
             ->assertSee('The Week 2 Gate cannot pass until every required criterion and objective requirement is satisfied.')
             ->assertSee('Passing early.');
+    }
+
+    public function test_saving_a_review_stores_each_required_criterion_decision_and_a_left_out_criterion_as_not_met(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 2);
+        [$metCriterion, $notMetCriterion, $videoCriterion] = $criteria;
+
+        $this->actingAs($coach)
+            ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
+                'status' => 'needs_revision',
+                'criteria' => [$metCriterion->id => 'met', $notMetCriterion->id => 'not_met'],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $criterionEvaluations = GateEvaluation::query()->where('user_id', $participant->id)->sole()->criterionEvaluations->keyBy('gate_criterion_id');
+        $this->assertCount(3, $criterionEvaluations);
+        $this->assertSame(GateCriterionStatus::Met, $criterionEvaluations->get($metCriterion->id)->status);
+        $this->assertSame(GateCriterionStatus::NotMet, $criterionEvaluations->get($notMetCriterion->id)->status);
+        $this->assertSame(GateCriterionStatus::NotMet, $criterionEvaluations->get($videoCriterion->id)->status);
+    }
+
+    public function test_a_ready_gate_cannot_pass_while_a_required_criterion_is_not_met(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+        [$activityCriterion, $videoCriterion] = $criteria;
+        $this->completeActivity($participant, $activities->first());
+        foreach (range(1, 5) as $day) {
+            DailyLog::factory()->for($participant, 'participant')->for($activities->first())->create(['logged_on' => now()->subDays($day)->toDateString()]);
+        }
+        $this->uploadWeeklyVideo($participant, $week);
+
+        $this->actingAs($coach)
+            ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
+                'status' => 'passed',
+                'criteria' => [$activityCriterion->id => 'not_met', $videoCriterion->id => 'met'],
+            ])
+            ->assertSessionHasErrors(['gate' => 'The Week 2 Gate cannot pass until every required criterion and objective requirement is satisfied.']);
+        $this->assertDatabaseMissing('gate_evaluations', ['user_id' => $participant->id]);
+
+        $this->actingAs($coach)
+            ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
+                'status' => 'passed',
+                'criteria' => [$activityCriterion->id => 'met', $videoCriterion->id => 'met'],
+            ])
+            ->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('gate_evaluations', ['user_id' => $participant->id, 'status' => 'passed']);
+    }
+
+    public function test_a_criterion_decision_must_be_met_or_not_met(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+        $criterionId = $criteria->first()->id;
+
+        $this->actingAs($coach)
+            ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
+                'status' => 'needs_revision',
+                'criteria' => [$criterionId => 'passed'],
+            ])
+            ->assertSessionHasErrors(['criteria.'.$criterionId => "The selected criteria.{$criterionId} is invalid."]);
+
+        $this->assertDatabaseMissing('gate_evaluations', ['user_id' => $participant->id]);
     }
 
     public function test_gate_review_query_count_does_not_grow_with_activities_daily_logs_and_criteria(): void

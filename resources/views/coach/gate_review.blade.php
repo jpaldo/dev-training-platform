@@ -90,8 +90,9 @@
                         <div class="grid gap-2">
                             <label for="criterion-{{ $criterion['id'] }}" class="{{ $labelClasses }}">{{ $criterion['field_label'] }}</label>
                             <select id="criterion-{{ $criterion['id'] }}" name="criteria[{{ $criterion['id'] }}]" class="{{ $controlClasses }}">
-                                <option value="met">Met</option>
-                                <option value="not_met" selected>Not met</option>
+                                @foreach($criterionStatusOptions as $option)
+                                    <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                                @endforeach
                             </select>
                         </div>
                     @endforeach

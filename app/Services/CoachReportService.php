@@ -71,8 +71,8 @@ class CoachReportService
     public function atRiskRows(?array $filters = null): Collection
     {
         return $this->participants($filters)->get()->map(function (User $participant): ?array {
-            $reasons = $participant->activitySubmissions->filter(fn (ActivitySubmission $s): bool => $s->needsRevision() || $s->isFailed())->map(fn (ActivitySubmission $s): string => "Activity {$s->activity_id}: {$s->status->value}")->values()->all();
-            $reasons = array_merge($reasons, $participant->gateEvaluations->filter(fn (GateEvaluation $g): bool => $g->status !== GateEvaluationStatus::Passed)->map(fn (GateEvaluation $g): string => "Gate {$g->training_gate_id}: {$g->status->value}")->values()->all());
+            $reasons = $participant->activitySubmissions->filter(fn (ActivitySubmission $s): bool => $s->needsRevision() || $s->isFailed())->map(fn (ActivitySubmission $s): string => "{$s->activity->title}: {$s->status->label()}")->values()->all();
+            $reasons = array_merge($reasons, $participant->gateEvaluations->filter(fn (GateEvaluation $g): bool => $g->status !== GateEvaluationStatus::Passed)->map(fn (GateEvaluation $g): string => "{$g->gate->title}: {$g->status->label()}")->values()->all());
 
             return $reasons === [] ? null : ['participant' => $participant, 'reasons' => $reasons];
         })->filter()->values();

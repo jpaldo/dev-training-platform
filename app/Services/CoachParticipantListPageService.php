@@ -13,8 +13,6 @@ class CoachParticipantListPageService
 {
     private const PARTICIPANTS_PER_PAGE = 25;
 
-    private const PATH_OPTIONS = [TrainingPath::Manual->value => 'Manual QA', TrainingPath::Automation->value => 'Automation QA'];
-
     public function __construct(
         private readonly CoachReportService $reports,
         private readonly WeekFourInterviewService $interviews,
@@ -50,7 +48,7 @@ class CoachParticipantListPageService
                 ->values()
                 ->all(),
             'search' => (string) ($filters['search'] ?? ''),
-            'pathOptions' => collect(self::PATH_OPTIONS)
+            'pathOptions' => collect(TrainingPath::options())
                 ->map(fn (string $label, string $value): array => [
                     'value' => $value,
                     'label' => $label,

@@ -116,7 +116,7 @@ class CoachGateBoardPageTest extends TestCase
             ->assertOk()
             ->assertSee('value="Page"', false)
             ->assertSee('<option value="2" selected>Week 2</option>', false)
-            ->assertSee('<option value="manual" selected>Manual QA</option>', false)
+            ->assertSee('<option value="manual" selected>Manual</option>', false)
             ->assertSee('<option value="not_ready" selected>Not Ready</option>', false)
             ->assertSee('>26</dd>', false)
             ->assertDontSee('Page Automation')

@@ -14,7 +14,7 @@ enum ValidationDecision: string
     case Reprompt = 'reprompt';
 
     /**
-     * The decision option text of the six-check form.
+     * The decision text (the six-check form offers it; the Lab record page and dialog show it upper case).
      */
     public function label(): string
     {

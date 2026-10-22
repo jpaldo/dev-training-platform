@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\SubmissionStatus;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionVersion;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -31,7 +30,7 @@ class CoachReviewQueuePageService
     }
 
     /**
-     * One queue entry: the participant, the week and activity, the submission status with its badge tone and the
+     * One queue entry: the participant, the week and activity, the submission status label with its badge tone and the
      * review link of the latest version (null when the submission has no version yet).
      *
      * @return array{participant_name: string, week_number: int, activity_title: string, status: string, status_tone: string, review_url: ?string}
@@ -44,12 +43,8 @@ class CoachReviewQueuePageService
             'participant_name' => $submission->participant->name,
             'week_number' => $submission->activity->week->week_number,
             'activity_title' => $submission->activity->title,
-            'status' => $submission->status->value,
-            'status_tone' => match ($submission->status) {
-                SubmissionStatus::Submitted, SubmissionStatus::Resubmitted, SubmissionStatus::UnderReview => 'accent',
-                SubmissionStatus::NeedsRevision => 'warning',
-                default => 'neutral',
-            },
+            'status' => $submission->status->label(),
+            'status_tone' => $submission->status->tone(),
             'review_url' => $latestVersion instanceof SubmissionVersion ? route('coach.reviews.show', $latestVersion) : null,
         ];
     }

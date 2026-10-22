@@ -38,6 +38,17 @@ class SubmissionVersionPageTest extends TestCase
             ->assertDontSee('submission-main-action', false);
     }
 
+    public function test_summary_shows_the_shared_label_of_an_automation_manual_path(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $participant->update(['training_path' => 'automation_manual']);
+        $version = $this->submittedVersion($participant, $activity, 'submitted');
+
+        $this->actingAs($participant)->get(route('training.submission.show', [$week, $activity, $version]))
+            ->assertOk()
+            ->assertSee($activity->title.' · Automation / Manual QA');
+    }
+
     public function test_evidence_rows_distinguish_links_and_text_evidence(): void
     {
         [$participant, $week, $activity] = $this->activityFixture();
@@ -165,7 +176,7 @@ class SubmissionVersionPageTest extends TestCase
     public static function versionStatusBadges(): array
     {
         return [
-            'submitted' => ['submitted', 'border-line text-muted">Submitted</span>'],
+            'submitted' => ['submitted', 'border-accent text-cyan-200">Submitted</span>'],
             'legacy completed' => ['completed', 'border-emerald-400 text-emerald-200">Completed</span>'],
         ];
     }

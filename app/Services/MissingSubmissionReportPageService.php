@@ -83,7 +83,7 @@ class MissingSubmissionReportPageService
                 $filters['participant'] ?? null,
             ),
             'pathOptions' => $this->options(
-                collect(TrainingPath::cases())->mapWithKeys(fn (TrainingPath $path): array => [$path->value => $path->label()])->all(),
+                TrainingPath::options(),
                 $filters['path'] ?? null,
             ),
             'mentorOptions' => $this->modelOptions(

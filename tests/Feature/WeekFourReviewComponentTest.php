@@ -59,7 +59,7 @@ class WeekFourReviewComponentTest extends TestCase
         ]);
 
         $view->assertSeeInOrder([
-            '>Interview Partner</h3>', '<strong>Participant B</strong>', 'b@example.com', 'Automation / manual QA',
+            '>Interview Partner</h3>', '<strong>Participant B</strong>', 'b@example.com', 'Automation / Manual QA',
             '<strong>Interview Date</strong>', '2026-10-20',
             '>Mentor Mock Interview</h3>', '<strong>Mentor M</strong>', 'm@example.com',
             '<strong>Status:</strong> Scheduled', '<strong>Scheduled:</strong> Oct 22, 2026 10:00 AM (Asia/Manila)', '<strong>Duration:</strong> 30 minutes',

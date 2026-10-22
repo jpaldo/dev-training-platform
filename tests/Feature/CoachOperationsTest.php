@@ -366,8 +366,8 @@ class CoachOperationsTest extends TestCase
         $coach->assignedParticipants()->attach($participant->id);
         $activity = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first()->activities()->first();
         $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'needs_revision']);
-        $this->actingAs($coach)->get(route('coach.reports'))->assertOk()->assertSee('needs_revision');
-        $this->assertStringContainsString('needs_revision', $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'risk']))->streamedContent());
+        $this->actingAs($coach)->get(route('coach.reports'))->assertOk()->assertSee(e("{$activity->title}: Needs revision"), false);
+        $this->assertStringContainsString("{$activity->title}: Needs revision", $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'risk']))->streamedContent());
     }
 
     public function test_review_page_exposes_claim_control_only_for_eligible_submission(): void

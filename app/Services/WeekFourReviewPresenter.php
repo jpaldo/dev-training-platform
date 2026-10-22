@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TrainingPath;
 use App\Models\Activity;
 
 class WeekFourReviewPresenter
@@ -46,7 +47,7 @@ class WeekFourReviewPresenter
             'type' => 'interview',
             'partner' => $values['partner_snapshot']['display_name'] ?? $values['partner_name'] ?? 'Partner recorded in submission',
             'partner_email' => $values['partner_snapshot']['email'] ?? null,
-            'partner_path_label' => $partnerPath ? ucfirst(str_replace('_', ' / ', (string) $partnerPath)) : null,
+            'partner_path_label' => is_string($partnerPath) ? TrainingPath::tryFrom($partnerPath)?->label() : null,
             'date' => $values['interview_date'] ?? null,
             'mentor_schedule' => $values['practice_interview_snapshot']['mentor_schedule'] ?? null,
             'question_groups' => isset($questions['forward']) ? [

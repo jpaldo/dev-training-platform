@@ -52,8 +52,8 @@ class ProfilePageTest extends TestCase
                 'id="name" name="name" value="Pat Participant"',
                 'id="email" name="email" type="email" value="pat@example.test"',
                 'id="training_path" name="training_path"',
-                '<option value="manual" >Manual QA</option>',
-                '<option value="automation" selected>Automation QA</option>',
+                '<option value="manual" >Manual</option>',
+                '<option value="automation" selected>Automation</option>',
                 '<option value="automation_manual" >Automation / Manual</option>',
                 '</form>',
                 'action="'.route('logout').'" class="m-0"',
@@ -114,7 +114,7 @@ class ProfilePageTest extends TestCase
                 'id="name" name="name" value=""',
                 'role="alert">The name field is required.</p>',
                 'value="changed@example.test"',
-                '<option value="automation" selected>Automation QA</option>',
+                '<option value="automation" selected>Automation</option>',
             ], false)
             ->assertDontSee('value="Pat Participant"', false);
     }

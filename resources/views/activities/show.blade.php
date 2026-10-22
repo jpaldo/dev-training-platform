@@ -103,7 +103,7 @@
                 <div class="grid grid-cols-1 gap-6">
                     <x-ui.card as="section" class="grid justify-items-start gap-3" aria-labelledby="activity-submission-title">
                         <h2 id="activity-submission-title" class="m-0 text-xl font-extrabold">Training-platform submission</h2>
-                        <p class="m-0 text-muted">Status: <strong class="text-slate-100">{{ $submission?->status ?? 'Not started' }}</strong></p>
+                        <p class="m-0 text-muted">Status: <strong class="text-slate-100">{{ $submission?->status->label() ?? 'Not started' }}</strong></p>
                         <p class="m-0 leading-relaxed text-muted">Select your Lab record where applicable, add required evidence, and submit for coach review. The existing Gate rules determine completion.</p>
                         @if($submission?->needsRevision())
                             <x-ui.alert tone="error">Your coach requested changes. Create a new revision; the previous submitted version remains unchanged.</x-ui.alert>

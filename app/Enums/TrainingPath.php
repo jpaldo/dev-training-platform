@@ -15,7 +15,7 @@ enum TrainingPath: string
     case AutomationManual = 'automation_manual';
 
     /**
-     * The generic path text (coach pages, the participant dashboard, report filters and exports).
+     * The path text on every surface: forms, filters, pages and exports.
      */
     public function label(): string
     {
@@ -24,6 +24,19 @@ enum TrainingPath: string
             self::Automation => 'Automation',
             self::AutomationManual => 'Automation / Manual',
         };
+    }
+
+    /**
+     * Every path's text keyed by its stored value, in case order (the registration and profile forms and every QA Path
+     * filter offer them).
+     *
+     * @return array<string, string>
+     */
+    public static function options(): array
+    {
+        return collect(self::cases())
+            ->mapWithKeys(fn (self $path): array => [$path->value => $path->label()])
+            ->all();
     }
 
     /**

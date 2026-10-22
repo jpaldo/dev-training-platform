@@ -25,8 +25,6 @@ class ScoringPageService
     /** The scored weeks, in column order on the scoring overview. */
     private const SCORED_WEEKS = [2, 3, 4];
 
-    private const PATH_OPTIONS = [TrainingPath::Manual->value => 'Manual QA', TrainingPath::Automation->value => 'Automation QA'];
-
     private const SCORE_STATUS_OPTIONS = ['scored' => 'Scored', 'unscored' => 'Unscored'];
 
     private const BAND_OPTIONS = ['Exemplary' => 'Exemplary', 'Proficient' => 'Proficient', 'Developing' => 'Developing', 'Beginning' => 'Beginning', 'Minimal' => 'Minimal'];
@@ -113,7 +111,7 @@ class ScoringPageService
             'criteriaUrl' => route('coach.scoring.criteria'),
             'reportsUrl' => route('coach.scoring.reports'),
             'search' => (string) ($filters['search'] ?? ''),
-            'pathOptions' => $this->options(self::PATH_OPTIONS, $filters['path'] ?? null),
+            'pathOptions' => $this->options(TrainingPath::options(), $filters['path'] ?? null),
             'weekOptions' => $this->weekOptions($filters['week'] ?? null),
             'scoreStatusOptions' => $this->options(self::SCORE_STATUS_OPTIONS, $filters['score_status'] ?? null),
             'bandOptions' => $this->options(self::BAND_OPTIONS, $filters['band'] ?? null),
@@ -137,7 +135,7 @@ class ScoringPageService
         return [
             'participantName' => $participant->name,
             'participantEmail' => $participant->email,
-            'path' => $this->pathLabel($participant),
+            'path' => $participant->trainingPathLabel(),
             'stats' => [
                 ['label' => 'OVERALL SCORE', 'value' => ($summary['average'] ?? '—').' / 100', 'note' => null],
                 [
@@ -206,7 +204,7 @@ class ScoringPageService
         return [
             'scoresExportUrl' => route('coach.reports.scores', $query),
             'participantSummaryExportUrl' => route('coach.reports.participant-summary', $query),
-            'pathOptions' => $this->options(self::PATH_OPTIONS, $filters['path'] ?? null),
+            'pathOptions' => $this->options(TrainingPath::options(), $filters['path'] ?? null),
             'weekOptions' => $this->weekOptions($filters['week'] ?? null),
             'scoreStatusOptions' => $this->options(self::SCORE_STATUS_OPTIONS, $filters['score_status'] ?? null),
             'bandOptions' => $this->options(self::BAND_OPTIONS, $filters['band'] ?? null),
@@ -287,7 +285,7 @@ class ScoringPageService
         return [
             'name' => $participant->name,
             'email' => $participant->email,
-            'path' => $this->pathLabel($participant),
+            'path' => $participant->trainingPathLabel(),
             'weeks' => collect(self::SCORED_WEEKS)
                 ->map(function (int $weekNumber) use ($summary): array {
                     $week = $summary['weeks'][$weekNumber];
@@ -304,14 +302,6 @@ class ScoringPageService
             'coach_names' => $participant->assignedCoaches->pluck('name')->implode(', ') ?: 'Unassigned',
             'scoring_url' => route('coach.scoring.participant', $participant),
         ];
-    }
-
-    /**
-     * The QA path label of the scoring pages: Automation QA, otherwise Manual QA.
-     */
-    private function pathLabel(User $participant): string
-    {
-        return $participant->training_path === TrainingPath::Automation ? 'Automation QA' : 'Manual QA';
     }
 
     /**

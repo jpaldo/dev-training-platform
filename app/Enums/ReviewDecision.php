@@ -25,6 +25,18 @@ enum ReviewDecision: string
     }
 
     /**
+     * The badge tone of the decision (the submitted version page shows it).
+     */
+    public function tone(): string
+    {
+        return match ($this) {
+            self::Approved => 'success',
+            self::NeedsRevision => 'warning',
+            self::Rejected => 'danger',
+        };
+    }
+
+    /**
      * The submission status the decision moves the reviewed submission to.
      */
     public function submissionStatus(): SubmissionStatus

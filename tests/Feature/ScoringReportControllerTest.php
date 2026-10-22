@@ -55,8 +55,8 @@ class ScoringReportControllerTest extends TestCase
         $rows = collect(explode("\n", trim($csv)))->skip(1)->map(fn (string $line): array => str_getcsv($line))->keyBy(0);
 
         $this->assertCount(2, $rows);
-        $this->assertSame(['Ada', 'ada@example.com', 'manual', 'Casey Coach', '2', '2', '0', '85', '', '', '85', 'Proficient', '2026-10-01 09:00:00'], $rows['Ada']);
-        $this->assertSame(['Ben', 'ben@example.com', 'automation', '', '2', '2', '0', '60', '70', '', '65', 'Developing', '2026-10-01 10:00:00'], $rows['Ben']);
+        $this->assertSame(['Ada', 'ada@example.com', 'Manual', 'Casey Coach', '2', '2', '0', '85', '', '', '85', 'Proficient', '2026-10-01 09:00:00'], $rows['Ada']);
+        $this->assertSame(['Ben', 'ben@example.com', 'Automation', '', '2', '2', '0', '60', '70', '', '65', 'Developing', '2026-10-01 10:00:00'], $rows['Ben']);
     }
 
     public function test_participant_summary_counts_unscored_activities_only_among_completed_ones(): void

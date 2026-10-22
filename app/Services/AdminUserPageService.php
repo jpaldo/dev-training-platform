@@ -22,8 +22,6 @@ class AdminUserPageService
 
     private const STATUS_OPTIONS = ['active' => 'Active', 'disabled' => 'Disabled'];
 
-    private const PATH_OPTIONS = [TrainingPath::Manual->value => 'Manual QA', TrainingPath::Automation->value => 'Automation QA'];
-
     /**
      * Everything the user management page renders: the settings links, the filter values and the matching user
      * rows. Add User is the page's single main action; every other button is secondary.
@@ -43,7 +41,7 @@ class AdminUserPageService
             'search' => (string) ($filters['search'] ?? ''),
             'accessTypeOptions' => $this->options(self::ACCESS_TYPES, $filters['access_type'] ?? null),
             'statusOptions' => $this->options(self::STATUS_OPTIONS, $filters['status'] ?? null),
-            'pathOptions' => $this->options(self::PATH_OPTIONS, $filters['path'] ?? null),
+            'pathOptions' => $this->options(TrainingPath::options(), $filters['path'] ?? null),
             'users' => $this->filteredUsers($filters)
                 ->latest()
                 ->paginate(self::USERS_PER_PAGE)
@@ -102,8 +100,8 @@ class AdminUserPageService
     }
 
     /**
-     * One table row. The access type label and the QA path are worded as the page always showed them (a QA
-     * Automation / Manual participant reads "QA Manual" and "Automation_manual"; see Open decisions in the plan).
+     * One table row. The access type label comes from the same mapping as the edit form's Access Type and the QA path
+     * from the training path's label.
      *
      * @return array{name: string, email: string, access_type: string, path: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string}
      */
@@ -112,13 +110,8 @@ class AdminUserPageService
         return [
             'name' => $user->name,
             'email' => $user->email,
-            'access_type' => match (true) {
-                $user->hasAnyRole(UserRole::Admin) => 'Admin',
-                $user->hasAnyRole(UserRole::Coach) => 'Mentor / Coach',
-                $user->training_path === TrainingPath::Automation => 'QA Automation',
-                default => 'QA Manual',
-            },
-            'path' => $user->training_path ? ucfirst($user->training_path->value) : '—',
+            'access_type' => self::ACCESS_TYPES[$this->accessType($user)],
+            'path' => $user->training_path?->label() ?? '—',
             'is_active' => (bool) $user->is_active,
             'created' => (string) $user->created_at?->format('M j, Y'),
             'edit_url' => route('admin.users.edit', $user),
@@ -128,7 +121,7 @@ class AdminUserPageService
     }
 
     /**
-     * The Access Type the edit form preselects for an existing user.
+     * The Access Type of an existing user (the edit form preselects it; the user list shows its label).
      */
     private function accessType(User $user): string
     {

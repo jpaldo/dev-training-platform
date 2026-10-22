@@ -51,7 +51,7 @@ class CoachProgressReportPageTest extends TestCase
                 'At-risk participants',
                 '>Riley Risk</th>',
                 '>Automation / Manual</span>',
-                ">Activity {$revision->activity_id}: needs_revision · Gate {$failedGate->training_gate_id}: failed</td>",
+                '>'.e($revision->activity->title).': Needs revision · '.e($failedGate->gate->title).': Failed</td>',
                 'Participant progress',
                 '2 participant(s)',
                 '>Riley Risk</strong>', '>riley@example.test</span>',
@@ -144,7 +144,7 @@ class CoachProgressReportPageTest extends TestCase
         $this->actingAs($coach)->get(route('coach.reports'))->assertOk();
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $this->actingAs($coach)->get(route('coach.reports'))->assertOk()->assertSee('needs_revision');
+        $this->actingAs($coach)->get(route('coach.reports'))->assertOk()->assertSee('Needs revision');
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());

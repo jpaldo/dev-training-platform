@@ -13,8 +13,6 @@ class AttendancePageService
 {
     private const SESSIONS_PER_PAGE = 25;
 
-    private const PATH_OPTIONS = [TrainingPath::Manual->value => 'QA Manual', TrainingPath::Automation->value => 'QA Automation'];
-
     private const STATUS_OPTIONS = ['active' => 'Checked in', 'completed' => 'Checked out'];
 
     /**
@@ -70,7 +68,7 @@ class AttendancePageService
                     'is_selected' => (string) ($filters['participant'] ?? '') === (string) $participant->id,
                 ])
                 ->all(),
-            'pathOptions' => $this->options(self::PATH_OPTIONS, $filters['path'] ?? null),
+            'pathOptions' => $this->options(TrainingPath::options(), $filters['path'] ?? null),
             'statusOptions' => $this->options(self::STATUS_OPTIONS, $filters['status'] ?? null),
             'sessions' => $this->filteredSessions($filters)
                 ->latest('check_in_at')
@@ -79,7 +77,7 @@ class AttendancePageService
                 ->through(fn (AttendanceSession $session): array => [
                     'participant_name' => $session->participant->name,
                     'participant_email' => $session->participant->email,
-                    'path' => $session->participant->training_path === TrainingPath::Automation ? 'QA Automation' : 'QA Manual',
+                    'path' => $session->participant->trainingPathLabel(),
                     'check_in' => $session->check_in_at->format('M j, Y · g:i A'),
                     'check_out' => $session->check_out_at?->format('M j, Y · g:i A') ?? '—',
                     'total_hours' => number_format($session->totalHours(), 2),

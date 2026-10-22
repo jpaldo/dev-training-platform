@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\ReviewDecision;
 use App\Enums\SubmissionStatus;
+use App\Enums\ValidationCheckStatus;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityScore;
@@ -115,15 +116,15 @@ class ActivitySubmissionPageService
         $versions = $version->submission->versions;
 
         return [
-            'pathLabel' => ucfirst($version->submission->participant->training_path?->value ?? 'QA'),
-            'statusLabel' => $this->statusLabel($version->status),
-            'statusTone' => $this->statusTone($version->status),
+            'pathLabel' => $version->submission->participant->trainingPathLabel(),
+            'statusLabel' => $version->status->label(),
+            'statusTone' => $version->status->tone(),
             'responses' => $responses,
             'labRecord' => $version->validationSubmission?->user_id === $participant->id ? $version->validationSubmission : null,
             'evidenceItems' => $this->evidenceItems($version->evidence),
             'reviewRows' => $version->reviews->map(fn (SubmissionReview $review): array => [
-                'decision_label' => $this->statusLabel($review->decision),
-                'tone' => $this->statusTone($review->decision),
+                'decision_label' => $review->decision->label(),
+                'tone' => $review->decision->tone(),
                 'comments' => $review->comments,
             ])->values()->all(),
             'finalScore' => $finalScore,
@@ -286,9 +287,10 @@ class ActivitySubmissionPageService
     }
 
     /**
-     * The six Validation Lab checks of the selected Lab record with their status and notes.
+     * The six Validation Lab checks of the selected Lab record with their status text (upper case), its tone (success
+     * for a pass, warning for an issue, neutral when not provided) and the notes.
      *
-     * @return list<array{label: string, status: string, notes: string}>
+     * @return list<array{label: string, status: string, tone: string, notes: string}>
      */
     private function labRecordChecks(?ValidationSubmission $record): array
     {
@@ -298,7 +300,17 @@ class ActivitySubmissionPageService
 
         $checks = [];
         foreach (self::LAB_RECORD_CHECKS as $label => [$status, $notes]) {
-            $checks[] = ['label' => $label, 'status' => strtoupper($record->{$status}?->value ?? 'Not provided'), 'notes' => $record->{$notes} ?: 'Not provided'];
+            $checkStatus = $record->{$status};
+            $checks[] = [
+                'label' => $label,
+                'status' => strtoupper($checkStatus?->label() ?? 'Not provided'),
+                'tone' => match ($checkStatus) {
+                    ValidationCheckStatus::Pass => 'success',
+                    ValidationCheckStatus::Issue => 'warning',
+                    null => 'neutral',
+                },
+                'notes' => $record->{$notes} ?: 'Not provided',
+            ];
         }
 
         return $checks;
@@ -349,30 +361,9 @@ class ActivitySubmissionPageService
     {
         return $versions->map(fn (SubmissionVersion $historic): array => [
             'version' => $historic,
-            'status_label' => $this->statusLabel($historic->status),
-            'tone' => $this->statusTone($historic->status),
+            'status_label' => $historic->status->label(),
+            'tone' => $historic->status->tone(),
             'is_current' => $version !== null && $historic->is($version),
         ])->values()->all();
-    }
-
-    /**
-     * A version status or review decision as a label: `NeedsRevision` becomes "Needs revision".
-     */
-    private function statusLabel(SubmissionStatus|ReviewDecision $status): string
-    {
-        return $status->label();
-    }
-
-    /**
-     * The badge tone of a version status or review decision.
-     */
-    private function statusTone(SubmissionStatus|ReviewDecision $status): string
-    {
-        return match ($status) {
-            SubmissionStatus::Approved, SubmissionStatus::Completed, ReviewDecision::Approved => 'success',
-            SubmissionStatus::Failed, ReviewDecision::Rejected => 'danger',
-            SubmissionStatus::NeedsRevision, ReviewDecision::NeedsRevision => 'warning',
-            default => 'neutral',
-        };
     }
 }

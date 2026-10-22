@@ -38,7 +38,7 @@ class ScoringReportController extends Controller
             $score = $v->activityScore;
             $dims = $score?->dimensions?->keyBy('dimension') ?? collect();
 
-            return [$v->submission->participant->name, $v->submission->participant->email, $v->submission->participant->training_path?->value, $v->submission->activity->week->week_number, $v->submission->activity->title, $v->submission->attempt_number.' / '.$v->version_number, $v->submission->status->value, $score?->status->value ?? 'unscored', $dims->get('D1')?->points, $dims->get('D2')?->points, $dims->get('D3')?->points, $dims->get('D4')?->points, $dims->get('D5')?->points, $score?->total_score, $score?->performance_band, $score?->scorer?->name, $score?->updated_at, $score?->secondReader?->name, $score?->secondReaderStatus() ?? 'Not required', $v->submission->participant->assignedCoaches->pluck('name')->implode('; ')];
+            return [$v->submission->participant->name, $v->submission->participant->email, $v->submission->participant->trainingPathLabel(), $v->submission->activity->week->week_number, $v->submission->activity->title, $v->submission->attempt_number.' / '.$v->version_number, $v->submission->status->value, $score?->status->value ?? 'unscored', $dims->get('D1')?->points, $dims->get('D2')?->points, $dims->get('D3')?->points, $dims->get('D4')?->points, $dims->get('D5')?->points, $score?->total_score, $score?->performance_band, $score?->scorer?->name, $score?->updated_at, $score?->secondReader?->name, $score?->secondReaderStatus() ?? 'Not required', $v->submission->participant->assignedCoaches->pluck('name')->implode('; ')];
         }));
     }
 
@@ -47,7 +47,7 @@ class ScoringReportController extends Controller
         $program = Program::query()->where('is_active', true)->firstOrFail();
         $participants = $reports->participants($request->validated());
         $summaries = $scoring->summaries($participants, $program);
-        $rows = $participants->map(fn (User $p): array => [$p->name, $p->email, $p->training_path?->value, $p->assignedCoaches->pluck('name')->implode('; '), $summaries[$p->id]]);
+        $rows = $participants->map(fn (User $p): array => [$p->name, $p->email, $p->trainingPathLabel(), $p->assignedCoaches->pluck('name')->implode('; '), $summaries[$p->id]]);
 
         return $this->csv('participant-score-summary.csv', ['Participant', 'Email', 'QA Path', 'Assigned Coach(es)', 'Completed Activities', 'Scored Activities', 'Unscored Activities', 'Week 2 Average', 'Week 3 Average', 'Week 4 Average', 'Overall Average', 'Current Performance Band', 'Latest Score Date'], $rows->map(function (array $r): array {
             $s = $r[4];

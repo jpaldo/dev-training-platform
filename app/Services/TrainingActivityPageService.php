@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\GoogleDriveExportStatus;
-use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
@@ -157,35 +156,13 @@ class TrainingActivityPageService
 
             return [
                 'submission' => $attempt,
-                'status_label' => $this->attemptStatusLabel($attempt->status),
-                'tone' => match ($attempt->status) {
-                    SubmissionStatus::Failed => 'danger',
-                    SubmissionStatus::Draft, SubmissionStatus::NeedsRevision => 'accent',
-                    SubmissionStatus::Approved, SubmissionStatus::Completed => 'success',
-                    default => 'neutral',
-                },
+                'status_label' => strtoupper($attempt->status->label()),
+                'tone' => $attempt->status->tone(),
                 'has_later_attempt' => $attempts->contains(fn (ActivitySubmission $candidate): bool => $candidate->attempt_number > $attempt->attempt_number),
                 'feedback' => $latestReview?->comments ? $this->markdown->render($latestReview->comments) : null,
                 'recovery_request' => $recoveryRequests->firstWhere('activity_submission_id', $attempt->id),
                 'published_score' => $latestAttemptVersion?->activityScore?->isPublished() ? $latestAttemptVersion->activityScore : null,
             ];
         });
-    }
-
-    /**
-     * The attempt status label shown in the attempt history.
-     */
-    private function attemptStatusLabel(SubmissionStatus $status): string
-    {
-        return match ($status) {
-            SubmissionStatus::Draft => 'DRAFT · IN PROGRESS',
-            SubmissionStatus::Submitted => 'SUBMITTED · AWAITING REVIEW',
-            SubmissionStatus::UnderReview => 'UNDER REVIEW',
-            SubmissionStatus::NeedsRevision => 'REVISION REQUESTED',
-            SubmissionStatus::Resubmitted => 'RESUBMITTED · AWAITING REVIEW',
-            SubmissionStatus::Approved => 'APPROVED',
-            SubmissionStatus::Failed => 'FAILED · CLOSED',
-            SubmissionStatus::Completed => 'COMPLETED',
-        };
     }
 }

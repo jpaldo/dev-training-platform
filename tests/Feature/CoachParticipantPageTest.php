@@ -46,6 +46,16 @@ class CoachParticipantPageTest extends TestCase
             ->assertSee('Peer mock interview prerequisite is active.');
     }
 
+    public function test_heading_shows_the_shared_training_path_label(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        $participant->update(['training_path' => 'automation_manual']);
+
+        $this->actingAs($coach)->get(route('coach.participants.show', $participant))
+            ->assertOk()
+            ->assertSee(e($participant->email).' · Automation / Manual', false);
+    }
+
     public function test_week_four_tab_is_hidden_without_the_peer_interview_activity(): void
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();

@@ -86,7 +86,7 @@ class SubmissionAnswerPresenter
             ]),
             'tests' => collect($finding['tests'] ?? [])->filter(fn (mixed $test): bool => is_array($test))->filter(fn (array $test): bool => is_string($test['path'] ?? null) && in_array(TrainingPath::tryFrom($test['path']), $allowedPaths, true))->values()->map(fn (array $test): array => [
                 'path' => $test['path'] ?? null,
-                'path_label' => ucfirst(str_replace('_', ' / ', (string) ($test['path'] ?? ''))),
+                'path_label' => TrainingPath::from($test['path'])->label(),
                 'title' => $this->text($test['name'] ?? null),
                 'fields' => $this->reviewFields($test, [
                     'preconditions' => 'Preconditions',

@@ -119,15 +119,16 @@ class AttendancePagesTest extends TestCase
                 'name="date_to" value=""',
                 '<option value="'.$manual->id.'" >Ana Manual</option>',
                 '<option value="'.$automation->id.'" selected>Ben Automation</option>',
-                '<option value="manual" >QA Manual</option>',
-                '<option value="automation" >QA Automation</option>',
+                '<option value="manual" >Manual</option>',
+                '<option value="automation" >Automation</option>',
+                '<option value="automation_manual" >Automation / Manual</option>',
                 '<option value="active" selected>Checked in</option>',
                 '<option value="completed" >Checked out</option>',
                 'Filter',
                 'Attendance sessions',
                 'Ben Automation',
                 $automation->email,
-                'QA Automation',
+                '>Automation</td>',
                 'Sep 10, 2026 · 8:00 AM',
                 '—',
                 'CHECKED IN',
@@ -142,7 +143,7 @@ class AttendancePagesTest extends TestCase
     public function test_admin_attendance_page_exports_through_the_admin_route_and_shows_the_empty_state(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create(['training_path' => 'automation_manual']);
         $this->attendanceSession($participant, '2026-09-09 09:00:00', '2026-09-09 11:30:00');
 
         $this->actingAs($admin)->get(route('admin.attendance.index'))
@@ -151,7 +152,7 @@ class AttendancePagesTest extends TestCase
                 'ADMIN · ATTENDANCE',
                 'href="'.route('admin.attendance.export').'"',
                 $participant->name,
-                'QA Manual',
+                '>Automation / Manual</td>',
                 'Sep 9, 2026 · 9:00 AM',
                 'Sep 9, 2026 · 11:30 AM',
                 '2.50',
@@ -161,7 +162,7 @@ class AttendancePagesTest extends TestCase
         $response = $this->actingAs($admin)->get(route('admin.attendance.index', ['path' => 'automation']))
             ->assertOk()
             ->assertSee('href="'.e(route('admin.attendance.export', ['path' => 'automation'])).'"', false)
-            ->assertSee('<option value="automation" selected>QA Automation</option>', false)
+            ->assertSee('<option value="automation" selected>Automation</option>', false)
             ->assertSee('No attendance sessions match these filters.');
 
         $this->assertStringNotContainsString('data-attendance-row', $response->getContent());

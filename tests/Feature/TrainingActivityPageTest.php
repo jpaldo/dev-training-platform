@@ -190,6 +190,23 @@ class TrainingActivityPageTest extends TestCase
             ->assertSee($nextStep);
     }
 
+    public function test_activity_page_and_submission_form_show_the_submission_status_label(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'needs_revision']);
+        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
+
+        $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))
+            ->assertOk()
+            ->assertSee('Status: <strong class="text-slate-100">Needs revision</strong>', false);
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+            ->assertOk()
+            ->assertSee('Current status: <strong class="text-slate-100">Needs revision</strong>', false)
+            ->assertSee('· Version 1 (Submitted)')
+            ->assertDontSee('needs_revision');
+    }
+
     /**
      * Each attempt status, its attempt history label, the badge tone classes and the next step shown with it.
      *
@@ -201,14 +218,14 @@ class TrainingActivityPageTest extends TestCase
         $accepted = 'This activity has been accepted by your coach.';
 
         return [
-            'draft' => ['draft', 'DRAFT · IN PROGRESS', 'border-accent text-cyan-200', 'Your work is saved as a draft.'],
-            'submitted' => ['submitted', 'SUBMITTED · AWAITING REVIEW', 'border-line text-muted', $awaitingReview],
-            'resubmitted' => ['resubmitted', 'RESUBMITTED · AWAITING REVIEW', 'border-line text-muted', $awaitingReview],
-            'under review' => ['under_review', 'UNDER REVIEW', 'border-line text-muted', $awaitingReview],
-            'needs revision' => ['needs_revision', 'REVISION REQUESTED', 'border-accent text-cyan-200', 'Your coach requested changes to this submission.'],
+            'draft' => ['draft', 'DRAFT', 'border-brand text-violet-200', 'Your work is saved as a draft.'],
+            'submitted' => ['submitted', 'SUBMITTED', 'border-accent text-cyan-200', $awaitingReview],
+            'resubmitted' => ['resubmitted', 'RESUBMITTED', 'border-accent text-cyan-200', $awaitingReview],
+            'under review' => ['under_review', 'UNDER REVIEW', 'border-accent text-cyan-200', $awaitingReview],
+            'needs revision' => ['needs_revision', 'NEEDS REVISION', 'border-amber-500 text-amber-200', 'Your coach requested changes to this submission.'],
             'approved' => ['approved', 'APPROVED', 'border-emerald-400 text-emerald-200', $accepted],
             'completed' => ['completed', 'COMPLETED', 'border-emerald-400 text-emerald-200', $accepted],
-            'failed' => ['failed', 'FAILED · CLOSED', 'border-danger text-rose-200', 'This attempt was not accepted by your coach and is now closed.'],
+            'failed' => ['failed', 'FAILED', 'border-danger text-rose-200', 'This attempt was not accepted by your coach and is now closed.'],
         ];
     }
 

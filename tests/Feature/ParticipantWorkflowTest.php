@@ -551,11 +551,11 @@ class ParticipantWorkflowTest extends TestCase
         $this->actingAs($participant)->get(route('training.activities.show', [$week2, $activity]))
             ->assertOk()
             ->assertSee('Attempt 1')
-            ->assertSee('FAILED · CLOSED')
+            ->assertSee('>FAILED</span>', false)
             ->assertSee('This attempt was not accepted by your coach and is now closed.')
             ->assertSee('Please correct the expected result.')
             ->assertSee('Attempt 2')
-            ->assertSee('DRAFT · IN PROGRESS')
+            ->assertSee('>DRAFT</span>', false)
             ->assertSee('Your work is saved as a draft.')
             ->assertSee('Continue Attempt 2 →')
             ->assertDontSee('Optional reason for requesting review');
@@ -569,7 +569,7 @@ class ParticipantWorkflowTest extends TestCase
 
         $this->actingAs($participant)->get(route('training.activities.show', [$week2, $activity]))
             ->assertOk()
-            ->assertSee('FAILED · CLOSED')
+            ->assertSee('>FAILED</span>', false)
             ->assertSee('Request Review')
             ->assertDontSee('Coach feedback')
             ->assertDontSee('No coach feedback was provided.');

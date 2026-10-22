@@ -24,8 +24,6 @@ class CoachGateBoardPageService
 
     private const WEEK_OPTIONS = [2, 3, 4];
 
-    private const PATH_OPTIONS = [TrainingPath::Manual->value => 'Manual QA', TrainingPath::Automation->value => 'Automation QA'];
-
     /** @var array<string, string> The status filter's option texts by status value, in display order. */
     private const STATUS_OPTIONS = [
         GateEvaluationStatus::NotReady->value => 'Not Ready',
@@ -75,7 +73,7 @@ class CoachGateBoardPageService
                     'is_selected' => (string) ($filters['week'] ?? '') === (string) $week,
                 ])
                 ->all(),
-            'pathOptions' => $this->options(self::PATH_OPTIONS, $filters['path'] ?? null),
+            'pathOptions' => $this->options(TrainingPath::options(), $filters['path'] ?? null),
             'statusOptions' => $this->options(self::STATUS_OPTIONS, ($filters['status'] ?? null)?->value),
             'gateRows' => $gateRows
                 ->withQueryString()

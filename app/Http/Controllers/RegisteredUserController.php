@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Http\Requests\StoreRegisteredUserRequest;
 use App\Models\User;
@@ -13,7 +14,7 @@ class RegisteredUserController extends Controller
 {
     public function create(): View
     {
-        return view('auth.register');
+        return view('auth.register', ['trainingPathOptions' => TrainingPath::options()]);
     }
 
     public function store(StoreRegisteredUserRequest $request): RedirectResponse

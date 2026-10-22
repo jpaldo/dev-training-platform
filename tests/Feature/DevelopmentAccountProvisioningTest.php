@@ -496,11 +496,11 @@ class DevelopmentAccountProvisioningTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 '<dialog',
-                '<strong>SOURCE</strong>', '>PASS</span>',
-                '<strong>SCOPE</strong>', '>ISSUE</span>',
-                '<strong>SPEC</strong>', '>NOT PROVIDED</span>',
-                '<strong>CROSS-CHECK</strong>', '>PASS</span>',
-                '<strong>Decision</strong><br>REPROMPT</p>',
+                '<strong>SOURCE</strong>', 'text-emerald-200">CONFIRMED / PASS</span>',
+                '<strong>SCOPE</strong>', 'text-amber-200">ISSUE / GAP FOUND</span>',
+                '<strong>SPEC</strong>', 'text-muted">NOT PROVIDED</span>',
+                '<strong>CROSS-CHECK</strong>', 'text-emerald-200">CONFIRMED / PASS</span>',
+                '<strong>Decision</strong><br>RE-PROMPT AI</p>',
             ], false);
     }
 
@@ -527,7 +527,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
             ->assertSee('No additional details recorded.')
             ->assertSee('SOURCE')
             ->assertSee('CROSS-CHECK')
-            ->assertSee('ISSUE FOUND');
+            ->assertSee('ISSUE / GAP FOUND');
     }
 
     public function test_authorized_coach_sees_linked_artifact_name_in_submission_review(): void

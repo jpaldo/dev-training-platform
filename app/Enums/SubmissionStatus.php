@@ -20,8 +20,8 @@ enum SubmissionStatus: string
     case Completed = 'completed';
 
     /**
-     * The generic status text (the submitted version page, the coach review page and the participant dashboard show
-     * it; the coach participant page shows it upper case).
+     * The generic status text (the submitted version page, the coach review page and queue, the activity page, the
+     * submission form and the participant dashboard show it; the coach participant page shows it upper case).
      */
     public function label(): string
     {
@@ -34,6 +34,21 @@ enum SubmissionStatus: string
             self::Approved => 'Approved',
             self::Failed => 'Failed',
             self::Completed => 'Completed',
+        };
+    }
+
+    /**
+     * The badge tone of the status (the participant dashboard, the coach review queue and the submitted version page
+     * use it).
+     */
+    public function tone(): string
+    {
+        return match ($this) {
+            self::Draft => 'brand',
+            self::Submitted, self::Resubmitted, self::UnderReview => 'accent',
+            self::NeedsRevision => 'warning',
+            self::Approved, self::Completed => 'success',
+            self::Failed => 'danger',
         };
     }
 

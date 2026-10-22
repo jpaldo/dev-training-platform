@@ -11,17 +11,6 @@ use App\Models\User;
 
 class ProfilePageService
 {
-    /**
-     * The participant's training path options, in display order.
-     *
-     * @var array<string, string>
-     */
-    private const TRAINING_PATH_LABELS = [
-        TrainingPath::Manual->value => 'Manual QA',
-        TrainingPath::Automation->value => 'Automation QA',
-        TrainingPath::AutomationManual->value => 'Automation / Manual',
-    ];
-
     public function __construct(private readonly GoogleDriveConfigurationService $configuration) {}
 
     /**
@@ -47,7 +36,7 @@ class ProfilePageService
      */
     private function trainingPathOptions(): array
     {
-        return collect(self::TRAINING_PATH_LABELS)
+        return collect(TrainingPath::options())
             ->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])
             ->values()
             ->all();

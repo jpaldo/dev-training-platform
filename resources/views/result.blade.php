@@ -46,11 +46,11 @@
             @foreach($checks as $check)
                 <li class="grid min-w-0 content-start gap-3 rounded-2xl border border-line bg-surface p-5">
                     <x-ui.eyebrow>{{ $check['label'] }}</x-ui.eyebrow>
-                    <div @class(['text-lg font-black', 'text-emerald-300' => $check['isPassed'], 'text-amber-200' => ! $check['isPassed']])>{{ $check['isPassed'] ? '✓ PASS' : '⚠ ISSUE FOUND' }}</div>
+                    <div @class(['text-lg font-black', 'text-emerald-300' => $check['isPassed'], 'text-amber-200' => ! $check['isPassed']])>{{ $check['isPassed'] ? '✓' : '⚠' }} {{ $check['statusLabel'] }}</div>
                     <details class="rounded-xl border border-line bg-field">
                         <summary class="cursor-pointer rounded-xl px-3 py-2.5 font-extrabold focus-visible:outline-3 focus-visible:outline-accent/50">View Details</summary>
                         <div class="grid min-w-0 gap-2 px-3 pb-3 text-sm/relaxed">
-                            <p class="m-0"><strong>Result:</strong> {{ $check['isPassed'] ? 'PASS' : 'ISSUE FOUND' }}</p>
+                            <p class="m-0"><strong>Result:</strong> {{ $check['statusLabel'] }}</p>
                             <p class="m-0"><strong>Participant response / details</strong></p>
                             @if(filled($check['notes']))
                                 <p class="m-0 whitespace-pre-wrap wrap-break-word">{{ $check['notes'] }}</p>
@@ -66,7 +66,7 @@
         <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-3" aria-label="Finding and evidence">
             <h2 class="{{ $sectionTitleClasses }}">Finding</h2>
             <p class="m-0 whitespace-pre-wrap wrap-break-word">{{ $submission->finding ?: 'Not provided' }}</p>
-            <h2 class="{{ $sectionTitleClasses }} mt-3">Decision: {{ $submission->decision ? strtoupper($submission->decision->value) : 'Not provided' }}</h2>
+            <h2 class="{{ $sectionTitleClasses }} mt-3">Decision: {{ $submission->decision ? strtoupper($submission->decision->label()) : 'Not provided' }}</h2>
             <h2 class="{{ $sectionTitleClasses }} mt-3">Evidence Record</h2>
             <p class="m-0 whitespace-pre-wrap wrap-break-word">{{ $submission->evidence_notes ?: 'Not provided' }}</p>
             @if(filled($submission->evidence_files))

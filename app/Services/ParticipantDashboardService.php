@@ -105,7 +105,7 @@ class ParticipantDashboardService
                 $activity->participant_submission = $attempts->last();
                 $activity->participant_attempts = $attempts->values();
                 $activity->participant_status_label = $activity->participant_submission?->status->label() ?? 'Not Started';
-                $activity->participant_status_tone = $this->activityStatusTone($activity->participant_submission?->status);
+                $activity->participant_status_tone = $activity->participant_submission?->status->tone() ?? 'neutral';
                 $activity->participant_action = $this->activityAction($activity->participant_submission?->status);
                 $activity->participant_score = $activity->participant_submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $version): bool => $version->activityScore?->isPublished() === true)?->activityScore;
                 $activity->participant_score_max = $scoreMax;
@@ -114,21 +114,6 @@ class ParticipantDashboardService
                     || ($hasValidationLabRecord ??= $user->validationSubmissions()->whereIn('status', ValidationSubmissionStatus::recorded())->exists());
             }
         }
-    }
-
-    /**
-     * The badge tone of the latest attempt's status (neutral before the first attempt).
-     */
-    private function activityStatusTone(?SubmissionStatus $status): string
-    {
-        return match ($status) {
-            SubmissionStatus::Draft => 'brand',
-            SubmissionStatus::Submitted, SubmissionStatus::Resubmitted, SubmissionStatus::UnderReview => 'accent',
-            SubmissionStatus::NeedsRevision => 'warning',
-            SubmissionStatus::Approved, SubmissionStatus::Completed => 'success',
-            SubmissionStatus::Failed => 'danger',
-            null => 'neutral',
-        };
     }
 
     /**

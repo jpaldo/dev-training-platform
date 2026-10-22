@@ -157,7 +157,7 @@ class CoachParticipantListPageTest extends TestCase
             ->get(route('coach.participants', ['search' => 'Nobody', 'path' => 'automation']))
             ->assertOk()
             ->assertSee('name="search" value="Nobody"', false)
-            ->assertSee('<option value="automation" selected>Automation QA</option>', false)
+            ->assertSee('<option value="automation" selected>Automation</option>', false)
             ->assertDontSee('<option value="manual" selected>', false)
             ->assertSee('No participants match these filters.')
             ->assertDontSee('data-participant-row', false)

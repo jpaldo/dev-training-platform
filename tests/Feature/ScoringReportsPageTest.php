@@ -29,7 +29,7 @@ class ScoringReportsPageTest extends TestCase
             'href="'.route('coach.reports.scores').'"', '>Activity Scores CSV</a>',
             'href="'.route('coach.reports.participant-summary').'"', '>Participant Summary CSV</a>',
             'aria-label="Scoring report filters"',
-            'for="report-path"', '>QA Path</label>', '<option value="">All</option>', '>Manual QA</option>', '>Automation QA</option>',
+            'for="report-path"', '>QA Path</label>', '<option value="">All</option>', '>Manual</option>', '>Automation</option>', '>Automation / Manual</option>',
             'for="report-week"', '>Week</label>', '>Week 2</option>', '>Week 3</option>', '>Week 4</option>',
             'for="report-status"', '>Score status</label>', '>Scored</option>', '>Unscored</option>',
             'for="report-band"', '>Performance band</label>', '>Exemplary</option>', '>Minimal</option>',
@@ -57,7 +57,7 @@ class ScoringReportsPageTest extends TestCase
             ->assertOk()
             ->assertSee('href="'.e(route('coach.reports.scores', $filters)).'"', false)
             ->assertSee('href="'.e(route('coach.reports.participant-summary', $filters)).'"', false)
-            ->assertSee('<option value="automation" selected>Automation QA</option>', false)
+            ->assertSee('<option value="automation" selected>Automation</option>', false)
             ->assertSee('<option value="2" selected>Week 2</option>', false)
             ->assertSee('<option value="scored" selected>Scored</option>', false)
             ->assertSee('<option value="Proficient" selected>Proficient</option>', false)

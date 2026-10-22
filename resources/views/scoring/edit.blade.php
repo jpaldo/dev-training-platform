@@ -252,7 +252,7 @@
                             <select id="second_reader_id" name="second_reader_id" required class="{{ $controlClasses }} min-h-12">
                                 <option value="">Select reader</option>
                                 @foreach($readers as $reader)
-                                    <option value="{{ $reader->id }}" @selected((int) old('second_reader_id', $score->second_reader_id) === $reader->id)>{{ $reader->name }} ({{ $reader->role }})</option>
+                                    <option value="{{ $reader->id }}" @selected((int) old('second_reader_id', $score->second_reader_id) === $reader->id)>{{ $reader->name }} ({{ $reader->role->label() }})</option>
                                 @endforeach
                             </select>
                             @error('second_reader_id')

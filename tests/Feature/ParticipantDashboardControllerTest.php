@@ -39,6 +39,16 @@ class ParticipantDashboardControllerTest extends TestCase
         $this->assertSame($singleRowQueryCount, $threeRowQueryCount);
     }
 
+    public function test_header_shows_the_shared_training_path_label(): void
+    {
+        $participant = User::factory()->create(['name' => 'Hal Hybrid', 'training_path' => 'automation_manual']);
+        TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
+
+        $this->actingAs($participant)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Hal Hybrid · Automation / Manual QA · Start at Week 2.');
+    }
+
     public function test_dashboard_shows_the_published_score_of_an_activity_but_not_a_draft_score(): void
     {
         $participant = User::factory()->create(['training_path' => 'manual']);

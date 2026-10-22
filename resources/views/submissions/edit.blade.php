@@ -80,9 +80,9 @@
 
             <x-ui.card as="section" class="grid grid-cols-1 gap-5" aria-label="Submission form">
                 <p class="m-0 text-muted">
-                    Current status: <strong class="text-slate-100">{{ $submission?->status ?? 'Not started' }}</strong>
+                    Current status: <strong class="text-slate-100">{{ $submission?->status->label() ?? 'Not started' }}</strong>
                     @if($version)
-                        · Version {{ $version->version_number }} ({{ $version->status }})
+                        · Version {{ $version->version_number }} ({{ $version->status->label() }})
                     @endif
                 </p>
                 @if($mainAction === 'revise')
@@ -301,7 +301,12 @@
                                                             @foreach($labRecordChecks as $check)
                                                                 <div class="{{ $rowClasses }} content-start">
                                                                     <strong>{{ $check['label'] }}</strong>
-                                                                    <span class="text-xs font-black tracking-[0.08em] text-emerald-200">{{ $check['status'] }}</span>
+                                                                    <span @class([
+                                                                        'text-xs font-black tracking-[0.08em]',
+                                                                        'text-emerald-200' => $check['tone'] === 'success',
+                                                                        'text-amber-200' => $check['tone'] === 'warning',
+                                                                        'text-muted' => $check['tone'] === 'neutral',
+                                                                    ])>{{ $check['status'] }}</span>
                                                                     <span class="text-sm text-muted">Evidence / notes</span>
                                                                     <p class="m-0 wrap-anywhere whitespace-pre-line">{{ $check['notes'] }}</p>
                                                                 </div>
@@ -309,7 +314,7 @@
                                                             <div class="{{ $rowClasses }} content-start">
                                                                 <strong>RESULT</strong>
                                                                 <p class="m-0"><strong>Finding</strong><br><span class="wrap-anywhere whitespace-pre-line">{{ $selectedLabRecord->finding ?: 'Not provided' }}</span></p>
-                                                                <p class="m-0"><strong>Decision</strong><br>{{ $selectedLabRecord->decision ? strtoupper($selectedLabRecord->decision->value) : 'Not provided' }}</p>
+                                                                <p class="m-0"><strong>Decision</strong><br>{{ $selectedLabRecord->decision ? strtoupper($selectedLabRecord->decision->label()) : 'Not provided' }}</p>
                                                                 <p class="m-0"><strong>Validation Evidence / Notes</strong><br><span class="wrap-anywhere whitespace-pre-line">{{ $selectedLabRecord->evidence_notes ?: 'Not provided' }}</span></p>
                                                             </div>
                                                         </div>

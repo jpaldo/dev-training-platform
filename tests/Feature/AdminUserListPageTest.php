@@ -31,7 +31,7 @@ class AdminUserListPageTest extends TestCase
                 'href="'.route('admin.settings.ai').'"', 'AI Settings',
                 'aria-label="Filter users"',
                 'role="region" aria-labelledby="user-list-title"',
-                '>Hal Hybrid</th>', 'QA Manual', 'Automation_manual', '>Disabled</span>', 'Mar 9, 2026',
+                '>Hal Hybrid</th>', 'QA Automation / Manual', 'Automation / Manual', '>Disabled</span>', 'Mar 9, 2026',
                 'href="'.route('admin.users.edit', $hybrid).'"', 'Edit',
                 'action="'.route('admin.users.enable', $hybrid).'"', 'Enable',
                 '>Ava Automation</th>', 'QA Automation', 'Automation', '>Active</span>', 'Mar 8, 2026',
@@ -57,7 +57,7 @@ class AdminUserListPageTest extends TestCase
             ->assertSee('name="search" value="Ava"', false)
             ->assertSee('<option value="qa_automation" selected>QA Automation</option>', false)
             ->assertSee('<option value="active" selected>Active</option>', false)
-            ->assertSee('<option value="automation" selected>Automation QA</option>', false)
+            ->assertSee('<option value="automation" selected>Automation</option>', false)
             ->assertSee('>Ava Automation</th>', false)
             ->assertDontSee('Max Manual');
 

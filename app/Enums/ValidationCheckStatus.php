@@ -13,7 +13,7 @@ enum ValidationCheckStatus: string
     case Issue = 'issue';
 
     /**
-     * The status option text of the six-check form.
+     * The check result text (the six-check form offers it; the Lab record page and dialog show it upper case).
      */
     public function label(): string
     {

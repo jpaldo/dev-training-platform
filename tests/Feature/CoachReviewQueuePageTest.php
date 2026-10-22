@@ -33,8 +33,8 @@ class CoachReviewQueuePageTest extends TestCase
             ->assertSeeInOrder([
                 'COACH · REVIEW QUEUE',
                 'Submission reviews',
-                '>Nora Noversion</h2>', 'Week 3 · Exploratory charter', 'Status:', 'border-accent text-cyan-200">submitted</span>',
-                '>Rita Revised</h2>', 'Week 3 · Exploratory charter', 'Status:', 'border-amber-500 text-amber-200">needs_revision</span>',
+                '>Nora Noversion</h2>', 'Week 3 · Exploratory charter', 'Status:', 'border-accent text-cyan-200">Submitted</span>',
+                '>Rita Revised</h2>', 'Week 3 · Exploratory charter', 'Status:', 'border-amber-500 text-amber-200">Needs revision</span>',
                 'href="'.route('coach.reviews.show', $latestVersion).'"', '>Review latest version</a>',
             ], false)
             ->assertDontSee('href="'.route('coach.reviews.show', $olderVersion).'"', false)

@@ -43,7 +43,7 @@ class ScoringParticipantPageTest extends TestCase
         $response->assertSeeInOrder([
             'SCORING · PARTICIPANT',
             '>Ada Automation</h1>',
-            'ada@example.com · Automation QA',
+            'ada@example.com · Automation</p>',
             'OVERALL SCORE</dt>', '>83 / 100</dd>',
             'OVERALL COMPLETION</dt>', '>2 / 5</dd>', '>40% complete · 1 scored</dd>',
             '>WEEK 2</div>', '>83 / 100 average</h2>', 'Completion: 2 / 4 (50%) · Scored: 1 / 4',

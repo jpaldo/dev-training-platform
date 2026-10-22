@@ -38,13 +38,13 @@ class ScoringOverviewPageTest extends TestCase
             'aria-label="Filter participants"',
             '>W2</th>', '>W2 Completion</th>', '>W3</th>', '>W3 Completion</th>', '>W4</th>', '>W4 Completion</th>',
             '>Overall</th>', '>Completion</th>', '>Assigned Coach</th>',
-            '>Ada Automation</strong>', 'ada@example.com', 'Automation QA',
+            '>Ada Automation</strong>', 'ada@example.com', '>Automation</td>',
             '>83</strong>', 'Proficient', '1 / 2 (50%)',
             '—', '0 / 1 (0%)',
             '—', '0 / 1 (0%)',
             '>83</td>', '1 / 4 (25%)', 'Coach Carter, Mia Mentor',
             'href="'.route('coach.scoring.participant', $ada).'"', '>View Scoring</a>',
-            '>Ben Both</strong>', 'ben@example.com', 'Manual QA',
+            '>Ben Both</strong>', 'ben@example.com', '>Automation / Manual</td>',
             '—', '0 / 2 (0%)', '—', '0 / 1 (0%)', '—', '0 / 1 (0%)',
             '>—</td>', '0 / 4 (0%)', 'Unassigned',
             'href="'.route('coach.scoring.participant', $ben).'"', '>View Scoring</a>',
@@ -67,7 +67,7 @@ class ScoringOverviewPageTest extends TestCase
         $this->actingAs($coach)->get(route('coach.scoring.index', $filters))
             ->assertOk()
             ->assertSee('name="search" value="Ada"', false)
-            ->assertSee('<option value="automation" selected>Automation QA</option>', false)
+            ->assertSee('<option value="automation" selected>Automation</option>', false)
             ->assertSee('<option value="2" selected>Week 2</option>', false)
             ->assertSee('<option value="scored" selected>Scored</option>', false)
             ->assertSee('<option value="Proficient" selected>Proficient</option>', false)

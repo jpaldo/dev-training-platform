@@ -6,6 +6,7 @@
         $labelClasses = 'text-sm font-extrabold';
         $fieldErrorClasses = 'm-0 text-sm text-rose-200';
         $sectionTitleClasses = 'm-0 text-xl font-extrabold';
+        $termClasses = 'text-xs font-bold tracking-[0.08em] text-subtle uppercase';
     @endphp
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -35,16 +36,37 @@
                         <p class="m-0 leading-relaxed text-muted">Role: {{ $roleLabel }}</p>
                     </div>
 
+                    <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div class="grid min-w-0 content-start gap-1">
+                            <dt class="{{ $termClasses }}">Employee ID</dt>
+                            <dd class="m-0 font-bold wrap-anywhere">{{ $employeeIdLabel }}</dd>
+                        </div>
+                        <div class="grid min-w-0 content-start gap-1">
+                            <dt class="{{ $termClasses }}">Job role</dt>
+                            <dd class="m-0 font-bold wrap-anywhere">{{ $jobRoleLabel }}</dd>
+                        </div>
+                    </dl>
+
                     <form id="profile-form" method="post" action="{{ route('profile.update') }}" class="m-0 grid grid-cols-1 gap-5">
                         @csrf
                         @method('PATCH')
 
-                        <div class="grid min-w-0 gap-2">
-                            <label for="name" class="{{ $labelClasses }}">Name</label>
-                            <input id="name" name="name" value="{{ old('name', $user->name) }}" autocomplete="name" required class="{{ $controlClasses }}">
-                            @error('name')
-                                <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
-                            @enderror
+                        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                            <div class="grid min-w-0 gap-2">
+                                <label for="first_name" class="{{ $labelClasses }}">First name</label>
+                                <input id="first_name" name="first_name" value="{{ old('first_name', $user->first_name) }}" autocomplete="given-name" required class="{{ $controlClasses }}">
+                                @error('first_name')
+                                    <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                                @enderror
+                            </div>
+
+                            <div class="grid min-w-0 gap-2">
+                                <label for="last_name" class="{{ $labelClasses }}">Last name</label>
+                                <input id="last_name" name="last_name" value="{{ old('last_name', $user->last_name) }}" autocomplete="family-name" required class="{{ $controlClasses }}">
+                                @error('last_name')
+                                    <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                                @enderror
+                            </div>
                         </div>
 
                         <div class="grid min-w-0 gap-2">

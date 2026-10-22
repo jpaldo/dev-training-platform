@@ -14,10 +14,11 @@ class ProfilePageService
     public function __construct(private readonly GoogleDriveConfigurationService $configuration) {}
 
     /**
-     * Everything the profile page renders: the profile form (training path only for participants) and, for
-     * participants, the Google Drive card. The main action is Save profile.
+     * Everything the profile page renders: the read-only employee ID and job role ("Not set" when empty), the profile
+     * form (training path only for participants) and, for participants, the Google Drive card. The main action is
+     * Save profile.
      *
-     * @return array{user: User, roleLabel: string, trainingPathOptions: list<array{value: string, label: string}>, googleDrive: ?array<string, mixed>}
+     * @return array{user: User, roleLabel: string, employeeIdLabel: string, jobRoleLabel: string, trainingPathOptions: list<array{value: string, label: string}>, googleDrive: ?array<string, mixed>}
      */
     public function showData(User $user): array
     {
@@ -26,6 +27,8 @@ class ProfilePageService
         return [
             'user' => $user->load('googleDriveConnection'),
             'roleLabel' => $user->role->label(),
+            'employeeIdLabel' => filled($user->employee_id) ? $user->employee_id : 'Not set',
+            'jobRoleLabel' => $user->job_role?->label() ?? 'Not set',
             'trainingPathOptions' => $isParticipant ? $this->trainingPathOptions() : [],
             'googleDrive' => $isParticipant ? $this->googleDrive($user) : null,
         ];

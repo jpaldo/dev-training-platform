@@ -15,7 +15,8 @@ class DriveLinkTest extends TestCase
         $participant = User::factory()->create(['drive_link' => 'https://drive.google.com/drive/folders/stored']);
 
         $this->actingAs($participant)->patch(route('profile.update'), [
-            'name' => 'Renamed Participant',
+            'first_name' => 'Renamed',
+            'last_name' => 'Participant',
             'email' => $participant->email,
             'training_path' => 'manual',
             'drive_link' => 'not-a-url',

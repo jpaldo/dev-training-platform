@@ -94,7 +94,8 @@ class AuthenticationAuthorizationTest extends TestCase
 
         $this->actingAs($participant)
             ->patch(route('profile.update'), [
-                'name' => 'Updated Participant',
+                'first_name' => 'Updated',
+                'last_name' => 'Participant',
                 'email' => 'updated@example.test',
                 'training_path' => 'automation',
                 'role' => 'admin',
@@ -116,12 +117,12 @@ class AuthenticationAuthorizationTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
 
         $this->actingAs($participant)
-            ->patch(route('profile.update'), ['name' => $participant->name, 'email' => $participant->email])
+            ->patch(route('profile.update'), ['first_name' => $participant->first_name, 'last_name' => $participant->last_name, 'email' => $participant->email])
             ->assertSessionHasErrors(['training_path' => 'The training path field is required.']);
         $this->assertDatabaseHas('users', ['id' => $participant->id, 'training_path' => 'manual']);
 
         $this->actingAs($coach)
-            ->patch(route('profile.update'), ['name' => 'Updated Coach', 'email' => $coach->email])
+            ->patch(route('profile.update'), ['first_name' => 'Updated', 'last_name' => 'Coach', 'email' => $coach->email])
             ->assertSessionHasNoErrors();
         $this->assertDatabaseHas('users', ['id' => $coach->id, 'name' => 'Updated Coach', 'training_path' => null]);
     }
@@ -134,7 +135,7 @@ class AuthenticationAuthorizationTest extends TestCase
 
         $participant = User::factory()->create(['training_path' => 'manual']);
         $this->actingAs($participant)
-            ->patch(route('profile.update'), ['name' => $participant->name, 'email' => $participant->email, 'training_path' => 'performance'])
+            ->patch(route('profile.update'), ['first_name' => $participant->first_name, 'last_name' => $participant->last_name, 'email' => $participant->email, 'training_path' => 'performance'])
             ->assertSessionHasErrors(['training_path' => 'The selected training path is invalid.']);
         $this->assertDatabaseHas('users', ['id' => $participant->id, 'training_path' => 'manual']);
     }

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\UserRole;
 use App\Models\AdminAuditLog;
 use App\Models\User;
 use Illuminate\Console\Command;
@@ -16,7 +17,7 @@ class BootstrapAdminCommand extends Command
 
     public function handle(): int
     {
-        if (User::query()->where('role', 'admin')->exists()) {
+        if (User::query()->where('role', UserRole::Admin)->exists()) {
             $this->error('Bootstrap refused: an administrator already exists.');
 
             return self::FAILURE;
@@ -46,7 +47,7 @@ class BootstrapAdminCommand extends Command
                 'name' => 'Maricel Prestoza',
                 'email' => 'mprestoza@fullscale.ph',
                 'password' => Hash::make($temporaryPassword),
-                'role' => 'admin',
+                'role' => UserRole::Admin,
                 'training_path' => null,
                 'is_active' => true,
             ]);

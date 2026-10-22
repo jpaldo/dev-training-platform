@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\GateEvaluationStatus;
 use App\Enums\InterviewPairStatus;
 use App\Enums\MentorInterviewScheduleStatus;
+use App\Enums\UserRole;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\Program;
@@ -26,18 +27,18 @@ class AdminDashboardPageService
      */
     public function showData(): array
     {
-        $participantCount = User::query()->where('role', 'participant')->count();
+        $participantCount = User::query()->where('role', UserRole::Participant)->count();
         $program = Program::query()->where('is_active', true)->first();
         $pairedParticipantCount = WeekFourInterviewPair::query()->where('status', InterviewPairStatus::Active)->count() * 2;
 
         return [
             'systemStats' => [
                 ['label' => 'PARTICIPANTS', 'value' => $participantCount],
-                ['label' => 'COACHES', 'value' => User::query()->where('role', 'coach')->count()],
-                ['label' => 'ADMINS', 'value' => User::query()->where('role', 'admin')->count()],
+                ['label' => 'COACHES', 'value' => User::query()->where('role', UserRole::Coach)->count()],
+                ['label' => 'ADMINS', 'value' => User::query()->where('role', UserRole::Admin)->count()],
             ],
             'trainingStats' => [
-                ['label' => 'GENERAL', 'value' => User::query()->where('role', 'participant')->whereHas('dailyLogs')->count()],
+                ['label' => 'GENERAL', 'value' => User::query()->where('role', UserRole::Participant)->whereHas('dailyLogs')->count()],
                 ['label' => 'WEEK2', 'value' => $this->participantsWithWeek($program, 2)],
                 ['label' => 'WEEK3', 'value' => $this->participantsWithWeek($program, 3)],
                 ['label' => 'WEEK4', 'value' => $this->participantsWithWeek($program, 4)],
@@ -88,7 +89,7 @@ class AdminDashboardPageService
         }
 
         return User::query()
-            ->where('role', 'participant')
+            ->where('role', UserRole::Participant)
             ->whereHas('activitySubmissions', fn (Builder $submissions): Builder => $submissions->whereHas('activity', fn (Builder $activity): Builder => $activity->where('training_week_id', $week->id)))
             ->count();
     }

@@ -19,7 +19,7 @@ class UpdateParticipantAssignmentsRequest extends FormRequest
         $user = $this->route('user');
         abort_unless($user instanceof User && $user->role === UserRole::Participant, 404);
 
-        return $this->user()?->hasAnyRole(['admin']) === true;
+        return $this->user()?->hasAnyRole(UserRole::Admin) === true;
     }
 
     /**
@@ -31,7 +31,7 @@ class UpdateParticipantAssignmentsRequest extends FormRequest
     {
         return [
             'coach_ids' => ['nullable', 'array'],
-            'coach_ids.*' => ['integer', Rule::exists('users', 'id')->where(fn (Builder $query): Builder => $query->where('role', 'coach')->where('is_active', true))],
+            'coach_ids.*' => ['integer', Rule::exists('users', 'id')->where(fn (Builder $query): Builder => $query->where('role', UserRole::Coach)->where('is_active', true))],
         ];
     }
 }

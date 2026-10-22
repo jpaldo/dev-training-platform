@@ -13,7 +13,12 @@ use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Routing\Route as IlluminateRoute;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Testing\TestResponse;
+use InvalidArgumentException;
 use Tests\TestCase;
+use TypeError;
 use ValueError;
 
 class AuthenticationAuthorizationTest extends TestCase
@@ -238,18 +243,56 @@ class AuthenticationAuthorizationTest extends TestCase
         $this->assertTrue($participant->can('update', $participant));
     }
 
-    public function test_role_helpers_accept_role_cases_and_role_strings(): void
+    public function test_role_helpers_accept_only_role_cases(): void
     {
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
         $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
 
-        $this->assertTrue($coach->hasAnyRole([UserRole::Coach]));
-        $this->assertTrue($coach->hasAnyRole(['participant', 'coach']));
-        $this->assertFalse($participant->hasAnyRole([UserRole::Coach, 'admin']));
+        $this->assertTrue($coach->hasAnyRole(UserRole::Coach));
+        $this->assertTrue($coach->hasAnyRole(UserRole::Participant, UserRole::Coach));
+        $this->assertFalse($participant->hasAnyRole(UserRole::Coach, UserRole::Admin));
+        $this->assertFalse($admin->hasAnyRole());
+        $this->assertThrows(fn (): bool => $admin->hasAnyRole('admin'), TypeError::class);
         $this->assertFalse($participant->isCoachOrAdmin());
         $this->assertTrue($coach->isCoachOrAdmin());
         $this->assertTrue($admin->isCoachOrAdmin());
+    }
+
+    public function test_every_role_middleware_parameter_on_a_route_is_a_user_role(): void
+    {
+        $roleParameters = collect(Route::getRoutes()->getRoutes())
+            ->flatMap(fn (IlluminateRoute $route): array => $route->gatherMiddleware())
+            ->filter(fn (mixed $middleware): bool => is_string($middleware) && str_starts_with($middleware, 'role:'))
+            ->flatMap(fn (string $middleware): array => explode(',', substr($middleware, strlen('role:'))))
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->assertNotEmpty($roleParameters);
+        foreach ($roleParameters as $role) {
+            $this->assertNotNull(UserRole::tryFrom($role), "The route middleware role:{$role} is not a user role.");
+        }
+    }
+
+    public function test_role_middleware_fails_loudly_for_an_unknown_or_missing_role(): void
+    {
+        Route::middleware(['web', 'auth', 'role:admin,superuser'])->get('/testing/unknown-role', fn (): string => 'reached');
+        Route::middleware(['web', 'auth', 'role'])->get('/testing/missing-role', fn (): string => 'reached');
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+
+        $this->withoutExceptionHandling();
+
+        $this->assertThrows(
+            fn (): TestResponse => $this->actingAs($admin)->get('/testing/unknown-role'),
+            ValueError::class,
+            '"superuser" is not a valid backing value',
+        );
+        $this->assertThrows(
+            fn (): TestResponse => $this->actingAs($admin)->get('/testing/missing-role'),
+            InvalidArgumentException::class,
+            'The role middleware needs at least one role.',
+        );
     }
 
     public function test_only_admins_and_assigned_coaches_manage_a_participant(): void

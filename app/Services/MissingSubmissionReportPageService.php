@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
@@ -78,7 +79,7 @@ class MissingSubmissionReportPageService
         return [
             'exportUrl' => route('coach.reports.missing-submissions.export', $query),
             'participantOptions' => $this->modelOptions(
-                User::query()->where('role', 'participant')->orderBy('name')->get(['id', 'name']),
+                User::query()->where('role', UserRole::Participant)->orderBy('name')->get(['id', 'name']),
                 $filters['participant'] ?? null,
             ),
             'pathOptions' => $this->options(
@@ -86,7 +87,7 @@ class MissingSubmissionReportPageService
                 $filters['path'] ?? null,
             ),
             'mentorOptions' => $this->modelOptions(
-                User::query()->whereIn('role', ['coach', 'admin'])->orderBy('name')->get(['id', 'name']),
+                User::query()->whereIn('role', [UserRole::Coach, UserRole::Admin])->orderBy('name')->get(['id', 'name']),
                 $filters['mentor'] ?? null,
             ),
             'categoryOptions' => $this->options(self::CATEGORY_OPTIONS, $filters['category'] ?? null),

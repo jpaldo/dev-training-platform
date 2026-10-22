@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\ActivityScoreStatus;
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use App\Models\ActivityScore;
 use App\Models\ActivityScoreSuggestion;
 use App\Models\Program;
@@ -91,7 +92,7 @@ class ScoringPageService
             'score' => $score,
             'canManageSecondReader' => $canManageSecondReader,
             'readers' => $canManageSecondReader
-                ? User::query()->whereIn('role', ['coach', 'admin'])->where('is_active', true)->orderBy('name')->get()
+                ? User::query()->whereIn('role', [UserRole::Coach, UserRole::Admin])->where('is_active', true)->orderBy('name')->get()
                 : new Collection,
         ];
     }
@@ -242,7 +243,7 @@ class ScoringPageService
     private function filteredParticipants(User $viewer, array $filters): LengthAwarePaginator
     {
         return User::query()
-            ->where('role', 'participant')
+            ->where('role', UserRole::Participant)
             ->when($filters['path'] ?? null, fn (Builder $query, string $path): Builder => $query->where('training_path', $path))
             ->when($filters['search'] ?? null, fn (Builder $query, string $search): Builder => $query->where(
                 fn (Builder $searchQuery): Builder => $searchQuery->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"),
@@ -255,7 +256,7 @@ class ScoringPageService
                 'activitySubmissions.activity',
                 fn (Builder $activityQuery): Builder => $activityQuery->whereKey($activity),
             ))
-            ->when(($filters['assigned_to_me'] ?? false) && $viewer->hasAnyRole(['coach']), fn (Builder $query): Builder => $query->whereHas(
+            ->when(($filters['assigned_to_me'] ?? false) && $viewer->hasAnyRole(UserRole::Coach), fn (Builder $query): Builder => $query->whereHas(
                 'assignedCoaches',
                 fn (Builder $coachQuery): Builder => $coachQuery->whereKey($viewer->id),
             ))

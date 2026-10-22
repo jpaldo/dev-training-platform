@@ -54,6 +54,21 @@ class AdminUserManagementTest extends TestCase
         $this->actingAs($admin)->put(route('admin.users.update', $admin), ['name' => $admin->name, 'email' => $admin->email, 'access_type' => 'coach', 'is_active' => 1])->assertSessionHasErrors('access_type');
     }
 
+    public function test_last_active_admin_can_update_their_own_details_while_keeping_admin_access(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+
+        $this->actingAs($admin)
+            ->put(route('admin.users.update', $admin), ['name' => 'Renamed Admin', 'email' => $admin->email, 'access_type' => 'admin', 'is_active' => 1])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('admin.users.index'));
+
+        $admin->refresh();
+        $this->assertSame('Renamed Admin', $admin->name);
+        $this->assertSame(UserRole::Admin, $admin->role);
+        $this->assertTrue($admin->is_active);
+    }
+
     public function test_last_active_admin_cannot_be_disabled_from_the_edit_form(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);

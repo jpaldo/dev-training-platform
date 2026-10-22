@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
+use App\Enums\UserRole;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
 use App\Models\GateEvaluation;
@@ -39,7 +40,7 @@ class CoachReportService
 
     public function participants(?array $filters = null): Builder
     {
-        return User::query()->where('role', 'participant')
+        return User::query()->where('role', UserRole::Participant)
             ->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))
             ->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $search): Builder => $search->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))
             ->when($filters['mentor'] ?? $filters['assigned_coach'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($v)))
@@ -49,7 +50,7 @@ class CoachReportService
 
     public function participantSummary(?array $filters = null): Builder
     {
-        return User::query()->where('role', 'participant')
+        return User::query()->where('role', UserRole::Participant)
             ->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))
             ->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $search): Builder => $search->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))
             ->when($filters['mentor'] ?? $filters['assigned_coach'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($v)))
@@ -136,7 +137,7 @@ class CoachReportService
     /** @return Collection<int, User> */
     public function mentors(): Collection
     {
-        return User::query()->whereIn('role', ['coach', 'admin'])->orderBy('name')->get();
+        return User::query()->whereIn('role', [UserRole::Coach, UserRole::Admin])->orderBy('name')->get();
     }
 
     /** @return Collection<int, TrainingWeek> */

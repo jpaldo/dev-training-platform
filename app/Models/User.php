@@ -42,15 +42,11 @@ class User extends Authenticatable
     }
 
     /**
-     * Whether the user has one of the roles. Role strings (the `role:` middleware parameters and the callers not yet
-     * moved to cases) are normalised with `UserRole::from()`, so an unknown role string throws `ValueError`.
-     *
-     * @param  list<UserRole|string>  $roles
+     * Whether the user has one of the roles. Only cases are accepted, so a role string is a `TypeError` rather than a
+     * comparison that never matches (the `role:` middleware maps its string parameters with `UserRole::from()`).
      */
-    public function hasAnyRole(array $roles): bool
+    public function hasAnyRole(UserRole ...$roles): bool
     {
-        $roles = array_map(fn (UserRole|string $role): UserRole => $role instanceof UserRole ? $role : UserRole::from($role), $roles);
-
         return in_array($this->role, $roles, true);
     }
 
@@ -71,7 +67,7 @@ class User extends Authenticatable
 
     public function isCoachOrAdmin(): bool
     {
-        return $this->hasAnyRole([UserRole::Coach, UserRole::Admin]);
+        return $this->hasAnyRole(UserRole::Coach, UserRole::Admin);
     }
 
     public function activitySubmissions(): HasMany

@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use App\Services\ParticipantNotificationService;
 use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
@@ -35,7 +36,7 @@ class GenerateParticipantNotificationsJob implements ShouldBeUniqueUntilProcessi
 
     public function handle(ParticipantNotificationService $service): void
     {
-        $participant = User::query()->where('role', 'participant')->find($this->participantId);
+        $participant = User::query()->where('role', UserRole::Participant)->find($this->participantId);
         if ($participant) {
             $service->sync($participant);
         }

@@ -35,7 +35,7 @@ class TrainingActivityController extends Controller
                 ->with('status', 'Complete and submit a QA Validation Lab record before starting the Validation Checklist.');
         }
         $attempts = $page->attempts($user, $activity);
-        if ($user->hasAnyRole(['participant']) && $readiness->enforced() && ! $readiness->isReady($user) && $attempts->isEmpty()) {
+        if ($user->hasAnyRole(UserRole::Participant) && $readiness->enforced() && ! $readiness->isReady($user) && $attempts->isEmpty()) {
             return redirect()->route('dashboard')->withErrors(['google_drive_setup' => $readiness->message($user)]);
         }
 

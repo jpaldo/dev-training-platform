@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use App\Models\AttendanceSession;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -82,7 +83,7 @@ class AdminUserPageService
                 ->all(),
             'isActive' => $user?->is_active ?? true,
             'driveUrl' => $user?->drive_link ?: null,
-            'coachAssignment' => $user?->hasAnyRole(['participant']) ? $this->coachAssignment($user) : null,
+            'coachAssignment' => $user?->hasAnyRole(UserRole::Participant) ? $this->coachAssignment($user) : null,
             'attendance' => $user ? $this->attendanceSummary($user) : null,
         ];
     }
@@ -98,11 +99,11 @@ class AdminUserPageService
             ->when($filters['status'] ?? null, fn (Builder $query, string $status): Builder => $query->where('is_active', $status === 'active'))
             ->when($filters['path'] ?? null, fn (Builder $query, string $path): Builder => $query->where('training_path', $path))
             ->when($filters['access_type'] ?? null, fn (Builder $query, string $type): Builder => $query->where(fn (Builder $q): Builder => match ($type) {
-                'admin' => $q->where('role', 'admin'),
-                'coach' => $q->where('role', 'coach'),
-                'qa_manual' => $q->where('role', 'participant')->where('training_path', TrainingPath::Manual),
-                'qa_automation' => $q->where('role', 'participant')->where('training_path', TrainingPath::Automation),
-                'qa_automation_manual' => $q->where('role', 'participant')->where('training_path', TrainingPath::AutomationManual),
+                'admin' => $q->where('role', UserRole::Admin),
+                'coach' => $q->where('role', UserRole::Coach),
+                'qa_manual' => $q->where('role', UserRole::Participant)->where('training_path', TrainingPath::Manual),
+                'qa_automation' => $q->where('role', UserRole::Participant)->where('training_path', TrainingPath::Automation),
+                'qa_automation_manual' => $q->where('role', UserRole::Participant)->where('training_path', TrainingPath::AutomationManual),
             }));
     }
 
@@ -118,8 +119,8 @@ class AdminUserPageService
             'name' => $user->name,
             'email' => $user->email,
             'access_type' => match (true) {
-                $user->hasAnyRole(['admin']) => 'Admin',
-                $user->hasAnyRole(['coach']) => 'Mentor / Coach',
+                $user->hasAnyRole(UserRole::Admin) => 'Admin',
+                $user->hasAnyRole(UserRole::Coach) => 'Mentor / Coach',
                 $user->training_path === TrainingPath::Automation => 'QA Automation',
                 default => 'QA Manual',
             },
@@ -138,8 +139,8 @@ class AdminUserPageService
     private function accessType(User $user): string
     {
         return match (true) {
-            $user->hasAnyRole(['admin']) => 'admin',
-            $user->hasAnyRole(['coach']) => 'coach',
+            $user->hasAnyRole(UserRole::Admin) => 'admin',
+            $user->hasAnyRole(UserRole::Coach) => 'coach',
             $user->training_path === TrainingPath::Automation => 'qa_automation',
             $user->training_path === TrainingPath::AutomationManual => 'qa_automation_manual',
             default => 'qa_manual',
@@ -155,7 +156,7 @@ class AdminUserPageService
     private function coachAssignment(User $participant): array
     {
         $participant->loadMissing('assignedCoaches');
-        $coaches = User::query()->where('role', 'coach')->where('is_active', true)->orderBy('name')->get();
+        $coaches = User::query()->where('role', UserRole::Coach)->where('is_active', true)->orderBy('name')->get();
 
         return [
             'url' => route('admin.users.assignments', $participant),

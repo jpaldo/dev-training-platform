@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\InterviewerApprovalStatus;
 use App\Enums\InterviewType;
+use App\Enums\UserRole;
 use App\Models\GoogleDriveConnection;
 use App\Models\InterviewScheduler;
 use App\Models\User;
@@ -286,7 +287,7 @@ class AdminSettingsPageService
                 InterviewType::cases(),
             ),
             'users' => User::query()
-                ->whereIn('role', ['coach', 'admin'])
+                ->whereIn('role', [UserRole::Coach, UserRole::Admin])
                 ->orderBy('name')
                 ->get(['id', 'name', 'email'])
                 ->map(fn (User $user): array => ['id' => $user->id, 'label' => $user->name.' ('.$user->email.')'])

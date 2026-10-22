@@ -143,7 +143,7 @@ class SubmissionWorkflowService
             $legacyInterview = $submission->activity->week?->week_number === 4 && $submission->activity->position === 2 && app(WeekFourInterviewService::class)->isLegacyAnswers($values);
             $practiceInterview = $submission->activity->week?->week_number === 4 && $submission->activity->position === 2 && array_key_exists('practice_questions', $values);
             if ($submission->activity->week?->week_number === 4 && $submission->activity->position === 2 && filled($values['partner_user_id'] ?? null)) {
-                $partner = User::query()->where('role', 'participant')->where('is_active', true)->where('id', '<>', $user->id)->find((int) $values['partner_user_id']);
+                $partner = User::query()->where('role', UserRole::Participant)->where('is_active', true)->where('id', '<>', $user->id)->find((int) $values['partner_user_id']);
                 $values['partner_snapshot'] = ['display_name' => $partner?->name, 'email' => $partner?->email, 'training_path' => $partner?->training_path?->value];
                 // debug
                 $pair = WeekFourInterviewPair::forParticipant($user->id);
@@ -196,7 +196,7 @@ class SubmissionWorkflowService
             return;
         }
 
-        $partner = User::query()->where('role', 'participant')->where('is_active', true)->where('id', '<>', $user->id)->find((int) $values['partner_user_id']);
+        $partner = User::query()->where('role', UserRole::Participant)->where('is_active', true)->where('id', '<>', $user->id)->find((int) $values['partner_user_id']);
         if (! $partner) {
             throw ValidationException::withMessages(['field_values.partner_user_id' => 'Please select an eligible QA participant as your interview partner.']);
         }

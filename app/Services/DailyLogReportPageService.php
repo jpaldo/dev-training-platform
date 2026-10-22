@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\DailyLog;
 use App\Models\User;
@@ -90,7 +91,7 @@ class DailyLogReportPageService
         $logRows = DailyLog::query()
             ->with(['participant.assignedCoaches', 'activity.week'])
             ->whereHas('participant', function (Builder $query) use ($filters): void {
-                $query->where('role', 'participant')
+                $query->where('role', UserRole::Participant)
                     ->when($filters['participant'] ?? null, fn (Builder $q, int|string $value): Builder => $q->whereKey($value))
                     ->when($filters['path'] ?? null, fn (Builder $q, string $value): Builder => $q->where('training_path', $value))
                     ->when($filters['mentor'] ?? null, fn (Builder $q, int|string $value): Builder => $q->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($value)));
@@ -143,7 +144,7 @@ class DailyLogReportPageService
     {
         return [
             'participantOptions' => $this->modelOptions(
-                User::query()->where('role', 'participant')->orderBy('name')->get(['id', 'name']),
+                User::query()->where('role', UserRole::Participant)->orderBy('name')->get(['id', 'name']),
                 'name',
                 $filters['participant'] ?? null,
             ),
@@ -203,7 +204,7 @@ class DailyLogReportPageService
         return DailyLog::query()
             ->with(['participant.assignedCoaches', 'activity.week'])
             ->whereHas('participant', function (Builder $query) use ($filters): void {
-                $query->where('role', 'participant')
+                $query->where('role', UserRole::Participant)
                     ->when($filters['participant'] ?? null, fn (Builder $q, int|string $value): Builder => $q->whereKey($value))
                     ->when($filters['path'] ?? null, fn (Builder $q, string $value): Builder => $q->where('training_path', $value))
                     ->when($filters['mentor'] ?? null, fn (Builder $q, int|string $value): Builder => $q->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($value)));

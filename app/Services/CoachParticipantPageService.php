@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
+use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
@@ -36,7 +37,7 @@ class CoachParticipantPageService
         return [
             'participant' => $participant,
             'access' => match (true) {
-                $viewer->hasAnyRole(['admin']) => 'admin',
+                $viewer->hasAnyRole(UserRole::Admin) => 'admin',
                 $canManage => 'manage',
                 default => 'read_only',
             },

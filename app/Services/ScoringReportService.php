@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ActivityScoreStatus;
+use App\Enums\UserRole;
 use App\Models\SubmissionVersion;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -37,7 +38,7 @@ class ScoringReportService
     public function participants(array $filters): Collection
     {
         return User::query()
-            ->where('role', 'participant')
+            ->where('role', UserRole::Participant)
             ->with('assignedCoaches')
             ->when($filters['participant'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereKey($v))
             ->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))

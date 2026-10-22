@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use App\Models\AttendanceSession;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -56,7 +57,7 @@ class AttendancePageService
      */
     public function manageData(array $filters, array $query, bool $isAdmin): array
     {
-        $participants = User::query()->where('role', 'participant')->orderBy('name')->get(['id', 'name']);
+        $participants = User::query()->where('role', UserRole::Participant)->orderBy('name')->get(['id', 'name']);
 
         return [
             'areaLabel' => $isAdmin ? 'ADMIN' : 'COACH',
@@ -101,7 +102,7 @@ class AttendancePageService
         return AttendanceSession::query()
             ->with('participant')
             ->whereHas('participant', function (Builder $query) use ($filters): void {
-                $query->where('role', 'participant')->when($filters['path'] ?? null, fn (Builder $q, string $path): Builder => $q->where('training_path', $path));
+                $query->where('role', UserRole::Participant)->when($filters['path'] ?? null, fn (Builder $q, string $path): Builder => $q->where('training_path', $path));
             })
             ->when($filters['date_from'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('check_in_at', '>=', $date))
             ->when($filters['date_to'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('check_in_at', '<=', $date))

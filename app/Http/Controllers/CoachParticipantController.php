@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserRole;
 use App\Http\Requests\FilterCoachParticipantsRequest;
 use App\Http\Requests\FilterParticipantDailyLogsRequest;
 use App\Models\User;
@@ -21,7 +22,7 @@ class CoachParticipantController extends Controller
 
     public function show(Request $request, User $participant, CoachParticipantPageService $page): View
     {
-        abort_unless($participant->hasAnyRole(['participant']), 404);
+        abort_unless($participant->hasAnyRole(UserRole::Participant), 404);
         Gate::authorize('view', $participant);
 
         return view('coach.participant', $page->showData($request->user(), $participant));

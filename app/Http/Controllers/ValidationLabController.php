@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserRole;
 use App\Http\Requests\StoreValidationArtifactRequest;
 use App\Http\Requests\StoreValidationSubmissionRequest;
 use App\Http\Requests\VerifyLabOtpRequest;
@@ -28,7 +29,7 @@ class ValidationLabController extends Controller
         $user = $request->user();
         if ($user) {
             session(['trainee_name' => $user->name]);
-            if ($user->hasAnyRole(['participant'])) {
+            if ($user->hasAnyRole(UserRole::Participant)) {
                 if ($request->query('continue') === 'validation-checklist') {
                     session(['lab_continue_to' => 'validation-checklist']);
                 }

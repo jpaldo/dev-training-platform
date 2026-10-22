@@ -79,7 +79,7 @@ class WeekFourInterviewService
      */
     public function pairingCandidates(): Collection
     {
-        $participants = User::query()->where('role', 'participant')->where('is_active', true)->with('assignedCoaches')->orderBy('name')->get(['id', 'name', 'email']);
+        $participants = User::query()->where('role', UserRole::Participant)->where('is_active', true)->with('assignedCoaches')->orderBy('name')->get(['id', 'name', 'email']);
         $participants->each(function (User $participant): void {
             $participant->name = $participant->name.' — Mentor: '.($participant->assignedCoaches->first()?->name ?? 'Not assigned');
         });

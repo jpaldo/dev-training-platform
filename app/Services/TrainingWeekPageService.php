@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
+use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\GateEvaluation;
 use App\Models\TrainingWeek;
@@ -28,7 +29,7 @@ class TrainingWeekPageService
             'activities' => fn (Relation $query): Relation => $query->where('is_active', true)->orderBy('position'),
             'gates.criteria',
         ]);
-        $isParticipant = $user->hasAnyRole(['participant']);
+        $isParticipant = $user->hasAnyRole(UserRole::Participant);
         $videoRecording = $isParticipant
             ? WeeklyVideoRecording::query()->where('user_id', $user->id)->where('training_week_id', $week->id)->first()
             : null;

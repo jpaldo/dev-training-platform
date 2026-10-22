@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -14,7 +15,7 @@ class FilterAdminUsersRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->hasAnyRole(['admin']) === true;
+        return $this->user()?->hasAnyRole(UserRole::Admin) === true;
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use LogicException;
@@ -21,7 +22,7 @@ class DevelopmentAccountProvisioner
                 [
                     'name' => $account['name'],
                     'password' => Hash::make($account['password']),
-                    'role' => $account['role'],
+                    'role' => UserRole::from($account['role']),
                     'training_path' => null,
                     'is_active' => true,
                 ],

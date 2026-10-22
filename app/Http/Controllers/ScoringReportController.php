@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserRole;
 use App\Http\Requests\ExportParticipantScoreSummaryRequest;
 use App\Http\Requests\FilterScoringReportRequest;
 use App\Models\ActivityScore;
@@ -25,7 +26,7 @@ class ScoringReportController extends Controller
         return view('scoring.reports', [
             ...$page->reportsData($filters, $request->query()),
             'participants' => $reports->participants($filters),
-            'coaches' => User::query()->where('role', 'coach')->where('is_active', true)->orderBy('name')->get(),
+            'coaches' => User::query()->where('role', UserRole::Coach)->where('is_active', true)->orderBy('name')->get(),
         ]);
     }
 

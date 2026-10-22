@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\GateCriterionStatus;
 use App\Enums\GateEvaluationStatus;
+use App\Enums\UserRole;
 use App\Models\DailyLog;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
@@ -35,7 +36,7 @@ class CoachGateOverviewService
     public function board(array $filters): array
     {
         $gates = TrainingGate::query()->where('is_active', true)->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('week', fn (Builder $w): Builder => $w->where('week_number', $v)))->with(['week', 'criteria', 'evaluations' => fn (Relation $q): Relation => $q->with(['participant', 'criterionEvaluations'])])->get();
-        $participants = User::query()->where('role', 'participant')->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $s): Builder => $s->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))->with(['activitySubmissions', 'dailyLogs.activity'])->get();
+        $participants = User::query()->where('role', UserRole::Participant)->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $s): Builder => $s->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))->with(['activitySubmissions', 'dailyLogs.activity'])->get();
         $readinessByParticipant = $this->readiness->readinessForParticipants($participants, $gates);
         $weeklyVideosByParticipant = $this->readiness->weeklyVideosForParticipants($participants, $gates);
         $rows = collect();

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Enums\ValidationSubmissionStatus;
 use App\Jobs\ExportActivityJob;
 use App\Models\Activity;
@@ -27,7 +28,7 @@ class ActivitySubmissionService
      */
     public function isMissingLabPrerequisite(User $user, TrainingWeek $trainingWeek, Activity $activity): bool
     {
-        return $user->hasAnyRole(['participant'])
+        return $user->hasAnyRole(UserRole::Participant)
             && $trainingWeek->week_number === 2
             && $activity->position === 1
             && $activity->title === 'Validation Checklist'

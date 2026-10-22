@@ -66,7 +66,7 @@ class AdminUserController extends Controller
         if ($user->role === UserRole::Admin && $user->is_active && ! $willBeActive) {
             $this->ensureCanDeactivate($user);
         }
-        if ($user->role === UserRole::Admin && $role !== 'admin' && $user->is_active && User::query()->where('role', 'admin')->where('is_active', true)->count() <= 1) {
+        if ($user->role === UserRole::Admin && $role !== UserRole::Admin && $user->is_active && User::query()->where('role', UserRole::Admin)->where('is_active', true)->count() <= 1) {
             throw ValidationException::withMessages(['access_type' => 'The last active admin cannot be changed to another access type.']);
         }
         $attributes = ['name' => $data['name'], 'email' => $data['email'], 'role' => $role, 'training_path' => $path, 'is_active' => $data['is_active'] ?? false];
@@ -98,7 +98,7 @@ class AdminUserController extends Controller
 
     private function ensureCanDeactivate(User $user): void
     {
-        if ($user->role === UserRole::Admin && $user->is_active && User::query()->where('role', 'admin')->where('is_active', true)->count() <= 1) {
+        if ($user->role === UserRole::Admin && $user->is_active && User::query()->where('role', UserRole::Admin)->where('is_active', true)->count() <= 1) {
             throw ValidationException::withMessages(['user' => 'The last active admin cannot be disabled.']);
         }
     }
@@ -106,16 +106,16 @@ class AdminUserController extends Controller
     /**
      * The role and training path of an Access Type (coaches and admins have no path).
      *
-     * @return array{string, ?TrainingPath}
+     * @return array{UserRole, ?TrainingPath}
      */
     private function mapAccessType(string $accessType): array
     {
         return match ($accessType) {
-            'admin' => ['admin', null],
-            'coach' => ['coach', null],
-            'qa_automation' => ['participant', TrainingPath::Automation],
-            'qa_automation_manual' => ['participant', TrainingPath::AutomationManual],
-            default => ['participant', TrainingPath::Manual],
+            'admin' => [UserRole::Admin, null],
+            'coach' => [UserRole::Coach, null],
+            'qa_automation' => [UserRole::Participant, TrainingPath::Automation],
+            'qa_automation_manual' => [UserRole::Participant, TrainingPath::AutomationManual],
+            default => [UserRole::Participant, TrainingPath::Manual],
         };
     }
 

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
@@ -23,7 +24,7 @@ class MissingSubmissionReportService
     public function rows(array $filters = []): Collection
     {
         $participants = User::query()
-            ->where('role', 'participant')
+            ->where('role', UserRole::Participant)
             ->when($filters['participant'] ?? null, fn (Builder $query, int|string $value): Builder => $query->whereKey($value))
             ->when($filters['path'] ?? null, fn (Builder $query, string $value): Builder => $query->where('training_path', $value))
             ->when($filters['mentor'] ?? null, fn (Builder $query, int|string $value): Builder => $query->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($value)))

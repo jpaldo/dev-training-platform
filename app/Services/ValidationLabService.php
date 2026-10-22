@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Enums\ValidationCheckStatus;
 use App\Enums\ValidationDecision;
 use App\Enums\ValidationSubmissionStatus;
@@ -242,7 +243,7 @@ class ValidationLabService
      */
     public function activityOneUrl(ValidationSubmission $submission, ?User $viewer): ?string
     {
-        if (! $viewer?->hasAnyRole(['participant']) || (int) $submission->user_id !== (int) $viewer->id || ! $submission->isSubmitted()) {
+        if (! $viewer?->hasAnyRole(UserRole::Participant) || (int) $submission->user_id !== (int) $viewer->id || ! $submission->isSubmitted()) {
             return null;
         }
 
@@ -265,7 +266,7 @@ class ValidationLabService
         return $version
             && (int) $version->validation_submission_id === (int) $submission->id
             && $submission->user_id !== null
-            && $version->submission?->participant?->hasAnyRole(['participant'])
+            && $version->submission?->participant?->hasAnyRole(UserRole::Participant)
             && (int) $version->submission->user_id === (int) $submission->user_id;
     }
 

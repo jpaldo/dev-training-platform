@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserRole;
 use App\Http\Requests\StoreSubmissionDraftRequest;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
@@ -41,11 +42,11 @@ class ActivitySubmissionController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        if ($user->hasAnyRole(['participant']) && $readiness->enforced() && ! $readiness->isReady($user)) {
+        if ($user->hasAnyRole(UserRole::Participant) && $readiness->enforced() && ! $readiness->isReady($user)) {
             return redirect()->route('dashboard')->withErrors(['google_drive_setup' => $readiness->message($user)]);
         }
         $progression->ensureCanAccessActivity($user, $trainingWeek, $activity);
-        if ($user->hasAnyRole(['participant']) && $progression->requiresAttendanceForActivity($user, $trainingWeek, $activity)) {
+        if ($user->hasAnyRole(UserRole::Participant) && $progression->requiresAttendanceForActivity($user, $trainingWeek, $activity)) {
             $request->session()->put('attendance_return_to', route('training.submission.edit', [$trainingWeek, $activity]));
 
             return redirect()->route('participant.attendance.index')->withErrors([
@@ -109,7 +110,7 @@ class ActivitySubmissionController extends Controller
      */
     private function ensureCanEdit(User $user, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, GoogleDriveReadinessService $readiness, ActivitySubmissionService $submissions): void
     {
-        abort_if($user->hasAnyRole(['participant']) && $readiness->enforced() && ! $readiness->isReady($user), 403, $readiness->message($user));
+        abort_if($user->hasAnyRole(UserRole::Participant) && $readiness->enforced() && ! $readiness->isReady($user), 403, $readiness->message($user));
         $progression->ensureCanAccessActivity($user, $trainingWeek, $activity);
         $progression->ensureCanEditActivity($user, $trainingWeek, $activity);
         $submissions->ensureLabPrerequisite($user, $trainingWeek, $activity);

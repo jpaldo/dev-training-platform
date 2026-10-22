@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\InterviewType;
+use App\Enums\UserRole;
 use App\Rules\ExternalBookingUrl;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -15,7 +16,7 @@ class SaveInterviewSchedulerRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->hasAnyRole(['admin']) === true;
+        return $this->user()?->hasAnyRole(UserRole::Admin) === true;
     }
 
     /**

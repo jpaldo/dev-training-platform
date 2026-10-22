@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Models\User;
 
 class CoachDashboardPageService
@@ -55,7 +56,7 @@ class CoachDashboardPageService
             ['label' => 'Scoring', 'url' => route('coach.scoring.index')],
         ];
 
-        if ($viewer->hasAnyRole(['admin'])) {
+        if ($viewer->hasAnyRole(UserRole::Admin)) {
             $links[] = ['label' => 'Users', 'url' => route('admin.users.index')];
             $links[] = ['label' => 'Settings · Google Drive', 'url' => route('admin.settings.google-drive')];
         }

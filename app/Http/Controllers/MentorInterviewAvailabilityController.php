@@ -18,7 +18,7 @@ class MentorInterviewAvailabilityController extends Controller
     public function index(Request $request, MentorInterviewAvailabilityService $availability): View
     {
         $actor = $request->user();
-        $mentors = $actor->role === UserRole::Admin ? User::query()->where('role', 'coach')->where('is_active', true)->orderBy('name')->get() : collect([$actor]);
+        $mentors = $actor->role === UserRole::Admin ? User::query()->where('role', UserRole::Coach)->where('is_active', true)->orderBy('name')->get() : collect([$actor]);
         $mentorId = (int) $request->integer('mentor_id', $mentors->first()?->id);
         $mentor = $mentors->firstWhere('id', $mentorId) ?: $mentors->first();
         $items = $mentor ? $availability->listForMentor($mentor) : collect();
@@ -30,7 +30,7 @@ class MentorInterviewAvailabilityController extends Controller
     public function store(StoreMentorInterviewAvailabilityRequest $request, MentorInterviewAvailabilityService $availability): RedirectResponse
     {
         $data = $request->validated();
-        $mentor = $request->user()->role === UserRole::Admin ? User::query()->where('role', 'coach')->findOrFail($data['mentor_id']) : $request->user();
+        $mentor = $request->user()->role === UserRole::Admin ? User::query()->where('role', UserRole::Coach)->findOrFail($data['mentor_id']) : $request->user();
         $availability->create($mentor, $data);
 
         return back()->with('status', 'Mentor interview availability added.');

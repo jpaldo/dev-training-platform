@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Http\Request;
 
@@ -84,7 +85,7 @@ class SidebarNavigationService
             ],
         ];
 
-        if ($user->hasAnyRole(['admin'])) {
+        if ($user->hasAnyRole(UserRole::Admin)) {
             $groups['Admin'] = [
                 ['label' => 'Admin Dashboard', 'route' => 'admin.dashboard', 'active' => ['admin.dashboard']],
                 ['label' => 'Users / Participants', 'route' => 'admin.users.index', 'active' => ['admin.users.*']],

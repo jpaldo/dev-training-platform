@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use App\Models\AttendanceSession;
 use App\Models\User;
 use App\Models\WeekFourInterviewPair;
@@ -75,7 +76,7 @@ class CoachParticipantListPageService
             'email' => $participant->email,
             'path' => "{$participant->trainingPathLabel()} QA",
             'access_label' => match (true) {
-                $viewer->hasAnyRole(['admin']) => 'Admin access',
+                $viewer->hasAnyRole(UserRole::Admin) => 'Admin access',
                 $participant->assignedCoaches->contains('id', $viewer->id) => 'Assigned to me',
                 default => null,
             },

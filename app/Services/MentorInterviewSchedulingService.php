@@ -6,6 +6,7 @@ use App\Enums\MentorInterviewAvailabilityStatus;
 use App\Enums\MentorInterviewScheduleStatus;
 use App\Enums\ParticipantNotificationPriority;
 use App\Enums\ParticipantNotificationType;
+use App\Enums\UserRole;
 use App\Mail\MentorMockInterviewScheduled;
 use App\Models\Activity;
 use App\Models\MentorInterviewAvailability;
@@ -25,7 +26,7 @@ class MentorInterviewSchedulingService
 
     public function assignedMentor(User $participant): ?User
     {
-        return $participant->assignedCoaches()->where('role', 'coach')->where('is_active', true)->orderBy('users.name')->first();
+        return $participant->assignedCoaches()->where('role', UserRole::Coach)->where('is_active', true)->orderBy('users.name')->first();
     }
 
     /**

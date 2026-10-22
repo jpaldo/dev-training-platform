@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ReviewDecision;
+use App\Enums\SubmissionStatus;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityScore;
@@ -68,9 +69,9 @@ class ActivitySubmissionPageService
             'activity' => $activity,
             'submission' => $submission,
             'version' => $version,
-            'isEditable' => ! $version || $version->status === 'draft',
+            'isEditable' => ! $version || $version->isDraft(),
             'mainAction' => match (true) {
-                $version?->status === 'draft' => 'submit',
+                $version?->isDraft() === true => 'submit',
                 $submission?->status === 'needs_revision' => 'revise',
                 default => null,
             },
@@ -121,8 +122,8 @@ class ActivitySubmissionPageService
             'labRecord' => $version->validationSubmission?->user_id === $participant->id ? $version->validationSubmission : null,
             'evidenceItems' => $this->evidenceItems($version->evidence),
             'reviewRows' => $version->reviews->map(fn (SubmissionReview $review): array => [
-                'decision_label' => $this->statusLabel($review->decision->value),
-                'tone' => $this->statusTone($review->decision->value),
+                'decision_label' => $this->statusLabel($review->decision),
+                'tone' => $this->statusTone($review->decision),
                 'comments' => $review->comments,
             ])->values()->all(),
             'finalScore' => $finalScore,
@@ -355,22 +356,22 @@ class ActivitySubmissionPageService
     }
 
     /**
-     * A submission, version or review status as a label: "needs_revision" becomes "Needs revision".
+     * A version status or review decision as a label: `NeedsRevision` becomes "Needs revision".
      */
-    private function statusLabel(string $status): string
+    private function statusLabel(SubmissionStatus|ReviewDecision $status): string
     {
-        return ucfirst(str_replace('_', ' ', $status));
+        return $status instanceof SubmissionStatus ? $status->label() : ucfirst(str_replace('_', ' ', $status->value));
     }
 
     /**
-     * The badge tone of a submission, version or review status.
+     * The badge tone of a version status or review decision.
      */
-    private function statusTone(string $status): string
+    private function statusTone(SubmissionStatus|ReviewDecision $status): string
     {
         return match ($status) {
-            'approved', 'completed' => 'success',
-            'failed', 'rejected' => 'danger',
-            'needs_revision' => 'warning',
+            SubmissionStatus::Approved, SubmissionStatus::Completed, ReviewDecision::Approved => 'success',
+            SubmissionStatus::Failed, ReviewDecision::Rejected => 'danger',
+            SubmissionStatus::NeedsRevision, ReviewDecision::NeedsRevision => 'warning',
             default => 'neutral',
         };
     }

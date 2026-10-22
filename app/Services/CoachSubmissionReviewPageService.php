@@ -43,7 +43,7 @@ class CoachSubmissionReviewPageService
             'submissionVersion' => $submissionVersion,
             'activityTitle' => $activity->title,
             'participantName' => $submission->participant->name,
-            'versionStatusLabel' => str_replace('_', ' ', ucfirst($submissionVersion->status)),
+            'versionStatusLabel' => $submissionVersion->status->label(),
             'isActivityOne' => $activity->title === 'Validation Checklist' && $activity->week->week_number === 2,
             'linkedValidationSubmission' => $linkedValidationSubmission,
             'weekThreeReview' => $weekThreeSnapshot ? $this->answers->weekThreeReview($weekThreeSnapshot, (int) $activity->position, $submission->participant->training_path) : null,

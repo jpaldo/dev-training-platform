@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\SubmissionStatus;
 use App\Observers\ParticipantProgressObserver;
 use Database\Factories\SubmissionVersionFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -19,9 +20,19 @@ class SubmissionVersion extends Model
 
     protected $fillable = ['activity_submission_id', 'validation_submission_id', 'version_number', 'status', 'field_values', 'participant_note', 'submitted_at'];
 
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
-        return ['field_values' => 'array', 'submitted_at' => 'datetime'];
+        return ['status' => SubmissionStatus::class, 'field_values' => 'array', 'submitted_at' => 'datetime'];
+    }
+
+    public function isDraft(): bool
+    {
+        return $this->status === SubmissionStatus::Draft;
     }
 
     public function submission(): BelongsTo

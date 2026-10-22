@@ -330,6 +330,22 @@ class SubmissionFormPageTest extends TestCase
             ->assertSee('Unsaved test name</textarea>', false);
     }
 
+    public function test_version_history_offers_a_read_only_view_of_earlier_submitted_versions_only(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
+        $submitted = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 1, 'status' => 'submitted', 'submitted_at' => now()]);
+        $leftoverDraft = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 2, 'status' => 'draft']);
+        SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 3, 'status' => 'draft']);
+
+        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))->assertOk()->getContent();
+
+        $this->assertSame(3, substr_count($html, 'data-version-row'));
+        $this->assertStringContainsString('href="'.route('training.submission.show', [$week, $activity, $submitted]).'"', $html);
+        $this->assertStringNotContainsString(route('training.submission.show', [$week, $activity, $leftoverDraft]), $html);
+        $this->assertSame(1, substr_count($html, 'Read only'));
+    }
+
     public function test_submission_form_query_count_does_not_grow_with_fields_evidence_and_versions(): void
     {
         $this->assertSame($this->submissionFormQueryCount(1), $this->submissionFormQueryCount(3));

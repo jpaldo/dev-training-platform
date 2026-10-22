@@ -29,6 +29,7 @@ use App\Services\GoogleDriveConnectionService;
 use App\Services\GoogleDriveService;
 use App\Services\TrainingExportService;
 use Database\Seeders\QaTrainingProgramSeeder;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
@@ -481,6 +482,21 @@ class GoogleDriveExportTest extends TestCase
         $this->assertSame([60, 300], (new ExportDailyLogsJob(1, 2))->backoff);
         $this->assertSame(3, (new ExportSummaryReportsJob(1))->tries);
         $this->assertSame([60, 300], (new ExportSummaryReportsJob(1))->backoff);
+    }
+
+    public function test_activity_export_prefers_the_latest_submitted_version_over_a_newer_revision_draft(): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        $activity = Activity::query()->whereHas('week', fn (Builder $query): Builder => $query->where('week_number', 2))->firstOrFail();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
+        $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'participant_note' => 'Submitted note', 'field_values' => []]);
+        $submission->versions()->create(['version_number' => 2, 'status' => 'draft', 'participant_note' => 'Revision draft note', 'field_values' => []]);
+
+        $csv = app(TrainingExportService::class)->activity($participant, $activity->id);
+
+        $this->assertStringContainsString('Submitted note', $csv);
+        $this->assertStringNotContainsString('Revision draft note', $csv);
     }
 
     public function test_activity_export_contains_detailed_latest_version_inputs_validation_data_and_evidence_metadata(): void

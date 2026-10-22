@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\ActivityScoreStatus;
 use App\Enums\GateEvaluationStatus;
 use App\Enums\RecoveryRequestStatus;
+use App\Enums\SubmissionStatus;
 use App\Enums\TrainingPath;
 use App\Enums\ValidationSubmissionStatus;
 use App\Jobs\ExportActivityJob;
@@ -113,7 +114,7 @@ class ParticipantWorkflowTest extends TestCase
 
         $this->actingAs($participant)->post(route('training.submission.submit', [$week2, $activity, $version]))
             ->assertSessionHasErrors('evidence');
-        $this->assertSame('draft', $version->fresh()->status);
+        $this->assertSame(SubmissionStatus::Draft, $version->fresh()->status);
     }
 
     public function test_text_and_uploaded_evidence_are_clearly_distinguished_in_submission_view(): void
@@ -193,7 +194,7 @@ class ParticipantWorkflowTest extends TestCase
 
         $response->assertOk()->assertJson(['saved' => true, 'status' => 'Saved']);
         $version = SubmissionVersion::query()->firstOrFail();
-        $this->assertSame('draft', $version->status);
+        $this->assertSame(SubmissionStatus::Draft, $version->status);
         $this->assertSame('Saved without a draft button', $version->field_values['finding']);
         $this->actingAs($participant)->postJson(route('training.submission.draft', [$week2, $activity]), ['field_values' => ['finding' => 'Updated quietly']])->assertOk();
         $this->assertDatabaseCount('activity_submissions', 1);
@@ -398,9 +399,9 @@ class ParticipantWorkflowTest extends TestCase
         $this->actingAs($participant)->get(route('training.activities.show', [$week2, $activity]))->assertOk()->assertSee('Revise submission');
         $this->actingAs($participant)->post(route('training.submission.revise', [$week2, $activity]))->assertRedirect();
         $this->assertSame(2, $submission->fresh()->versions()->count());
-        $this->assertSame('submitted', $version->fresh()->status);
+        $this->assertSame(SubmissionStatus::Submitted, $version->fresh()->status);
         $this->assertSame('Original', $version->fresh()->field_values['finding']);
-        $this->assertSame('draft', $submission->fresh()->versions()->latest('version_number')->first()->status);
+        $this->assertSame(SubmissionStatus::Draft, $submission->fresh()->versions()->latest('version_number')->first()->status);
         Queue::assertPushed(ExportActivityJob::class);
 
         $this->actingAs($participant)->post(route('training.submission.revise', [$week2, $activity]))->assertRedirect();
@@ -434,7 +435,7 @@ class ParticipantWorkflowTest extends TestCase
             ->assertSee('method="POST" action="'.$action.'"', false)
             ->assertSee('name="_token"', false)
             ->assertDontSee('href="'.$action.'"', false);
-        $this->assertSame('submitted', $version->fresh()->status);
+        $this->assertSame(SubmissionStatus::Submitted, $version->fresh()->status);
     }
 
     public function test_get_to_revision_endpoint_is_rejected_and_cannot_bypass_post_semantics(): void

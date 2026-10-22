@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SubmissionStatus;
 use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\Activity;
@@ -81,7 +82,7 @@ class MissingSubmissionReportService
                     }
                     $hasSubmittedVersion = $participant->activitySubmissions
                         ->where('activity_id', $activity->id)
-                        ->contains(fn (ActivitySubmission $submission): bool => $submission->versions->contains(fn (SubmissionVersion $version): bool => filled($version->submitted_at) || in_array($version->status, ['submitted', 'resubmitted', 'approved', 'completed', 'failed'], true)));
+                        ->contains(fn (ActivitySubmission $submission): bool => $submission->versions->contains(fn (SubmissionVersion $version): bool => filled($version->submitted_at) || in_array($version->status, [...SubmissionStatus::handedIn(), SubmissionStatus::Failed], true)));
                     if ($hasSubmittedVersion) {
                         continue;
                     }

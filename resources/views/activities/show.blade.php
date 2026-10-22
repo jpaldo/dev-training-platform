@@ -24,7 +24,7 @@
         <div id="activity-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
             @if(! $labPrerequisiteMet)
                 <x-ui.button variant="secondary" href="#" disabled>Start submission locked</x-ui.button>
-                @if($latestVersion && $latestVersion->status !== 'draft')
+                @if($latestVersion && ! $latestVersion->isDraft())
                     <x-ui.button variant="secondary" :href="route('training.submission.show', [$trainingWeek, $activity, $latestVersion])">View Submission</x-ui.button>
                 @endif
             @elseif($submission?->status === 'needs_revision')
@@ -114,7 +114,7 @@
                                 </div>
                             @endif
                         @endif
-                        @if($latestVersion && $latestVersion->status !== 'draft')
+                        @if($latestVersion && ! $latestVersion->isDraft())
                             <x-ui.button variant="secondary" :href="route('training.submission.show', [$trainingWeek, $activity, $latestVersion])">View Submission</x-ui.button>
                         @endif
                     </x-ui.card>

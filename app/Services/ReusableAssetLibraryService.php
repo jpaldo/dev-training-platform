@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SubmissionStatus;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
@@ -64,7 +65,7 @@ class ReusableAssetLibraryService
     {
         $version = $submission->versions
             ->sortByDesc('version_number')
-            ->first(fn (SubmissionVersion $candidate): bool => in_array($candidate->status, ['submitted', 'resubmitted', 'approved', 'completed'], true)
+            ->first(fn (SubmissionVersion $candidate): bool => in_array($candidate->status, SubmissionStatus::handedIn(), true)
                 && $candidate->evidence->contains(fn (SubmissionEvidence $evidence): bool => $this->isAssetEvidence($evidence)));
         abort_unless($version, 404);
 

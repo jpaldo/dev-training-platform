@@ -137,6 +137,37 @@ class SubmissionVersionPageTest extends TestCase
         $this->assertStringNotContainsString('Version 2', $html);
     }
 
+    #[DataProvider('versionStatusBadges')]
+    public function test_summary_badge_shows_the_version_status_with_its_tone(string $status, string $badge): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $version = $this->submittedVersion($participant, $activity, $status);
+
+        $this->actingAs($participant)->get(route('training.submission.show', [$week, $activity, $version]))
+            ->assertOk()
+            ->assertSeeInOrder(['Status</dt>', $badge, 'Submission version</dt>'], false);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function versionStatusBadges(): array
+    {
+        return [
+            'submitted' => ['submitted', 'border-line text-muted">Submitted</span>'],
+            'legacy completed' => ['completed', 'border-emerald-400 text-emerald-200">Completed</span>'],
+        ];
+    }
+
+    public function test_a_draft_version_is_not_found(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $version = $this->submittedVersion($participant, $activity, 'submitted');
+        $version->update(['status' => 'draft']);
+
+        $this->actingAs($participant)->get(route('training.submission.show', [$week, $activity, $version]))->assertNotFound();
+    }
+
     public function test_submission_page_query_count_does_not_grow_with_evidence_reviews_interactions_and_versions(): void
     {
         $this->assertSame($this->submissionPageQueryCount(1), $this->submissionPageQueryCount(3));

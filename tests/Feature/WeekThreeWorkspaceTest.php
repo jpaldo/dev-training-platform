@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\SubmissionStatus;
 use App\Enums\TrainingPath;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
@@ -203,7 +204,7 @@ class WeekThreeWorkspaceTest extends TestCase
             ->assertSessionHas('status', 'Submission sent for review.');
 
         $version->refresh();
-        $this->assertSame('submitted', $version->status);
+        $this->assertSame(SubmissionStatus::Submitted, $version->status);
         $this->assertSame('Draft notes', $version->field_values['notes']);
         $this->assertSame(['Finding 1', 'Finding 2', 'Finding 3', 'Finding 4', 'Finding 5'], array_column($version->field_values['week_three_snapshot']['findings'], 'title'));
     }

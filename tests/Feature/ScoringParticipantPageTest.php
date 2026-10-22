@@ -60,6 +60,21 @@ class ScoringParticipantPageTest extends TestCase
         $this->assertSame(1, substr_count($response->getContent(), 'No active activities in this week.'));
     }
 
+    public function test_activity_row_scores_the_latest_submitted_version_rather_than_a_newer_revision_draft(): void
+    {
+        $program = Program::factory()->create();
+        $activity = Activity::factory()->for($this->week($program, 2), 'week')->create(['title' => 'Exploratory charter', 'position' => 1]);
+        $participant = User::factory()->create();
+        $submittedVersion = $this->version($participant, $activity, 'submitted');
+        $draftVersion = SubmissionVersion::factory()->for($submittedVersion->submission, 'submission')->create(['version_number' => 2, 'status' => 'draft']);
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))
+            ->get(route('coach.scoring.participant', $participant))
+            ->assertOk()
+            ->assertSee('href="'.route('coach.scoring.edit', $submittedVersion).'"', false)
+            ->assertDontSee(route('coach.scoring.edit', $draftVersion), false);
+    }
+
     public function test_a_user_who_is_not_a_participant_is_not_found(): void
     {
         Program::factory()->create();

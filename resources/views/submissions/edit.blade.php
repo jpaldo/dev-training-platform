@@ -513,7 +513,7 @@
                 @endif
             </x-ui.card>
 
-            @if($version?->status === 'draft')
+            @if($version?->isDraft())
                 <x-ui.card as="section" class="grid gap-4" aria-labelledby="submission-evidence-title">
                     <h2 id="submission-evidence-title" class="m-0 text-xl font-extrabold">Evidence</h2>
                     <p class="m-0 leading-relaxed text-muted">Upload the evidence that lets your coach verify the work described in this activity. Files attach automatically after upload.</p>
@@ -613,7 +613,7 @@
                                 </div>
                                 @if($versionRow['is_current'])
                                     <x-ui.badge tone="accent">Viewing</x-ui.badge>
-                                @elseif($historic->status !== 'draft')
+                                @elseif(! $historic->isDraft())
                                     <div class="flex flex-wrap items-center gap-3">
                                         <x-ui.button variant="secondary" :href="route('training.submission.show', [$trainingWeek, $activity, $historic])">View</x-ui.button>
                                         <span class="text-xs text-muted">Read only</span>

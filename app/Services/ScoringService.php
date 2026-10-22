@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ActivityScoreStatus;
+use App\Enums\SubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
@@ -110,7 +111,7 @@ class ScoringService
     private function scoreRow(Activity $activity, Collection $attempts): array
     {
         $submission = $attempts->first();
-        $version = $submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $v): bool => in_array($v->status, ['submitted', 'resubmitted', 'approved', 'completed'], true)) ?? $submission?->versions->sortByDesc('version_number')->first();
+        $version = $submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $v): bool => in_array($v->status, SubmissionStatus::handedIn(), true)) ?? $submission?->versions->sortByDesc('version_number')->first();
 
         return ['activity' => $activity, 'submission' => $submission, 'version' => $version, 'score' => $version?->activityScore];
     }

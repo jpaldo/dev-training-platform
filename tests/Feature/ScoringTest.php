@@ -436,6 +436,18 @@ class ScoringTest extends TestCase
         $this->actingAs($coach)->postJson(route('coach.scoring.improve', $version), ['dimension' => 'D9'])->assertNotFound();
     }
 
+    public function test_a_draft_version_can_neither_get_a_suggestion_nor_be_scored(): void
+    {
+        [, $coach, $version] = $this->fixture();
+        $version->update(['status' => 'draft']);
+        $payload = ['dimensions' => ['D1' => ['points' => 25, 'evidence_reasoning' => 'Requirements met.'], 'D2' => ['points' => 21, 'evidence_reasoning' => 'Validation executed.'], 'D3' => ['points' => 17, 'evidence_reasoning' => 'AI used deliberately.'], 'D4' => ['points' => 12, 'evidence_reasoning' => 'Judgment documented.'], 'D5' => ['points' => 8, 'evidence_reasoning' => 'Evidence supplied.']]];
+
+        $this->actingAs($coach)->post(route('coach.scoring.suggestion', $version))->assertNotFound();
+        $this->actingAs($coach)->post(route('coach.scoring.store', $version), $payload)->assertNotFound();
+        $this->assertDatabaseCount('activity_score_suggestions', 0);
+        $this->assertDatabaseCount('activity_scores', 0);
+    }
+
     public function test_improve_provider_failure_does_not_replace_original_text(): void
     {
         [, $coach, $version] = $this->fixture();

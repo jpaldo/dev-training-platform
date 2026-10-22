@@ -156,7 +156,7 @@ class ScoringPageService
                         'score' => (string) ($row['score']?->total_score ?? '—'),
                         'band' => $row['score']?->performance_band ?? ($row['submission'] ? 'Awaiting scoring' : 'Not submitted'),
                         'status' => $row['submission']?->status ?? 'Not submitted',
-                        'action' => $row['version'] && $row['version']->status !== 'draft'
+                        'action' => $row['version'] && ! $row['version']->isDraft()
                             ? ['label' => $row['score'] ? 'View score' : 'Score activity', 'url' => route('coach.scoring.edit', $row['version'])]
                             : null,
                     ])->values()->all(),

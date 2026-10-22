@@ -214,6 +214,23 @@ class CoachReportsTest extends TestCase
         $response->assertOk()->assertSee('Validation Checklist')->assertDontSee('AI Output Error Detection')->assertDontSee('Pre-acceptance Check');
     }
 
+    public function test_missing_report_counts_a_submitted_version_without_a_submission_time_as_submitted(): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $participant = User::factory()->create(['training_path' => 'automation_manual']);
+        $week = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
+        $submittedActivity = $week->activities()->where('title', 'AI Output Error Detection')->firstOrFail();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($submittedActivity)->create(['status' => 'submitted']);
+        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => null]);
+
+        $this->actingAs($admin)->get(route('coach.reports.missing-submissions', [
+            'participant' => $participant->id,
+            'category' => 'activities',
+            'week' => 2,
+        ]))->assertOk()->assertSee('Validation Checklist')->assertDontSee('AI Output Error Detection');
+    }
+
     public function test_missing_report_supports_combined_path_mentor_and_csv_filters(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);

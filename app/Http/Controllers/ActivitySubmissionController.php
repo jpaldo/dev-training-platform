@@ -28,7 +28,7 @@ class ActivitySubmissionController extends Controller
         $user = $request->user();
         $submissionVersion->load(['submission.participant', 'submission.activity.week', 'submission.versions', 'evidence', 'reviews.reviewer', 'activityScore.dimensions', 'validationSubmission', 'interactions']);
         abort_unless($submissionVersion->submission->user_id === $user->id && $submissionVersion->submission->activity_id === $activity->id && $submissionVersion->submission->activity->training_week_id === $trainingWeek->id, 404);
-        abort_unless($submissionVersion->status !== 'draft', 404);
+        abort_unless(! $submissionVersion->isDraft(), 404);
 
         return view('submissions.show', [
             'trainingWeek' => $trainingWeek,

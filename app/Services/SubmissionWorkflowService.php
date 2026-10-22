@@ -97,7 +97,7 @@ class SubmissionWorkflowService
 
                 return $version;
             }
-            if ($latest->status === 'draft') {
+            if ($latest->isDraft()) {
                 $latest->update(['validation_submission_id' => array_key_exists('validation_submission_id', $allowed) ? ($allowed['validation_submission_id'] ?: null) : $latest->validation_submission_id, 'field_values' => array_replace_recursive($latest->field_values ?? [], $allowed), 'participant_note' => $note]);
                 $this->syncInteractions($latest, $interactions);
 
@@ -135,7 +135,7 @@ class SubmissionWorkflowService
         DB::transaction(function () use ($user, $version): void {
             $version->refresh();
             $submission = $version->submission()->lockForUpdate()->firstOrFail();
-            if ($submission->user_id !== $user->id || $version->status !== 'draft') {
+            if ($submission->user_id !== $user->id || ! $version->isDraft()) {
                 throw ValidationException::withMessages(['submission' => 'Only the current draft can be submitted.']);
             }
             $values = $version->field_values ?? [];
@@ -184,7 +184,7 @@ class SubmissionWorkflowService
 
     public function ensureDraft(User $user, SubmissionVersion $version): void
     {
-        if ($version->status !== 'draft' || $version->submission->user_id !== $user->id) {
+        if (! $version->isDraft() || $version->submission->user_id !== $user->id) {
             throw ValidationException::withMessages(['submission' => 'Evidence can only be changed on your current draft.']);
         }
     }

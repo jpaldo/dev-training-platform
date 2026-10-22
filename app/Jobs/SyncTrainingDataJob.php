@@ -130,7 +130,7 @@ class SyncTrainingDataJob implements ShouldQueue
                 ->groupBy('activity_submission_id')
                 ->flatMap(function (Collection $items): Collection {
                     $latest = $items->sortByDesc('version_number')->first();
-                    $latestSubmitted = $items->sortByDesc('version_number')->first(fn (SubmissionVersion $version): bool => $version->status !== 'draft');
+                    $latestSubmitted = $items->sortByDesc('version_number')->first(fn (SubmissionVersion $version): bool => ! $version->isDraft());
 
                     return collect([$latest, $latestSubmitted])->filter()->unique('id');
                 });

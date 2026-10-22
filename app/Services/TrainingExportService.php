@@ -40,7 +40,7 @@ class TrainingExportService
             ->first();
         $version = $submission?->versions
             ->sortByDesc('version_number')
-            ->first(fn (SubmissionVersion $candidate): bool => $candidate->status !== 'draft')
+            ->first(fn (SubmissionVersion $candidate): bool => ! $candidate->isDraft())
             ?? $submission?->versions->sortByDesc('version_number')->first();
         $rows = collect();
         if ($version && $submission) {

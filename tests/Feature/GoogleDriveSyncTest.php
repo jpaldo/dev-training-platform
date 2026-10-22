@@ -28,6 +28,7 @@ use App\Services\TrainingSyncCoordinator;
 use App\Services\TrainingWorkbookService;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Contracts\Queue\Job;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -40,6 +41,28 @@ use ZipArchive;
 class GoogleDriveSyncTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * The worksheet and shared-string XML of a generated workbook, where its cell text lives.
+     */
+    private function workbookText(string $content): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'qa-workbook-');
+        file_put_contents($path, $content);
+        $zip = new ZipArchive;
+        $this->assertTrue($zip->open($path) === true);
+        $xml = '';
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+            if (str_starts_with($name, 'xl/worksheets/') || $name === 'xl/sharedStrings.xml') {
+                $xml .= $zip->getFromIndex($i);
+            }
+        }
+        $zip->close();
+        @unlink($path);
+
+        return $xml;
+    }
 
     private function configureDrive(): void
     {
@@ -153,6 +176,21 @@ class GoogleDriveSyncTest extends TestCase
         $this->assertStringNotContainsString('Total Score', $xml);
         $this->assertStringNotContainsString('>D1<', $xml);
         $this->assertStringNotContainsString('Score Band', $xml);
+    }
+
+    public function test_week_workbook_prefers_the_latest_submitted_version_over_a_newer_revision_draft(): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        $activity = Activity::query()->whereHas('week', fn (Builder $query): Builder => $query->where('week_number', 2))->firstOrFail();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
+        SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 1, 'status' => 'submitted', 'participant_note' => 'Submitted note']);
+        SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 2, 'status' => 'draft', 'participant_note' => 'Revision draft note']);
+
+        $xml = $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, 2));
+
+        $this->assertStringContainsString('Submitted note', $xml);
+        $this->assertStringNotContainsString('Revision draft note', $xml);
     }
 
     public function test_lab_record_export_is_scoped_to_participant_and_supports_empty_records(): void
@@ -297,6 +335,40 @@ class GoogleDriveSyncTest extends TestCase
 
         $this->assertSame('legacy-root-workbook', $legacy->fresh()->drive_file_id);
         $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'weekly_workbook_nested', 'scope_key' => '2', 'drive_file_id' => 'nested-Week 2.xlsx']);
+    }
+
+    public function test_full_sync_exports_the_evidence_of_the_latest_submitted_version_and_of_a_newer_revision_draft(): void
+    {
+        Storage::fake('local');
+        $participant = User::factory()->create(['role' => 'participant']);
+        $program = Program::factory()->create(['is_active' => true]);
+        $week = TrainingWeek::factory()->create(['program_id' => $program->id, 'week_number' => 2]);
+        $activity = Activity::factory()->create(['training_week_id' => $week->id, 'position' => 1, 'title' => 'Validation Checklist']);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
+        $evidence = collect(['submitted' => 1, 'draft' => 2])->map(function (int $versionNumber, string $status) use ($submission): SubmissionEvidence {
+            $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => $versionNumber, 'status' => $status]);
+            $item = SubmissionEvidence::factory()->for($version, 'submissionVersion')->create(['evidence_type' => 'file', 'disk' => 'local', 'path' => "evidence/{$status}-proof.png", 'original_filename' => "{$status}-proof.png", 'mime_type' => 'image/png']);
+            Storage::disk('local')->put($item->path, 'activity evidence');
+
+            return $item;
+        });
+        GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'refresh_token' => 'refresh', 'drive_folder_id' => 'root', 'destination_source' => 'picker', 'connected_at' => now()]);
+        $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSyncStatus::Enqueued]);
+
+        $drive = Mockery::mock(GoogleDriveService::class);
+        $drive->shouldReceive('validateDestination')->once()->andReturn('root');
+        $drive->shouldReceive('ensureFolder')->andReturnUsing(fn (GoogleDriveConnection $received, string $name, string $parent): string => 'folder-'.md5($name.'|'.$parent));
+        $drive->shouldReceive('uploadFile')->andReturnUsing(fn (GoogleDriveConnection $received, string $name): string => 'drive-'.$name);
+        $workbooks = Mockery::mock(TrainingWorkbookService::class);
+        $workbooks->shouldReceive('forWeek')->andReturn('xlsx');
+        $workbooks->shouldReceive('forGeneralTraining')->andReturn('xlsx');
+
+        app()->instance(GoogleDriveService::class, $drive);
+        (new SyncTrainingDataJob($sync->id))->handle(app(GoogleDriveConnectionService::class), $drive, Mockery::mock(TrainingExportService::class), $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
+
+        $this->assertSame(2, $sync->fresh()->component_results['Evidences']['completed']);
+        $this->assertDatabaseHas('google_drive_evidence_exports', ['submission_evidence_id' => $evidence['submitted']->id, 'status' => 'completed']);
+        $this->assertDatabaseHas('google_drive_evidence_exports', ['submission_evidence_id' => $evidence['draft']->id, 'status' => 'completed']);
     }
 
     public function test_full_sync_exports_evidence_attached_to_the_current_draft_version(): void

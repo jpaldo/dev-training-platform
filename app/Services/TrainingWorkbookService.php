@@ -65,7 +65,7 @@ class TrainingWorkbookService
             ->with(['activity.week', 'versions' => fn (Relation $query): Relation => $query->with(['validationSubmission'])->orderByDesc('version_number')])
             ->latest('attempt_number')
             ->first();
-        $version = $submission?->versions->first(fn (SubmissionVersion $candidate): bool => $candidate->status !== 'draft')
+        $version = $submission?->versions->first(fn (SubmissionVersion $candidate): bool => ! $candidate->isDraft())
             ?? $submission?->versions->first();
         $version?->setRelation('submission', $submission);
         if ($activity->week->week_number === 3) {

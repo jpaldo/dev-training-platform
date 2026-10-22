@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Enums\MentorInterviewScheduleStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
@@ -35,17 +34,10 @@ class AdminDashboardPageTest extends TestCase
         GateEvaluation::factory()->create(['training_gate_id' => $gate->id, 'user_id' => $first->id, 'status' => 'passed']);
         GateEvaluation::factory()->create(['training_gate_id' => $gate->id, 'user_id' => $second->id, 'status' => 'not_ready']);
         WeekFourInterviewPair::create(['participant_one_id' => $first->id, 'participant_two_id' => $second->id, 'assigned_by_id' => $admin->id, 'status' => 'active']);
-        foreach ([$first, $second, $third] as $index => $participant) {
-            WeekFourMentorInterviewSchedule::create([
-                'participant_id' => $participant->id,
-                'mentor_id' => $coach->id,
-                'activity_id' => $activity->id,
-                'starts_at' => now()->addDay(),
-                'ends_at' => now()->addDay()->addHour(),
-                'timezone' => 'Asia/Manila',
-                'status' => [MentorInterviewScheduleStatus::Scheduled, MentorInterviewScheduleStatus::Failed, MentorInterviewScheduleStatus::Pending][$index],
-            ]);
-        }
+        $mentorInterviews = WeekFourMentorInterviewSchedule::factory()->for($coach, 'mentor')->for($activity);
+        $mentorInterviews->scheduled()->for($first, 'participant')->create();
+        $mentorInterviews->failed()->for($second, 'participant')->create();
+        $mentorInterviews->for($third, 'participant')->create();
 
         $this->actingAs($admin)
             ->get(route('admin.dashboard'))

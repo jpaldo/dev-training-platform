@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class GateCriterionFactory extends Factory
 {
+    use AssignsNextPosition;
+
     /**
      * Define the model's default state.
      *
@@ -24,7 +26,7 @@ class GateCriterionFactory extends Factory
             'title' => fake()->sentence(3),
             'description' => fake()->sentence(),
             'is_required' => true,
-            'position' => fake()->numberBetween(1, 9),
+            'position' => $this->nextPositionWithin('training_gate_id'),
             'configuration' => null,
         ];
     }

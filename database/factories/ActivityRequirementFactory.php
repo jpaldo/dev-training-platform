@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class ActivityRequirementFactory extends Factory
 {
+    use AssignsNextPosition;
+
     /**
      * Define the model's default state.
      *
@@ -25,7 +27,7 @@ class ActivityRequirementFactory extends Factory
             'title' => fake()->sentence(3),
             'description' => fake()->paragraph(),
             'is_required' => true,
-            'position' => fake()->numberBetween(1, 9),
+            'position' => $this->nextPositionWithin('activity_id'),
             'configuration' => null,
         ];
     }

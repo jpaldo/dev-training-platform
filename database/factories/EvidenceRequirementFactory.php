@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class EvidenceRequirementFactory extends Factory
 {
+    use AssignsNextPosition;
+
     /**
      * Define the model's default state.
      *
@@ -27,7 +29,7 @@ class EvidenceRequirementFactory extends Factory
             'minimum_count' => 1,
             'maximum_count' => 1,
             'configuration' => null,
-            'position' => fake()->numberBetween(1, 9),
+            'position' => $this->nextPositionWithin('activity_requirement_id'),
         ];
     }
 }

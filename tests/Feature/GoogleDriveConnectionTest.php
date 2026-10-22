@@ -187,8 +187,8 @@ class GoogleDriveConnectionTest extends TestCase
 
     public function test_each_participant_resolves_only_their_own_drive_destination(): void
     {
-        $participantA = User::factory()->create(['role' => 'participant', 'drive_link' => 'https://drive.google.com/drive/folders/folder-a']);
-        $participantB = User::factory()->create(['role' => 'participant', 'drive_link' => 'https://drive.google.com/drive/folders/folder-b']);
+        $participantA = User::factory()->create(['role' => 'participant', 'email' => 'first.participant@example.test', 'drive_link' => 'https://drive.google.com/drive/folders/folder-a']);
+        $participantB = User::factory()->create(['role' => 'participant', 'email' => 'second.participant@example.test', 'drive_link' => 'https://drive.google.com/drive/folders/folder-b']);
         GoogleDriveConnection::create(['user_id' => $participantA->id, 'google_account_id' => 'account-a', 'google_email' => 'a@example.com', 'access_token' => 'access-a', 'refresh_token' => 'refresh-a', 'drive_folder_id' => 'folder-a', 'drive_folder_name' => 'QA Training Platform / Training Data A', 'connected_at' => now()]);
         GoogleDriveConnection::create(['user_id' => $participantB->id, 'google_account_id' => 'account-b', 'google_email' => 'b@example.com', 'access_token' => 'access-b', 'refresh_token' => 'refresh-b', 'drive_folder_id' => 'folder-b', 'drive_folder_name' => 'QA Training Platform / Training Data B', 'connected_at' => now()]);
 

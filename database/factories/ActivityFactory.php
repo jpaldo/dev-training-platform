@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class ActivityFactory extends Factory
 {
+    use AssignsNextPosition;
+
     /**
      * Define the model's default state.
      *
@@ -24,7 +26,7 @@ class ActivityFactory extends Factory
             'description' => fake()->paragraph(),
             'objectives' => fake()->sentence(),
             'instructions' => fake()->paragraphs(2, true),
-            'position' => fake()->numberBetween(1, 9),
+            'position' => $this->nextPositionWithin('training_week_id'),
             'requires_coach_review' => false,
             'is_active' => true,
         ];

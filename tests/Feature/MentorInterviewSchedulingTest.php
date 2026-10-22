@@ -142,7 +142,7 @@ class MentorInterviewSchedulingTest extends TestCase
 
         $this->assertFormFollowsTheDraftForm($this->actingAs($participant)->get($pageUrl)->assertOk()->getContent(), route('training.mentor-interview.schedule', [$activity->week, $activity]));
 
-        WeekFourMentorInterviewSchedule::create(['participant_id' => $participant->id, 'mentor_id' => $mentor->id, 'activity_id' => $activity->id, 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHour(), 'timezone' => 'Asia/Manila', 'duration_minutes' => 60, 'status' => MentorInterviewScheduleStatus::Scheduled, 'google_meet_url' => 'https://meet.google.com/scheduled']);
+        WeekFourMentorInterviewSchedule::factory()->for($participant, 'participant')->for($mentor, 'mentor')->for($activity)->scheduled()->create();
 
         $this->assertFormFollowsTheDraftForm($this->actingAs($participant)->get($pageUrl)->assertOk()->getContent(), route('training.mentor-interview.reschedule', [$activity->week, $activity]));
     }
@@ -178,9 +178,9 @@ class MentorInterviewSchedulingTest extends TestCase
     public function test_submission_page_shows_the_open_mentor_interview_schedule_including_one_booked_before_the_activity(): void
     {
         [$participant, $mentor, $activity] = $this->fixture();
-        $schedule = ['participant_id' => $participant->id, 'mentor_id' => $mentor->id, 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHour(), 'timezone' => 'Asia/Manila', 'duration_minutes' => 60];
-        WeekFourMentorInterviewSchedule::create([...$schedule, 'activity_id' => null, 'status' => MentorInterviewScheduleStatus::Scheduled, 'google_meet_url' => 'https://meet.google.com/early-schedule']);
-        WeekFourMentorInterviewSchedule::create([...$schedule, 'activity_id' => $activity->id, 'status' => MentorInterviewScheduleStatus::Cancelled, 'google_meet_url' => 'https://meet.google.com/cancelled-schedule']);
+        $schedules = WeekFourMentorInterviewSchedule::factory()->for($participant, 'participant')->for($mentor, 'mentor');
+        $schedules->scheduled()->create(['activity_id' => null, 'google_meet_url' => 'https://meet.google.com/early-schedule']);
+        $schedules->for($activity)->cancelled()->create(['google_meet_url' => 'https://meet.google.com/cancelled-schedule']);
 
         $this->actingAs($participant)->get(route('training.submission.edit', [$activity->week, $activity]))
             ->assertOk()
@@ -193,7 +193,7 @@ class MentorInterviewSchedulingTest extends TestCase
     {
         [$participant, $mentor, $activity] = $this->fixture();
         Http::fake(['https://www.googleapis.com/calendar/v3/*' => Http::response(null, 204)]);
-        $schedule = WeekFourMentorInterviewSchedule::create(['participant_id' => $participant->id, 'mentor_id' => $mentor->id, 'activity_id' => $activity->id, 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHour(), 'timezone' => 'Asia/Manila', 'duration_minutes' => 60, 'status' => 'scheduled', 'google_event_id' => 'event-to-cancel']);
+        $schedule = WeekFourMentorInterviewSchedule::factory()->for($participant, 'participant')->for($mentor, 'mentor')->for($activity)->scheduled()->create(['google_event_id' => 'event-to-cancel']);
 
         $this->actingAs($participant)
             ->post(route('training.mentor-interview.cancel', $schedule))
@@ -209,7 +209,7 @@ class MentorInterviewSchedulingTest extends TestCase
         [$participant, $mentor, $activity] = $this->fixture();
         $partner = User::factory()->create(['role' => 'participant', 'training_path' => 'automation']);
         WeekFourInterviewPair::create(['participant_one_id' => min($participant->id, $partner->id), 'participant_two_id' => max($participant->id, $partner->id), 'assigned_by_id' => $mentor->id, 'status' => 'active']);
-        $schedule = WeekFourMentorInterviewSchedule::create(['participant_id' => $participant->id, 'mentor_id' => $mentor->id, 'activity_id' => $activity->id, 'starts_at' => now()->addDay(), 'ends_at' => now()->addDay()->addHour(), 'timezone' => 'Asia/Manila', 'duration_minutes' => 60, 'status' => 'pending']);
+        $schedule = WeekFourMentorInterviewSchedule::factory()->for($participant, 'participant')->for($mentor, 'mentor')->for($activity)->create();
         $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'draft']);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'draft', 'field_values' => ['partner_user_id' => $partner->id, 'practice_questions' => [1 => 'How do you validate AI output?']]]);
         $evidenceRequirement = $activity->requirements()->with('evidenceRequirements')->get()->flatMap->evidenceRequirements->firstWhere('is_required', true);

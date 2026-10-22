@@ -129,6 +129,21 @@ class AdminUserManagementTest extends TestCase
         $this->assertDatabaseMissing('admin_audit_logs', ['action' => 'user_updated']);
     }
 
+    public function test_clearing_an_existing_employee_id_shows_an_error_and_saves_nothing(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null, 'employee_id' => 'EMP-5005', 'name' => 'Cora Coach']);
+
+        $this->actingAs($admin)
+            ->put(route('admin.users.update', $coach), $this->userPayload(['employee_id' => '', 'first_name' => 'Renamed', 'email' => $coach->email]))
+            ->assertSessionHasErrors(['employee_id' => 'The employee ID field is required.']);
+
+        $coach->refresh();
+        $this->assertSame('EMP-5005', $coach->employee_id);
+        $this->assertSame('Cora Coach', $coach->name);
+        $this->assertDatabaseMissing('admin_audit_logs', ['action' => 'user_updated']);
+    }
+
     public function test_a_user_without_an_employee_id_can_still_be_edited(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);

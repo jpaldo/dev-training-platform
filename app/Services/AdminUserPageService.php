@@ -53,10 +53,10 @@ class AdminUserPageService
     }
 
     /**
-     * Everything the add / edit user page renders. The employee ID is required when adding a user and optional when
-     * editing one (users created before it existed may have none); the job role is optional. Editing also shows the
-     * Training Drive link, the all-time attendance summary and, for a participant, the coach assignment form. Saving
-     * the user is the page's single main action.
+     * Everything the add / edit user page renders. The employee ID is required when adding a user or editing one who
+     * already has it, and optional when editing a user created before it existed; the job role is optional. Editing
+     * also shows the Training Drive link, the all-time attendance summary and, for a participant, the coach assignment
+     * form. Saving the user is the page's single main action.
      *
      * @return array{isEditing: bool, title: string, formAction: string, formMethod: ?string, submitLabel: string, cancelUrl: string, employeeId: ?string, isEmployeeIdRequired: bool, firstName: ?string, lastName: ?string, email: ?string, jobRole: string, jobRoleOptions: list<array{value: string, label: string}>, accessType: string, accessTypeOptions: list<array{value: string, label: string}>, isActive: bool, driveUrl: ?string, coachAssignment: ?array{url: string, size: int, coachOptions: list<array{value: string, label: string, is_selected: bool}>, assignedNames: string}, attendance: ?array{completedCount: int, totalHours: string, url: string}}
      */
@@ -70,7 +70,7 @@ class AdminUserPageService
             'submitLabel' => $user ? 'Save User' : 'Create User',
             'cancelUrl' => route('admin.users.index'),
             'employeeId' => $user?->employee_id,
-            'isEmployeeIdRequired' => $user === null,
+            'isEmployeeIdRequired' => $user === null || filled($user->employee_id),
             'firstName' => $user?->first_name,
             'lastName' => $user?->last_name,
             'email' => $user?->email,

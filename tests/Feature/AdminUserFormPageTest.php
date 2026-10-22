@@ -129,6 +129,16 @@ class AdminUserFormPageTest extends TestCase
             ->assertDontSee('Assigned Coaches');
     }
 
+    public function test_editing_a_user_with_an_employee_id_marks_it_required(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null, 'employee_id' => 'EMP-0043']);
+
+        $this->actingAs($this->admin())->get(route('admin.users.edit', $coach))
+            ->assertOk()
+            ->assertSee('Employee ID *')
+            ->assertSee('id="employee_id" name="employee_id" value="EMP-0043" autocomplete="off" required', false);
+    }
+
     public function test_editing_a_user_without_an_employee_id_leaves_it_optional_and_the_job_role_unset(): void
     {
         $legacy = User::factory()->create(['employee_id' => null, 'job_role' => null]);

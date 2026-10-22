@@ -16,8 +16,8 @@ class UpdateAdminUserRequest extends FormRequest
     }
 
     /**
-     * Get the validation rules that apply to the request. The employee ID stays optional so users created before it
-     * existed can still be edited.
+     * Get the validation rules that apply to the request. The employee ID is required once the stored user has one, so
+     * it cannot be cleared, and stays optional for users created before it existed.
      *
      * @return array<string, array<int, mixed>>
      */
@@ -26,7 +26,7 @@ class UpdateAdminUserRequest extends FormRequest
         $user = $this->route('user');
 
         return [
-            'employee_id' => ['nullable', 'string', 'max:50', Rule::unique('users')->ignore($user)],
+            'employee_id' => [Rule::requiredIf(filled($user->employee_id)), 'nullable', 'string', 'max:50', Rule::unique('users')->ignore($user)],
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'job_role' => ['nullable', Rule::enum(JobRole::class)],

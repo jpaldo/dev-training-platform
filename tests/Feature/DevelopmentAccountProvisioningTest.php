@@ -83,7 +83,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
 
     public function test_seeded_coach_and_admin_authenticate_and_reach_authorized_routes(): void
     {
-        $this->seed();
+        $this->seedAccountsWithEmployeeIds();
         foreach ([['coach.dev@example.test', 'CoachDev!2026'], ['admin.dev@example.test', 'AdminDev!2026']] as [$email, $password]) {
             $destination = str_starts_with($email, 'admin.') ? route('admin.dashboard') : route('coach.dashboard');
             $this->post(route('login.store'), compact('email', 'password'))->assertRedirect($destination);
@@ -114,7 +114,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
 
     public function test_authenticated_activity_one_lab_submission_keeps_participant_owner(): void
     {
-        $this->seed();
+        $this->seedAccountsWithEmployeeIds();
         $participant = User::where('email', 'test@example.com')->firstOrFail();
         $this->actingAs($participant)->get(route('dashboard'))->assertOk();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
@@ -135,7 +135,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
 
     public function test_new_owned_lab_record_appears_in_an_existing_and_new_week_two_activity_form(): void
     {
-        $this->seed();
+        $this->seedAccountsWithEmployeeIds();
         $participant = User::where('email', 'test@example.com')->firstOrFail();
         $week = Program::firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
         $activity = $week->activities()->where('position', 1)->firstOrFail();
@@ -158,7 +158,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
 
     public function test_owned_lab_record_is_available_to_all_connected_week_two_activity_selectors(): void
     {
-        $this->seed();
+        $this->seedAccountsWithEmployeeIds();
         $participant = User::where('email', 'test@example.com')->firstOrFail();
         $week = Program::firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
@@ -595,6 +595,19 @@ class DevelopmentAccountProvisioningTest extends TestCase
         $legacyVersion = $submission->versions()->create(['version_number' => 2, 'status' => 'submitted', 'validation_submission_id' => $legacy->id, 'field_values' => []]);
         $this->actingAs($coach)->get(route('coach.reviews.show', $legacyVersion))->assertOk()->assertSee('No Validation Lab record linked.');
         $this->actingAs($coach)->get(route('lab.records.show', [$legacy, 'submission_version' => $legacyVersion->id]))->assertForbidden();
+    }
+
+    /**
+     * Seed the database and give the seeded accounts an employee ID, which they lack until the demo accounts are
+     * rewritten, so signing in does not stop at the employee ID prompt.
+     */
+    private function seedAccountsWithEmployeeIds(): void
+    {
+        $this->seed();
+
+        User::query()->whereNull('employee_id')->each(function (User $user): void {
+            $user->update(['employee_id' => "EMP-SEED-{$user->id}"]);
+        });
     }
 
     private function labPayload(array $overrides = []): array

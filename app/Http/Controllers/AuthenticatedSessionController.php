@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\UserRole;
 use App\Http\Requests\StoreAuthenticatedSessionRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,13 +31,7 @@ class AuthenticatedSessionController extends Controller
         // Any intended URL was created before authentication and may belong to another account.
         $request->session()->forget(['url.intended', 'last_page', 'redirect_to', 'intended_route', 'return_url']);
 
-        $destination = match ($request->user()->role) {
-            UserRole::Admin => route('admin.dashboard', absolute: false),
-            UserRole::Coach => route('coach.dashboard', absolute: false),
-            UserRole::Participant => route('dashboard', absolute: false),
-        };
-
-        return redirect()->to($destination);
+        return redirect()->to(route($request->user()->landingRouteName(), absolute: false));
     }
 
     public function destroy(Request $request): RedirectResponse

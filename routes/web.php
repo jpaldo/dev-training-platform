@@ -16,6 +16,7 @@ use App\Http\Controllers\CoachReviewController;
 use App\Http\Controllers\DailyLogController;
 use App\Http\Controllers\DailyLogExportController;
 use App\Http\Controllers\DailyLogReportController;
+use App\Http\Controllers\EmployeeIdController;
 use App\Http\Controllers\GateReviewController;
 use App\Http\Controllers\GoogleDriveController;
 use App\Http\Controllers\GoogleDriveDestinationController;
@@ -68,7 +69,9 @@ Route::middleware('guest')->group(function () {
 Route::get('/account/password-setup/{token}', [PasswordSetupController::class, 'create'])->name('password.setup');
 Route::post('/account/password-setup/{token}', [PasswordSetupController::class, 'store'])->middleware('throttle:6,1')->name('password.setup.store');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'employee-id'])->group(function () {
+    Route::get('/account/employee-id', [EmployeeIdController::class, 'edit'])->name('account.employee-id.edit');
+    Route::patch('/account/employee-id', [EmployeeIdController::class, 'update'])->name('account.employee-id.update');
     Route::get('/dashboard', [ParticipantDashboardController::class, 'index'])->middleware('role:participant')->name('dashboard');
     Route::get('/training/guides/{week}', [TrainingGuideController::class, 'view'])->name('training.guides.view');
     Route::get('/training/guides/{week}/download', [TrainingGuideController::class, 'download'])->name('training.guides.download');

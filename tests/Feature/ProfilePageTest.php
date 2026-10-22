@@ -138,13 +138,13 @@ class ProfilePageTest extends TestCase
         $this->assertSame(JobRole::Developer, $participant->job_role);
     }
 
-    public function test_user_without_employee_id_or_job_role_sees_not_set(): void
+    public function test_user_without_a_job_role_sees_not_set(): void
     {
-        $coach = User::factory()->create(['role' => 'coach', 'employee_id' => null, 'job_role' => null]);
+        $coach = User::factory()->create(['role' => 'coach', 'employee_id' => 'EMP-5005', 'job_role' => null]);
 
         $this->actingAs($coach)->get(route('profile.show'))
             ->assertOk()
-            ->assertSeeInOrder(['>Employee ID</dt>', '>Not set</dd>', '>Job role</dt>', '>Not set</dd>'], false);
+            ->assertSeeInOrder(['>Employee ID</dt>', '>EMP-5005</dd>', '>Job role</dt>', '>Not set</dd>'], false);
     }
 
     public function test_rejected_profile_save_returns_with_old_input_and_the_field_error(): void

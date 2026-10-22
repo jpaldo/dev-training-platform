@@ -113,6 +113,19 @@ class User extends Authenticatable
         return $this->hasAnyRole(UserRole::Coach, UserRole::Admin);
     }
 
+    /**
+     * The name of the route the user starts on after signing in or adding their employee ID: the admin dashboard,
+     * the coach dashboard or the participant dashboard.
+     */
+    public function landingRouteName(): string
+    {
+        return match ($this->role) {
+            UserRole::Admin => 'admin.dashboard',
+            UserRole::Coach => 'coach.dashboard',
+            UserRole::Participant => 'dashboard',
+        };
+    }
+
     public function activitySubmissions(): HasMany
     {
         return $this->hasMany(ActivitySubmission::class);

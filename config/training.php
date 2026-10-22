@@ -35,6 +35,4 @@ return [
         'API Test', 'Test Report', 'Risk Assessment', 'Root Cause Analysis',
         'Requirements Analysis', 'AI-generated test case', 'Other',
     ],
-    'week_four_mentor_interview_duration_minutes' => 60,
-    'week_four_mentor_interview_timezone' => env('TRAINING_TIMEZONE', 'Asia/Manila'),
 ];

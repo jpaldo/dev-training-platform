@@ -3,14 +3,12 @@
 namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
-use App\Enums\MentorInterviewScheduleStatus;
 use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\User;
-use App\Models\WeekFourMentorInterviewSchedule;
 use Illuminate\Database\Eloquent\Builder;
 
 class AdminDashboardPageService
@@ -18,11 +16,11 @@ class AdminDashboardPageService
     public function __construct(private readonly AdminSettingsStatusService $settings) {}
 
     /**
-     * Everything the admin dashboard renders: the account counts, the training, review / Gate and Week 4 mentor
-     * interview counts with their labels, the integration statuses and the admin tool links. The page has no single
-     * main action, so every link is secondary.
+     * Everything the admin dashboard renders: the account counts, the training and review / Gate counts with their
+     * labels, the integration statuses and the admin tool links. The page has no single main action, so every link is
+     * secondary.
      *
-     * @return array{systemStats: list<array{label: string, value: int}>, trainingStats: list<array{label: string, value: int}>, reviewStats: list<array{label: string, value: int}>, weekFourStats: list<array{label: string, value: int}>, integrationStatuses: list<array{label: string, status: string}>, toolLinks: list<array{label: string, url: string}>}
+     * @return array{systemStats: list<array{label: string, value: int}>, trainingStats: list<array{label: string, value: int}>, reviewStats: list<array{label: string, value: int}>, integrationStatuses: list<array{label: string, status: string}>, toolLinks: list<array{label: string, url: string}>}
      */
     public function showData(): array
     {
@@ -45,12 +43,8 @@ class AdminDashboardPageService
                 ['label' => 'NEEDS REVISION', 'value' => ActivitySubmission::query()->where('status', SubmissionStatus::NeedsRevision)->count()],
                 ['label' => 'PENDING GATES', 'value' => GateEvaluation::query()->whereNotIn('status', [GateEvaluationStatus::Passed])->count()],
             ],
-            'weekFourStats' => [
-                ['label' => 'MENTOR INTERVIEWS SCHEDULED', 'value' => WeekFourMentorInterviewSchedule::query()->where('status', MentorInterviewScheduleStatus::Scheduled)->count()],
-                ['label' => 'CALENDAR ATTENTION', 'value' => WeekFourMentorInterviewSchedule::query()->whereIn('status', [MentorInterviewScheduleStatus::Failed, MentorInterviewScheduleStatus::Pending])->count()],
-            ],
             'integrationStatuses' => [
-                ['label' => 'Google:', 'status' => $this->settings->google()['calendar_status']],
+                ['label' => 'Google:', 'status' => $this->settings->google()['status']],
                 ['label' => 'Email:', 'status' => $this->settings->email()['status']],
                 ['label' => 'AI:', 'status' => $this->settings->ai()['status']],
                 ['label' => 'Queue:', 'status' => 'Application queue configuration available; detailed worker health remains on the existing operations tooling.'],

@@ -36,15 +36,6 @@
             </dl>
         </x-ui.card>
 
-        <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="admin-week-four-title">
-            <h2 id="admin-week-four-title" class="m-0 text-xl font-extrabold">Week 4</h2>
-            <dl class="m-0 grid grid-cols-2 gap-4 xl:grid-cols-4">
-                @foreach($weekFourStats as $stat)
-                    <x-ui.stat variant="field" :label="$stat['label']" :value="$stat['value']" />
-                @endforeach
-            </dl>
-        </x-ui.card>
-
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="admin-integrations-title">
             <h2 id="admin-integrations-title" class="m-0 text-xl font-extrabold">System / integration status</h2>
             <ul class="m-0 grid list-none grid-cols-1 gap-3 p-0">

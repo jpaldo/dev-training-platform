@@ -15,7 +15,7 @@
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>ADMIN SETTINGS · EMAIL</x-ui.eyebrow>
             <x-ui.page-title>Email configuration</x-ui.page-title>
-            <p class="m-0 leading-relaxed text-muted">Configure the application mail transport and Mentor interview notifications. Passwords are encrypted and never displayed.</p>
+            <p class="m-0 leading-relaxed text-muted">Configure the application mail transport. Passwords are encrypted and never displayed.</p>
         </header>
 
         <x-ui.main-action id="email-settings-main-action">
@@ -30,7 +30,7 @@
             <x-ui.card as="section" class="grid grid-cols-1 gap-5" aria-labelledby="email-summary-title">
                 <h2 id="email-summary-title" class="sr-only">Current configuration</h2>
 
-                <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     @foreach($summary as $item)
                         <x-ui.stat variant="field" size="md" :label="$item['label']" :value="$item['value']" :tone="$item['tone']" />
                     @endforeach
@@ -138,15 +138,6 @@
                             @enderror
                         </div>
                     </div>
-
-                    <label class="{{ $checkboxLabelClasses }}">
-                        <input type="hidden" name="mentor_emails_enabled" value="0">
-                        <input type="checkbox" name="mentor_emails_enabled" value="1" @checked(old('mentor_emails_enabled', $settings['mentor_emails_enabled'])) class="{{ $checkboxClasses }}">
-                        Enable Mentor interview emails
-                    </label>
-                    @error('mentor_emails_enabled')
-                        <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
-                    @enderror
                 </form>
             </x-ui.card>
 

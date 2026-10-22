@@ -11,7 +11,7 @@
         <x-ui.card as="section" class="grid grid-cols-1 gap-5" aria-labelledby="training-settings-title">
             <h2 id="training-settings-title" class="sr-only">Current configuration</h2>
 
-            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 @foreach($stats as $stat)
                     <x-ui.stat variant="field" size="md" :label="$stat['label']" :value="$stat['value']" />
                 @endforeach

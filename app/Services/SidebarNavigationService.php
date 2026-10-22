@@ -93,7 +93,6 @@ class SidebarNavigationService
                 ['label' => 'Reports', 'route' => 'coach.reports', 'active' => ['coach.reports', 'coach.reports.*']],
             ],
             'Resources' => [
-                ['label' => 'Mentor Booking Calendar', 'route' => 'coach.mentor-booking-calendar.index', 'active' => ['coach.mentor-booking-calendar.*', 'coach.mentor-availability.*']],
                 ['label' => 'Reusable Asset Library', 'route' => 'training.reusable-assets.index', 'active' => ['training.reusable-assets.*']],
             ],
         ];
@@ -102,7 +101,7 @@ class SidebarNavigationService
             $groups['Admin'] = [
                 ['label' => 'Admin Dashboard', 'route' => 'admin.dashboard', 'active' => ['admin.dashboard']],
                 ['label' => 'Users / Participants', 'route' => 'admin.users.index', 'active' => ['admin.users.*']],
-                ['label' => 'Settings', 'route' => 'admin.settings.index', 'active' => ['admin.settings.index', 'admin.settings.email', 'admin.settings.google', 'admin.settings.google.*', 'admin.settings.interview-scheduling', 'admin.settings.training']],
+                ['label' => 'Settings', 'route' => 'admin.settings.index', 'active' => ['admin.settings.index', 'admin.settings.email', 'admin.settings.google', 'admin.settings.interview-scheduling', 'admin.settings.training']],
                 ['label' => 'Google Drive', 'route' => 'admin.settings.google-drive', 'active' => ['admin.settings.google-drive']],
                 ['label' => 'AI', 'route' => 'admin.settings.ai', 'active' => ['admin.settings.ai']],
             ];

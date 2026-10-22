@@ -2,14 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\MentorInterviewScheduleStatus;
 use App\Models\Program;
 use App\Models\User;
-use App\Models\WeekFourMentorInterviewSchedule;
 use App\Services\ExportLifecycleService;
 use App\Services\GoogleDriveReadinessService;
-use App\Services\InterviewBookingLinkService;
-use App\Services\MentorInterviewSchedulingService;
 use App\Services\ParticipantDashboardService;
 use App\Services\ParticipantNotificationService;
 use App\Services\WeekProgressionService;
@@ -18,7 +14,7 @@ use Illuminate\View\View;
 
 class ParticipantDashboardController extends Controller
 {
-    public function index(Request $request, WeekProgressionService $progression, ParticipantDashboardService $dashboard, ExportLifecycleService $lifecycle, GoogleDriveReadinessService $driveReadiness, ParticipantNotificationService $notifications, MentorInterviewSchedulingService $mentorScheduling, InterviewBookingLinkService $bookingLinks): View
+    public function index(Request $request, WeekProgressionService $progression, ParticipantDashboardService $dashboard, ExportLifecycleService $lifecycle, GoogleDriveReadinessService $driveReadiness, ParticipantNotificationService $notifications): View
     {
         /** @var User $user */
         $user = $request->user();
@@ -26,9 +22,6 @@ class ParticipantDashboardController extends Controller
         $lifecycle->reconcileStale($user->id);
         $program = Program::query()->where('is_active', true)->with(['weeks.activities'])->orderBy('id')->firstOrFail();
         $activeAttendance = $user->attendanceSessions()->whereNull('check_out_at')->latest('check_in_at')->first();
-        $assignedMentor = $mentorScheduling->assignedMentor($user);
-        $mentorInterviewSchedule = WeekFourMentorInterviewSchedule::query()->where('participant_id', $user->id)->where('status', MentorInterviewScheduleStatus::Scheduled)->latest('id')->first();
-        $mentorBooking = $assignedMentor ? $bookingLinks->forMentor($assignedMentor) : null;
         $weeks = $dashboard->weeks($user, $program, $activeAttendance);
 
         $programCompleted = $progression->isProgramCompleted($user, $program);
@@ -39,6 +32,6 @@ class ParticipantDashboardController extends Controller
         $googleDriveReadinessEnforced = $driveReadiness->enforced();
         $notificationSummary = $notifications->dashboard($user);
 
-        return view('participant.dashboard', compact('user', 'program', 'weeks', 'programCompleted', 'gates', 'activeAttendance', 'recentAttendance', 'googleDriveReady', 'googleDriveReadinessEnforced', 'notificationSummary', 'assignedMentor', 'mentorInterviewSchedule', 'mentorBooking'));
+        return view('participant.dashboard', compact('user', 'program', 'weeks', 'programCompleted', 'gates', 'activeAttendance', 'recentAttendance', 'googleDriveReady', 'googleDriveReadinessEnforced', 'notificationSummary'));
     }
 }

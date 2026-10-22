@@ -873,6 +873,22 @@ class ParticipantWorkflowTest extends TestCase
         $this->assertSame(['finding' => 'Checkout times out'], $version->field_values);
     }
 
+    public function test_a_week_four_activity_two_is_submitted_without_a_mentor_interview(): void
+    {
+        [$participant, $week2] = $this->trainingFixture();
+        $week4 = TrainingWeek::factory()->for($week2->program)->create(['week_number' => 4, 'position' => 2]);
+        $activity = Activity::factory()->for($week4, 'week')->create(['position' => 2]);
+        ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'interview_notes', 'label' => 'Interview notes', 'type' => 'textarea', 'required' => true]]);
+        GateEvaluation::factory()->for(TrainingGate::factory()->for($week2, 'week'), 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+
+        $this->actingAs($participant)->post(route('training.submission.draft', [$week4, $activity]), ['field_values' => ['interview_notes' => 'Explained the regression strategy']])->assertRedirect();
+        $version = ActivitySubmission::query()->firstOrFail()->versions()->firstOrFail();
+        $this->actingAs($participant)->post(route('training.submission.submit', [$week4, $activity, $version]))->assertSessionHasNoErrors();
+
+        $this->assertSame(SubmissionStatus::Submitted, $version->fresh()->status);
+    }
+
     public function test_coach_can_open_a_locked_participant_week(): void
     {
         [, $week2] = $this->trainingFixture();

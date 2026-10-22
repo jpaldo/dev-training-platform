@@ -121,7 +121,7 @@ class SubmissionFormPageTest extends TestCase
         $this->assertStringContainsString('href="https://example.com/evidence" target="_blank" rel="noopener noreferrer">Open evidence link</a>', $html);
     }
 
-    public function test_a_week_four_activity_two_opens_the_standard_form_without_the_peer_interview(): void
+    public function test_a_week_four_activity_two_opens_the_standard_form_without_the_peer_or_mentor_interview(): void
     {
         [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: 2);
         $this->submissionField($activity, 1, ['key' => 'interview_notes', 'label' => 'Interview notes', 'type' => 'textarea', 'required' => true]);
@@ -130,7 +130,8 @@ class SubmissionFormPageTest extends TestCase
             ->assertOk()
             ->assertSee('action="'.route('training.submission.draft', [$week, $activity]).'" data-submission-form>', false)
             ->assertSee('name="field_values[interview_notes]"', false)
-            ->assertSee('MENTOR MOCK INTERVIEW')
+            ->assertDontSee('MENTOR MOCK INTERVIEW')
+            ->assertDontSee('name="scheduled_at"', false)
             ->assertDontSee('PEER INTERVIEW PROGRESS')
             ->assertDontSee('Partner Assignment Pending')
             ->assertDontSee('name="field_values[practice_questions]', false)

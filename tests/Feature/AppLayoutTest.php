@@ -101,7 +101,6 @@ class AppLayoutTest extends TestCase
             ['Scoring', route('coach.scoring.index'), false, 0],
             ['Recovery Requests', route('coach.recovery.index'), false, 0],
             ['Reports', route('coach.reports'), false, 0],
-            ['Mentor Booking Calendar', route('coach.mentor-booking-calendar.index'), false, 0],
             ['Reusable Asset Library', route('training.reusable-assets.index'), false, 0],
             ['Profile', route('profile.show'), false, 0],
         ], $this->sidebarLinks($sidebar));

@@ -26,16 +26,14 @@ class ActivitySubmissionPageService
 
     public function __construct(
         private readonly SubmissionWorkflowService $workflow,
-        private readonly GoogleDriveConfigurationService $googleConfiguration,
         private readonly SubmissionAnswerPresenter $answers,
-        private readonly MentorInterviewSchedulingService $mentorScheduling,
         private readonly SafeMarkdownRenderer $markdown,
         private readonly EvidenceFilePolicy $evidenceFiles,
     ) {}
 
     /**
      * Data for the submission form: the latest attempt and version, the main action, the coach feedback, the field
-     * sections and evidence rows, the version history, and for Week 4 Activity 2 the mentor mock interview booking.
+     * sections and evidence rows, and the version history.
      *
      * @return array<string, mixed>
      */
@@ -44,7 +42,6 @@ class ActivitySubmissionPageService
         $submission = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $participant->id)->with(['versions' => fn (Relation $query): Relation => $query->with(['evidence', 'reviews', 'interactions'])->orderByDesc('version_number')])->orderByDesc('attempt_number')->first();
         $version = $submission?->versions->first();
         $fields = $this->workflow->fieldDefinitions($activity, $participant);
-        $hasMentorInterview = $trainingWeek->week_number === 4 && $activity->position === 2;
         $showInteractions = collect($fields)->keys()->intersect(['prompt', 'exact_prompt', 'ai_output', 'exact_ai_output'])->isNotEmpty();
         /** @var ?SubmissionReview $coachFeedback */
         $coachFeedback = $submission?->versions->flatMap->reviews->sortByDesc('reviewed_at')->firstWhere('decision', ReviewDecision::NeedsRevision);
@@ -62,18 +59,12 @@ class ActivitySubmissionPageService
                 default => null,
             },
             'coachFeedback' => $coachFeedback?->comments ? $this->markdown->render($coachFeedback->comments) : null,
-            'hasMentorInterview' => $hasMentorInterview,
             'showInteractions' => $showInteractions,
             'interactionRows' => $showInteractions ? $this->interactionRows($version) : [],
             'fieldSections' => $this->fieldSections($fields),
             'artifactTypes' => config('training.artifact_types'),
             'evidenceRows' => $this->evidenceRows($this->workflow->evidenceRequirements($activity, $participant), $version),
             'versionRows' => $this->versionRows($submission?->versions ?? collect(), $version),
-            'mentor' => $hasMentorInterview ? $this->mentorScheduling->assignedMentor($participant) : null,
-            'mentorSchedule' => $hasMentorInterview ? $this->mentorScheduling->openScheduleFor($participant, $activity) : null,
-            'mentorInterviewTimezone' => config('training.week_four_mentor_interview_timezone'),
-            'mentorInterviewDurationMinutes' => config('training.week_four_mentor_interview_duration_minutes'),
-            'participantCalendarEnabled' => $this->googleConfiguration->participantCalendarEnabled(),
         ];
     }
 

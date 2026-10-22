@@ -23,9 +23,9 @@ class GoogleDriveConnectionService
         return $this->configuration->isEnabled() && $this->configuration->isOAuthConfigured();
     }
 
-    public function authorizationUrl(string $state, bool $includeCalendar = false): string
+    public function authorizationUrl(string $state): string
     {
-        return $this->authorizationUrlForScopes($state, $this->configuration->getScopes($includeCalendar));
+        return $this->authorizationUrlForScopes($state, $this->configuration->getScopes());
     }
 
     private function authorizationUrlForScopes(string $state, array $scopes): string
@@ -43,7 +43,7 @@ class GoogleDriveConnectionService
         return 'https://accounts.google.com/o/oauth2/v2/auth?'.$query;
     }
 
-    public function connect(User $user, string $code, bool $includeCalendar = false): GoogleDriveConnection
+    public function connect(User $user, string $code): GoogleDriveConnection
     {
         try {
             $response = Http::asForm()->acceptJson()->post('https://oauth2.googleapis.com/token', [
@@ -91,7 +91,7 @@ class GoogleDriveConnectionService
                     'access_token' => $token['access_token'],
                     'refresh_token' => $token['refresh_token'] ?? $existing?->refresh_token,
                     'token_expires_at' => isset($token['expires_in']) ? now()->addSeconds((int) $token['expires_in']) : null,
-                    'scopes' => isset($token['scope']) ? preg_split('/\s+/', trim($token['scope'])) : $this->configuration->getScopes($includeCalendar),
+                    'scopes' => isset($token['scope']) ? preg_split('/\s+/', trim($token['scope'])) : $this->configuration->getScopes(),
                     'connected_at' => now(),
                 ],
             );

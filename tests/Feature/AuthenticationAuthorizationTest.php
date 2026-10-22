@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\SubmissionEvidence;
@@ -378,6 +379,27 @@ class AuthenticationAuthorizationTest extends TestCase
         $this->actingAs($coach)->post('/coach/week-four/interview-pairs', ['participant_one_id' => $participant->id, 'participant_two_id' => $coach->id])->assertNotFound();
         $this->actingAs($coach)->post('/coach/week-four/participants/'.$participant->id.'/peer-waiver')->assertNotFound();
         $this->actingAs($participant)->post('/training/week-four/partner-feedback', ['question_number' => 1, 'content' => 'Clear answer.'])->assertNotFound();
+    }
+
+    public function test_mentor_interview_booking_and_calendar_routes_are_gone(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create();
+        $coach->assignedParticipants()->attach($participant->id);
+        $activity = Activity::factory()->for(TrainingWeek::factory()->state(['week_number' => 4]), 'week')->create(['position' => 2]);
+        $scheduleUrl = '/training/weeks/'.$activity->training_week_id.'/activities/'.$activity->id.'/mentor-interview/schedule';
+
+        $this->actingAs($participant)->post($scheduleUrl, ['scheduled_at' => '2026-11-10T09:00'])->assertNotFound();
+        $this->actingAs($participant)->put($scheduleUrl, ['scheduled_at' => '2026-11-10T10:00'])->assertNotFound();
+        $this->actingAs($participant)->post('/training/mentor-interviews/1/cancel')->assertNotFound();
+        $this->actingAs($coach)->post('/training/coach/mentor-interviews/1/cancel')->assertNotFound();
+        $this->actingAs($coach)->get('/coach/mentor-availability')->assertNotFound();
+        $this->actingAs($coach)->get('/coach/mentor-booking-calendar')->assertNotFound();
+        $this->actingAs($coach)->post('/coach/mentor-booking-calendar', ['booking_url' => 'https://calendar.app.google/mock'])->assertNotFound();
+        $this->actingAs($coach)->delete('/coach/mentor-booking-calendar')->assertNotFound();
+        $this->actingAs($admin)->get('/admin/settings/google/verification/connect')->assertNotFound();
+        $this->actingAs($admin)->get('/admin/settings/google/verification/callback?state=state&code=code')->assertNotFound();
     }
 
     /**

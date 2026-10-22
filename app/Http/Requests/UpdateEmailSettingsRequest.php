@@ -28,7 +28,6 @@ class UpdateEmailSettingsRequest extends FormRequest
             'clear_smtp_password' => ['nullable', 'boolean'],
             'from_address' => ['required', 'email', 'max:255'],
             'from_name' => ['required', 'string', 'max:255'],
-            'mentor_emails_enabled' => ['required', 'boolean'],
         ];
     }
 }

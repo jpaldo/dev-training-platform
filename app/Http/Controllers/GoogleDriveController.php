@@ -25,15 +25,11 @@ class GoogleDriveController extends Controller
             'expires_at' => now()->addMinutes(10)->timestamp,
         ]);
 
-        return redirect()->away($google->authorizationUrl($state, false));
+        return redirect()->away($google->authorizationUrl($state));
     }
 
     public function callback(Request $request, GoogleDriveConnectionService $google, GoogleDriveConfigurationService $configuration): RedirectResponse
     {
-        if ($this->isVerificationCallback($request)) {
-            return $this->completeVerificationCallback($request, $google);
-        }
-
         if ($request->user()?->role !== UserRole::Participant) {
             return redirect()->route('login')->withErrors(['google_drive' => 'Start Google authorization from the participant Google Drive profile page.']);
         }
@@ -52,7 +48,7 @@ class GoogleDriveController extends Controller
         }
 
         try {
-            $google->connect($request->user(), (string) $request->query('code'), false);
+            $google->connect($request->user(), (string) $request->query('code'));
         } catch (Throwable $exception) {
             Log::warning('Google Drive connection failed.', ['exception' => $exception::class]);
 
@@ -60,39 +56,6 @@ class GoogleDriveController extends Controller
         }
 
         return redirect()->route('profile.show')->with('status', 'Google Drive connected successfully.');
-    }
-
-    private function isVerificationCallback(Request $request): bool
-    {
-        $pending = $request->session()->get('google_verification_oauth');
-        $state = (string) $request->query('state', '');
-
-        return is_array($pending) && filled($state) && hash_equals((string) ($pending['state'] ?? ''), $state);
-    }
-
-    private function completeVerificationCallback(Request $request, GoogleDriveConnectionService $google): RedirectResponse
-    {
-        $pending = $request->session()->pull('google_verification_oauth');
-        $admin = $request->user();
-        if (! is_array($pending) || $admin?->role !== UserRole::Admin || (int) ($pending['user_id'] ?? 0) !== (int) $admin?->id || (int) ($pending['expires_at'] ?? 0) < now()->timestamp) {
-            return redirect()->route('login')->withErrors(['google_verification' => 'Google verification authorization could not be verified. Please start again.']);
-        }
-        if ($request->query('error') === 'access_denied') {
-            return redirect()->route('admin.settings.google')->with('status', 'Google Calendar verification authorization was cancelled.');
-        }
-        if ($request->query('error') || blank($request->query('code'))) {
-            return redirect()->route('admin.settings.google')->withErrors(['google_verification' => 'Google Calendar verification authorization was not granted.']);
-        }
-
-        try {
-            $google->connect($admin, (string) $request->query('code'), true);
-        } catch (Throwable $exception) {
-            Log::warning('Google verification OAuth failed.', ['exception' => $exception::class]);
-
-            return redirect()->route('admin.settings.google')->withErrors(['google_verification' => 'Google Calendar verification authorization could not be completed.']);
-        }
-
-        return redirect()->route('admin.settings.google')->with('status', 'Google Calendar verification authorization completed.');
     }
 
     public function disconnect(Request $request, GoogleDriveConnectionService $google): RedirectResponse

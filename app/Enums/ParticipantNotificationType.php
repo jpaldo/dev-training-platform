@@ -3,9 +3,8 @@
 namespace App\Enums;
 
 /**
- * What a participant notification is about (stored in `participant_notifications.type`).
- * `ParticipantNotificationService::sync()` writes every type except `MentorInterviewScheduled`,
- * which `MentorInterviewSchedulingService` writes when a mentor interview is booked.
+ * What a participant notification is about (stored in `participant_notifications.type`), written by
+ * `ParticipantNotificationService::sync()`.
  */
 enum ParticipantNotificationType: string
 {
@@ -18,5 +17,4 @@ enum ParticipantNotificationType: string
     case GateIncomplete = 'gate_incomplete';
     case ActivityApproved = 'activity_approved';
     case GatePassed = 'gate_passed';
-    case MentorInterviewScheduled = 'mentor_interview_scheduled';
 }

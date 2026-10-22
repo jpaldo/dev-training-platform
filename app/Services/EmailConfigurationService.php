@@ -24,8 +24,6 @@ class EmailConfigurationService
 
     public const FROM_NAME = 'mail.from.name';
 
-    public const MENTOR_EMAILS_ENABLED = 'mail.mentor_emails_enabled';
-
     /** @return array<string, mixed> */
     public function current(): array
     {
@@ -38,7 +36,6 @@ class EmailConfigurationService
             'has_smtp_password' => filled($this->secret(self::SMTP_PASSWORD) ?? config('mail.mailers.smtp.password')),
             'from_address' => (string) ($this->value(self::FROM_ADDRESS) ?? config('mail.from.address', '')),
             'from_name' => (string) ($this->value(self::FROM_NAME) ?? config('mail.from.name', '')),
-            'mentor_emails_enabled' => $this->boolean(self::MENTOR_EMAILS_ENABLED, true),
         ];
     }
 
@@ -58,18 +55,12 @@ class EmailConfigurationService
         ]);
     }
 
-    public function isMentorInterviewEmailEnabled(): bool
-    {
-        return $this->boolean(self::MENTOR_EMAILS_ENABLED, true);
-    }
-
     /** @param array<string, mixed> $values */
     public function save(array $values): void
     {
         $this->put(self::MAILER, $values['mailer']);
         $this->put(self::FROM_ADDRESS, trim($values['from_address']));
         $this->put(self::FROM_NAME, trim($values['from_name']));
-        $this->put(self::MENTOR_EMAILS_ENABLED, $values['mentor_emails_enabled'] ? '1' : '0');
 
         if ($values['mailer'] === 'smtp') {
             $this->put(self::SMTP_HOST, trim($values['smtp_host'] ?? ''));
@@ -118,13 +109,6 @@ class EmailConfigurationService
     private function value(string $key): ?string
     {
         return $this->setting($key)?->value;
-    }
-
-    private function boolean(string $key, bool $fallback): bool
-    {
-        $value = $this->value($key);
-
-        return $value === null ? $fallback : filter_var($value, FILTER_VALIDATE_BOOLEAN);
     }
 
     private function put(string $key, ?string $value, bool $encrypted = false): void

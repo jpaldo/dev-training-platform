@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\GoogleDriveConnection;
 use Illuminate\Support\Str;
 
 class AdminSettingsStatusService
@@ -18,39 +17,15 @@ class AdminSettingsStatusService
     {
         $settings = $this->google->adminValues();
         $oauthConfigured = $this->google->isOAuthConfigured();
-        $calendarConfigured = $settings['calendar_scope'] === GoogleCalendarService::CALENDAR_SCOPE;
-        $connections = GoogleDriveConnection::query()->get(['scopes']);
-        $connectionsMissingCalendar = $connections->contains(fn (GoogleDriveConnection $connection): bool => ! in_array(GoogleCalendarService::CALENDAR_SCOPE, $connection->scopes ?? [], true));
-        $authorizationStatus = $connections->isEmpty()
-            ? 'Unknown — no participant authorization to inspect'
-            : ($connectionsMissingCalendar ? 'Reauthorization required for some connections' : 'Calendar scope granted to connected accounts');
-        $verificationConnection = auth()->user()?->googleDriveConnection;
-        $verificationStatus = $verificationConnection && in_array(GoogleCalendarService::CALENDAR_SCOPE, $verificationConnection->scopes ?? [], true)
-            ? 'Granted'
-            : 'Not granted';
+        $driveReady = $oauthConfigured && $this->google->isEnabled();
 
         return [
             'settings' => $settings,
             'oauth_configured' => $oauthConfigured,
-            'calendar_configured' => $calendarConfigured,
-            'calendar_scope' => GoogleCalendarService::CALENDAR_SCOPE,
-            // Application configuration cannot prove Google Cloud consent or
-            // sensitive-scope verification. Keep this false until a real
-            // user authorization/API check exists.
-            'calendar_ready' => false,
-            'calendar_application_configured' => $oauthConfigured && $this->google->isEnabled() && $calendarConfigured,
-            'calendar_status' => $oauthConfigured && $this->google->isEnabled() && $calendarConfigured
-                ? 'Application configured — authorization required'
-                : 'Needs application configuration',
-            'authorization_status' => $authorizationStatus,
-            'cloud_verification_status' => 'Requires manual Google Cloud Console verification',
-            'connections_missing_calendar' => $connectionsMissingCalendar,
-            'participant_calendar_enabled' => $settings['participant_calendar_enabled'],
-            'verification_status' => $verificationStatus,
-            'drive_ready' => $oauthConfigured && $this->google->isEnabled(),
+            'drive_ready' => $driveReady,
+            'status' => $driveReady ? 'Configured' : 'Needs Configuration',
             'redirect_uri' => $settings['redirect_uri'] ?: route('profile.google-drive.callback'),
             'masked_client_id' => $this->maskClientId($settings['client_id']),
-            'reauthorization_warning' => $calendarConfigured,
         ];
     }
 
@@ -67,7 +42,6 @@ class AdminSettingsStatusService
             'development_only' => $readiness['development_only'],
             'ready' => $readiness['ready'],
             'status' => $readiness['status'],
-            'mentor_emails_enabled' => $settings['mentor_emails_enabled'],
             'smtp_host' => $settings['smtp_host'],
             'smtp_port' => $settings['smtp_port'],
             'smtp_scheme' => $settings['smtp_scheme'],
@@ -86,8 +60,7 @@ class AdminSettingsStatusService
         $phpLimit = min(array_filter([$phpUpload, $phpPost], fn (?int $value): bool => $value > 0) ?: [$applicationVideo]);
 
         return [
-            'timezone' => config('training.week_four_mentor_interview_timezone', config('app.timezone')),
-            'mentor_duration' => (int) config('training.week_four_mentor_interview_duration_minutes', 60),
+            'timezone' => config('app.timezone'),
             'evidence_limit' => $applicationEvidence,
             'asset_limit' => $applicationEvidence,
             'video_limit' => $applicationVideo,

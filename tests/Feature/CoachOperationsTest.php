@@ -44,8 +44,7 @@ class CoachOperationsTest extends TestCase
         $this->seedProgram();
         $coach = User::factory()->create(['role' => 'coach']);
         User::factory()->create(['training_path' => 'automation']);
-        $this->actingAs($coach)->get(route('coach.dashboard'))->assertOk()->assertSee('Manage Booking Calendar')->assertSee(route('coach.mentor-booking-calendar.index'));
-        $this->actingAs($coach)->get(route('coach.mentor-booking-calendar.index'))->assertOk()->assertSee('MENTOR BOOKING CALENDAR');
+        $this->actingAs($coach)->get(route('coach.dashboard'))->assertOk();
         $this->actingAs($coach)->get(route('coach.participants', ['path' => 'automation']))->assertOk();
         $this->actingAs($coach)->get(route('coach.reports'))->assertOk();
         $this->actingAs($coach)->get(route('coach.reports.export', ['path' => 'automation']))->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');

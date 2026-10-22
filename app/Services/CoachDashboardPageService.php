@@ -19,10 +19,10 @@ class CoachDashboardPageService
 
     /**
      * Everything the coach dashboard renders: whether a program is active (the page shows a notice when none is), the
-     * headline counts with their labels and, where a page lists that set, the link to it with its accessible text,
-     * and the mentor booking calendar link. The page has no single main action, so every link is secondary.
+     * headline counts with their labels and, where a page lists that set, the link to it with its accessible text.
+     * The page has no single main action, so every link is secondary.
      *
-     * @return array{hasActiveProgram: bool, stats: array<string, array{label: string, value: int, url: ?string, link_label: ?string}>, calendarUrl: string}
+     * @return array{hasActiveProgram: bool, stats: array<string, array{label: string, value: int, url: ?string, link_label: ?string}>}
      */
     public function showData(): array
     {
@@ -42,7 +42,6 @@ class CoachDashboardPageService
         return [
             'hasActiveProgram' => $activeProgram !== null,
             'stats' => $stats,
-            'calendarUrl' => route('coach.mentor-booking-calendar.index'),
         ];
     }
 

@@ -21,8 +21,6 @@ class GoogleDriveConfigurationService
 
     public const PROJECT_NUMBER = 'google_drive.project_number';
 
-    public const PARTICIPANT_CALENDAR_ENABLED = 'google_drive.participant_calendar_enabled';
-
     /** @var array<int, string> */
     public const BASE_SCOPES = ['openid', 'email', 'profile', GoogleDriveConnectionService::DRIVE_FILE_SCOPE];
 
@@ -65,12 +63,10 @@ class GoogleDriveConfigurationService
         return $this->value(self::PROJECT_NUMBER) ?? config('services.google_drive.project_number');
     }
 
-    public function getScopes(bool $includeCalendar = false): array
+    /** @return array<int, string> */
+    public function getScopes(): array
     {
-        $configured = config('services.google_drive.scopes', self::BASE_SCOPES);
-        $scopes = array_values(array_filter($configured, fn (mixed $scope): bool => $scope !== GoogleCalendarService::CALENDAR_SCOPE));
-
-        return $includeCalendar ? [...$scopes, GoogleCalendarService::CALENDAR_SCOPE] : $scopes;
+        return config('services.google_drive.scopes', self::BASE_SCOPES);
     }
 
     public function isEnabled(): bool
@@ -95,11 +91,6 @@ class GoogleDriveConfigurationService
         return $this->boolean(self::AUTOMATIC_EXPORT);
     }
 
-    public function participantCalendarEnabled(): bool
-    {
-        return $this->boolean(self::PARTICIPANT_CALENDAR_ENABLED, false);
-    }
-
     public function adminValues(): array
     {
         return [
@@ -108,8 +99,6 @@ class GoogleDriveConfigurationService
             'enabled' => $this->isEnabled(),
             'automatic_export' => $this->isAutomaticExportEnabled(),
             'scopes' => $this->getScopes(),
-            'calendar_scope' => GoogleCalendarService::CALENDAR_SCOPE,
-            'participant_calendar_enabled' => $this->participantCalendarEnabled(),
             'has_client_secret' => filled($this->getClientSecret()),
             'has_picker_api_key' => filled($this->getPickerApiKey()),
             'picker_api_key_source' => $this->setting(self::PICKER_API_KEY)

@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\MentorInterviewScheduleStatus;
 use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\Activity;
@@ -12,7 +11,6 @@ use App\Models\EvidenceRequirement;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\User;
-use App\Models\WeekFourMentorInterviewSchedule;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Arr;
@@ -137,7 +135,7 @@ class SubmissionWorkflowService
     private function validateSubmissionRequirements(Activity $activity, User $user, SubmissionVersion $version): void
     {
         $values = $version->field_values ?? [];
-        $this->validateWeekFourSubmission($activity, $user, $values);
+        $this->validateWeekFourSubmission($activity, $values);
         foreach ($this->fieldDefinitions($activity, $user) as $field) {
             if (($field['required'] ?? false) && blank($values[$field['key']] ?? null)) {
                 throw ValidationException::withMessages(['field_values.'.$field['key'] => $field['label'].' is required before submission.']);
@@ -171,19 +169,10 @@ class SubmissionWorkflowService
     }
 
     /** @param array<string, mixed> $values */
-    private function validateWeekFourSubmission(Activity $activity, User $user, array $values): void
+    private function validateWeekFourSubmission(Activity $activity, array $values): void
     {
         if ($activity->week?->week_number === 4 && $activity->position === 1 && ($values['reuse_modified'] ?? null) === 'Yes — I made adjustments' && blank($values['reuse_changes'] ?? null)) {
             throw ValidationException::withMessages(['field_values.reuse_changes' => 'Describe what you changed and why after modifying the reusable asset.']);
-        }
-
-        if ($activity->week?->week_number !== 4 || $activity->position !== 2) {
-            return;
-        }
-
-        $mentorSchedule = WeekFourMentorInterviewSchedule::query()->where('participant_id', $user->id)->where('activity_id', $activity->id)->where('status', MentorInterviewScheduleStatus::Scheduled)->exists();
-        if (! $mentorSchedule) {
-            throw ValidationException::withMessages(['submission' => 'Schedule your Mentor mock interview before submitting Activity 2.']);
         }
     }
 }

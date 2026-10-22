@@ -125,13 +125,11 @@ class InterviewSchedulingTest extends TestCase
         }
     }
 
-    public function test_admin_and_registered_mentor_accept_provider_neutral_urls(): void
+    public function test_admin_accepts_provider_neutral_urls(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $this->actingAs($admin)->post(route('admin.settings.interview-scheduling.store'), ['interview_type' => 'mock', 'full_name' => 'Cal Admin', 'mock_booking_url' => 'https://booking.example.com/admin', 'is_active' => '1'])->assertRedirect();
-        $mentor = User::factory()->create(['role' => 'coach']);
-        $this->actingAs($mentor)->post(route('coach.mentor-booking-calendar.store'), ['booking_url' => 'https://outlook.office.com/book/example'])->assertRedirect();
-        $this->assertDatabaseHas('interview_schedulers', ['user_id' => $mentor->id, 'mock_booking_url' => 'https://outlook.office.com/book/example']);
+        $this->actingAs($admin)->post(route('admin.settings.interview-scheduling.store'), ['interview_type' => 'mock', 'full_name' => 'Cal Admin', 'mock_booking_url' => 'https://outlook.office.com/book/example', 'is_active' => '1'])->assertRedirect();
+        $this->assertDatabaseHas('interview_schedulers', ['full_name' => 'Cal Admin', 'mock_booking_url' => 'https://outlook.office.com/book/example']);
     }
 
     public function test_admin_can_create_external_interviewer_and_unsafe_url_is_rejected(): void
@@ -168,25 +166,7 @@ class InterviewSchedulingTest extends TestCase
         $this->assertSame(5, $interviewer->display_order);
     }
 
-    public function test_mentor_booking_link_is_one_mock_listing_that_can_be_replaced_and_removed(): void
-    {
-        $mentor = User::factory()->create(['role' => 'coach']);
-        $finalListing = InterviewScheduler::create(['interview_type' => InterviewType::FinalReassessment, 'user_id' => $mentor->id, 'full_name' => $mentor->name, 'booking_url' => 'https://calendar.app.google/final', 'is_active' => true]);
-
-        $this->actingAs($mentor)->post(route('coach.mentor-booking-calendar.store'), ['booking_url' => 'https://calendar.app.google/first'])->assertSessionHas('status', 'Mock Interview booking link saved.');
-        $this->actingAs($mentor)->post(route('coach.mentor-booking-calendar.store'), ['booking_url' => 'https://calendar.app.google/second'])->assertSessionHas('status', 'Mock Interview booking link saved.');
-
-        $mockListing = InterviewScheduler::query()->where('user_id', $mentor->id)->whereKeyNot($finalListing->id)->sole();
-        $this->assertSame(InterviewType::Mock, $mockListing->interview_type);
-        $this->assertSame('https://calendar.app.google/second', $mockListing->mock_booking_url);
-
-        $this->actingAs($mentor)->delete(route('coach.mentor-booking-calendar.destroy'))->assertSessionHas('status', 'Mock Interview booking link removed.');
-
-        $this->assertModelMissing($mockListing);
-        $this->assertModelExists($finalListing);
-    }
-
-    public function test_assigned_participant_sees_registered_mentor_booking_link_without_local_slot_form(): void
+    public function test_assigned_participant_dashboard_does_not_show_the_mentor_booking_link(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant']);
@@ -194,29 +174,7 @@ class InterviewSchedulingTest extends TestCase
         $participant->assignedCoaches()->attach($mentor->id);
         InterviewScheduler::create(['interview_type' => 'mock', 'user_id' => $mentor->id, 'full_name' => $mentor->name, 'email' => $mentor->email, 'booking_url' => 'https://calendar.app.google/mock', 'is_active' => true]);
 
-        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('Schedule Mock Interview')->assertSee('https://calendar.app.google/mock')->assertDontSee('dashboard-mentor-slot')->assertDontSee('participant.mentor-interview.book');
-    }
-
-    public function test_assigned_participant_sees_an_active_both_listing_linked_to_their_mentor(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $participant = User::factory()->create(['role' => 'participant']);
-        $mentor = User::factory()->create(['role' => 'coach']);
-        $participant->assignedCoaches()->attach($mentor->id);
-        InterviewScheduler::create(['interview_type' => 'both', 'user_id' => $mentor->id, 'full_name' => $mentor->name, 'booking_url' => 'https://calendar.app.google/mock-both', 'mock_booking_url' => 'https://calendar.app.google/mock-both', 'final_booking_url' => 'https://calendar.app.google/final-both', 'is_active' => true]);
-
-        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('Schedule Mock Interview')->assertSee('https://calendar.app.google/mock-both');
-    }
-
-    public function test_assigned_participant_does_not_see_an_inactive_mentor_listing(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $participant = User::factory()->create(['role' => 'participant']);
-        $mentor = User::factory()->create(['role' => 'coach']);
-        $participant->assignedCoaches()->attach($mentor->id);
-        InterviewScheduler::create(['interview_type' => 'both', 'user_id' => $mentor->id, 'full_name' => $mentor->name, 'booking_url' => 'https://calendar.app.google/mock-inactive', 'mock_booking_url' => 'https://calendar.app.google/mock-inactive', 'final_booking_url' => 'https://calendar.app.google/final-inactive', 'is_active' => false]);
-
-        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertDontSee('https://calendar.app.google/mock-inactive');
+        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertDontSee('Schedule Mock Interview')->assertDontSee('https://calendar.app.google/mock');
     }
 
     public function test_public_registration_is_pending_until_admin_approval_and_both_appears_in_both_tabs(): void

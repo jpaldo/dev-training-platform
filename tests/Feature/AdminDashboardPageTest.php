@@ -9,7 +9,6 @@ use App\Models\Program;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\WeekFourMentorInterviewSchedule;
 use App\Services\AdminSettingsStatusService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
@@ -21,8 +20,8 @@ class AdminDashboardPageTest extends TestCase
     public function test_admin_sees_the_labelled_counts_the_integration_statuses_and_the_admin_tool_links(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
-        [$first, $second, $third] = User::factory()->count(3)->create()->all();
+        User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        [$first, $second] = User::factory()->count(3)->create()->all();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2]);
         $activity = Activity::factory()->for($week, 'week')->create();
         ActivitySubmission::factory()->for($activity)->for($first, 'participant')->create(['status' => 'submitted']);
@@ -30,10 +29,6 @@ class AdminDashboardPageTest extends TestCase
         $gate = TrainingGate::factory()->create(['training_week_id' => $week->id]);
         GateEvaluation::factory()->create(['training_gate_id' => $gate->id, 'user_id' => $first->id, 'status' => 'passed']);
         GateEvaluation::factory()->create(['training_gate_id' => $gate->id, 'user_id' => $second->id, 'status' => 'not_ready']);
-        $mentorInterviews = WeekFourMentorInterviewSchedule::factory()->for($coach, 'mentor')->for($activity);
-        $mentorInterviews->scheduled()->for($first, 'participant')->create();
-        $mentorInterviews->failed()->for($second, 'participant')->create();
-        $mentorInterviews->for($third, 'participant')->create();
 
         $this->actingAs($admin)
             ->get(route('admin.dashboard'))
@@ -52,11 +47,8 @@ class AdminDashboardPageTest extends TestCase
                 'AWAITING REVIEW', '<dd class="m-0 text-3xl font-black">1</dd>',
                 'NEEDS REVISION', '<dd class="m-0 text-3xl font-black">1</dd>',
                 'PENDING GATES', '<dd class="m-0 text-3xl font-black">1</dd>',
-                'Week 4',
-                'MENTOR INTERVIEWS SCHEDULED', '<dd class="m-0 text-3xl font-black">1</dd>',
-                'CALENDAR ATTENTION', '<dd class="m-0 text-3xl font-black">2</dd>',
                 'System / integration status',
-                '<strong>Google:</strong>',
+                '<strong>Google:</strong> Needs Configuration',
                 '<strong>Email:</strong> '.e(app(AdminSettingsStatusService::class)->email()['status']),
                 '<strong>AI:</strong> '.e(app(AdminSettingsStatusService::class)->ai()['status']),
                 '<strong>Queue:</strong> Application queue configuration available; detailed worker health remains on the existing operations tooling.',
@@ -70,7 +62,9 @@ class AdminDashboardPageTest extends TestCase
                 'href="'.route('admin.settings.index').'"', 'Settings',
             ], false)
             ->assertDontSee('PARTNER ASSIGNED')
-            ->assertDontSee('WAITING FOR PARTNER');
+            ->assertDontSee('WAITING FOR PARTNER')
+            ->assertDontSee('MENTOR INTERVIEWS SCHEDULED')
+            ->assertDontSee('CALENDAR ATTENTION');
     }
 
     public function test_week_counts_are_zero_without_an_active_program(): void

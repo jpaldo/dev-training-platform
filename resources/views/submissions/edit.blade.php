@@ -9,14 +9,9 @@
         $hintClasses = 'm-0 text-sm/relaxed text-muted';
         $sectionHeadingClasses = 'grid gap-1.5 rounded-xl border border-line bg-raised/40 px-4 py-3.5';
         $rowClasses = 'grid min-w-0 gap-2 rounded-xl border border-line bg-field px-4 py-3.5';
-        $rowTitleClasses = 'm-0 text-sm font-black tracking-[0.08em]';
         $guidanceClasses = 'rounded-xl border border-line bg-raised/40 text-sm/relaxed';
         $guidanceSummaryClasses = 'cursor-pointer rounded-xl px-3 py-2.5 font-bold text-violet-200 focus-visible:outline-3 focus-visible:outline-accent/50';
         $guidanceBodyClasses = 'grid gap-2 px-3 pb-3 text-slate-300 *:m-0 [&_strong]:text-slate-100';
-        $stepClasses = [
-            'complete' => 'flex items-center gap-2 rounded-lg border border-emerald-700 bg-emerald-950/70 px-2.5 py-2 text-sm font-bold text-emerald-200',
-            'incomplete' => 'flex items-center gap-2 rounded-lg border border-rose-900 bg-rose-950/70 px-2.5 py-2 text-sm font-bold text-rose-200',
-        ];
         $feedbackClasses = 'grid gap-2 text-sm/relaxed *:m-0 [&_h2]:text-amber-200 [&_h3]:text-amber-200 [&_h4]:text-amber-200 [&_ol]:pl-5 [&_ul]:pl-5';
     @endphp
 
@@ -199,83 +194,6 @@
                         <p class="m-0 text-sm text-muted data-error:text-rose-300" data-autosave-status role="status" aria-live="polite">Changes save automatically.</p>
                     </form>
 
-                    @if($hasMentorInterview)
-                        <section class="grid grid-cols-1 gap-5 border-t border-line pt-5" aria-label="Mentor mock interview">
-                            <div class="{{ $sectionHeadingClasses }}">
-                                <x-ui.eyebrow as="span">MENTOR MOCK INTERVIEW</x-ui.eyebrow>
-                                <p class="{{ $hintClasses }}">Schedule a separate {{ $mentorInterviewDurationMinutes }}-minute mock interview with your assigned Mentor/Coach.</p>
-                            </div>
-
-                            @if($mentor)
-                                <section class="{{ $rowClasses }} justify-items-start" aria-labelledby="mentor-title">
-                                    <h3 id="mentor-title" class="{{ $rowTitleClasses }}">YOUR MENTOR</h3>
-                                    <p class="m-0 wrap-anywhere"><strong>{{ $mentor->name }}</strong><br>{{ $mentor->email }}</p>
-                                    @if(! $participantCalendarEnabled)
-                                        <x-ui.alert tone="warning" class="grid w-full gap-1">
-                                            <strong>CALENDAR / GOOGLE MEET UNAVAILABLE</strong>
-                                            <span>Calendar / Google Meet scheduling is temporarily unavailable while the integration is being configured. Your existing Google Drive connection is not affected.</span>
-                                        </x-ui.alert>
-                                    @endif
-
-                                    @if($mentorSchedule?->isScheduled())
-                                        <p class="{{ $stepClasses['complete'] }} m-0 w-full">
-                                            <span class="w-4 shrink-0" aria-hidden="true">✓</span>
-                                            Mentor mock interview scheduled <span class="sr-only">(complete)</span>
-                                        </p>
-                                        <p class="m-0"><strong>{{ $mentorSchedule->startsAtInTimezone()->format('F j, Y') }}</strong><br>{{ $mentorSchedule->startsAtInTimezone()->format('g:i A') }} – {{ $mentorSchedule->endsAtInTimezone()->format('g:i A') }} ({{ $mentorSchedule->timezone }})</p>
-                                        <x-ui.button variant="secondary" :href="$mentorSchedule->google_meet_url" target="_blank" rel="noopener noreferrer">Join Google Meet</x-ui.button>
-                                        <details class="{{ $guidanceClasses }} w-full">
-                                            <summary class="{{ $guidanceSummaryClasses }}">Reschedule</summary>
-                                            <form method="POST" action="{{ route('training.mentor-interview.reschedule', [$trainingWeek, $activity]) }}" class="m-0 grid justify-items-start gap-3 px-3 pb-3">
-                                                @csrf
-                                                @method('PUT')
-                                                <div class="grid w-full gap-2">
-                                                    <label for="mentor-interview-reschedule-at" class="{{ $labelClasses }}">New date and time <span aria-hidden="true">*</span></label>
-                                                    <input id="mentor-interview-reschedule-at" type="datetime-local" name="scheduled_at" required min="{{ now($mentorSchedule->timezone)->format('Y-m-d\\TH:i') }}" value="{{ $mentorSchedule->startsAtInTimezone()->format('Y-m-d\\TH:i') }}" aria-describedby="mentor-interview-timezone" class="{{ $controlClasses }}">
-                                                </div>
-                                                <p id="mentor-interview-timezone" class="{{ $hintClasses }}">Timezone: {{ $mentorSchedule->timezone }} · Duration: {{ $mentorSchedule->duration_minutes }} minutes</p>
-                                                <x-ui.button variant="secondary" type="submit">Update Schedule</x-ui.button>
-                                            </form>
-                                        </details>
-                                    @else
-                                        <p class="{{ $stepClasses['incomplete'] }} m-0 w-full">
-                                            <span class="w-4 shrink-0" aria-hidden="true">○</span>
-                                            Mentor mock interview scheduled <span class="sr-only">(incomplete)</span>
-                                        </p>
-                                        <form method="POST" action="{{ route('training.mentor-interview.schedule', [$trainingWeek, $activity]) }}" class="m-0 grid w-full justify-items-start gap-3">
-                                            @csrf
-                                            <div class="grid w-full gap-2">
-                                                <label for="mentor-interview-at" class="{{ $labelClasses }}">Schedule <span aria-hidden="true">*</span></label>
-                                                <input id="mentor-interview-at" type="datetime-local" name="scheduled_at" required min="{{ now($mentorInterviewTimezone)->format('Y-m-d\\TH:i') }}" aria-describedby="mentor-interview-timezone" class="{{ $controlClasses }}">
-                                            </div>
-                                            <p id="mentor-interview-timezone" class="{{ $hintClasses }}">Timezone: {{ $mentorInterviewTimezone }} · Duration: {{ $mentorInterviewDurationMinutes }} minutes</p>
-                                            <x-ui.button variant="secondary" type="submit">Schedule Mock Interview</x-ui.button>
-                                        </form>
-                                    @endif
-                                </section>
-                            @else
-                                <x-ui.alert tone="error" class="grid gap-1">
-                                    <strong>MENTOR MOCK INTERVIEW</strong>
-                                    <span>Waiting for Mentor Assignment</span>
-                                    <span class="opacity-80">A Mentor/Coach must be assigned before you can schedule your mock interview.</span>
-                                </x-ui.alert>
-                            @endif
-                            <script>
-                                (() => {
-                                    const mentorEligible = @json($participantCalendarEnabled);
-                                    if (mentorEligible) {
-                                        return;
-                                    }
-                                    document.querySelectorAll('input[name="scheduled_at"], button[type="submit"]').forEach((control) => {
-                                        if (control.closest('form[action*="mentor-interview"]')) {
-                                            control.disabled = true;
-                                            control.setAttribute('aria-disabled', 'true');
-                                        }
-                                    });
-                                })();
-                            </script>
-                        </section>
-                    @endif
                 @else
                     <p class="m-0 leading-relaxed">This submitted version is immutable. If a coach requests revision, a new version will be created.</p>
                 @endif

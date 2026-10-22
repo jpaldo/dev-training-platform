@@ -145,7 +145,7 @@ class ParticipantDashboardControllerTest extends TestCase
             ->assertDontSee('daily log');
     }
 
-    public function test_a_week_four_activity_two_is_listed_like_any_other_activity_without_peer_interview_partners(): void
+    public function test_a_week_four_activity_two_is_listed_like_any_other_activity_without_peer_or_mentor_interviews(): void
     {
         $participant = User::factory()->create(['training_path' => 'manual']);
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 4, 'position' => 1]);
@@ -154,7 +154,8 @@ class ParticipantDashboardControllerTest extends TestCase
         $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
             ->assertSeeInOrder(['<strong>Mock Level 3 Interview</strong>', '>Start</'], false)
-            ->assertSee('MENTOR MOCK INTERVIEW')
+            ->assertDontSee('MENTOR MOCK INTERVIEW')
+            ->assertDontSee('id="dashboard-tab-mentoring"', false)
             ->assertDontSee('Waiting for Partner Assignment')
             ->assertDontSee('MOCK INTERVIEW PARTNERS')
             ->assertDontSee('Peer practice');

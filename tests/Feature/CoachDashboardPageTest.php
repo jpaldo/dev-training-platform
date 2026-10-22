@@ -12,7 +12,7 @@ class CoachDashboardPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_coach_sees_the_calendar_card_and_the_labelled_counts_linked_to_the_pages_that_list_them(): void
+    public function test_coach_sees_the_labelled_counts_linked_to_the_pages_that_list_them_without_a_booking_calendar_card(): void
     {
         $activity = Activity::factory()->create();
         foreach (['submitted', 'under_review', 'needs_revision'] as $status) {
@@ -25,11 +25,6 @@ class CoachDashboardPageTest extends TestCase
             ->assertSeeInOrder([
                 'COACH OPERATIONS',
                 'Training overview',
-                'MENTOR INTERVIEW AVAILABILITY',
-                '>Share your Mock Interview booking link</h2>',
-                'Save the public booking link from your scheduling service so assigned participants can book a Mentor Mock Interview with you.',
-                'href="'.route('coach.mentor-booking-calendar.index').'"',
-                'Manage Booking Calendar',
                 '<dt', 'href="'.route('coach.participants').'" class="outline-hidden after:absolute after:inset-0">PARTICIPANTS<span class="sr-only">, open the participants list</span></a>', '<dd', '3',
                 '<dt class="text-xs font-black tracking-[0.12em] wrap-break-word text-muted uppercase">COMPLETED</dt>', '<dd', '0',
                 '<dt', 'href="'.route('coach.reviews').'" class="outline-hidden after:absolute after:inset-0">NEEDS REVIEW<span class="sr-only">, open the review queue</span></a>', '<dd', '2',
@@ -37,7 +32,9 @@ class CoachDashboardPageTest extends TestCase
                 '<dt', 'href="'.route('coach.reports').'#at-risk-title" class="outline-hidden after:absolute after:inset-0">AT RISK<span class="sr-only">, open the at-risk participants in the progress report</span></a>', '<dd', '1',
             ], false)
             ->assertDontSee('aria-label="Coach tools"', false)
-            ->assertDontSee('No active program.');
+            ->assertDontSee('No active program.')
+            ->assertDontSee('MENTOR INTERVIEW AVAILABILITY')
+            ->assertDontSee('Manage Booking Calendar');
     }
 
     public function test_the_at_risk_link_target_exists_on_the_progress_report(): void
@@ -62,7 +59,6 @@ class CoachDashboardPageTest extends TestCase
                 'role="status"',
                 'No active program.',
                 'Completion counts start once a training program is active.',
-                'MENTOR INTERVIEW AVAILABILITY',
                 '<dt', 'PARTICIPANTS', '<dd', '1',
                 '<dt', 'COMPLETED', '<dd', '0',
                 '<dt', 'NEEDS REVIEW', '<dd', '1',

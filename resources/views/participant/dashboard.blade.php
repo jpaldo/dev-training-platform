@@ -8,8 +8,7 @@
             'key' => 'week-'.$item['week']->week_number,
             'label' => 'Week '.$item['week']->week_number,
             'state' => $item['passed'] ? 'passed' : ($item['is_current'] ? 'current' : ($item['available'] ? null : 'locked')),
-        ])->push(['key' => 'mentoring', 'label' => 'Mentoring', 'state' => null])
-            ->push(['key' => 'overview', 'label' => 'Overview & Resources', 'state' => null]);
+        ])->push(['key' => 'overview', 'label' => 'Overview & Resources', 'state' => null]);
     @endphp
 
     <div class="grid grid-cols-1 gap-6">
@@ -227,26 +226,6 @@
                     </div>
                 </x-ui.tab-panel>
             @endforeach
-
-            <x-ui.tab-panel name="mentoring" :selected="$defaultTabKey" id-prefix="dashboard">
-                <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-                    <x-ui.card class="grid justify-items-start gap-3">
-                        <x-ui.eyebrow>MENTOR MOCK INTERVIEW</x-ui.eyebrow>
-                        <h2 class="m-0 text-xl font-extrabold">{{ $user->assignedCoaches->pluck('name')->join(', ') ?: 'Mentor not assigned' }}</h2>
-                        @if(!$assignedMentor)
-                            <p class="m-0 text-sm/relaxed text-muted">Status: Mentor Not Assigned<br>A Mentor has not been assigned to you yet.</p>
-                        @elseif(!$mentorBooking)
-                            <p class="m-0 text-sm/relaxed text-muted">Status: Booking Calendar Not Available Yet<br>Your Mentor has not configured their Mock Interview booking calendar yet.</p>
-                        @elseif($mentorInterviewSchedule)
-                            <p class="m-0 text-sm/relaxed text-muted">Status: Scheduled<br>{{ $mentorInterviewSchedule->startsAtInTimezone()->format('F j, Y') }} · {{ $mentorInterviewSchedule->startsAtInTimezone()->format('g:i A') }} – {{ $mentorInterviewSchedule->endsAtInTimezone()->format('g:i A') }} · {{ $mentorInterviewSchedule->timezone }}</p>
-                            @if($mentorInterviewSchedule->google_meet_url)<x-ui.button variant="secondary" :href="$mentorInterviewSchedule->google_meet_url" target="_blank" rel="noopener noreferrer">Join Google Meet</x-ui.button>@endif
-                        @else
-                            <p class="m-0 text-sm/relaxed text-muted">Status: Booking Link Configured<br>Schedule your Mock Interview directly through your Mentor's booking calendar.</p>
-                            <x-ui.button :href="$mentorBooking->mock_booking_url ?: $mentorBooking->booking_url" target="_blank" rel="noopener noreferrer">Schedule Mock Interview</x-ui.button>
-                        @endif
-                    </x-ui.card>
-                </div>
-            </x-ui.tab-panel>
 
             <x-ui.tab-panel name="overview" :selected="$defaultTabKey" id-prefix="dashboard">
                 <div class="grid grid-cols-1 gap-6">

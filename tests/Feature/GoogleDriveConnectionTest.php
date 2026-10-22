@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\GoogleDriveSyncStatus;
-use App\Models\ApplicationSetting;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveSync;
 use App\Models\User;
@@ -63,7 +62,6 @@ class GoogleDriveConnectionTest extends TestCase
     public function test_oauth_request_keeps_participant_drive_scope_without_calendar_scope(): void
     {
         $participant = User::factory()->create(['role' => 'participant']);
-        ApplicationSetting::query()->updateOrCreate(['key' => GoogleDriveConfigurationService::PARTICIPANT_CALENDAR_ENABLED], ['value' => '1', 'is_encrypted' => false]);
 
         $response = $this->actingAs($participant)->get(route('profile.google-drive.connect'))->assertRedirect();
         $location = $response->headers->get('Location');
@@ -72,17 +70,6 @@ class GoogleDriveConnectionTest extends TestCase
         $this->assertStringContainsString(rawurlencode(GoogleDriveConnectionService::DRIVE_FILE_SCOPE), $location);
         $this->assertStringContainsString('access_type=offline', $location);
         $this->assertStringContainsString('prompt=consent', $location);
-    }
-
-    public function test_oauth_request_omits_calendar_scope_when_participant_calendar_is_disabled(): void
-    {
-        $participant = User::factory()->create(['role' => 'participant']);
-
-        $response = $this->actingAs($participant)->get(route('profile.google-drive.connect'))->assertRedirect();
-        $location = $response->headers->get('Location');
-
-        $this->assertStringNotContainsString(rawurlencode('https://www.googleapis.com/auth/calendar.events'), $location);
-        $this->assertStringContainsString(rawurlencode(GoogleDriveConnectionService::DRIVE_FILE_SCOPE), $location);
     }
 
     public function test_participant_can_poll_their_latest_sync_status_without_exposing_other_users(): void

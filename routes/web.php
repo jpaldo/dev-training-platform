@@ -19,7 +19,6 @@ use App\Http\Controllers\GoogleDriveController;
 use App\Http\Controllers\GoogleDriveDestinationController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MarkdownPreviewController;
-use App\Http\Controllers\MentorBookingCalendarController;
 use App\Http\Controllers\MissingSubmissionReportController;
 use App\Http\Controllers\ParticipantDashboardController;
 use App\Http\Controllers\ParticipantNotificationController;
@@ -37,7 +36,6 @@ use App\Http\Controllers\TrainingActivityController;
 use App\Http\Controllers\TrainingGuideController;
 use App\Http\Controllers\TrainingSyncController;
 use App\Http\Controllers\TrainingWeekController;
-use App\Http\Controllers\WeekFourMentorInterviewController;
 use App\Http\Controllers\WeeklyVideoRecordingController;
 use Illuminate\Support\Facades\Route;
 
@@ -87,8 +85,6 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
         Route::get('/settings', [AdminSettingsController::class, 'index'])->name('settings.index');
         Route::get('/settings/google', [AdminSettingsController::class, 'google'])->name('settings.google');
-        Route::get('/settings/google/verification/connect', [AdminSettingsController::class, 'verificationConnect'])->name('settings.google.verification.connect');
-        Route::get('/settings/google/verification/callback', [AdminSettingsController::class, 'verificationCallback'])->name('settings.google.verification.callback');
         Route::get('/settings/email', [AdminSettingsController::class, 'email'])->name('settings.email');
         Route::put('/settings/email', [AdminSettingsController::class, 'updateEmail'])->name('settings.email.update');
         Route::post('/settings/email/test', [AdminSettingsController::class, 'sendTestEmail'])->name('settings.email.test');
@@ -124,10 +120,6 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
 
     Route::middleware('role:coach,admin')->prefix('coach')->name('coach.')->group(function () {
         Route::get('/', [CoachOperationsController::class, 'dashboard'])->name('dashboard');
-        Route::get('/mentor-availability', [MentorBookingCalendarController::class, 'index'])->name('mentor-availability.index');
-        Route::get('/mentor-booking-calendar', [MentorBookingCalendarController::class, 'index'])->name('mentor-booking-calendar.index');
-        Route::post('/mentor-booking-calendar', [MentorBookingCalendarController::class, 'store'])->name('mentor-booking-calendar.store');
-        Route::delete('/mentor-booking-calendar', [MentorBookingCalendarController::class, 'destroy'])->name('mentor-booking-calendar.destroy');
         Route::get('/participants', [CoachParticipantController::class, 'index'])->name('participants');
         Route::get('/participants/{participant}', [CoachParticipantController::class, 'show'])->name('participants.show');
         Route::get('/reviews', [CoachReviewController::class, 'index'])->name('reviews');
@@ -172,9 +164,6 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
             Route::post('/weeks/{trainingWeek}/activities/{activity}/submission/draft', [ActivitySubmissionController::class, 'storeDraft'])->name('submission.draft');
             Route::post('/weeks/{trainingWeek}/activities/{activity}/submission/revise', [ActivitySubmissionController::class, 'revise'])->name('submission.revise');
             Route::post('/weeks/{trainingWeek}/activities/{activity}/submission/versions/{submissionVersion}/submit', [ActivitySubmissionController::class, 'submit'])->name('submission.submit');
-            Route::post('/weeks/{trainingWeek}/activities/{activity}/mentor-interview/schedule', [WeekFourMentorInterviewController::class, 'store'])->name('mentor-interview.schedule');
-            Route::put('/weeks/{trainingWeek}/activities/{activity}/mentor-interview/schedule', [WeekFourMentorInterviewController::class, 'update'])->name('mentor-interview.reschedule');
-            Route::post('/mentor-interviews/{schedule}/cancel', [WeekFourMentorInterviewController::class, 'cancel'])->name('mentor-interview.cancel');
             Route::post('/weeks/{trainingWeek}/activities/{activity}/submission/versions/{submissionVersion}/evidence', [SubmissionEvidenceController::class, 'store'])->name('evidence.store');
             Route::post('/weeks/{trainingWeek}/activities/{activity}/export', [ActivityExportController::class, 'export'])->name('activities.export');
         });
@@ -184,7 +173,6 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::get('/weeks/{trainingWeek}/video-recording/{weeklyVideoRecording}/view', [WeeklyVideoRecordingController::class, 'view'])->name('video-recording.view');
         Route::get('/weeks/{trainingWeek}/video-recording/{weeklyVideoRecording}/download', [WeeklyVideoRecordingController::class, 'download'])->name('video-recording.download');
         Route::middleware('role:coach,admin')->prefix('coach')->name('coach.')->group(function () {
-            Route::post('/mentor-interviews/{schedule}/cancel', [WeekFourMentorInterviewController::class, 'cancel'])->name('mentor-interview.cancel');
             Route::get('/weeks/{trainingWeek}/participants/{participant}/gates/{trainingGate}', [GateReviewController::class, 'show'])->name('gates.show');
             Route::post('/weeks/{trainingWeek}/participants/{participant}/gates/{trainingGate}', [GateReviewController::class, 'update'])->name('gates.update');
         });

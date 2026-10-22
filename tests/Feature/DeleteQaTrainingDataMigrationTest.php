@@ -47,8 +47,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         'gate_evaluations',
         'attendance_sessions',
         'weekly_video_recordings',
-        'week_four_mentor_interview_schedules',
-        'mentor_interview_availabilities',
         'coach_participant_assignments',
     ];
 
@@ -163,7 +161,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         ]);
         $scoreId = DB::table('activity_scores')->insertGetId(['submission_version_id' => $versionId, 'scorer_id' => $coach->id]);
         $gateEvaluationId = DB::table('gate_evaluations')->insertGetId(['training_gate_id' => $criterion->training_gate_id, 'user_id' => $participant->id, 'reviewer_id' => $coach->id]);
-        $availabilityId = DB::table('mentor_interview_availabilities')->insertGetId(['mentor_id' => $coach->id, 'available_date' => '2026-10-01', 'start_time' => '09:00', 'end_time' => '10:00']);
 
         DB::table('google_drive_evidence_exports')->insert(['submission_evidence_id' => $evidenceId]);
         DB::table('google_drive_exports')->insert(['user_id' => $participant->id, 'export_type' => 'weekly_workbook', 'scope_key' => '2']);
@@ -185,15 +182,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
             'original_filename' => 'week-2.mp4',
             'mime_type' => 'video/mp4',
             'size_bytes' => 5,
-        ]);
-        DB::table('week_four_mentor_interview_schedules')->insert([
-            'participant_id' => $participant->id,
-            'mentor_id' => $coach->id,
-            'activity_id' => $activity->id,
-            'availability_id' => $availabilityId,
-            'starts_at' => '2026-10-01 09:00:00',
-            'ends_at' => '2026-10-01 10:00:00',
-            'timezone' => 'Asia/Manila',
         ]);
         DB::table('coach_participant_assignments')->insert(['coach_id' => $coach->id, 'participant_id' => $participant->id]);
         DB::table('sessions')->insert(['id' => 'participant-session', 'user_id' => $participant->id, 'payload' => '', 'last_activity' => now()->timestamp]);

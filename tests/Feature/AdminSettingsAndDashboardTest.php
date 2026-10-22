@@ -3,18 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\ApplicationSetting;
-use App\Models\GoogleDriveConnection;
 use App\Models\Program;
 use App\Models\User;
-use App\Services\AdminSettingsStatusService;
 use App\Services\EmailConfigurationService;
-use App\Services\GoogleCalendarService;
-use App\Services\GoogleDriveConfigurationService;
-use App\Services\GoogleDriveConnectionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
@@ -56,8 +50,7 @@ class AdminSettingsAndDashboardTest extends TestCase
         $this->actingAs($admin)->get(route('admin.settings.google'))->assertOk()
             ->assertSee('https://example.test/profile/google-drive/callback')
             ->assertSee('drive.file')
-            ->assertSee('calendar.events')
-            ->assertSee('Existing Google Drive connections')
+            ->assertDontSee('calendar.events')
             ->assertDontSee('super-secret')
             ->assertDontSee(config('app.key'));
     }
@@ -66,7 +59,7 @@ class AdminSettingsAndDashboardTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin)->get(route('admin.settings.email'))->assertOk()->assertSee(config('mail.default'))->assertSee('Development Only');
-        $this->actingAs($admin)->get(route('admin.settings.training'))->assertOk()->assertSee('Asia/Manila')->assertSee('60 minutes')->assertSee('300 MB')->assertSee('350 MB');
+        $this->actingAs($admin)->get(route('admin.settings.training'))->assertOk()->assertSee('Asia/Manila')->assertDontSee('MENTOR INTERVIEW')->assertSee('300 MB')->assertSee('350 MB');
     }
 
     public function test_admin_can_save_smtp_configuration_without_rendering_password(): void
@@ -82,7 +75,6 @@ class AdminSettingsAndDashboardTest extends TestCase
             'smtp_password' => 'super-secret-password',
             'from_address' => 'qa@example.test',
             'from_name' => 'QA Training Platform',
-            'mentor_emails_enabled' => 1,
         ])->assertRedirect()->assertSessionHas('status');
 
         $setting = ApplicationSetting::query()->where('key', EmailConfigurationService::SMTP_PASSWORD)->firstOrFail();
@@ -100,13 +92,13 @@ class AdminSettingsAndDashboardTest extends TestCase
         $service->save([
             'mailer' => 'smtp', 'smtp_host' => 'smtp.example.test', 'smtp_port' => 587, 'smtp_scheme' => 'tls',
             'smtp_username' => 'mailer@example.test', 'smtp_password' => 'keep-me', 'from_address' => 'qa@example.test',
-            'from_name' => 'QA Training Platform', 'mentor_emails_enabled' => true,
+            'from_name' => 'QA Training Platform',
         ]);
 
         $this->actingAs($admin)->put(route('admin.settings.email.update'), [
             'mailer' => 'smtp', 'smtp_host' => 'smtp.example.test', 'smtp_port' => 587, 'smtp_scheme' => 'tls',
             'smtp_username' => 'mailer@example.test', 'smtp_password' => '', 'from_address' => 'qa@example.test',
-            'from_name' => 'QA Training Platform', 'mentor_emails_enabled' => 1,
+            'from_name' => 'QA Training Platform',
         ])->assertRedirect();
         $this->assertSame('keep-me', Crypt::decryptString(ApplicationSetting::query()->where('key', EmailConfigurationService::SMTP_PASSWORD)->value('value')));
 
@@ -135,11 +127,11 @@ class AdminSettingsAndDashboardTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
 
         $this->actingAs($admin)->put(route('admin.settings.email.update'), [
-            'mailer' => 'log', 'from_address' => 'qa@example.test', 'from_name' => 'QA Training Platform', 'mentor_emails_enabled' => 0,
+            'mailer' => 'log', 'from_address' => 'qa@example.test', 'from_name' => 'QA Training Platform',
         ])->assertRedirect();
         $this->assertSame('log', app(EmailConfigurationService::class)->current()['mailer']);
         $this->actingAs($coach)->put(route('admin.settings.email.update'), [
-            'mailer' => 'smtp', 'from_address' => 'qa@example.test', 'from_name' => 'QA Training Platform', 'mentor_emails_enabled' => 1,
+            'mailer' => 'smtp', 'from_address' => 'qa@example.test', 'from_name' => 'QA Training Platform',
         ])->assertForbidden();
     }
 
@@ -148,64 +140,8 @@ class AdminSettingsAndDashboardTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)->from(route('admin.settings.email'))->put(route('admin.settings.email.update'), [
-            'mailer' => 'smtp', 'smtp_password' => 'do-not-echo', 'from_address' => 'invalid', 'from_name' => 'QA Training Platform', 'mentor_emails_enabled' => 1,
+            'mailer' => 'smtp', 'smtp_password' => 'do-not-echo', 'from_address' => 'invalid', 'from_name' => 'QA Training Platform',
         ])->assertRedirect(route('admin.settings.email'))->assertSessionHasErrors(['smtp_host', 'smtp_port', 'from_address']);
         $this->assertArrayNotHasKey('smtp_password', session('_old_input', []));
-    }
-
-    public function test_google_calendar_status_is_not_reported_ready_without_external_verification(): void
-    {
-        $admin = User::factory()->create(['role' => 'admin']);
-        config(['services.google_drive.client_id' => 'client-id.apps.googleusercontent.com', 'services.google_drive.client_secret' => 'super-secret', 'services.google_drive.redirect_uri' => 'https://example.test/profile/google-drive/callback', 'services.google_drive.enabled' => true]);
-
-        $response = $this->actingAs($admin)->get(route('admin.settings.google'))->assertOk();
-        $response->assertSee('Requires manual Google Cloud Console verification')->assertSee('Application configured — authorization required')->assertDontSee('>Ready</span>', false);
-        $this->assertFalse(app(AdminSettingsStatusService::class)->google()['calendar_ready']);
-    }
-
-    public function test_google_settings_identify_connections_that_need_calendar_reauthorization(): void
-    {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $participant = User::factory()->create(['role' => 'participant']);
-        GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'account', 'access_token' => 'access', 'scopes' => ['https://www.googleapis.com/auth/drive.file'], 'connected_at' => now()]);
-
-        $this->actingAs($admin)->get(route('admin.settings.google'))->assertOk()->assertSee('Reauthorization required for some connections');
-    }
-
-    public function test_participant_calendar_setting_defaults_to_disabled(): void
-    {
-        $admin = User::factory()->create(['role' => 'admin']);
-
-        $this->actingAs($admin)->get(route('admin.settings.google'))->assertOk()->assertSee('<strong>Legacy Calendar scope setting:</strong> Disabled', false);
-        $this->assertFalse(app(GoogleDriveConfigurationService::class)->participantCalendarEnabled());
-    }
-
-    public function test_admin_verification_oauth_is_admin_only_and_requests_calendar_scope_when_participants_are_disabled(): void
-    {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $participant = User::factory()->create(['role' => 'participant']);
-        config(['services.google_drive.client_id' => 'client-id', 'services.google_drive.client_secret' => 'secret', 'services.google_drive.redirect_uri' => 'https://example.test/profile/google-drive/callback', 'services.google_drive.enabled' => true]);
-
-        $response = $this->actingAs($admin)->get(route('admin.settings.google.verification.connect'))->assertRedirect();
-        $this->assertStringContainsString(rawurlencode('https://www.googleapis.com/auth/calendar.events'), $response->headers->get('Location'));
-        $this->actingAs($participant)->get(route('admin.settings.google.verification.connect'))->assertForbidden();
-        $this->actingAs($admin)->get(route('admin.settings.google.verification.callback', ['state' => 'forged', 'code' => 'code']))->assertRedirect(route('admin.settings.google'))->assertSessionHasErrors('google_verification');
-    }
-
-    public function test_admin_verification_returning_to_shared_profile_callback_succeeds(): void
-    {
-        $admin = User::factory()->create(['role' => 'admin']);
-        config(['services.google_drive.client_id' => 'client-id', 'services.google_drive.client_secret' => 'secret', 'services.google_drive.redirect_uri' => 'http://localhost/profile/google-drive/callback', 'services.google_drive.enabled' => true]);
-        $this->actingAs($admin)->get(route('admin.settings.google.verification.connect'))->assertRedirect();
-        $state = session('google_verification_oauth.state');
-        Http::fake([
-            'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'verification-access', 'refresh_token' => 'verification-refresh', 'expires_in' => 3600, 'scope' => 'openid email profile '.GoogleDriveConnectionService::DRIVE_FILE_SCOPE.' '.GoogleCalendarService::CALENDAR_SCOPE], 200),
-            'https://openidconnect.googleapis.com/v1/userinfo' => Http::response(['sub' => 'verification-account', 'email' => $admin->email], 200),
-        ]);
-
-        $this->actingAs($admin)->get(route('profile.google-drive.callback', ['state' => $state, 'code' => 'verification-code']))
-            ->assertRedirect(route('admin.settings.google'))
-            ->assertSessionHas('status', 'Google Calendar verification authorization completed.');
-        $this->assertDatabaseHas('google_drive_connections', ['user_id' => $admin->id, 'google_account_id' => 'verification-account']);
     }
 }

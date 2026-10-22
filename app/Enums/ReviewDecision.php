@@ -13,6 +13,18 @@ enum ReviewDecision: string
     case Rejected = 'rejected';
 
     /**
+     * The generic decision text (the submitted version page shows it; the coach review page keeps its own texts).
+     */
+    public function label(): string
+    {
+        return match ($this) {
+            self::Approved => 'Approved',
+            self::NeedsRevision => 'Needs revision',
+            self::Rejected => 'Rejected',
+        };
+    }
+
+    /**
      * The submission status the decision moves the reviewed submission to.
      */
     public function submissionStatus(): SubmissionStatus

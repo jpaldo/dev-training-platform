@@ -137,6 +137,17 @@ class SubmissionVersionPageTest extends TestCase
         $this->assertStringNotContainsString('Version 2', $html);
     }
 
+    public function test_a_rejected_review_shows_its_decision_label_with_the_danger_tone(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $version = $this->submittedVersion($participant, $activity, 'submitted', submissionStatus: 'failed');
+        SubmissionReview::factory()->create(['submission_version_id' => $version->id, 'decision' => 'rejected', 'comments' => 'The fix was not validated.']);
+
+        $this->actingAs($participant)->get(route('training.submission.show', [$week, $activity, $version]))
+            ->assertOk()
+            ->assertSeeInOrder(['data-review-row', 'border-danger text-rose-200">Rejected</span>', 'The fix was not validated.'], false);
+    }
+
     #[DataProvider('versionStatusBadges')]
     public function test_summary_badge_shows_the_version_status_with_its_tone(string $status, string $badge): void
     {

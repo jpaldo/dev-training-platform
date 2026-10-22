@@ -20,7 +20,8 @@ enum SubmissionStatus: string
     case Completed = 'completed';
 
     /**
-     * The generic status text (the submitted version page and the coach review page show it).
+     * The generic status text (the submitted version page, the coach review page and the participant dashboard show
+     * it; the coach participant page shows it upper case).
      */
     public function label(): string
     {

@@ -360,7 +360,7 @@ class ActivitySubmissionPageService
      */
     private function statusLabel(SubmissionStatus|ReviewDecision $status): string
     {
-        return $status instanceof SubmissionStatus ? $status->label() : ucfirst(str_replace('_', ' ', $status->value));
+        return $status->label();
     }
 
     /**

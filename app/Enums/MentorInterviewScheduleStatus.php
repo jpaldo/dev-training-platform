@@ -4,7 +4,7 @@ namespace App\Enums;
 
 /**
  * Where a participant's Week 4 Mentor mock interview stands with Google Calendar
- * (stored in `week_four_mentor_interview_schedules.status`).
+ * (stored in `week_four_mentor_interview_schedules.status`, default `pending`).
  */
 enum MentorInterviewScheduleStatus: string
 {

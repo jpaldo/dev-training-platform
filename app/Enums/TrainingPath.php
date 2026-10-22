@@ -15,7 +15,7 @@ enum TrainingPath: string
     case AutomationManual = 'automation_manual';
 
     /**
-     * The generic path text (registration validation source, coach pages, report filters and exports).
+     * The generic path text (coach pages, the participant dashboard, report filters and exports).
      */
     public function label(): string
     {

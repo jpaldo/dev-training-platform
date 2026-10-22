@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\JobRole;
 use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Observers\ParticipantProgressObserver;
@@ -17,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'training_path', 'drive_link', 'role', 'is_active'])]
+#[Fillable(['name', 'first_name', 'last_name', 'employee_id', 'job_role', 'email', 'password', 'training_path', 'drive_link', 'role', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
 #[ObservedBy([ParticipantProgressObserver::class])]
 class User extends Authenticatable
@@ -38,7 +39,27 @@ class User extends Authenticatable
             'is_active' => 'boolean',
             'training_path' => TrainingPath::class,
             'role' => UserRole::class,
+            'job_role' => JobRole::class,
         ];
+    }
+
+    /**
+     * Keeps `name` equal to "first last" whenever the first or last name changes, so every screen, sort and export
+     * that reads `name` stays correct. Changing only `name` leaves the first and last name as they are.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (User $user): void {
+            if (! $user->isDirty(['first_name', 'last_name'])) {
+                return;
+            }
+
+            $fullName = trim("{$user->first_name} {$user->last_name}");
+
+            if ($fullName !== '') {
+                $user->name = $fullName;
+            }
+        });
     }
 
     /**

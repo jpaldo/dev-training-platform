@@ -287,7 +287,7 @@ Enums (`app/Enums`, made with `php artisan make:enum … --string`): `JobRole` (
 
 ## Phase 1 — User identity
 
-- [ ] **1.1 Add employee ID, first and last name, and job role to users** (REG-1, REG-2; prerequisite for 1.2 to 1.6 and 4.3) (was TS 1.1)
+- [x] **1.1 Add employee ID, first and last name, and job role to users** (REG-1, REG-2; prerequisite for 1.2 to 1.6 and 4.3) (was TS 1.1)
   - **Do:** Migration adding `employee_id` (string 50, nullable, unique), `first_name`, `last_name` (nullable strings), `job_role` (nullable string) to `users`, and backfilling first/last name from `name` (split at the first space, query builder, chunked). Create `App\Enums\JobRole` (see Design). On `User`: fillable, `job_role` cast, a `saving` hook that sets `name` to the trimmed "first last" when either is dirty. `UserFactory`: fill the new fields (unique `employee_id`, `job_role` Developer) without changing existing tests' behavior.
   - **Acceptance:** Migrating up and down works on SQLite and MySQL. A user saved with first "Ana" and last "Cruz" has `name` "Ana Cruz"; changing only `name` leaves first/last untouched. Two users with the same `employee_id` cannot be saved; two users with none can. Existing `name`-based screens are unchanged.
   - **Tests:** New `tests/Feature/UserIdentityTest.php`: name sync, unique employee ID (database error), backfill split ("Ana Maria Cruz" → "Ana" / "Maria Cruz"; "Prince" → "Prince" / empty), `JobRole::options()` order and labels.
@@ -777,3 +777,6 @@ Enums (`app/Enums`, made with `php artisan make:enum … --string`): `JobRole` (
 ## Open decisions
 
 Problems found during implementation that need a decision. Starts empty.
+
+- **Users created with only `name` after 1.1 have no first or last name** (found in 1.1). The backfill runs once, in the migration. `BootstrapAdminCommand` and `DevelopmentAccountProvisioner` still create users with `name` only, as do registration and admin create until 1.2 and 1.4, so those users have null `first_name` / `last_name` and the 1.3 profile form and 1.4 admin form would show them empty. 4.3 rewrites the demo accounts; `BootstrapAdminCommand` is in no batch. Decide whether 1.3/1.4 should fall back to splitting `name` when both are null, or whether `BootstrapAdminCommand` gets first/last names in a batch.
+- **`UserIdentityTest` loads the 1.1 migration by file name** (found in 1.1). Its backfill case requires `database/migrations/2026_10_23_051317_add_identity_fields_to_users_table.php` and runs its `down()` and `up()`. 13.1 replaces that file, so 13.1 must delete that test case (the backfill only matters before the squash) or point it at the adoption command.

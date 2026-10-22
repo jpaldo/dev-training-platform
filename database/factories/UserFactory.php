@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\JobRole;
 use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\User;
@@ -28,11 +29,15 @@ class UserFactory extends Factory
     {
         return [
             'name' => fake()->name(),
+            'first_name' => fn (array $attributes): string => Str::before($attributes['name'], ' '),
+            'last_name' => fn (array $attributes): string => Str::contains($attributes['name'], ' ') ? Str::after($attributes['name'], ' ') : '',
+            'employee_id' => fake()->unique()->numerify('EMP-######'),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'role' => UserRole::Participant,
             'training_path' => TrainingPath::Manual,
+            'job_role' => JobRole::Developer,
             'remember_token' => Str::random(10),
         ];
     }

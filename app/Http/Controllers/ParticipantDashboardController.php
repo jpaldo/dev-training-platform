@@ -2,16 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\InterviewType;
 use App\Enums\MentorInterviewScheduleStatus;
 use App\Models\GoogleDriveExport;
-use App\Models\InterviewScheduler;
 use App\Models\Program;
 use App\Models\User;
 use App\Models\WeekFourInterviewPair;
 use App\Models\WeekFourMentorInterviewSchedule;
 use App\Services\ExportLifecycleService;
 use App\Services\GoogleDriveReadinessService;
+use App\Services\InterviewBookingLinkService;
 use App\Services\MentorInterviewSchedulingService;
 use App\Services\ParticipantDashboardService;
 use App\Services\ParticipantNotificationService;
@@ -22,7 +21,7 @@ use Illuminate\View\View;
 
 class ParticipantDashboardController extends Controller
 {
-    public function index(Request $request, WeekProgressionService $progression, ParticipantDashboardService $dashboard, ExportLifecycleService $lifecycle, GoogleDriveReadinessService $driveReadiness, ParticipantNotificationService $notifications, WeekFourInterviewService $interviews, MentorInterviewSchedulingService $mentorScheduling): View
+    public function index(Request $request, WeekProgressionService $progression, ParticipantDashboardService $dashboard, ExportLifecycleService $lifecycle, GoogleDriveReadinessService $driveReadiness, ParticipantNotificationService $notifications, WeekFourInterviewService $interviews, MentorInterviewSchedulingService $mentorScheduling, InterviewBookingLinkService $bookingLinks): View
     {
         /** @var User $user */
         $user = $request->user();
@@ -39,7 +38,7 @@ class ParticipantDashboardController extends Controller
         $activeAttendance = $user->attendanceSessions()->whereNull('check_out_at')->latest('check_in_at')->first();
         $assignedMentor = $mentorScheduling->assignedMentor($user);
         $mentorInterviewSchedule = WeekFourMentorInterviewSchedule::query()->where('participant_id', $user->id)->where('status', MentorInterviewScheduleStatus::Scheduled)->latest('id')->first();
-        $mentorBooking = $assignedMentor ? InterviewScheduler::query()->where('interview_type', InterviewType::Mock)->where('user_id', $assignedMentor->id)->where('is_active', true)->first() : null;
+        $mentorBooking = $assignedMentor ? $bookingLinks->forMentor($assignedMentor) : null;
         $weeks = $dashboard->weeks($user, $program, $activeAttendance);
 
         $programCompleted = $progression->isProgramCompleted($user, $program);

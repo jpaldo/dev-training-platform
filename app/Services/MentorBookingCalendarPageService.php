@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\InterviewType;
-use App\Models\InterviewScheduler;
 use App\Models\User;
 
 class MentorBookingCalendarPageService
@@ -11,18 +10,15 @@ class MentorBookingCalendarPageService
     public function __construct(private readonly InterviewBookingLinkService $bookingLinks) {}
 
     /**
-     * Everything the mentor booking calendar page renders: whether the mentor has saved a Mock Interview booking
-     * link and, if so, the link participants book through (the mock link, or the general booking link when no
-     * mock link is set). The single main action is Save Booking Link.
+     * Everything the mentor booking calendar page renders: whether the mentor has an active Mock Interview booking
+     * listing (their own `Mock` listing or a `Both` listing an Admin linked to their account) and, if so, the link
+     * participants book through (the mock link, or the general booking link when no mock link is set). The single main action is Save Booking Link.
      *
      * @return array{hasBooking: bool, bookingUrl: ?string}
      */
     public function indexData(User $mentor): array
     {
-        $booking = InterviewScheduler::query()
-            ->where('interview_type', InterviewType::Mock)
-            ->where('user_id', $mentor->id)
-            ->first();
+        $booking = $this->bookingLinks->forMentor($mentor);
 
         return [
             'hasBooking' => $booking !== null,

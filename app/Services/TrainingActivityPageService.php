@@ -57,11 +57,11 @@ class TrainingActivityPageService
         $submission = $attempts->last();
         $latestVersion = $submission?->versions->first();
         $labRoute = $activity->configuration['lab_route'] ?? null;
-        $labRecords = $labRoute
+        $requiresLabRecord = $user->hasAnyRole(UserRole::Participant) && $trainingWeek->week_number === 2 && $activity->position === 1 && $activity->title === 'Validation Checklist';
+        $labRecords = $labRoute || $requiresLabRecord
             ? ValidationSubmission::query()->where('user_id', $user->id)->whereIn('status', ValidationSubmissionStatus::recorded())->latest('submitted_at')->latest('id')->get()
             : collect();
-        $labPrerequisiteMet = ! ($user->hasAnyRole(UserRole::Participant) && $trainingWeek->week_number === 2 && $activity->position === 1 && $activity->title === 'Validation Checklist')
-            || $labRecords->isNotEmpty();
+        $labPrerequisiteMet = ! $requiresLabRecord || $labRecords->isNotEmpty();
 
         return [
             'activity' => $activity,

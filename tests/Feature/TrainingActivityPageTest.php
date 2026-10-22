@@ -102,20 +102,17 @@ class TrainingActivityPageTest extends TestCase
         $this->assertSame($linkCount, substr_count($html, 'href="'.route('training.submission.show', [$week, $activity, $version]).'"'));
     }
 
-    #[DataProvider('viewSubmissionLinks')]
-    public function test_locked_validation_checklist_main_action_links_to_the_latest_version_only_once_it_is_submitted(string $versionStatus, int $linkCount): void
+    public function test_validation_checklist_without_a_lab_route_is_unlocked_by_a_recorded_lab_record(): void
     {
         [$participant, $week] = $this->activityFixture();
         $activity = Activity::factory()->for($week, 'week')->create(['position' => 1, 'title' => 'Validation Checklist', 'configuration' => []]);
         ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'AI-TC-001', 'status' => ValidationSubmissionStatus::Submitted, 'submitted_at' => now()]);
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $versionStatus]);
-        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => $versionStatus]);
 
         $html = $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))->assertOk()->getContent();
 
         $this->assertSame(1, preg_match('/<div id="activity-main-action"[^>]*>(.*?)<\/div>/s', $html, $mainAction));
-        $this->assertStringContainsString('Start submission locked', $mainAction[1]);
-        $this->assertSame($linkCount, substr_count($mainAction[1], 'href="'.route('training.submission.show', [$week, $activity, $version]).'"'));
+        $this->assertStringNotContainsString('Start submission locked', $mainAction[1]);
+        $this->assertStringContainsString('href="'.route('training.submission.edit', [$week, $activity]).'"', $mainAction[1]);
     }
 
     /**

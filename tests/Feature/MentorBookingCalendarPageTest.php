@@ -62,6 +62,29 @@ class MentorBookingCalendarPageTest extends TestCase
             ->assertSee('href="https://booking.example.com/general"', false);
     }
 
+    public function test_mentor_sees_an_active_both_listing_linked_to_their_account(): void
+    {
+        $mentor = User::factory()->create(['role' => 'coach']);
+        InterviewScheduler::create(['interview_type' => InterviewType::Both, 'user_id' => $mentor->id, 'full_name' => $mentor->name, 'booking_url' => 'https://booking.example.com/general', 'mock_booking_url' => 'https://booking.example.com/both-mock', 'final_booking_url' => 'https://booking.example.com/both-final', 'is_active' => true]);
+
+        $this->actingAs($mentor)->get(route('coach.mentor-booking-calendar.index'))
+            ->assertOk()
+            ->assertSee('value="https://booking.example.com/both-mock"', false)
+            ->assertSee('Status: Booking Link Configured')
+            ->assertDontSee('booking.example.com/both-final');
+    }
+
+    public function test_mentor_with_only_an_inactive_listing_sees_an_empty_form(): void
+    {
+        $mentor = User::factory()->create(['role' => 'coach']);
+        $this->bookingFor($mentor, 'https://booking.example.com/general', 'https://booking.example.com/mock')->update(['is_active' => false]);
+
+        $this->actingAs($mentor)->get(route('coach.mentor-booking-calendar.index'))
+            ->assertOk()
+            ->assertSee('id="booking_url" name="booking_url" type="url" value=""', false)
+            ->assertDontSee('Status: Booking Link Configured');
+    }
+
     public function test_mentor_does_not_see_another_mentors_link_or_a_final_reassessment_link(): void
     {
         $mentor = User::factory()->create(['role' => 'coach']);

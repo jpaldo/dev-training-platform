@@ -11,6 +11,7 @@ use App\Services\AdminSettingsPageService;
 use App\Services\InterviewBookingLinkService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\View\View;
 
 class AdminInterviewSchedulingController extends Controller
@@ -22,7 +23,7 @@ class AdminInterviewSchedulingController extends Controller
 
     public function store(SaveInterviewSchedulerRequest $request): RedirectResponse
     {
-        $scheduler = InterviewScheduler::create($this->interviewerAttributes($request));
+        $scheduler = InterviewScheduler::create($this->interviewerAttributes($request) + ['is_active' => true, 'display_order' => 0]);
 
         return back()->with('status', ucfirst(str_replace('_', ' ', $scheduler->interview_type->value)).' interviewer added.');
     }
@@ -84,11 +85,25 @@ class AdminInterviewSchedulingController extends Controller
         return back()->with('status', 'Public interview page title saved.');
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * The validated interviewer attributes. `is_active` and `display_order` are included only when the form sends
+     * them, so an update keeps the stored values and a new interviewer gets the defaults from `store()`.
+     *
+     * @return array<string, mixed>
+     */
     private function interviewerAttributes(SaveInterviewSchedulerRequest $request): array
     {
-        $data = $request->validated();
+        $data = Arr::except($request->validated(), ['is_active', 'display_order']);
+        $attributes = $data + ['booking_url' => $data['mock_booking_url'] ?? $data['final_booking_url'] ?? $data['booking_url'] ?? null];
 
-        return $data + ['booking_url' => $data['mock_booking_url'] ?? $data['final_booking_url'] ?? $data['booking_url'] ?? null, 'is_active' => $request->boolean('is_active'), 'display_order' => $request->integer('display_order')];
+        if ($request->filled('is_active')) {
+            $attributes['is_active'] = $request->boolean('is_active');
+        }
+
+        if ($request->filled('display_order')) {
+            $attributes['display_order'] = $request->integer('display_order');
+        }
+
+        return $attributes;
     }
 }

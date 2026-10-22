@@ -22,6 +22,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Tests\TestCase;
 
 class CoachOperationsTest extends TestCase
@@ -284,6 +285,21 @@ class CoachOperationsTest extends TestCase
         ];
     }
 
+    public function test_review_is_not_kept_when_the_submission_status_update_fails(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create();
+        $coach->assignedParticipants()->attach($participant->id);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->create(['status' => 'under_review', 'submitted_at' => now()]);
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
+        ActivitySubmission::updating(fn (): never => throw new RuntimeException('Status update failed.'));
+
+        $this->actingAs($coach)->post(route('coach.reviews.store', $version), ['decision' => 'approved'])->assertServerError();
+
+        $this->assertDatabaseCount('submission_reviews', 0);
+        $this->assertSame(SubmissionStatus::UnderReview, $submission->fresh()->status);
+    }
+
     public function test_coach_claim_moves_eligible_submission_under_review_without_mutating_version(): void
     {
         $this->seedProgram();
@@ -428,6 +444,21 @@ class CoachOperationsTest extends TestCase
         $this->assertSame(2, $activity->submissions()->where('user_id', $participant->id)->count());
     }
 
+    public function test_coach_retry_on_a_failed_attempt_finds_a_later_attempt_that_was_resubmitted(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create();
+        $coach->assignedParticipants()->attach($participant->id);
+        $failed = ActivitySubmission::factory()->for($participant, 'participant')->create(['status' => 'failed', 'attempt_number' => 1]);
+        $version = SubmissionVersion::factory()->for($failed, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
+        ActivitySubmission::factory()->for($participant, 'participant')->create(['activity_id' => $failed->activity_id, 'status' => 'resubmitted', 'attempt_number' => 2]);
+
+        $this->actingAs($coach)->post(route('coach.reviews.retry', $version))
+            ->assertRedirect(route('coach.participants.show', $participant))
+            ->assertSessionHas('status', 'Retry attempt 2 already exists.');
+        $this->assertSame(2, ActivitySubmission::where('user_id', $participant->id)->count());
+    }
+
     public function test_participant_cannot_create_a_retry_through_the_coach_endpoint(): void
     {
         $this->seedProgram();
@@ -529,6 +560,29 @@ class CoachOperationsTest extends TestCase
             ->assertSessionHasNoErrors()
             ->assertSessionHas('status', 'Review requested. Waiting for coach response.');
         $this->assertDatabaseCount('activity_recovery_requests', 1);
+    }
+
+    #[DataProvider('decidedRecoveryRequestStatuses')]
+    public function test_participant_cannot_request_recovery_again_once_the_request_was_decided(string $status): void
+    {
+        $participant = User::factory()->create();
+        $failed = ActivitySubmission::factory()->create(['user_id' => $participant->id, 'status' => 'failed']);
+        ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'status' => $status, 'requested_at' => now()]);
+
+        $this->actingAs($participant)->post(route('training.recovery.store', $failed), ['message' => 'Please look again.'])->assertStatus(422);
+
+        $this->assertDatabaseCount('activity_recovery_requests', 1);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function decidedRecoveryRequestStatuses(): array
+    {
+        return [
+            'approved' => ['approved'],
+            'declined' => ['declined'],
+        ];
     }
 
     public function test_coach_cannot_decide_recovery_request_that_is_no_longer_pending_even_with_invalid_input(): void

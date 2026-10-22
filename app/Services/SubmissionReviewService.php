@@ -29,13 +29,18 @@ class SubmissionReviewService
     }
 
     /**
-     * Record a coach decision on a submission version, update the submission status and queue its export and sync.
+     * Record a coach decision on a submission version and update the submission status in one transaction, then queue
+     * its export and sync once both writes are committed.
      */
     public function record(SubmissionVersion $submissionVersion, User $reviewer, ReviewDecision $decision, ?string $comments): SubmissionReview
     {
-        $review = SubmissionReview::create(['submission_version_id' => $submissionVersion->id, 'reviewer_id' => $reviewer->id, 'decision' => $decision, 'comments' => $comments, 'reviewed_at' => now()]);
-        $status = $review->decision->submissionStatus();
-        $submissionVersion->submission->update(['status' => $status, 'completed_at' => $status === SubmissionStatus::Approved ? now() : null]);
+        $review = DB::transaction(function () use ($submissionVersion, $reviewer, $decision, $comments): SubmissionReview {
+            $review = SubmissionReview::create(['submission_version_id' => $submissionVersion->id, 'reviewer_id' => $reviewer->id, 'decision' => $decision, 'comments' => $comments, 'reviewed_at' => now()]);
+            $status = $review->decision->submissionStatus();
+            $submissionVersion->submission->update(['status' => $status, 'completed_at' => $status === SubmissionStatus::Approved ? now() : null]);
+
+            return $review;
+        });
         ExportActivityJob::dispatch($submissionVersion->id);
         $this->syncs->request($submissionVersion->submission->participant, 'review_updated');
 
@@ -47,7 +52,7 @@ class SubmissionReviewService
      */
     public function existingRetry(ActivitySubmission $submission): ?ActivitySubmission
     {
-        return ActivitySubmission::query()->where('activity_id', $submission->activity_id)->where('user_id', $submission->user_id)->where('attempt_number', '>', $submission->attempt_number)->whereIn('status', [SubmissionStatus::Draft, SubmissionStatus::Submitted, SubmissionStatus::UnderReview, SubmissionStatus::NeedsRevision, ...SubmissionStatus::accepted()])->first();
+        return ActivitySubmission::query()->where('activity_id', $submission->activity_id)->where('user_id', $submission->user_id)->where('attempt_number', '>', $submission->attempt_number)->whereIn('status', [SubmissionStatus::Draft, SubmissionStatus::NeedsRevision, ...SubmissionStatus::awaitingReview(), ...SubmissionStatus::accepted()])->first();
     }
 
     /**

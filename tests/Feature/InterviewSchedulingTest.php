@@ -155,6 +155,28 @@ class InterviewSchedulingTest extends TestCase
         $this->assertSame(1, InterviewScheduler::query()->where('full_name', 'External Mentor')->count());
     }
 
+    public function test_admin_added_interviewer_without_status_or_order_is_active_and_first(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)->post(route('admin.settings.interview-scheduling.store'), ['interview_type' => 'mock', 'full_name' => 'New Mentor', 'mock_booking_url' => 'https://calendar.app.google/new'])->assertRedirect();
+
+        $this->assertDatabaseHas('interview_schedulers', ['full_name' => 'New Mentor', 'is_active' => true, 'display_order' => 0]);
+    }
+
+    public function test_saving_an_interviewer_without_status_or_order_keeps_them(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $interviewer = InterviewScheduler::create(['interview_type' => 'mock', 'full_name' => 'Active Mentor', 'booking_url' => 'https://calendar.app.google/active', 'mock_booking_url' => 'https://calendar.app.google/active', 'is_active' => true, 'display_order' => 5]);
+
+        $this->actingAs($admin)->patch(route('admin.settings.interview-scheduling.update', $interviewer), ['interview_type' => 'mock', 'full_name' => 'Renamed Mentor', 'mock_booking_url' => 'https://calendar.app.google/active'])->assertRedirect();
+
+        $interviewer->refresh();
+        $this->assertSame('Renamed Mentor', $interviewer->full_name);
+        $this->assertTrue($interviewer->is_active);
+        $this->assertSame(5, $interviewer->display_order);
+    }
+
     public function test_mentor_booking_link_is_one_mock_listing_that_can_be_replaced_and_removed(): void
     {
         $mentor = User::factory()->create(['role' => 'coach']);
@@ -182,6 +204,28 @@ class InterviewSchedulingTest extends TestCase
         InterviewScheduler::create(['interview_type' => 'mock', 'user_id' => $mentor->id, 'full_name' => $mentor->name, 'email' => $mentor->email, 'booking_url' => 'https://calendar.app.google/mock', 'is_active' => true]);
 
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('Schedule Mock Interview')->assertSee('https://calendar.app.google/mock')->assertDontSee('dashboard-mentor-slot')->assertDontSee('participant.mentor-interview.book');
+    }
+
+    public function test_assigned_participant_sees_an_active_both_listing_linked_to_their_mentor(): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $participant = User::factory()->create(['role' => 'participant']);
+        $mentor = User::factory()->create(['role' => 'coach']);
+        $participant->assignedCoaches()->attach($mentor->id);
+        InterviewScheduler::create(['interview_type' => 'both', 'user_id' => $mentor->id, 'full_name' => $mentor->name, 'booking_url' => 'https://calendar.app.google/mock-both', 'mock_booking_url' => 'https://calendar.app.google/mock-both', 'final_booking_url' => 'https://calendar.app.google/final-both', 'is_active' => true]);
+
+        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('Schedule Mock Interview')->assertSee('https://calendar.app.google/mock-both');
+    }
+
+    public function test_assigned_participant_does_not_see_an_inactive_mentor_listing(): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $participant = User::factory()->create(['role' => 'participant']);
+        $mentor = User::factory()->create(['role' => 'coach']);
+        $participant->assignedCoaches()->attach($mentor->id);
+        InterviewScheduler::create(['interview_type' => 'both', 'user_id' => $mentor->id, 'full_name' => $mentor->name, 'booking_url' => 'https://calendar.app.google/mock-inactive', 'mock_booking_url' => 'https://calendar.app.google/mock-inactive', 'final_booking_url' => 'https://calendar.app.google/final-inactive', 'is_active' => false]);
+
+        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertDontSee('https://calendar.app.google/mock-inactive');
     }
 
     public function test_public_registration_is_pending_until_admin_approval_and_both_appears_in_both_tabs(): void

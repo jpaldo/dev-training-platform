@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserRole;
 use App\Http\Requests\StoreRegisteredUserRequest;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -17,7 +18,7 @@ class RegisteredUserController extends Controller
 
     public function store(StoreRegisteredUserRequest $request): RedirectResponse
     {
-        $user = User::create($request->validated());
+        $user = User::create([...$request->validated(), 'role' => UserRole::Participant]);
 
         Auth::login($user);
         $request->session()->regenerate();

@@ -15,9 +15,13 @@ class InterviewBookingLinkService
 
     public const TITLE_KEY = 'interview_scheduling.public_page_title';
 
+    /**
+     * The mentor's active Mock Interview booking listing: the newest active `Mock` or `Both` listing linked to their
+     * account.
+     */
     public function forMentor(User $mentor): ?InterviewScheduler
     {
-        return InterviewScheduler::query()->whereIn('interview_type', InterviewType::offering(InterviewType::Mock))->where('user_id', $mentor->id)->latest('id')->first();
+        return InterviewScheduler::query()->whereIn('interview_type', InterviewType::offering(InterviewType::Mock))->where('user_id', $mentor->id)->where('is_active', true)->latest('id')->first();
     }
 
     public function bookingUrl(InterviewScheduler $interviewer, InterviewType $type): ?string

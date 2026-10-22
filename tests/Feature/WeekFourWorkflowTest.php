@@ -297,6 +297,21 @@ class WeekFourWorkflowTest extends TestCase
         $this->assertSame(InterviewPairStatus::Closed, $pair->fresh()->status);
     }
 
+    public function test_unpairing_a_partner_with_a_resubmitted_activity_two_closes_the_pair(): void
+    {
+        [, $week4] = $this->fixture();
+        $coach = User::factory()->create(['role' => 'coach']);
+        $a = User::factory()->create(['role' => 'participant']);
+        $b = User::factory()->create(['role' => 'participant']);
+        $coach->assignedParticipants()->attach([$a->id, $b->id]);
+        $pair = WeekFourInterviewPair::create(['participant_one_id' => min($a->id, $b->id), 'participant_two_id' => max($a->id, $b->id), 'assigned_by_id' => $coach->id, 'status' => 'active']);
+        ActivitySubmission::factory()->for($a, 'participant')->for($week4->activities()->where('position', 2)->firstOrFail())->create(['status' => 'resubmitted']);
+
+        $this->actingAs($coach)->post(route('coach.week-four.pairs.unpair', $pair))->assertRedirect();
+
+        $this->assertSame(InterviewPairStatus::Closed, $pair->fresh()->status);
+    }
+
     public function test_coach_cannot_unpair_participants_they_do_not_manage(): void
     {
         $coach = User::factory()->create(['role' => 'coach']);
@@ -319,6 +334,22 @@ class WeekFourWorkflowTest extends TestCase
         $this->assertDatabaseHas('week_four_peer_interview_waivers', ['participant_id' => $participant->id, 'authorized_by_id' => $admin->id, 'reason' => 'No suitable partner']);
         $this->actingAs($admin)->post(route('coach.week-four.peer-waiver.revoke', $participant))->assertRedirect();
         $this->assertNotNull(WeekFourPeerInterviewWaiver::query()->where('participant_id', $participant->id)->firstOrFail()->revoked_at);
+    }
+
+    public function test_peer_waiver_cannot_be_revoked_once_activity_two_was_resubmitted(): void
+    {
+        [, $week4] = $this->fixture();
+        $admin = User::factory()->create(['role' => 'admin']);
+        $participant = User::factory()->create(['role' => 'participant']);
+        $activity = $week4->activities()->where('position', 2)->firstOrFail();
+        $this->actingAs($admin)->post(route('coach.week-four.peer-waiver.store', $participant), ['reason' => 'No suitable partner'])->assertRedirect();
+        ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'resubmitted']);
+
+        $this->actingAs($admin)->post(route('coach.week-four.peer-waiver.revoke', $participant))
+            ->assertRedirect()
+            ->assertSessionHasErrors(['waiver' => 'This waiver cannot be reversed after the participant has relied on it.']);
+
+        $this->assertNull(WeekFourPeerInterviewWaiver::query()->where('participant_id', $participant->id)->sole()->revoked_at);
     }
 
     public function test_peer_waiver_for_non_participant_is_not_found_even_with_invalid_reason(): void

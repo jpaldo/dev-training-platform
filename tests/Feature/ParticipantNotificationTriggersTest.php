@@ -31,6 +31,21 @@ class ParticipantNotificationTriggersTest extends TestCase
         $this->assertQueuedOneSyncFor($participant);
     }
 
+    public function test_self_registration_queues_the_new_participants_first_sync(): void
+    {
+        Queue::fake();
+
+        $this->post(route('register.store'), [
+            'name' => 'Registered Participant',
+            'email' => 'registered@example.test',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'training_path' => 'manual',
+        ])->assertRedirect(route('profile.show'));
+
+        $this->assertQueuedOneSyncFor(User::where('email', 'registered@example.test')->sole());
+    }
+
     public function test_promoting_a_user_to_participant_queues_a_sync(): void
     {
         $user = User::factory()->create(['role' => 'coach']);

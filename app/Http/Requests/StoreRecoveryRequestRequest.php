@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\RecoveryRequestStatus;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivitySubmission;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -10,16 +9,26 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class StoreRecoveryRequestRequest extends FormRequest
 {
-    private ?bool $hasPendingRecoveryRequest = null;
+    private ?ActivityRecoveryRequest $existingRecoveryRequest = null;
+
+    private bool $hasLookedUpRecoveryRequest = false;
 
     /**
      * Determine if the user is authorized to make this request.
+     *
+     * A failed attempt takes one recovery request: once a coach has decided it, another request answers 422.
      */
     public function authorize(): bool
     {
         $submission = $this->route('activitySubmission');
 
-        return $submission instanceof ActivitySubmission && $submission->user_id === $this->user()?->id && $submission->isFailed();
+        if (! ($submission instanceof ActivitySubmission && $submission->user_id === $this->user()?->id && $submission->isFailed())) {
+            return false;
+        }
+
+        abort_if($this->existingRecoveryRequest() !== null && ! $this->hasPendingRecoveryRequest(), 422);
+
+        return true;
     }
 
     /**
@@ -46,6 +55,19 @@ class StoreRecoveryRequestRequest extends FormRequest
      */
     public function hasPendingRecoveryRequest(): bool
     {
-        return $this->hasPendingRecoveryRequest ??= ActivityRecoveryRequest::where('activity_submission_id', $this->route('activitySubmission')->id)->where('status', RecoveryRequestStatus::Pending)->exists();
+        return $this->existingRecoveryRequest()?->isPending() === true;
+    }
+
+    /**
+     * The recovery request already made for the failed attempt, if any.
+     */
+    private function existingRecoveryRequest(): ?ActivityRecoveryRequest
+    {
+        if (! $this->hasLookedUpRecoveryRequest) {
+            $this->existingRecoveryRequest = ActivityRecoveryRequest::query()->where('activity_submission_id', $this->route('activitySubmission')->id)->latest('id')->first();
+            $this->hasLookedUpRecoveryRequest = true;
+        }
+
+        return $this->existingRecoveryRequest;
     }
 }

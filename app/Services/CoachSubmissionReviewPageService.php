@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ReviewDecision;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
@@ -11,9 +12,6 @@ use Illuminate\Support\Collection;
 
 class CoachSubmissionReviewPageService
 {
-    /** @var array<string, string> The coach's review decisions with the label shown for each. */
-    private const DECISION_LABELS = ['approved' => 'Passed', 'needs_revision' => 'Revise', 'rejected' => 'Failed'];
-
     private const CLAIMABLE_SUBMISSION_STATUSES = ['submitted', 'resubmitted'];
 
     public function __construct(
@@ -27,7 +25,7 @@ class CoachSubmissionReviewPageService
      * (Week 2 Validation Checklist only), the Week 3 / Week 4 snapshots, the submitted fields and evidence, the latest
      * review and which review actions the viewer may take. The single main action is Save Review.
      *
-     * @return array{submissionVersion: SubmissionVersion, activityTitle: string, participantName: string, versionStatusLabel: string, isActivityOne: bool, linkedValidationSubmission: ?ValidationSubmission, weekThreeReview: ?array<string, mixed>, weekFourReview: ?array<string, mixed>, officialQuestions: array<int, array<string, mixed>>, canManage: bool, canClaim: bool, canRetry: bool, submittedFields: list<array{label: string, text: mixed}>, evidenceItems: list<array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, currentReview: ?array{decision_label: string, reviewer_name: string, reviewed_at: string, comments: ?string}, decisionOptions: array<string, string>}
+     * @return array{submissionVersion: SubmissionVersion, activityTitle: string, participantName: string, versionStatusLabel: string, isActivityOne: bool, linkedValidationSubmission: ?ValidationSubmission, weekThreeReview: ?array<string, mixed>, weekFourReview: ?array<string, mixed>, officialQuestions: array<int, array<string, mixed>>, canManage: bool, canClaim: bool, canRetry: bool, submittedFields: list<array{label: string, text: mixed}>, evidenceItems: list<array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, currentReview: ?array{decision_label: string, reviewer_name: string, reviewed_at: string, comments: ?string}, decisionOptions: list<array{value: string, label: string}>}
      */
     public function showData(SubmissionVersion $submissionVersion, User $viewer): array
     {
@@ -57,7 +55,10 @@ class CoachSubmissionReviewPageService
             'submittedFields' => $this->submittedFields($submissionVersion),
             'evidenceItems' => $this->evidenceItems($submissionVersion->evidence),
             'currentReview' => $this->currentReview($submissionVersion->reviews),
-            'decisionOptions' => self::DECISION_LABELS,
+            'decisionOptions' => array_map(fn (ReviewDecision $decision): array => [
+                'value' => $decision->value,
+                'label' => $this->decisionLabel($decision),
+            ], ReviewDecision::cases()),
         ];
     }
 
@@ -109,10 +110,22 @@ class CoachSubmissionReviewPageService
         }
 
         return [
-            'decision_label' => self::DECISION_LABELS[$review->decision] ?? ucfirst(str_replace('_', ' ', $review->decision)),
+            'decision_label' => $this->decisionLabel($review->decision),
             'reviewer_name' => $review->reviewer?->name ?: 'Coach',
             'reviewed_at' => $review->reviewed_at?->format('F j, Y H:i') ?: 'Date not available',
             'comments' => $review->comments,
         ];
+    }
+
+    /**
+     * The text the review page shows for a decision, in the review form and on the current review.
+     */
+    private function decisionLabel(ReviewDecision $decision): string
+    {
+        return match ($decision) {
+            ReviewDecision::Approved => 'Passed',
+            ReviewDecision::NeedsRevision => 'Revise',
+            ReviewDecision::Rejected => 'Failed',
+        };
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ReviewDecision;
 use App\Jobs\ExportActivityJob;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionReview;
@@ -11,9 +12,6 @@ use Illuminate\Support\Facades\DB;
 
 class SubmissionReviewService
 {
-    /** @var array<string, string> Submission status that each review decision leads to. */
-    private const STATUS_BY_DECISION = ['approved' => 'approved', 'needs_revision' => 'needs_revision', 'rejected' => 'failed'];
-
     public function __construct(private readonly TrainingSyncCoordinator $syncs) {}
 
     /**
@@ -32,10 +30,10 @@ class SubmissionReviewService
     /**
      * Record a coach decision on a submission version, update the submission status and queue its export and sync.
      */
-    public function record(SubmissionVersion $submissionVersion, User $reviewer, string $decision, ?string $comments): SubmissionReview
+    public function record(SubmissionVersion $submissionVersion, User $reviewer, ReviewDecision $decision, ?string $comments): SubmissionReview
     {
         $review = SubmissionReview::create(['submission_version_id' => $submissionVersion->id, 'reviewer_id' => $reviewer->id, 'decision' => $decision, 'comments' => $comments, 'reviewed_at' => now()]);
-        $status = self::STATUS_BY_DECISION[$review->decision];
+        $status = $review->decision->submissionStatus();
         $submissionVersion->submission->update(['status' => $status, 'completed_at' => $status === 'approved' ? now() : null]);
         ExportActivityJob::dispatch($submissionVersion->id);
         $this->syncs->request($submissionVersion->submission->participant, 'review_updated');

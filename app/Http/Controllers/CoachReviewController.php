@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ReviewDecision;
 use App\Http\Requests\FilterReviewQueueRequest;
 use App\Http\Requests\StoreSubmissionReviewRequest;
 use App\Models\SubmissionVersion;
@@ -38,7 +39,7 @@ class CoachReviewController extends Controller
     public function store(StoreSubmissionReviewRequest $request, SubmissionVersion $submissionVersion, SubmissionReviewService $reviews): RedirectResponse
     {
         Gate::authorize('update', $submissionVersion);
-        $reviews->record($submissionVersion, $request->user(), $request->validated('decision'), $request->validated('comments'));
+        $reviews->record($submissionVersion, $request->user(), $request->enum('decision', ReviewDecision::class), $request->validated('comments'));
 
         return back()->with('status', 'Review saved.');
     }

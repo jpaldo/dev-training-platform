@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\ReviewDecision;
 use App\Support\FieldLimits;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreSubmissionReviewRequest extends FormRequest
 {
@@ -25,6 +27,9 @@ class StoreSubmissionReviewRequest extends FormRequest
      */
     public function rules(): array
     {
-        return ['decision' => ['required', 'in:approved,needs_revision,rejected'], 'comments' => ['nullable', 'string', 'max:'.FieldLimits::REVIEW_COMMENTS]];
+        return [
+            'decision' => ['required', Rule::enum(ReviewDecision::class)],
+            'comments' => ['nullable', 'string', 'max:'.FieldLimits::REVIEW_COMMENTS],
+        ];
     }
 }

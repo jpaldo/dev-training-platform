@@ -59,7 +59,7 @@ class TrainingExportService
                 'Submitted At' => $version->submitted_at,
                 'Reviewed At' => $review?->reviewed_at,
                 'Reviewer' => $review?->reviewer?->name,
-                'Review Decision' => $review?->decision,
+                'Review Decision' => $review?->decision->value,
                 'Coach Feedback' => $review?->comments,
                 'Activity Score' => $score?->total_score,
                 'D1' => $dims->get('D1')?->points,

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ReviewDecision;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityScore;
@@ -58,7 +59,7 @@ class ActivitySubmissionPageService
         $isPeerInterview = $trainingWeek->week_number === 4 && $activity->position === 2;
         $showInteractions = collect($fields)->keys()->intersect(['prompt', 'exact_prompt', 'ai_output', 'exact_ai_output'])->isNotEmpty();
         /** @var ?SubmissionReview $coachFeedback */
-        $coachFeedback = $submission?->versions->flatMap->reviews->sortByDesc('reviewed_at')->firstWhere('decision', 'needs_revision');
+        $coachFeedback = $submission?->versions->flatMap->reviews->sortByDesc('reviewed_at')->firstWhere('decision', ReviewDecision::NeedsRevision);
         $weekFourInterview = $this->weekFourSubmission->interviewData($participant, $trainingWeek, $activity, $version);
 
         return [
@@ -120,8 +121,8 @@ class ActivitySubmissionPageService
             'labRecord' => $version->validationSubmission?->user_id === $participant->id ? $version->validationSubmission : null,
             'evidenceItems' => $this->evidenceItems($version->evidence),
             'reviewRows' => $version->reviews->map(fn (SubmissionReview $review): array => [
-                'decision_label' => $this->statusLabel($review->decision),
-                'tone' => $this->statusTone($review->decision),
+                'decision_label' => $this->statusLabel($review->decision->value),
+                'tone' => $this->statusTone($review->decision->value),
                 'comments' => $review->comments,
             ])->values()->all(),
             'finalScore' => $finalScore,

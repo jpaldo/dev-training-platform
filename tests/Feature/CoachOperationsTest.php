@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\RecoveryRequestStatus;
+use App\Enums\ReviewDecision;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
@@ -10,6 +11,7 @@ use App\Models\DailyLog;
 use App\Models\GateEvaluation;
 use App\Models\GoogleDriveConnection;
 use App\Models\Program;
+use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
@@ -18,6 +20,7 @@ use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class CoachOperationsTest extends TestCase
@@ -245,6 +248,41 @@ class CoachOperationsTest extends TestCase
             ->assertSee('Please clarify the evidence.');
     }
 
+    #[DataProvider('reviewDecisions')]
+    public function test_each_review_decision_moves_the_submission_to_its_status_and_shows_its_label(string $decision, ReviewDecision $storedDecision, string $submissionStatus, bool $isCompleted, string $label): void
+    {
+        $this->seedProgram();
+        $coach = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create();
+        $coach->assignedParticipants()->attach($participant->id);
+        $activity = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first()->activities()->first();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'under_review', 'submitted_at' => now()]);
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
+
+        $this->actingAs($coach)->post(route('coach.reviews.store', $version), ['decision' => $decision])->assertRedirect();
+
+        $this->assertSame($storedDecision, $version->reviews()->sole()->decision);
+        $submission->refresh();
+        $this->assertSame($submissionStatus, $submission->status);
+        $this->assertSame($isCompleted, $submission->completed_at !== null);
+        $this->actingAs($coach)->get(route('coach.reviews.show', $version))->assertOk()->assertSee("Decision: {$label} · Reviewed by");
+    }
+
+    /**
+     * Each decision a coach can post, its stored case, the submission status it leads to, whether it completes the
+     * submission and its label on the review page.
+     *
+     * @return array<string, array{string, ReviewDecision, string, bool, string}>
+     */
+    public static function reviewDecisions(): array
+    {
+        return [
+            'approved' => ['approved', ReviewDecision::Approved, 'approved', true, 'Passed'],
+            'needs revision' => ['needs_revision', ReviewDecision::NeedsRevision, 'needs_revision', false, 'Revise'],
+            'rejected' => ['rejected', ReviewDecision::Rejected, 'failed', false, 'Failed'],
+        ];
+    }
+
     public function test_coach_claim_moves_eligible_submission_under_review_without_mutating_version(): void
     {
         $this->seedProgram();
@@ -267,6 +305,22 @@ class CoachOperationsTest extends TestCase
         foreach (['reviews', 'gates', 'risk'] as $type) {
             $this->actingAs($coach)->get(route('coach.reports.export', ['type' => $type]))->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
         }
+    }
+
+    public function test_review_queue_export_prints_the_decision_of_the_latest_review(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $submission = ActivitySubmission::factory()->create(['status' => 'needs_revision', 'submitted_at' => now()]);
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
+        SubmissionReview::factory()->for($version, 'submissionVersion')->create(['decision' => ReviewDecision::Approved, 'reviewed_at' => now()->subDay()]);
+        SubmissionReview::factory()->for($version, 'submissionVersion')->create(['decision' => ReviewDecision::NeedsRevision, 'reviewed_at' => now()]);
+
+        $csv = $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'reviews']))->assertOk()->streamedContent();
+
+        $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
+        $this->assertCount(2, $rows);
+        $this->assertSame('Decision', $rows[0][7]);
+        $this->assertSame('needs_revision', $rows[1][7]);
     }
 
     public function test_gate_export_applies_participant_week_status_and_path_filters(): void

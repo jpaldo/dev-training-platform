@@ -4,15 +4,19 @@ namespace Tests\Feature;
 
 use App\Enums\ParticipantNotificationPriority;
 use App\Enums\ParticipantNotificationType;
+use App\Enums\ReviewDecision;
 use App\Jobs\GenerateParticipantNotificationsJob;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
 use App\Models\ParticipantNotification;
 use App\Models\Program;
+use App\Models\SubmissionReview;
+use App\Models\SubmissionVersion;
 use App\Models\User;
 use App\Services\ParticipantNotificationService;
 use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ParticipantNotificationsTest extends TestCase
@@ -78,6 +82,39 @@ class ParticipantNotificationsTest extends TestCase
         $this->assertSame(ParticipantNotificationType::AwaitingReview, $review->type);
         $this->assertSame(ParticipantNotificationPriority::Normal, $review->priority);
         $this->assertNotNull($review->resolved_at);
+    }
+
+    #[DataProvider('latestReviewDecisions')]
+    public function test_latest_review_decision_sets_the_revision_reminder_and_the_approved_event(ReviewDecision $decision, bool $isRevisionRequired, bool $isApprovedEvent): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
+        $week = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
+        $activity = $week->activities()->where('position', 1)->firstOrFail();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'under_review']);
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
+        $review = SubmissionReview::factory()->for($version, 'submissionVersion')->create(['decision' => $decision]);
+
+        app(ParticipantNotificationService::class)->sync($participant);
+
+        $revision = $participant->participantNotifications()->where('key', "week:{$week->id}:activity:{$activity->id}:revision")->firstOrFail();
+        $this->assertSame($isRevisionRequired, $revision->resolved_at === null);
+        $this->assertSame($isApprovedEvent, $participant->participantNotifications()->where('key', "event:review:{$review->id}")->where('type', ParticipantNotificationType::ActivityApproved)->exists());
+    }
+
+    /**
+     * Each decision a coach can review with, whether it keeps the revision reminder active and whether it raises the
+     * "Activity approved" event.
+     *
+     * @return array<string, array{ReviewDecision, bool, bool}>
+     */
+    public static function latestReviewDecisions(): array
+    {
+        return [
+            'approved' => [ReviewDecision::Approved, false, true],
+            'needs revision' => [ReviewDecision::NeedsRevision, true, false],
+            'rejected' => [ReviewDecision::Rejected, false, false],
+        ];
     }
 
     public function test_dashboard_next_action_skips_notifications_awaiting_review(): void

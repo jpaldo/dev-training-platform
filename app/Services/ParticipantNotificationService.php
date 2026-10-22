@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\GateEvaluationStatus;
 use App\Enums\ParticipantNotificationPriority;
 use App\Enums\ParticipantNotificationType;
+use App\Enums\ReviewDecision;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\ParticipantNotification;
@@ -54,11 +55,11 @@ class ParticipantNotificationService
                 $this->state($participant, "week:{$week->id}:activity:{$activity->id}:draft", ParticipantNotificationType::ActivityDraft, 'Continue your activity', "You have an unfinished draft for {$activity->title}.", route('training.submission.edit', [$week, $activity]), $status === 'draft');
                 $version = $submission?->versions->first();
                 $latestReview = $version?->reviews()->latest('reviewed_at')->first();
-                $needsRevision = $status === 'needs_revision' || $latestReview?->decision === 'needs_revision';
+                $needsRevision = $status === 'needs_revision' || $latestReview?->decision === ReviewDecision::NeedsRevision;
                 $this->state($participant, "week:{$week->id}:activity:{$activity->id}:revision", ParticipantNotificationType::NeedsRevision, 'Revision required', "Your submission for {$activity->title} needs revision. Coach feedback is available.", route('training.submission.edit', [$week, $activity]), $needsRevision, ParticipantNotificationPriority::High);
                 $awaiting = $submission && in_array($status, ['submitted', 'resubmitted', 'under_review'], true);
                 $this->state($participant, "week:{$week->id}:activity:{$activity->id}:review", ParticipantNotificationType::AwaitingReview, 'Awaiting coach review', "Your {$activity->title} submission has been submitted and is awaiting review.", route('training.submission.edit', [$week, $activity]), (bool) $awaiting);
-                if ($latestReview && in_array($latestReview->decision, ['approved', 'passed'], true)) {
+                if ($latestReview?->decision === ReviewDecision::Approved) {
                     $this->event($participant, "event:review:{$latestReview->id}", ParticipantNotificationType::ActivityApproved, 'Activity approved', "Your {$activity->title} submission has been approved.", route('training.submission.edit', [$week, $activity]));
                 }
                 $missingEvidence = $this->missingEvidence($activity, $submission);

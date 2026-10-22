@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\GateEvaluationStatus;
 use App\Enums\GoogleDriveExportStatus;
+use App\Enums\ReviewDecision;
 use App\Jobs\ExportActivityJob;
 use App\Jobs\ExportDailyLogsJob;
 use App\Jobs\ExportSummaryReportsJob;
@@ -18,6 +19,7 @@ use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveExport;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
+use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
@@ -66,6 +68,19 @@ class GoogleDriveExportTest extends TestCase
         $csv = app(TrainingExportService::class)->gateProgress($participant);
 
         $this->assertSame("Participant,Week,Gate,Status\nGina,2,Gate2,passed\nGina,3,Gate3,needs_revision\nGina,4,Gate4,\"not evaluated\"\n", $csv);
+    }
+
+    public function test_activity_report_csv_prints_the_reviewer_and_decision_of_the_latest_review(): void
+    {
+        $participant = User::factory()->create();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->create(['status' => 'failed', 'submitted_at' => now()]);
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
+        SubmissionReview::factory()->for($version, 'submissionVersion')->create(['decision' => ReviewDecision::NeedsRevision, 'reviewed_at' => now()->subDay()]);
+        SubmissionReview::factory()->for($version, 'submissionVersion')->for(User::factory()->create(['role' => 'coach', 'name' => 'Rae Reviewer']), 'reviewer')->create(['decision' => ReviewDecision::Rejected, 'reviewed_at' => now()]);
+
+        $csv = app(TrainingExportService::class)->activity($participant, $submission->activity_id);
+
+        $this->assertStringContainsString("Metadata,Reviewer,\"Rae Reviewer\"\nMetadata,\"Review Decision\",rejected\n", $csv);
     }
 
     public function test_manual_daily_log_export_requires_owned_connection(): void

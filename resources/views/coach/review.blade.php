@@ -203,8 +203,8 @@
                             <label for="decision" class="{{ $labelClasses }}">Decision</label>
                             <select id="decision" name="decision" aria-describedby="decision-help" required class="{{ $controlClasses }} min-h-12">
                                 <option value="">Select a decision...</option>
-                                @foreach($decisionOptions as $value => $label)
-                                    <option value="{{ $value }}" @selected(old('decision') === $value)>{{ $label }}</option>
+                                @foreach($decisionOptions as $option)
+                                    <option value="{{ $option['value'] }}" @selected(old('decision') === $option['value'])>{{ $option['label'] }}</option>
                                 @endforeach
                             </select>
                             @error('decision')

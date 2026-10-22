@@ -175,7 +175,7 @@ class CoachReportService
             'reviews' => [
                 'filename' => 'review-queue.csv',
                 'header' => ['Participant', 'Path', 'Week', 'Activity', 'Status', 'Version', 'Submitted', 'Decision', 'Reviewed'],
-                'rows' => $this->reviewRows($filters)->map(fn (array $r): array => [$r['submission']->participant->name, $r['submission']->participant->trainingPathLabel(), $r['submission']->activity->week->week_number, $r['submission']->activity->title, $r['submission']->status, $r['version']?->version_number, $r['submission']->submitted_at, $r['review']?->decision, $r['review']?->reviewed_at]),
+                'rows' => $this->reviewRows($filters)->map(fn (array $r): array => [$r['submission']->participant->name, $r['submission']->participant->trainingPathLabel(), $r['submission']->activity->week->week_number, $r['submission']->activity->title, $r['submission']->status, $r['version']?->version_number, $r['submission']->submitted_at, $r['review']?->decision->value, $r['review']?->reviewed_at]),
             ],
             'gates' => [
                 'filename' => 'gate-results.csv',

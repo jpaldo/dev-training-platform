@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ReviewDecision;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\User;
@@ -22,7 +23,7 @@ class SubmissionReviewFactory extends Factory
         return [
             'submission_version_id' => SubmissionVersion::factory(),
             'reviewer_id' => User::factory(),
-            'decision' => 'approved',
+            'decision' => ReviewDecision::Approved,
             'comments' => fake()->paragraph(),
             'reviewed_at' => now(),
         ];

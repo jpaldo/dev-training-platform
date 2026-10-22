@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ReviewDecision;
 use App\Observers\ParticipantProgressObserver;
 use Database\Factories\SubmissionReviewFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -17,9 +18,14 @@ class SubmissionReview extends Model
 
     protected $fillable = ['submission_version_id', 'reviewer_id', 'decision', 'comments', 'reviewed_at'];
 
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
-        return ['reviewed_at' => 'datetime'];
+        return ['decision' => ReviewDecision::class, 'reviewed_at' => 'datetime'];
     }
 
     public function submissionVersion(): BelongsTo

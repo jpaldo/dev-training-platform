@@ -45,6 +45,8 @@ class ProfilePageTest extends TestCase
                 'id="profile-main-action"',
                 'form="profile-form"',
                 'Save profile',
+                'action="'.route('logout').'" class="m-0"',
+                'Sign out',
                 '>Your profile</h2>',
                 'Role: Participant',
                 'id="profile-form" method="post" action="'.route('profile.update').'"',
@@ -56,8 +58,6 @@ class ProfilePageTest extends TestCase
                 '<option value="automation" selected>Automation</option>',
                 '<option value="automation_manual" >Automation / Manual</option>',
                 '</form>',
-                'action="'.route('logout').'" class="m-0"',
-                'Sign out',
                 '>Google Drive Settings</h2>',
                 'Not connected',
                 'Connect Google Drive</h3>',
@@ -71,6 +71,7 @@ class ProfilePageTest extends TestCase
             ->assertDontSee('legacy-folder');
 
         $this->assertSame(1, substr_count($response->getContent(), 'Save profile'));
+        $this->assertSame(1, substr_count($response->getContent(), 'Sign out'));
     }
 
     public function test_coach_sees_the_profile_form_without_training_path_or_google_drive_card(): void
@@ -79,7 +80,7 @@ class ProfilePageTest extends TestCase
 
         $this->actingAs($coach)->get(route('profile.show'))
             ->assertOk()
-            ->assertSeeInOrder(['Save profile', '>Your profile</h2>', 'Role: Coach', 'value="Casey Coach"', 'Sign out'], false)
+            ->assertSeeInOrder(['Save profile', 'Sign out', '>Your profile</h2>', 'Role: Coach', 'value="Casey Coach"'], false)
             ->assertDontSee('name="training_path"', false)
             ->assertDontSee('Google Drive Settings')
             ->assertDontSee('name="drive_link"', false);

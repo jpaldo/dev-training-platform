@@ -3,7 +3,6 @@
 @section('content')
     @php
         $featureTextClasses = 'm-0 leading-relaxed text-muted';
-        $linkClasses = 'underline underline-offset-3 hover:text-slate-100 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50';
     @endphp
 
     <div class="grid grid-cols-1 gap-6">
@@ -31,9 +30,5 @@
                 <p class="{{ $featureTextClasses }}">Progress sequentially through activities, Gates, feedback, and completion.</p>
             </x-ui.card>
         </div>
-
-        <p class="m-0 leading-relaxed text-muted">
-            <a href="{{ route('privacy-policy') }}" class="{{ $linkClasses }}">Privacy Policy</a> · <a href="{{ route('terms-of-service') }}" class="{{ $linkClasses }}">Terms of Service</a>
-        </p>
     </div>
 @endsection

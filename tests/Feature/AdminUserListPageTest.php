@@ -19,13 +19,13 @@ class AdminUserListPageTest extends TestCase
         User::factory()->create(['training_path' => 'automation', 'name' => 'Ava Automation', 'created_at' => now()->subDays(2)]);
         $hybrid = User::factory()->create(['training_path' => 'automation_manual', 'name' => 'Hal Hybrid', 'is_active' => false, 'created_at' => now()->subDay()]);
 
-        $this->actingAs($admin)->get(route('admin.users.index'))
+        $response = $this->actingAs($admin)->get(route('admin.users.index'))
             ->assertOk()
             ->assertSeeInOrder([
                 'ADMIN · USERS',
                 'User Management',
                 'Access Type determines each user\'s role in the training platform.',
-                'id="admin-users-main-action"', 'href="'.route('admin.users.create').'"', '+ Add User',
+                'id="admin-users-main-action"', 'href="'.route('admin.users.create').'"', '+ Add User', 'href="'.route('admin.attendance.index').'"', 'View Attendance',
                 'aria-label="Admin settings"',
                 'href="'.route('admin.settings.google-drive').'"', 'Google Drive Settings',
                 'href="'.route('admin.settings.ai').'"', 'AI Settings',
@@ -39,11 +39,12 @@ class AdminUserListPageTest extends TestCase
                 '>Cole Coach</th>', 'Mentor / Coach', '—', '>Active</span>',
                 '>Ada Admin</th>', 'Admin', '—', '>Active</span>', 'Mar 5, 2026',
                 'action="'.route('admin.users.disable', $admin).'"', 'data-confirm="Disable this account? Historical training records will be preserved."', 'Disable',
-                'href="'.route('admin.attendance.index').'"', 'View Attendance',
             ], false)
             ->assertDontSee('action="'.route('admin.users.disable', $hybrid).'"', false)
             ->assertDontSee('action="'.route('admin.users.enable', $admin).'"', false)
             ->assertDontSee('Password setup link');
+
+        $this->assertSame(1, substr_count($response->getContent(), 'View Attendance'));
     }
 
     public function test_filters_keep_their_values_and_an_empty_result_shows_a_notice_instead_of_the_table(): void

@@ -45,6 +45,28 @@ const initializeMentorDateTimePickers = () => {
 };
 
 /**
+ * The sidebar's `[data-sidebar-navigation]` scrolls on its own so the account block stays pinned below it; when the
+ * current page's link sits outside that scroll area, scroll it to the middle so the reader can see where they are.
+ */
+const initializeSidebarCurrentLink = () => {
+    const navigation = document.querySelector('[data-sidebar-navigation]');
+    const currentLink = navigation?.querySelector('[aria-current="page"]');
+
+    if (!currentLink) {
+        return;
+    }
+
+    const navigationBox = navigation.getBoundingClientRect();
+    const linkBox = currentLink.getBoundingClientRect();
+
+    if (linkBox.top >= navigationBox.top && linkBox.bottom <= navigationBox.bottom) {
+        return;
+    }
+
+    navigation.scrollTop += linkBox.top - navigationBox.top - (navigation.clientHeight - linkBox.height) / 2;
+};
+
+/**
  * Open and close the `#app-sidebar` drawer (below `lg`) from the `[data-sidebar-toggle]` button, any
  * `[data-sidebar-close]` element and Escape. While the drawer is open the page behind it does not scroll, and the
  * sidebar only animates while `data-sliding` is set (from a toggle until its transition ends), so resizing across
@@ -986,6 +1008,7 @@ const initializeWeeklyVideoSizeLimit = () => {
 const initializePage = () => {
     initializeMentorDateTimePickers();
     initializeSidebarDrawer();
+    initializeSidebarCurrentLink();
     initializePageTabs();
     initializeDatePickers();
     initializeMarkdownFlushOnSubmit();

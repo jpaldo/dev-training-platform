@@ -34,5 +34,7 @@ class HomePageTest extends TestCase
             ], false);
 
         $this->assertStringStartsWith('<!doctype html>', ltrim($response->getContent()));
+        $this->assertSame(1, substr_count($response->getContent(), 'href="'.route('privacy-policy').'"'));
+        $this->assertSame(1, substr_count($response->getContent(), 'href="'.route('terms-of-service').'"'));
     }
 }

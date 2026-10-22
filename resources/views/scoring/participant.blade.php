@@ -36,7 +36,14 @@
 
                 @if($week['rows'] !== [])
                     <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-label="Week {{ $week['number'] }} activities" tabindex="0">
-                        <table class="w-full min-w-160 border-collapse text-sm">
+                        <table class="w-full min-w-184 table-fixed border-collapse text-sm">
+                            <colgroup>
+                                <col>
+                                <col class="w-24">
+                                <col class="w-40">
+                                <col class="w-36">
+                                <col class="w-44">
+                            </colgroup>
                             <thead>
                                 <tr>
                                     <th scope="col" class="{{ $headerCellClasses }}">Activity</th>
@@ -51,8 +58,8 @@
                                     <tr data-activity-row>
                                         <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">{{ $row['activity'] }}</th>
                                         <td class="{{ $cellClasses }} tabular-nums">{{ $row['score'] }}</td>
-                                        <td class="{{ $cellClasses }}">{{ $row['band'] }}</td>
-                                        <td class="{{ $cellClasses }}">{{ $row['status'] }}</td>
+                                        <td class="{{ $cellClasses }} wrap-break-word">{{ $row['band'] }}</td>
+                                        <td class="{{ $cellClasses }} wrap-break-word">{{ $row['status'] }}</td>
                                         <td class="{{ $cellClasses }}">
                                             @if($row['action'])
                                                 <x-ui.button variant="secondary" :href="$row['action']['url']" class="whitespace-nowrap">{{ $row['action']['label'] }}</x-ui.button>

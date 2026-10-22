@@ -17,6 +17,10 @@
 
         <x-ui.main-action id="profile-main-action">
             <x-ui.button type="submit" form="profile-form">Save profile</x-ui.button>
+            <form method="post" action="{{ route('logout') }}" class="m-0">
+                @csrf
+                <x-ui.button variant="secondary" type="submit">Sign out</x-ui.button>
+            </form>
         </x-ui.main-action>
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
@@ -64,11 +68,6 @@
                                 @enderror
                             </div>
                         @endif
-                    </form>
-
-                    <form method="post" action="{{ route('logout') }}" class="m-0">
-                        @csrf
-                        <x-ui.button variant="secondary" type="submit">Sign out</x-ui.button>
                     </form>
                 </x-ui.card>
 

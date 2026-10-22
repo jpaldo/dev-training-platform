@@ -6,6 +6,7 @@
         $labelClasses = 'text-sm font-extrabold';
         $headerCellClasses = 'border-b border-line px-2.5 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase';
         $cellClasses = 'border-b border-line px-2.5 py-3.5 text-left align-top max-sm:py-3';
+        $actionCellClasses = 'lg:sticky lg:right-0 lg:border-l lg:bg-surface';
     @endphp
 
     <div class="grid grid-cols-1 gap-6">
@@ -73,7 +74,7 @@
             <h2 id="scoring-participants-title" class="m-0 text-xl font-extrabold">Participant scores</h2>
             @if($participants->isNotEmpty())
                 <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="scoring-participants-title" tabindex="0">
-                    <table class="w-full min-w-250 border-collapse text-sm" aria-labelledby="scoring-participants-title">
+                    <table class="w-full min-w-250 border-separate border-spacing-0 text-sm" aria-labelledby="scoring-participants-title">
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
@@ -85,7 +86,7 @@
                                 <th scope="col" class="{{ $headerCellClasses }}">Overall</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Completion</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Assigned Coach</th>
-                                <th scope="col" class="{{ $headerCellClasses }}"><span class="sr-only">Action</span></th>
+                                <th scope="col" class="{{ $headerCellClasses }} {{ $actionCellClasses }}"><span class="sr-only">Action</span></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -114,7 +115,7 @@
                                     <td class="{{ $cellClasses }} tabular-nums">{{ $participant['average'] }}</td>
                                     <td class="{{ $cellClasses }} whitespace-nowrap tabular-nums">{{ $participant['completion'] }}</td>
                                     <td class="{{ $cellClasses }} wrap-break-word">{{ $participant['coach_names'] }}</td>
-                                    <td class="{{ $cellClasses }}">
+                                    <td class="{{ $cellClasses }} {{ $actionCellClasses }}">
                                         <x-ui.button variant="secondary" :href="$participant['scoring_url']" class="whitespace-nowrap">View Scoring</x-ui.button>
                                     </td>
                                 </tr>

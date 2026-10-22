@@ -4,7 +4,7 @@
         <button class="cursor-pointer rounded-lg border border-line bg-raised px-2.5 py-1 text-xl/none text-white focus-visible:outline-3 focus-visible:outline-accent/50 lg:hidden" type="button" data-sidebar-close aria-label="Close menu">×</button>
     </div>
 
-    <nav class="grid grid-cols-1 gap-5" aria-label="Primary">
+    <nav class="-mx-1 grid min-h-32 flex-1 grid-cols-1 content-start gap-5 overflow-y-auto overscroll-contain px-1 pb-1" aria-label="Primary" data-sidebar-navigation>
         @foreach($sidebarNavigation['groups'] as $group)
             <div class="grid grid-cols-1 gap-0.5" role="group" aria-labelledby="sidebar-group-{{ $loop->index }}">
                 <div id="sidebar-group-{{ $loop->index }}" class="mb-1.5 px-2.5 text-[11px] font-black tracking-[0.12em] text-subtle uppercase">{{ $group['label'] }}</div>
@@ -15,7 +15,7 @@
         @endforeach
     </nav>
 
-    <div class="mt-auto grid grid-cols-1 gap-1 border-t border-line pt-4">
+    <div class="grid shrink-0 grid-cols-1 gap-1 border-t border-line pt-4">
         @if($participantDriveHeader)
             <div class="mb-2.5">
                 @if($participantDriveHeader['active'])

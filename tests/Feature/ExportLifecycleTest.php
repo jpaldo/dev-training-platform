@@ -27,31 +27,15 @@ class ExportLifecycleTest extends TestCase
         return User::factory()->create(['role' => 'participant'])->id;
     }
 
-    public function test_retryable_failure_is_retrying_only_when_laravel_has_another_attempt(): void
+    public function test_profile_folder_access_failure_is_terminal_with_a_write_access_hint(): void
     {
-        $record = GoogleDriveExport::create(['user_id' => $this->userId(), 'export_type' => 'summary', 'scope_key' => 'training_progress', 'status' => GoogleDriveExportStatus::InProgress]);
-        $job = Mockery::mock(Job::class);
-        $job->shouldReceive('attempts')->andReturnValues([1, 3]);
-
-        $service = app(ExportLifecycleService::class);
-        $this->assertTrue($service->markFailure($record, $job, 3, new RuntimeException('temporary network timeout'), 'Google Drive summary export failed.'));
-        $this->assertSame(GoogleDriveExportStatus::Retrying, $record->fresh()->status);
-
-        $this->assertFalse($service->markFailure($record->fresh(), $job, 3, new RuntimeException('temporary network timeout'), 'Google Drive summary export failed.'));
-        $this->assertSame(GoogleDriveExportStatus::Failed, $record->fresh()->status);
-    }
-
-    public function test_profile_folder_access_failure_is_terminal(): void
-    {
-        $record = GoogleDriveExport::create(['user_id' => $this->userId(), 'export_type' => 'summary', 'scope_key' => 'gate_progress', 'status' => GoogleDriveExportStatus::InProgress]);
         $job = Mockery::mock(Job::class);
         $job->shouldReceive('attempts')->andReturn(1);
+        $exception = new RuntimeException('The Google Drive folder in your Profile could not be accessed.');
+        $service = app(ExportLifecycleService::class);
 
-        $retry = app(ExportLifecycleService::class)->markFailure($record, $job, 3, new RuntimeException('The Google Drive folder in your Profile could not be accessed.'), 'Google Drive summary export failed.');
-
-        $this->assertFalse($retry);
-        $this->assertSame(GoogleDriveExportStatus::Failed, $record->fresh()->status);
-        $this->assertStringContainsString('Editor/write access', $record->fresh()->error);
+        $this->assertFalse($service->shouldRetry($job, 3, $exception));
+        $this->assertStringContainsString('Editor/write access', $service->failureMessage('Google Drive sync failed.', $exception));
     }
 
     public function test_stale_active_exports_are_reconciled_when_queue_is_empty(): void
@@ -137,22 +121,5 @@ class ExportLifecycleTest extends TestCase
 
         $this->assertSame(0, app(ExportLifecycleService::class)->reconcileStale($userId));
         $this->assertSame(GoogleDriveExportStatus::InProgress, $record->fresh()->status);
-    }
-
-    public function test_failed_queue_reservation_reconciles_active_summary_immediately(): void
-    {
-        $userId = $this->userId();
-        $record = GoogleDriveExport::create(['user_id' => $userId, 'export_type' => 'summary', 'scope_key' => 'training_progress', 'status' => GoogleDriveExportStatus::Enqueued, 'last_attempt_at' => Carbon::now()]);
-        DB::table('failed_jobs')->insert([
-            'uuid' => (string) str()->uuid(),
-            'connection' => 'database',
-            'queue' => 'default',
-            'payload' => json_encode(['displayName' => 'App\\Jobs\\ExportSummaryReportsJob', 'data' => ['command' => 'O:40:"App\\Jobs\\ExportSummaryReportsJob":1:{s:6:"userId";i:'.$userId.';}']]),
-            'exception' => 'SQLSTATE[HY000]: General error: 5 database is locked',
-            'failed_at' => now(),
-        ]);
-
-        $this->assertSame(1, app(ExportLifecycleService::class)->reconcileStale($userId));
-        $this->assertSame(GoogleDriveExportStatus::Failed, $record->fresh()->status);
     }
 }

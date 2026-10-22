@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
-use App\Jobs\ExportActivityJob;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionInteraction;
@@ -44,7 +43,7 @@ class ActivitySubmissionService
     }
 
     /**
-     * Save the participant's draft (opening the Week 3 workspace first), then queue the activity export and Drive sync.
+     * Save the participant's draft (opening the Week 3 workspace first), then request a Drive sync.
      *
      * @param  array<string, mixed>  $fieldValues
      * @param  array<int, array{prompt?: ?string, output?: ?string}>|null  $interactions
@@ -55,7 +54,7 @@ class ActivitySubmissionService
             $this->weekThree->workspace($participant, $trainingWeek);
         }
         $version = $this->workflow->saveDraft($participant, $activity, $fieldValues, $note, $interactions);
-        $this->queueExportAndSync($participant, $version, 'activity_saved');
+        $this->syncs->request($participant, 'activity_saved');
 
         return $version;
     }
@@ -79,20 +78,20 @@ class ActivitySubmissionService
     }
 
     /**
-     * Copy the attempt's latest version (answers, note and interactions) into a new draft, then queue the activity export and Drive sync.
+     * Copy the attempt's latest version (answers, note and interactions) into a new draft, then request a Drive sync.
      */
     public function createRevisionDraft(User $participant, Activity $activity, ActivitySubmission $submission): SubmissionVersion
     {
         $latest = $submission->versions->sortByDesc('version_number')->firstOrFail();
         $interactions = $latest->interactions->map(fn (SubmissionInteraction $interaction): array => ['prompt' => $interaction->prompt, 'output' => $interaction->output])->all();
         $version = $this->workflow->saveDraft($participant, $activity, $latest->field_values ?? [], $latest->participant_note, $interactions);
-        $this->queueExportAndSync($participant, $version, 'activity_resubmitted');
+        $this->syncs->request($participant, 'activity_resubmitted');
 
         return $version;
     }
 
     /**
-     * Submit the draft for review (checkpointing the Week 3 workspace onto it first), then queue the activity export and Drive sync.
+     * Submit the draft for review (checkpointing the Week 3 workspace onto it first), then request a Drive sync.
      */
     public function submit(User $participant, TrainingWeek $trainingWeek, Activity $activity, SubmissionVersion $version): void
     {
@@ -102,12 +101,6 @@ class ActivitySubmissionService
             $version->save();
         }
         $this->workflow->submit($participant, $version);
-        $this->queueExportAndSync($participant, $version, 'activity_submitted');
-    }
-
-    private function queueExportAndSync(User $participant, SubmissionVersion $version, string $trigger): void
-    {
-        ExportActivityJob::dispatch($version->id);
-        $this->syncs->request($participant, $trigger);
+        $this->syncs->request($participant, 'activity_submitted');
     }
 }

@@ -2,86 +2,41 @@
 
 namespace Tests\Feature;
 
-use App\Enums\GateEvaluationStatus;
 use App\Enums\GoogleDriveExportStatus;
-use App\Enums\ReviewDecision;
-use App\Jobs\ExportActivityJob;
-use App\Jobs\ExportDailyLogsJob;
-use App\Jobs\ExportSummaryReportsJob;
 use App\Jobs\SyncTrainingDataJob;
 use App\Models\Activity;
-use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
 use App\Models\DailyLog;
-use App\Models\GateEvaluation;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveExport;
-use App\Models\Program;
-use App\Models\SubmissionEvidence;
-use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingGate;
-use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\ValidationSubmission;
 use App\Services\GoogleDriveConnectionService;
 use App\Services\GoogleDriveService;
 use App\Services\TrainingExportService;
 use Database\Seeders\QaTrainingProgramSeeder;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Facades\Storage;
-use Mockery;
 use Tests\TestCase;
 
 class GoogleDriveExportTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_daily_log_csv_uses_participant_owned_week_data(): void
+    public function test_daily_log_csv_uses_participant_owned_data(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);
         $participant = User::factory()->create(['training_path' => 'manual']);
         $activity = Activity::query()->whereHas('week', fn ($q) => $q->where('week_number', 2))->firstOrFail();
         DailyLog::create(['user_id' => $participant->id, 'activity_id' => $activity->id, 'logged_on' => '2026-09-12', 'content' => 'Validated OTP flow']);
-        $csv = app(TrainingExportService::class)->dailyLogs($participant, 2);
+        $csv = app(TrainingExportService::class)->dailyLogs($participant);
         $this->assertStringContainsString('Daily Log ID', $csv);
         $this->assertStringContainsString('Training Week', $csv);
         $this->assertStringContainsString('Validated OTP flow', $csv);
         $this->assertStringNotContainsString('another participant', $csv);
-    }
-
-    public function test_gate_progress_csv_prints_the_participant_status_of_each_gate_or_not_evaluated(): void
-    {
-        $participant = User::factory()->create(['name' => 'Gina']);
-        $program = Program::factory()->create();
-        $gates = collect([2, 3, 4])->map(fn (int $weekNumber): TrainingGate => TrainingGate::factory()
-            ->for(TrainingWeek::factory()->for($program)->create(['week_number' => $weekNumber, 'position' => $weekNumber]), 'week')
-            ->create(['title' => "Gate{$weekNumber}"]));
-        GateEvaluation::factory()->for($gates[0], 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::Passed]);
-        GateEvaluation::factory()->for($gates[1], 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
-        GateEvaluation::factory()->for($gates[2], 'gate')->for(User::factory(), 'participant')->create(['status' => GateEvaluationStatus::Failed]);
-
-        $csv = app(TrainingExportService::class)->gateProgress($participant);
-
-        $this->assertSame("Participant,Week,Gate,Status\nGina,2,Gate2,passed\nGina,3,Gate3,needs_revision\nGina,4,Gate4,\"not evaluated\"\n", $csv);
-    }
-
-    public function test_activity_report_csv_prints_the_reviewer_and_decision_of_the_latest_review(): void
-    {
-        $participant = User::factory()->create();
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->create(['status' => 'failed', 'submitted_at' => now()]);
-        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
-        SubmissionReview::factory()->for($version, 'submissionVersion')->create(['decision' => ReviewDecision::NeedsRevision, 'reviewed_at' => now()->subDay()]);
-        SubmissionReview::factory()->for($version, 'submissionVersion')->for(User::factory()->create(['role' => 'coach', 'name' => 'Rae Reviewer']), 'reviewer')->create(['decision' => ReviewDecision::Rejected, 'reviewed_at' => now()]);
-
-        $csv = app(TrainingExportService::class)->activity($participant, $submission->activity_id);
-
-        $this->assertStringContainsString("Metadata,Reviewer,\"Rae Reviewer\"\nMetadata,\"Review Decision\",rejected\n", $csv);
     }
 
     public function test_manual_daily_log_export_requires_owned_connection(): void
@@ -99,30 +54,6 @@ class GoogleDriveExportTest extends TestCase
         $this->assertTrue(app(GoogleDriveConnectionService::class)->enabled());
         $this->actingAs($participant)->post(route('daily-logs.export'), ['week' => 2])->assertRedirect()->assertSessionHas('status');
         Queue::assertPushed(SyncTrainingDataJob::class);
-    }
-
-    public function test_deleted_drive_csv_is_recreated_instead_of_failing(): void
-    {
-        $participant = User::factory()->create();
-        $connection = GoogleDriveConnection::create([
-            'user_id' => $participant->id,
-            'google_account_id' => 'account',
-            'google_email' => 'p@example.com',
-            'access_token' => 'token',
-            'token_expires_at' => now()->addHour(),
-            'connected_at' => now(),
-            'drive_folder_id' => 'folder',
-        ]);
-
-        Http::fakeSequence()
-            ->push(['files' => [['id' => 'deleted-file']]])
-            ->pushStatus(404)
-            ->push(['id' => 'recreated-file']);
-
-        $id = app(GoogleDriveService::class)->upsertCsv($connection, 'Activity Report.csv', "header\nvalue\n", 'activity-folder');
-
-        $this->assertSame('recreated-file', $id);
-        Http::assertSentCount(3);
     }
 
     public function test_successful_workbook_update_without_projected_id_preserves_tracked_identity(): void
@@ -331,91 +262,6 @@ class GoogleDriveExportTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_activity_job_tracks_each_evidence_file_independently_and_preserves_private_source(): void
-    {
-        Queue::fake();
-        Storage::fake('local');
-        $this->seed(QaTrainingProgramSeeder::class);
-        $participant = User::factory()->create(['training_path' => 'manual', 'drive_link' => 'https://drive.google.com/drive/folders/root']);
-        $activity = Activity::query()->whereHas('week', fn ($q) => $q->where('week_number', 2))->firstOrFail();
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
-        $version = SubmissionVersion::factory()->for($submission, 'submission')->create();
-        $files = collect(['one.png', 'two.png', 'three.png'])->map(fn (string $name) => SubmissionEvidence::factory()->for($version, 'submissionVersion')->create(['disk' => 'local', 'path' => "evidence/{$name}", 'original_filename' => $name, 'mime_type' => 'image/png']));
-        foreach ($files as $file) {
-            Storage::disk('local')->put($file->path, 'private-'.$file->original_filename);
-        }
-        GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'account', 'google_email' => 'p@example.com', 'access_token' => 'token', 'token_expires_at' => now()->addHour(), 'connected_at' => now(), 'drive_folder_id' => 'root']);
-        GoogleDriveExport::create(['user_id' => $participant->id, 'export_type' => 'activity', 'scope_key' => (string) $activity->id, 'drive_file_id' => 'old-csv', 'destination_folder_id' => 'old-root', 'status' => GoogleDriveExportStatus::Completed]);
-        $drive = Mockery::mock(GoogleDriveService::class);
-        $drive->shouldReceive('participantTrainingRoot')->once()->andReturn(['root', 'training-root']);
-        $drive->shouldReceive('ensureFolder')->times(3)->andReturn('week-folder', 'activity-folder', 'evidence-folder');
-        $drive->shouldReceive('upsertCsv')->once()->andReturn('csv-id');
-        $drive->shouldReceive('uploadFile')->times(3)->andReturnUsing(function (GoogleDriveConnection $received, string $name): string {
-            return $name === 'two.png' ? throw new \RuntimeException('temporary Drive failure') : 'drive-'.$name;
-        });
-        $exports = Mockery::mock(TrainingExportService::class);
-        $exports->shouldReceive('activity')->once()->andReturn("Participant,Activity\nMaricel,Test\n");
-
-        try {
-            (new ExportActivityJob($version->id))->handle($exports, $drive);
-        } catch (\Throwable) {
-            // Evidence failures are retriable and are recorded independently.
-        }
-
-        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'activity', 'status' => 'completed', 'drive_file_id' => 'csv-id', 'destination_folder_id' => 'root']);
-        $this->assertDatabaseHas('google_drive_evidence_exports', ['submission_evidence_id' => $files[0]->id, 'status' => 'completed', 'drive_file_id' => 'drive-one.png']);
-        $this->assertDatabaseHas('google_drive_evidence_exports', ['submission_evidence_id' => $files[1]->id, 'status' => 'failed']);
-        $this->assertDatabaseHas('google_drive_evidence_exports', ['submission_evidence_id' => $files[2]->id, 'status' => 'completed', 'drive_file_id' => 'drive-three.png']);
-        Storage::disk('local')->assertExists($files[0]->path);
-        Storage::disk('local')->assertExists($files[1]->path);
-    }
-
-    public function test_summary_exports_have_independent_tracking_and_do_not_duplicate_rows(): void
-    {
-        Queue::fake();
-        $participant = User::factory()->create(['drive_link' => 'https://drive.google.com/drive/folders/root']);
-        GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'account', 'google_email' => 'p@example.com', 'access_token' => 'token', 'token_expires_at' => now()->addHour(), 'connected_at' => now(), 'drive_folder_id' => 'root']);
-        $drive = Mockery::mock(GoogleDriveService::class);
-        $drive->shouldReceive('participantTrainingRoot')->once()->andReturn(['root', 'training-root']);
-        $drive->shouldReceive('ensureFolder')->once()->andReturn('summary-folder');
-        $drive->shouldReceive('upsertCsv')->times(3)->andReturnUsing(function (GoogleDriveConnection $connection, string $name): string {
-            if ($name === 'Gate Progress.csv') {
-                throw new \RuntimeException('Gate report unavailable');
-            }
-
-            return str_replace(' ', '-', strtolower($name));
-        });
-        $exports = Mockery::mock(TrainingExportService::class);
-        $exports->shouldReceive('trainingProgress')->once()->andReturn('progress');
-        $exports->shouldReceive('activityScores')->once()->andReturn('scores');
-        $exports->shouldReceive('gateProgress')->once()->andReturn('gates');
-
-        try {
-            (new ExportSummaryReportsJob($participant->id))->handle($exports, $drive);
-        } catch (\Throwable) {
-            // The job rethrows so Laravel can retry transient API failures.
-        }
-
-        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'summary', 'scope_key' => 'training_progress', 'status' => 'completed']);
-        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'summary', 'scope_key' => 'activity_scores', 'status' => 'completed']);
-        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'summary', 'scope_key' => 'gate_progress', 'status' => 'failed']);
-        $this->assertSame(3, GoogleDriveExport::query()->where('user_id', $participant->id)->where('export_type', 'summary')->count());
-    }
-
-    public function test_summary_job_persists_safe_destination_error_without_retrying(): void
-    {
-        $participant = User::factory()->create(['drive_link' => 'https://drive.google.com/drive/folders/inaccessible']);
-        GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'account', 'google_email' => 'p@example.com', 'access_token' => 'token', 'token_expires_at' => now()->addHour(), 'connected_at' => now(), 'drive_folder_id' => 'old-folder']);
-        $drive = Mockery::mock(GoogleDriveService::class);
-        $drive->shouldReceive('participantTrainingRoot')->once()->andThrow(new \RuntimeException('The Google Drive folder in your Profile could not be accessed.'));
-        $exports = Mockery::mock(TrainingExportService::class);
-
-        (new ExportSummaryReportsJob($participant->id))->handle($exports, $drive);
-
-        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'scope_key' => 'training_progress', 'status' => 'failed', 'error' => 'The Google Drive folder in your Profile could not be accessed. Check that your connected Google account has Editor/write access.']);
-        $this->assertDatabaseCount('jobs', 0);
-    }
-
     public function test_daily_log_export_enqueues_before_remote_destination_validation(): void
     {
         Queue::fake();
@@ -452,78 +298,6 @@ class GoogleDriveExportTest extends TestCase
 
         Queue::assertPushed(SyncTrainingDataJob::class);
         Http::assertNothingSent();
-    }
-
-    public function test_activity_csv_uses_dynamic_configured_columns_and_authoritative_progress_fields(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $participant = User::factory()->create(['training_path' => 'manual']);
-        $activity = Activity::query()->whereHas('week', fn ($q) => $q->where('week_number', 2))->firstOrFail();
-        ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'participant_path' => 'manual', 'position' => 1, 'configuration' => ['key' => 'feature_area', 'label' => 'Feature/Area', 'type' => 'text']]);
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
-        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'field_values' => ['feature_area' => 'Checkout']]);
-
-        $activityCsv = app(TrainingExportService::class)->activity($participant, $activity->id);
-        $progressCsv = app(TrainingExportService::class)->trainingProgress($participant);
-
-        $this->assertStringContainsString('Feature/Area', $activityCsv);
-        $this->assertStringContainsString('Checkout', $activityCsv);
-        $this->assertStringNotContainsString('Configured Activity Fields', $activityCsv);
-        $this->assertStringContainsString('Week Status', $progressCsv);
-        $this->assertStringContainsString('Gate Status', $progressCsv);
-        $this->assertStringContainsString('Next Action', $progressCsv);
-    }
-
-    public function test_export_jobs_define_transient_retry_and_backoff_policies(): void
-    {
-        $this->assertSame(3, (new ExportActivityJob(1))->tries);
-        $this->assertSame([60, 300], (new ExportActivityJob(1))->backoff);
-        $this->assertSame(3, (new ExportDailyLogsJob(1, 2))->tries);
-        $this->assertSame([60, 300], (new ExportDailyLogsJob(1, 2))->backoff);
-        $this->assertSame(3, (new ExportSummaryReportsJob(1))->tries);
-        $this->assertSame([60, 300], (new ExportSummaryReportsJob(1))->backoff);
-    }
-
-    public function test_activity_export_prefers_the_latest_submitted_version_over_a_newer_revision_draft(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $participant = User::factory()->create(['training_path' => 'manual']);
-        $activity = Activity::query()->whereHas('week', fn (Builder $query): Builder => $query->where('week_number', 2))->firstOrFail();
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
-        $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'participant_note' => 'Submitted note', 'field_values' => []]);
-        $submission->versions()->create(['version_number' => 2, 'status' => 'draft', 'participant_note' => 'Revision draft note', 'field_values' => []]);
-
-        $csv = app(TrainingExportService::class)->activity($participant, $activity->id);
-
-        $this->assertStringContainsString('Submitted note', $csv);
-        $this->assertStringNotContainsString('Revision draft note', $csv);
-    }
-
-    public function test_activity_export_contains_detailed_latest_version_inputs_validation_data_and_evidence_metadata(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $participant = User::factory()->create(['training_path' => 'manual']);
-        $activity = Activity::query()->whereHas('week', fn ($q) => $q->where('week_number', 2))->firstOrFail();
-        ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'participant_path' => 'manual', 'position' => 99, 'configuration' => ['key' => 'long_prompt', 'label' => 'Exact Prompt', 'type' => 'textarea']]);
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
-        $submission->versions()->create(['version_number' => 1, 'status' => 'draft', 'field_values' => ['long_prompt' => 'stale draft']]);
-        $validation = ValidationSubmission::create(['user_id' => $participant->id, 'trainee_name' => $participant->name, 'artifact_code' => 'VAL-123', 'source_status' => 'pass', 'finding' => 'Found an issue']);
-        $version = $submission->versions()->create(['version_number' => 2, 'status' => 'submitted', 'validation_submission_id' => $validation->id, 'field_values' => ['long_prompt' => "Full prompt, with commas\nand multiple lines"]]);
-        $evidence = SubmissionEvidence::factory()->for($version, 'submissionVersion')->create(['evidence_type' => 'url', 'title' => 'Test report', 'url' => 'https://example.test/report']);
-        $evidence->googleDriveExport()->create(['status' => 'completed', 'drive_file_id' => 'drive-evidence']);
-
-        $csv = app(TrainingExportService::class)->activity($participant, $activity->id);
-
-        $this->assertStringContainsString('Section,Field', $csv);
-        $this->assertStringContainsString('Exact Prompt', $csv);
-        $this->assertStringContainsString('Full prompt, with commas', $csv);
-        $this->assertStringNotContainsString('stale draft', $csv);
-        $this->assertStringContainsString('Artifact Code', $csv);
-        $this->assertStringContainsString('VAL-123', $csv);
-        $this->assertStringContainsString('"Validation Lab","Source Status",pass', $csv);
-        $this->assertStringContainsString('https://example.test/report', $csv);
-        $this->assertStringContainsString('drive-evidence', $csv);
-        $this->assertStringContainsString('Evidence,"Export Status",completed', $csv);
     }
 
     public function test_profile_folder_is_parsed_and_inaccessible_folder_returns_safe_error(): void

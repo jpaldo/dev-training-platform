@@ -8,7 +8,6 @@ use App\Enums\RecoveryRequestStatus;
 use App\Enums\SubmissionStatus;
 use App\Enums\TrainingPath;
 use App\Enums\ValidationSubmissionStatus;
-use App\Jobs\ExportActivityJob;
 use App\Jobs\SyncTrainingDataJob;
 use App\Models\Activity;
 use App\Models\ActivityRecoveryRequest;
@@ -402,7 +401,6 @@ class ParticipantWorkflowTest extends TestCase
         $this->assertSame(SubmissionStatus::Submitted, $version->fresh()->status);
         $this->assertSame('Original', $version->fresh()->field_values['finding']);
         $this->assertSame(SubmissionStatus::Draft, $submission->fresh()->versions()->latest('version_number')->first()->status);
-        Queue::assertPushed(ExportActivityJob::class);
 
         $this->actingAs($participant)->post(route('training.submission.revise', [$week2, $activity]))->assertRedirect();
         $this->assertSame(2, $submission->fresh()->versions()->count());
@@ -419,7 +417,6 @@ class ParticipantWorkflowTest extends TestCase
         $this->actingAs($participant)->post(route('training.submission.revise', [$week2, $activity]))->assertStatus(422);
 
         $this->assertSame(1, $submission->versions()->count());
-        Queue::assertNotPushed(ExportActivityJob::class);
     }
 
     public function test_revision_action_is_rendered_as_a_csrf_protected_post_form_not_a_get_link(): void
@@ -782,7 +779,7 @@ class ParticipantWorkflowTest extends TestCase
         $this->assertDatabaseCount('submission_evidence', 0);
     }
 
-    public function test_link_evidence_stores_only_the_url_and_queues_the_activity_export(): void
+    public function test_link_evidence_stores_only_the_url(): void
     {
         Queue::fake();
         [$participant, $week2, $activity] = $this->trainingFixture();
@@ -800,7 +797,6 @@ class ParticipantWorkflowTest extends TestCase
         $this->assertSame('link', $evidence->evidence_type);
         $this->assertSame('https://example.test/report', $evidence->url);
         $this->assertNull($evidence->content);
-        Queue::assertPushed(ExportActivityJob::class, fn (ExportActivityJob $job): bool => $job->versionId === $version->id);
     }
 
     public function test_uploaded_file_is_deleted_when_its_evidence_record_cannot_be_created(): void

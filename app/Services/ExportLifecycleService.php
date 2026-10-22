@@ -4,15 +4,11 @@ namespace App\Services;
 
 use App\Enums\GoogleDriveExportStatus;
 use App\Enums\GoogleDriveSyncStatus;
-use App\Jobs\ExportActivityJob;
-use App\Jobs\ExportDailyLogsJob;
-use App\Jobs\ExportSummaryReportsJob;
 use App\Jobs\SyncTrainingDataJob;
 use App\Models\GoogleDriveExport;
 use App\Models\GoogleDriveSync;
 use Illuminate\Contracts\Queue\Job;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -27,7 +23,7 @@ class ExportLifecycleService
      *
      * @var list<class-string>
      */
-    private const EXPORT_JOBS = [ExportActivityJob::class, ExportDailyLogsJob::class, ExportSummaryReportsJob::class, SyncTrainingDataJob::class];
+    private const EXPORT_JOBS = [SyncTrainingDataJob::class];
 
     public function shouldRetry(?Job $job, int $tries, Throwable $exception): bool
     {
@@ -66,68 +62,15 @@ class ExportLifecycleService
         return $fallback;
     }
 
-    public function markFailure(Model $record, ?Job $job, int $tries, Throwable $exception, string $fallback): bool
-    {
-        $retry = $this->shouldRetry($job, $tries, $exception);
-        $record->update([
-            'status' => $retry ? GoogleDriveExportStatus::Retrying : GoogleDriveExportStatus::Failed,
-            'error' => $this->failureMessage($fallback, $exception),
-            'last_attempt_at' => now(),
-        ]);
-
-        return $retry;
-    }
-
-    public function markEvidenceFailure(Model $record, ?Job $job, int $tries, Throwable $exception): bool
-    {
-        $retry = $this->shouldRetry($job, $tries, $exception);
-        $record->update([
-            'status' => $retry ? GoogleDriveExportStatus::Retrying : GoogleDriveExportStatus::Failed,
-            'error' => $this->failureMessage('Google Drive evidence export failed.', $exception),
-            'last_attempt_at' => now(),
-        ]);
-
-        return $retry;
-    }
-
     /**
      * Reconcile only stale active records when the database queue holds no export or sync job (other queued work, such
-     * as participant notifications, does not block the repair). This avoids changing a legitimately running export
-     * while repairing jobs that disappeared before Laravel could call failed().
+     * as participant notifications, does not block the repair). This avoids changing a legitimately running export or
+     * sync while repairing records whose job disappeared before it could finish.
      */
     public function reconcileStale(?int $userId = null): int
     {
         if ($this->hasQueuedExportJobs()) {
             return 0;
-        }
-
-        // A queue reservation failure can remove a job before its handle()/failed()
-        // callbacks run. If Laravel recorded that terminal failure, reconcile the
-        // matching active export immediately instead of waiting for the stale
-        // timeout. The payload is inspected only for the job class and user ID.
-        $reconciled = 0;
-        foreach (DB::table('failed_jobs')->get(['payload']) as $failedJob) {
-            $payload = json_decode($failedJob->payload, true);
-            if (($payload['displayName'] ?? null) !== 'App\\Jobs\\ExportSummaryReportsJob') {
-                continue;
-            }
-            $command = (string) ($payload['data']['command'] ?? '');
-            if (! preg_match('/userId[";:]+(?:i:)?(\d+)/', $command, $matches)) {
-                continue;
-            }
-            $failedUserId = (int) $matches[1];
-            if ($userId !== null && $failedUserId !== $userId) {
-                continue;
-            }
-            $reconciled += GoogleDriveExport::query()
-                ->where('user_id', $failedUserId)
-                ->where('export_type', 'summary')
-                ->whereIn('status', GoogleDriveExportStatus::active())
-                ->update([
-                    'status' => GoogleDriveExportStatus::Failed,
-                    'error' => 'Export stopped before completion. Please retry the export.',
-                    'updated_at' => now(),
-                ]);
         }
 
         $cutoff = now()->subMinutes(self::STALE_AFTER_MINUTES);
@@ -139,7 +82,7 @@ class ExportLifecycleService
             $query->where('user_id', $userId);
         }
 
-        $reconciled += $query->update([
+        $reconciled = $query->update([
             'status' => GoogleDriveExportStatus::Failed,
             'error' => 'Export stopped before completion. Please retry the export.',
             'updated_at' => now(),

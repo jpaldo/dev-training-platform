@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Jobs\ExportActivityJob;
 use App\Models\Activity;
 use App\Models\EvidenceRequirement;
 use App\Models\SubmissionEvidence;
@@ -25,7 +24,7 @@ class SubmissionEvidenceService
     public function __construct(private readonly TrainingSyncCoordinator $syncs) {}
 
     /**
-     * Attach evidence to a participant's draft version, then queue the activity export and Drive sync.
+     * Attach evidence to a participant's draft version, then request a Drive sync.
      *
      * Each uploaded file becomes its own file evidence; text and URL evidence is stored only when no file was uploaded.
      *
@@ -55,7 +54,6 @@ class SubmissionEvidenceService
             ]);
         }
 
-        ExportActivityJob::dispatch($version->id);
         $this->syncs->request($participant, 'evidence_added');
 
         return $stored;

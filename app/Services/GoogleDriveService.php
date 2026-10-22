@@ -16,31 +16,6 @@ class GoogleDriveService
 
     public function __construct(private readonly GoogleDriveConnectionService $connections) {}
 
-    public function upsertCsv(GoogleDriveConnection $connection, string $name, string $content, string $parentId): string
-    {
-        $token = $this->connections->accessToken($connection);
-        $q = sprintf("name = '%s' and '%s' in parents and trashed = false", str_replace("'", "\\'", $name), $parentId);
-        $existing = Http::withToken($token)->get('https://www.googleapis.com/drive/v3/files', ['q' => $q, 'fields' => 'files(id)', 'supportsAllDrives' => 'true', 'includeItemsFromAllDrives' => 'true'])->throw()->json('files.0.id');
-        $metadata = ['name' => $name, 'mimeType' => 'text/csv'];
-        if (! $existing) {
-            $metadata['parents'] = [$parentId];
-
-            return Http::withToken($token)->attach('metadata', json_encode($metadata), 'metadata.json', ['Content-Type' => 'application/json'])->attach('file', $content, $name, ['Content-Type' => 'text/csv'])->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id&supportsAllDrives=true')->throw()->json('id');
-        }
-
-        $response = Http::withToken($token)->attach('metadata', json_encode($metadata), 'metadata.json', ['Content-Type' => 'application/json'])->attach('file', $content, $name, ['Content-Type' => 'text/csv'])->patch("https://www.googleapis.com/upload/drive/v3/files/{$existing}?uploadType=multipart&fields=id&supportsAllDrives=true");
-        if ($response->successful()) {
-            return $response->json('id');
-        }
-        if ($response->status() !== 404) {
-            $response->throw();
-        }
-
-        $metadata['parents'] = [$parentId];
-
-        return Http::withToken($token)->attach('metadata', json_encode($metadata), 'metadata.json', ['Content-Type' => 'application/json'])->attach('file', $content, $name, ['Content-Type' => 'text/csv'])->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id&supportsAllDrives=true')->throw()->json('id');
-    }
-
     public function ensureFolder(GoogleDriveConnection $connection, string $name, string $parentId, ?string $existingId = null): string
     {
         if (preg_match('/^Week\s+\d+\s+-\s+Evidences$/i', trim($name)) === 1) {
@@ -85,15 +60,6 @@ class GoogleDriveService
         }
 
         return $createdId;
-    }
-
-    public function participantTrainingRoot(User $participant, GoogleDriveConnection $connection): array
-    {
-        $destinationId = $this->connections->validateExportDestination($participant);
-
-        // The Picker-selected folder is already the participant's export root.
-        // Never add a platform/training wrapper beneath it.
-        return [$destinationId, $destinationId];
     }
 
     /** Validate a run's captured destination without consulting the current Picker selection. */

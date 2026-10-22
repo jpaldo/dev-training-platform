@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\ReviewDecision;
 use App\Enums\SubmissionStatus;
-use App\Jobs\ExportActivityJob;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
@@ -29,8 +28,8 @@ class SubmissionReviewService
     }
 
     /**
-     * Record a coach decision on a submission version and update the submission status in one transaction, then queue
-     * its export and sync once both writes are committed.
+     * Record a coach decision on a submission version and update the submission status in one transaction, then request
+     * a Drive sync once both writes are committed.
      */
     public function record(SubmissionVersion $submissionVersion, User $reviewer, ReviewDecision $decision, ?string $comments): SubmissionReview
     {
@@ -41,7 +40,6 @@ class SubmissionReviewService
 
             return $review;
         });
-        ExportActivityJob::dispatch($submissionVersion->id);
         $this->syncs->request($submissionVersion->submission->participant, 'review_updated');
 
         return $review;

@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Enums\GoogleDriveExportStatus;
 use App\Enums\GoogleDriveSyncStatus;
-use App\Jobs\ExportSummaryReportsJob;
 use App\Jobs\SyncTrainingDataJob;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
@@ -19,7 +18,6 @@ use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\ValidationSubmission;
 use App\Services\ExportLifecycleService;
 use App\Services\GoogleDriveConnectionService;
 use App\Services\GoogleDriveService;
@@ -207,50 +205,6 @@ class GoogleDriveSyncTest extends TestCase
         $this->assertStringContainsString('<t xml:space="preserve">needs_revision</t>', $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, 3)));
     }
 
-    public function test_lab_record_export_is_scoped_to_participant_and_supports_empty_records(): void
-    {
-        $participant = User::factory()->create(['role' => 'participant']);
-        $other = User::factory()->create(['role' => 'participant']);
-        ValidationSubmission::create(['user_id' => $other->id, 'trainee_name' => 'Other', 'artifact_code' => 'OTHER']);
-
-        $csv = app(TrainingExportService::class)->labRecords($participant);
-        $lines = array_values(array_filter(array_map('trim', explode("\n", $csv))));
-
-        $this->assertCount(1, $lines);
-        $this->assertStringContainsString('Record ID', $lines[0]);
-        $this->assertStringNotContainsString('OTHER', $csv);
-    }
-
-    public function test_lab_record_export_prints_the_stored_check_results_and_decision(): void
-    {
-        $participant = User::factory()->create(['role' => 'participant']);
-        $record = ValidationSubmission::create([
-            'user_id' => $participant->id,
-            'trainee_name' => $participant->name,
-            'artifact_code' => 'AI-TC-060',
-            'source_status' => 'pass',
-            'scope_status' => 'issue',
-            'cross_check_status' => 'pass',
-            'run_status' => 'issue',
-            'log_status' => 'pass',
-            'decision' => 'reprompt',
-        ]);
-
-        $csv = app(TrainingExportService::class)->labRecords($participant);
-        $rows = array_map(str_getcsv(...), array_values(array_filter(explode("\n", trim($csv)))));
-        $exported = array_combine($rows[0], $rows[1]);
-
-        $this->assertCount(2, $rows);
-        $this->assertSame((string) $record->id, $exported['Record ID']);
-        $this->assertSame('pass', $exported['Source Result']);
-        $this->assertSame('issue', $exported['Scope Result']);
-        $this->assertSame('', $exported['Spec Result']);
-        $this->assertSame('pass', $exported['Cross-check Result']);
-        $this->assertSame('issue', $exported['Run Result']);
-        $this->assertSame('pass', $exported['Log Result']);
-        $this->assertSame('reprompt', $exported['Decision']);
-    }
-
     public function test_sqlite_evidence_tracking_references_submission_evidence_table(): void
     {
         $foreignKey = collect(DB::select('PRAGMA foreign_key_list(google_drive_evidence_exports)'))
@@ -269,7 +223,6 @@ class GoogleDriveSyncTest extends TestCase
 
         $this->actingAs($participant)->post(route('google-drive.sync'))->assertRedirect()->assertSessionHas('status', 'Sync queued.');
         Queue::assertPushed(SyncTrainingDataJob::class);
-        Queue::assertNotPushed(ExportSummaryReportsJob::class);
         $this->assertDatabaseHas('google_drive_syncs', ['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => 'enqueued']);
         $this->actingAs($participant)->post(route('google-drive.sync'))->assertRedirect()->assertSessionHas('status', 'Google Drive sync is already in progress.');
         $this->assertDatabaseCount('google_drive_syncs', 1);

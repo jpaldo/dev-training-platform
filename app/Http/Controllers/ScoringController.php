@@ -8,7 +8,6 @@ use App\Http\Requests\FilterScoringParticipantsRequest;
 use App\Http\Requests\ImproveScoringFeedbackRequest;
 use App\Http\Requests\StoreActivityScoreRequest;
 use App\Http\Requests\StoreSecondReaderScoreRequest;
-use App\Jobs\ExportActivityJob;
 use App\Models\ActivityScore;
 use App\Models\SubmissionVersion;
 use App\Models\User;
@@ -100,7 +99,6 @@ class ScoringController extends Controller
                 $score->history()->create(['scorer_id' => $request->user()->id, 'previous_score' => $previous, 'new_score' => $total, 'previous_dimensions' => $previousDimensions, 'new_dimensions' => collect($data['dimensions'])->mapWithKeys(fn (array $v, string $k): array => [$k => $v['points']])->all(), 'previous_reasoning' => $previousReasoning, 'new_reasoning' => collect($data['dimensions'])->mapWithKeys(fn (array $v, string $k): array => [$k => $v['evidence_reasoning']])->all(), 'previous_overall_feedback' => $previousOverallFeedback, 'new_overall_feedback' => $data['overall_feedback'] ?? null, 'reason' => $data['history_reason'] ?? null]);
             }
         });
-        ExportActivityJob::dispatch($submissionVersion->id);
         $syncs->request($submissionVersion->submission->participant, 'score_published');
 
         return redirect()->route('coach.scoring.participant', $submissionVersion->submission->user_id)->with('status', 'Activity score saved.');

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GoogleDriveSyncStatus;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityRecoveryRequest;
@@ -9,7 +10,7 @@ use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\EvidenceRequirement;
 use App\Models\GoogleDriveConnection;
-use App\Models\GoogleDriveExport;
+use App\Models\GoogleDriveSync;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
@@ -126,40 +127,51 @@ class TrainingActivityPageTest extends TestCase
         ];
     }
 
-    #[DataProvider('driveExportStatuses')]
-    public function test_google_drive_card_shows_the_activity_export_status_and_only_a_failed_export_error(?string $status, string $statusLabel): void
+    #[DataProvider('driveSyncStatuses')]
+    public function test_google_drive_card_shows_the_latest_workbook_sync_status_and_only_a_failed_sync_error(?string $status, string $statusLabel, bool $showsError): void
     {
         [$participant, $week, $activity] = $this->activityFixture();
         GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'connected_at' => now()]);
         if ($status !== null) {
-            GoogleDriveExport::create(['user_id' => $participant->id, 'export_type' => 'activity', 'scope_key' => (string) $activity->id, 'status' => $status, 'error' => 'Google Drive activity export failed.']);
+            GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => GoogleDriveSyncStatus::Failed, 'error' => 'An earlier sync failed.']);
+            GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => $status, 'error' => 'Week 2.xlsx: Google Drive sync failed.']);
         }
 
         $response = $this->actingAs($participant->fresh())->get(route('training.activities.show', [$week, $activity]))
             ->assertOk()
-            ->assertSee('Sync status: '.$statusLabel);
+            ->assertSee('Sync status: '.$statusLabel)
+            ->assertDontSee('An earlier sync failed.');
 
-        $status === 'failed'
-            ? $response->assertSee('Google Drive activity export failed.')
-            : $response->assertDontSee('Google Drive activity export failed.');
+        $showsError
+            ? $response->assertSee('Week 2.xlsx: Google Drive sync failed.')
+            : $response->assertDontSee('Week 2.xlsx: Google Drive sync failed.');
     }
 
     /**
-     * @return array<string, array{?string, string}>
+     * @return array<string, array{?string, string, bool}>
      */
-    public static function driveExportStatuses(): array
+    public static function driveSyncStatuses(): array
     {
         return [
-            'not exported' => [null, 'Not Exported'],
-            'pending' => ['pending', 'Not Exported'],
-            'enqueued' => ['enqueued', 'Enqueued'],
-            'in progress' => ['in_progress', 'In Progress'],
-            'legacy exporting' => ['exporting', 'In Progress'],
-            'retrying' => ['retrying', 'Retrying'],
-            'completed' => ['completed', 'Completed'],
-            'legacy synced' => ['synced', 'Completed'],
-            'failed' => ['failed', 'Failed'],
+            'never synced' => [null, 'Not synced yet', false],
+            'enqueued' => ['enqueued', 'Enqueued', false],
+            'in progress' => ['in_progress', 'In progress', false],
+            'retrying' => ['retrying', 'Retrying', false],
+            'completed' => ['completed', 'Completed', false],
+            'completed with errors' => ['completed_with_errors', 'Completed with errors', true],
+            'failed' => ['failed', 'Failed', true],
         ];
+    }
+
+    public function test_google_drive_card_shows_the_last_successful_workbook_sync(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'connected_at' => now()]);
+        GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => GoogleDriveSyncStatus::Completed, 'last_successful_sync_at' => '2026-10-20 09:30:00']);
+
+        $this->actingAs($participant->fresh())->get(route('training.activities.show', [$week, $activity]))
+            ->assertOk()
+            ->assertSee('Last successful sync: Oct 20, 2026 9:30 AM');
     }
 
     public function test_google_drive_card_counts_the_completed_and_failed_evidence_exports_of_the_latest_version(): void

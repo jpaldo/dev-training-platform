@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GoogleDriveExportStatus;
+use App\Enums\GoogleDriveSyncStatus;
 use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivityRecoveryRequest;
@@ -10,7 +11,7 @@ use App\Models\ActivityRequirement;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
 use App\Models\GoogleDriveEvidenceExport;
-use App\Models\GoogleDriveExport;
+use App\Models\GoogleDriveSync;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
@@ -74,7 +75,7 @@ class TrainingActivityPageService
             'labUrl' => $labRoute ? route($labRoute) : null,
             'labRecords' => $labRecords,
             'labPrerequisiteMet' => $labPrerequisiteMet,
-            'googleDrive' => $this->googleDriveSummary($user, $activity, $latestVersion),
+            'googleDrive' => $this->googleDriveSummary($user, $latestVersion),
             'attempts' => $this->attemptRows($attempts),
             'tabs' => array_values(array_filter([
                 ['key' => 'instructions', 'label' => 'Instructions'],
@@ -113,24 +114,25 @@ class TrainingActivityPageService
     }
 
     /**
-     * The activity's Google Drive export status and the sync counts of the latest version's evidence.
+     * The participant's latest weekly workbook sync (status, last successful sync and the error of a sync that failed
+     * or completed with errors) and the sync counts of the latest version's evidence.
      *
      * @return array{connected: bool, status_label: string, evidence_total: int, evidence_synced: int, evidence_failed: int, last_synced_at: ?CarbonInterface, error: ?string}
      */
-    private function googleDriveSummary(User $user, Activity $activity, ?SubmissionVersion $latestVersion): array
+    private function googleDriveSummary(User $user, ?SubmissionVersion $latestVersion): array
     {
-        $driveExport = GoogleDriveExport::query()->where('user_id', $user->id)->where('export_type', 'activity')->where('scope_key', (string) $activity->id)->first();
+        $latestSync = GoogleDriveSync::query()->where('user_id', $user->id)->latest('id')->first();
         $evidenceIds = $latestVersion?->evidence->pluck('id') ?? collect();
         $evidenceExports = GoogleDriveEvidenceExport::query()->whereIn('submission_evidence_id', $evidenceIds)->get();
 
         return [
             'connected' => $user->loadMissing('googleDriveConnection')->googleDriveConnection !== null,
-            'status_label' => $driveExport?->status?->label() ?? GoogleDriveExportStatus::Pending->label(),
+            'status_label' => $latestSync?->status->label() ?? 'Not synced yet',
             'evidence_total' => $evidenceIds->count(),
             'evidence_synced' => $evidenceExports->whereIn('status', [GoogleDriveExportStatus::Completed, GoogleDriveExportStatus::Synced])->count(),
             'evidence_failed' => $evidenceExports->where('status', GoogleDriveExportStatus::Failed)->count(),
-            'last_synced_at' => $driveExport?->last_synced_at,
-            'error' => $driveExport?->status === GoogleDriveExportStatus::Failed ? $driveExport->error : null,
+            'last_synced_at' => $latestSync?->last_successful_sync_at,
+            'error' => in_array($latestSync?->status, [GoogleDriveSyncStatus::Failed, GoogleDriveSyncStatus::CompletedWithErrors], true) ? $latestSync->error : null,
         ];
     }
 

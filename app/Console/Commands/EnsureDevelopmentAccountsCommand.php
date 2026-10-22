@@ -10,7 +10,7 @@ class EnsureDevelopmentAccountsCommand extends Command
 {
     protected $signature = 'app:ensure-development-accounts';
 
-    protected $description = 'Ensure the local development admin and coach accounts exist';
+    protected $description = 'Ensure the local development admin, coach and participant accounts exist';
 
     public function handle(DevelopmentAccountProvisioner $provisioner): int
     {

@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Enums\JobRole;
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use App\Enums\ValidationCheckStatus;
 use App\Enums\ValidationDecision;
 use App\Enums\ValidationSubmissionStatus;
@@ -12,33 +14,55 @@ use App\Models\User;
 use App\Models\ValidationSubmission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class DevelopmentAccountProvisioningTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_database_seeder_provisions_idempotent_development_accounts(): void
+    public function test_database_seeder_gives_every_seeded_account_its_identity_fields_idempotently(): void
     {
         $this->seed();
         $this->seed();
-        $this->assertDatabaseHas('users', ['email' => 'coach.dev@example.test', 'role' => 'coach']);
-        $this->assertDatabaseHas('users', ['email' => 'admin.dev@example.test', 'role' => 'admin']);
-        $this->assertSame(1, User::where('email', 'coach.dev@example.test')->count());
-        $this->assertSame(1, User::where('email', 'admin.dev@example.test')->count());
-        $this->assertSame(TrainingPath::Manual, User::query()->where('email', 'test@example.com')->sole()->training_path);
+
+        $this->assertSame(count(self::seededAccounts()), User::count());
+
+        foreach (self::seededAccounts() as [$email, $password, $employeeId, $firstName, $lastName, $role, $jobRole, $trainingPath]) {
+            $user = User::query()->where('email', $email)->sole();
+
+            $this->assertSame($employeeId, $user->employee_id);
+            $this->assertSame($firstName, $user->first_name);
+            $this->assertSame($lastName, $user->last_name);
+            $this->assertSame("{$firstName} {$lastName}", $user->name);
+            $this->assertSame($role, $user->role);
+            $this->assertSame($jobRole, $user->job_role);
+            $this->assertSame($trainingPath, $user->training_path);
+            $this->assertTrue($user->is_active);
+            $this->assertTrue(Hash::check($password, $user->password));
+        }
     }
 
-    public function test_targeted_development_account_command_is_idempotent(): void
+    public function test_development_account_command_creates_nothing_and_changes_nothing_on_a_second_run(): void
     {
         $this->artisan('app:ensure-development-accounts')->assertExitCode(0);
+        $before = User::query()->orderBy('id')->get($this->provisionedFields())->toArray();
+
         $this->artisan('app:ensure-development-accounts')->assertExitCode(0);
 
-        $this->assertDatabaseHas('users', ['email' => 'admin.dev@example.test', 'role' => 'admin', 'is_active' => true]);
-        $this->assertDatabaseHas('users', ['email' => 'coach.dev@example.test', 'role' => 'coach', 'is_active' => true]);
-        $this->assertSame(1, User::where('email', 'admin.dev@example.test')->count());
-        $this->assertSame(1, User::where('email', 'coach.dev@example.test')->count());
+        $after = User::query()->orderBy('id')->get($this->provisionedFields())->toArray();
+        $this->assertSame($before, $after);
+        $this->assertSame(4, User::count());
+
+        foreach (self::seededAccounts() as [$email, $password]) {
+            if ($email === 'test@example.com') {
+                continue;
+            }
+
+            $this->assertTrue(Hash::check($password, User::query()->where('email', $email)->sole()->password));
+        }
     }
 
     public function test_baseline_command_restores_reference_data_idempotently_without_deleting_users(): void
@@ -81,12 +105,25 @@ class DevelopmentAccountProvisioningTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => 'admin.dev@example.test']);
     }
 
-    public function test_seeded_coach_and_admin_authenticate_and_reach_authorized_routes(): void
+    #[DataProvider('seededAccounts')]
+    public function test_every_seeded_account_signs_in_to_its_dashboard_without_the_employee_id_prompt(string $email, string $password, string $employeeId, string $firstName, string $lastName, UserRole $role, JobRole $jobRole, ?TrainingPath $trainingPath): void
     {
-        $this->seedAccountsWithEmployeeIds();
+        $this->seed();
+        $landingRoute = match ($role) {
+            UserRole::Admin => 'admin.dashboard',
+            UserRole::Coach => 'coach.dashboard',
+            UserRole::Participant => 'dashboard',
+        };
+
+        $this->post(route('login.store'), compact('email', 'password'))->assertRedirect(route($landingRoute));
+        $this->get(route($landingRoute))->assertOk();
+    }
+
+    public function test_seeded_coach_and_admin_reach_authorized_routes(): void
+    {
+        $this->seed();
         foreach ([['coach.dev@example.test', 'CoachDev!2026'], ['admin.dev@example.test', 'AdminDev!2026']] as [$email, $password]) {
-            $destination = str_starts_with($email, 'admin.') ? route('admin.dashboard') : route('coach.dashboard');
-            $this->post(route('login.store'), compact('email', 'password'))->assertRedirect($destination);
+            $this->post(route('login.store'), compact('email', 'password'))->assertRedirect();
             $this->get(route('coach.dashboard'))->assertOk();
             $this->get(route('coach.participants'))->assertOk();
             $this->get(route('coach.reviews'))->assertOk();
@@ -114,7 +151,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
 
     public function test_authenticated_activity_one_lab_submission_keeps_participant_owner(): void
     {
-        $this->seedAccountsWithEmployeeIds();
+        $this->seed();
         $participant = User::where('email', 'test@example.com')->firstOrFail();
         $this->actingAs($participant)->get(route('dashboard'))->assertOk();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
@@ -135,7 +172,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
 
     public function test_new_owned_lab_record_appears_in_an_existing_and_new_week_two_activity_form(): void
     {
-        $this->seedAccountsWithEmployeeIds();
+        $this->seed();
         $participant = User::where('email', 'test@example.com')->firstOrFail();
         $week = Program::firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
         $activity = $week->activities()->where('position', 1)->firstOrFail();
@@ -158,7 +195,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
 
     public function test_owned_lab_record_is_available_to_all_connected_week_two_activity_selectors(): void
     {
-        $this->seedAccountsWithEmployeeIds();
+        $this->seed();
         $participant = User::where('email', 'test@example.com')->firstOrFail();
         $week = Program::firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
@@ -598,16 +635,30 @@ class DevelopmentAccountProvisioningTest extends TestCase
     }
 
     /**
-     * Seed the database and give the seeded accounts an employee ID, which they lack until the demo accounts are
-     * rewritten, so signing in does not stop at the employee ID prompt.
+     * Every account `DatabaseSeeder` creates, as the seeder and `config/development_accounts.php` define it.
+     *
+     * @return array<string, array{0: string, 1: string, 2: string, 3: string, 4: string, 5: UserRole, 6: JobRole, 7: ?TrainingPath}>
      */
-    private function seedAccountsWithEmployeeIds(): void
+    public static function seededAccounts(): array
     {
-        $this->seed();
+        return [
+            'test participant' => ['test@example.com', 'password', 'DEV-0001', 'Test', 'User', UserRole::Participant, JobRole::Developer, TrainingPath::Manual],
+            'coach' => ['coach.dev@example.test', 'CoachDev!2026', 'DEV-0002', 'Development', 'Coach', UserRole::Coach, JobRole::Developer, null],
+            'admin' => ['admin.dev@example.test', 'AdminDev!2026', 'DEV-0003', 'Development', 'Admin', UserRole::Admin, JobRole::ProjectManager, null],
+            'first demo participant' => ['participant1.dev@example.test', 'ParticipantDev1!2026', 'DEV-0004', 'Avery', 'Santos', UserRole::Participant, JobRole::Developer, TrainingPath::Automation],
+            'second demo participant' => ['participant2.dev@example.test', 'ParticipantDev2!2026', 'DEV-0005', 'Jordan', 'Reyes', UserRole::Participant, JobRole::Developer, TrainingPath::AutomationManual],
+        ];
+    }
 
-        User::query()->whereNull('employee_id')->each(function (User $user): void {
-            $user->update(['employee_id' => "EMP-SEED-{$user->id}"]);
-        });
+    /**
+     * The user columns the provisioner writes or that a write would touch, except the password hash, which is
+     * re-hashed on every run.
+     *
+     * @return list<string>
+     */
+    private function provisionedFields(): array
+    {
+        return ['id', 'email', 'employee_id', 'first_name', 'last_name', 'name', 'role', 'job_role', 'training_path', 'is_active', 'created_at'];
     }
 
     private function labPayload(array $overrides = []): array

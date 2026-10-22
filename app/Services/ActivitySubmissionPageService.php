@@ -88,7 +88,7 @@ class ActivitySubmissionPageService
             'versionRows' => $this->versionRows($submission?->versions ?? collect(), $version),
             'weekThreeWorkspace' => $trainingWeek->week_number === 3 ? $this->weekThreeWorkspace->present($participant, $trainingWeek, $activity) : null,
             ...$weekFourInterview,
-            'weekFourGuide' => $trainingWeek->week_number === 4 ? $this->weekFourSubmission->guide($activity, $version, $weekFourInterview['partnerFeedback']) : null,
+            'weekFourGuide' => $trainingWeek->week_number === 4 ? $this->weekFourSubmission->guide($participant, $activity, $version) : null,
             'participantCalendarEnabled' => $this->googleConfiguration->participantCalendarEnabled(),
         ];
     }

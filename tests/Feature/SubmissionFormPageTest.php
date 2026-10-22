@@ -18,6 +18,7 @@ use App\Services\WeekThreeWorkspaceService;
 use App\Support\FieldLimits;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -159,6 +160,7 @@ class SubmissionFormPageTest extends TestCase
     public function test_week_four_guide_progress_reflects_the_saved_answers(int $position, array $fieldValues, string $title, array $expectedSteps): void
     {
         [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: $position);
+        EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity))->create(['evidence_type' => 'file']);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft', 'field_values' => $fieldValues]);
 
@@ -179,6 +181,7 @@ class SubmissionFormPageTest extends TestCase
                 'Second task <span class="sr-only">(complete)</span>',
                 'Reflection <span class="sr-only">(incomplete)</span>',
                 'Evidence <span class="sr-only">(incomplete)</span>',
+                'Ready to submit <span class="sr-only">(incomplete)</span>',
             ]],
             'leveling assessment' => [3, ['strict_interview_transcript' => 'Transcript', 'assessment_level' => 'Level 3'], 'Strict-mode Leveling Assessment', [
                 'Transcript <span class="sr-only">(complete)</span>',
@@ -186,7 +189,58 @@ class SubmissionFormPageTest extends TestCase
                 'Level <span class="sr-only">(complete)</span>',
                 'Confidence <span class="sr-only">(incomplete)</span>',
                 'Evidence <span class="sr-only">(incomplete)</span>',
+                'Ready to submit <span class="sr-only">(incomplete)</span>',
             ]],
+        ];
+    }
+
+    #[DataProvider('evidenceFileStates')]
+    public function test_week_four_guide_evidence_step_completes_once_the_required_file_is_uploaded(bool $fileIsStored, string $expectedStep): void
+    {
+        Storage::fake('local');
+        [$participant, $week, $activity, $version] = $this->levelingAssessmentDraft(['assessment_level' => 'Level 3']);
+        $this->uploadedEvidence($activity, $version, $fileIsStored);
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+            ->assertOk()
+            ->assertSee($expectedStep, false);
+    }
+
+    /**
+     * @return array<string, array{bool, string}>
+     */
+    public static function evidenceFileStates(): array
+    {
+        return [
+            'file on disk' => [true, 'Evidence <span class="sr-only">(complete)</span>'],
+            'file missing from disk' => [false, 'Evidence <span class="sr-only">(incomplete)</span>'],
+        ];
+    }
+
+    /**
+     * @param  array<string, string>  $fieldValues
+     */
+    #[DataProvider('submissionReadinessStates')]
+    public function test_week_four_guide_ready_to_submit_follows_the_submission_requirements(array $fieldValues, string $expectedStep): void
+    {
+        Storage::fake('local');
+        [$participant, $week, $activity, $version] = $this->levelingAssessmentDraft($fieldValues);
+        $this->uploadedEvidence($activity, $version, fileIsStored: true);
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+            ->assertOk()
+            ->assertSeeInOrder(['Evidence <span class="sr-only">(complete)</span>', $expectedStep], false);
+    }
+
+    /**
+     * @return array<string, array{array<string, string>, string}>
+     */
+    public static function submissionReadinessStates(): array
+    {
+        return [
+            'required field missing' => [[], 'Ready to submit <span class="sr-only">(incomplete)</span>'],
+            'invalid select option' => [['assessment_level' => 'Level 9'], 'Ready to submit <span class="sr-only">(incomplete)</span>'],
+            'all requirements met' => [['assessment_level' => 'Level 3'], 'Ready to submit <span class="sr-only">(complete)</span>'],
         ];
     }
 
@@ -209,7 +263,6 @@ class SubmissionFormPageTest extends TestCase
         $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
             ->assertOk()
             ->assertSeeInOrder([
-                'Partner feedback (2 required) <span class="sr-only">(complete)</span>',
                 'Feedback given: 2 / 2 required',
                 'Feedback received: 2 / 2 required',
                 'FEEDBACK I GAVE TO PEER PARTNER',
@@ -235,7 +288,6 @@ class SubmissionFormPageTest extends TestCase
         $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
             ->assertOk()
             ->assertSeeInOrder([
-                'Partner feedback (2 required) <span class="sr-only">(incomplete)</span>',
                 'Feedback given: 0 / 2 required',
                 'Waiting for Peer Partner to answer your practice questions.',
                 'Waiting for Peer Partner to prepare practice questions.',
@@ -249,8 +301,20 @@ class SubmissionFormPageTest extends TestCase
 
         $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
             ->assertOk()
-            ->assertSeeInOrder(['Mock Level 3 Interview', 'Partner Assignment Pending', 'PROGRESS', 'Partner selected <span class="sr-only">(incomplete)</span>'], false)
+            ->assertSeeInOrder(['Mock Level 3 Interview', 'Partner Assignment Pending'], false)
             ->assertDontSee('PARTNER FEEDBACK');
+    }
+
+    public function test_peer_interview_page_shows_only_the_peer_interview_progress_checklist(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: 2);
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+            ->assertOk()
+            ->assertSeeInOrder(['PEER INTERVIEW PROGRESS', 'Partner assigned <span class="sr-only">(incomplete)</span>'], false)
+            ->assertDontSee('week-four-progress-title', false)
+            ->assertDontSee('Partner selected')
+            ->assertDontSee('Ready to submit');
     }
 
     public function test_week_three_findings_activity_edits_each_finding_with_its_saved_answers(): void
@@ -407,6 +471,36 @@ class SubmissionFormPageTest extends TestCase
     private function submissionField(Activity $activity, int $position, array $configuration): void
     {
         ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => $position, 'configuration' => $configuration]);
+    }
+
+    /**
+     * A Week 4 Strict-mode Leveling Assessment draft with the given answers, a required "Level" select field and a
+     * required file evidence requirement.
+     *
+     * @param  array<string, string>  $fieldValues
+     * @return array{User, TrainingWeek, Activity, SubmissionVersion}
+     */
+    private function levelingAssessmentDraft(array $fieldValues): array
+    {
+        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: 3);
+        $this->submissionField($activity, 1, ['key' => 'assessment_level', 'label' => 'Level', 'type' => 'select', 'required' => true, 'options' => ['Level 2', 'Level 3']]);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft', 'field_values' => $fieldValues]);
+
+        return [$participant, $week, $activity, $version];
+    }
+
+    /**
+     * Add a required file evidence requirement to the activity and an uploaded file for it on the version, optionally
+     * storing the file on the local disk.
+     */
+    private function uploadedEvidence(Activity $activity, SubmissionVersion $version, bool $fileIsStored): void
+    {
+        $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity))->create(['evidence_type' => 'file']);
+        SubmissionEvidence::factory()->for($version, 'submissionVersion')->for($requirement, 'evidenceRequirement')->create(['evidence_type' => 'file', 'content' => null, 'disk' => 'local', 'path' => 'evidence/transcript.pdf', 'original_filename' => 'transcript.pdf']);
+        if ($fileIsStored) {
+            Storage::disk('local')->put('evidence/transcript.pdf', 'transcript');
+        }
     }
 
     /**

@@ -158,4 +158,3 @@
 .flatpickr-time,.flatpickr-time input,.flatpickr-time .flatpickr-am-pm { background:var(--color-field); color:#eef2ff; }
 .flatpickr-time input:focus,.flatpickr-time .flatpickr-am-pm:focus { background:var(--color-brand-soft); }
 .flatpickr-input[readonly] { cursor:pointer; }
-p[id="mentor-interview-timezone"] { display:none; }

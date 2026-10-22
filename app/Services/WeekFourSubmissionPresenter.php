@@ -16,6 +16,7 @@ class WeekFourSubmissionPresenter
         private readonly WeekProgressionService $progression,
         private readonly WeekFourInterviewService $interviews,
         private readonly MentorInterviewSchedulingService $mentorScheduling,
+        private readonly SubmissionWorkflowService $workflow,
     ) {}
 
     /**
@@ -74,17 +75,19 @@ class WeekFourSubmissionPresenter
     }
 
     /**
-     * The Week 4 activity guide: the activity heading and its progress checklist, read from the version's answers (and,
-     * on Activity 2, the partner feedback counts). The evidence and "Ready to submit" steps are never shown as complete.
+     * The Week 4 activity guide: the activity heading and its progress checklist, read from the version's answers. The
+     * "Evidence" step is complete when the version has evidence and every required evidence requirement is met, and
+     * "Ready to submit" when the version meets the activity's submission requirements (the checks of submit()).
+     * Activity 2 has no checklist here: its Peer Interview Progress is the one checklist on that page.
      *
-     * @param  ?array{given_count: int, received_count: int}  $partnerFeedback
      * @return array{title: string, progress: list<array{label: string, complete: bool}>}
      */
-    public function guide(Activity $activity, ?SubmissionVersion $version, ?array $partnerFeedback): array
+    public function guide(User $participant, Activity $activity, ?SubmissionVersion $version): array
     {
         $values = $version?->field_values ?? [];
         $isAnswered = fn (string $key): bool => filled($values[$key] ?? null);
-        $filledCount = fn (string $key): int => collect($values[$key] ?? [])->filter(fn (mixed $value): bool => filled($value))->count();
+        $hasRequiredEvidence = fn (): bool => $version !== null && $version->evidence->isNotEmpty() && $this->workflow->hasRequiredEvidence($participant, $activity, $version);
+        $isReadyToSubmit = fn (): bool => $version !== null && $this->workflow->meetsSubmissionRequirements($participant, $activity, $version);
 
         [$title, $steps] = match ($activity->position) {
             1 => ['Build & Validate a Reusable AI Asset', [
@@ -92,22 +95,17 @@ class WeekFourSubmissionPresenter
                 'Original use' => $isAnswered('original_task'),
                 'Second task' => $isAnswered('second_task'),
                 'Reflection' => $isAnswered('reusability_learning'),
-                'Evidence' => false,
+                'Evidence' => $hasRequiredEvidence(),
+                'Ready to submit' => $isReadyToSubmit(),
             ]],
-            2 => ['Mock Level 3 Interview', [
-                'Partner selected' => $isAnswered('partner_user_id'),
-                'About You' => $isAnswered('about_you'),
-                'Practice questions prepared' => $filledCount('practice_questions') >= 15,
-                'Partner questions answered' => $filledCount('practice_answers') >= 15,
-                'Partner feedback (2 required)' => ($partnerFeedback['given_count'] ?? 0) >= 2 && ($partnerFeedback['received_count'] ?? 0) >= 2,
-                'Ready to submit' => false,
-            ]],
+            2 => ['Mock Level 3 Interview', []],
             default => ['Strict-mode Leveling Assessment', [
                 'Transcript' => $isAnswered('strict_interview_transcript'),
                 'Tracker result' => $isAnswered('assessment_tracker_result'),
                 'Level' => $isAnswered('assessment_level'),
                 'Confidence' => $isAnswered('assessment_confidence'),
-                'Evidence' => false,
+                'Evidence' => $hasRequiredEvidence(),
+                'Ready to submit' => $isReadyToSubmit(),
             ]],
         };
 

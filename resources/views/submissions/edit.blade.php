@@ -438,7 +438,6 @@
                                     <section class="{{ $rowClasses }} justify-items-start" aria-labelledby="mentor-title">
                                         <h3 id="mentor-title" class="{{ $rowTitleClasses }}">YOUR MENTOR</h3>
                                         <p class="m-0 wrap-anywhere"><strong>{{ $mentor->name }}</strong><br>{{ $mentor->email }}</p>
-                                        <p class="{{ $hintClasses }}">Timezone: {{ $mentorInterviewTimezone }} · Duration: {{ $mentorInterviewDurationMinutes }} minutes</p>
                                         @if(! $participantCalendarEnabled)
                                             <x-ui.alert tone="warning" class="grid w-full gap-1">
                                                 <strong>CALENDAR / GOOGLE MEET UNAVAILABLE</strong>

@@ -40,17 +40,19 @@
         <p class="{{ $hintClasses }}">Keep the transcript and supporting evidence. The tracker result, level, and confidence are reviewed together.</p>
     @endif
 
-    <section class="{{ $rowClasses }}" aria-labelledby="week-four-progress-title">
-        <h3 id="week-four-progress-title" class="{{ $rowTitleClasses }}">PROGRESS</h3>
-        <ul class="m-0 grid list-none grid-cols-1 gap-2 p-0 sm:grid-cols-2">
-            @foreach($guide['progress'] as $step)
-                <li class="{{ $stepClasses[$step['complete'] ? 'complete' : 'incomplete'] }}">
-                    <span class="w-4 shrink-0" aria-hidden="true">{{ $step['complete'] ? '✓' : '○' }}</span>
-                    {{ $step['label'] }} <span class="sr-only">({{ $step['complete'] ? 'complete' : 'incomplete' }})</span>
-                </li>
-            @endforeach
-        </ul>
-    </section>
+    @if($guide['progress'] !== [])
+        <section class="{{ $rowClasses }}" aria-labelledby="week-four-progress-title">
+            <h3 id="week-four-progress-title" class="{{ $rowTitleClasses }}">PROGRESS</h3>
+            <ul class="m-0 grid list-none grid-cols-1 gap-2 p-0 sm:grid-cols-2">
+                @foreach($guide['progress'] as $step)
+                    <li class="{{ $stepClasses[$step['complete'] ? 'complete' : 'incomplete'] }}">
+                        <span class="w-4 shrink-0" aria-hidden="true">{{ $step['complete'] ? '✓' : '○' }}</span>
+                        {{ $step['label'] }} <span class="sr-only">({{ $step['complete'] ? 'complete' : 'incomplete' }})</span>
+                    </li>
+                @endforeach
+            </ul>
+        </section>
+    @endif
 
     @if($partnerFeedback !== null && $interviewPartner)
         <section class="{{ $rowClasses }}" aria-labelledby="week-four-feedback-title">

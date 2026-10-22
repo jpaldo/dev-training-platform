@@ -122,13 +122,16 @@ class MentorInterviewSchedulingTest extends TestCase
     {
         [$participant, , $activity] = $this->fixture();
 
-        $this->actingAs($participant)->get(route('training.submission.edit', [$activity->week, $activity]))
+        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$activity->week, $activity]))
             ->assertOk()
             ->assertSee('name="scheduled_at"', false)
             ->assertSee('type="datetime-local"', false)
-            ->assertSee('Timezone: Asia/Manila · Duration: 60 minutes')
+            ->assertSeeInOrder(['aria-describedby="mentor-interview-timezone"', '<p id="mentor-interview-timezone"', '>Timezone: Asia/Manila · Duration: 60 minutes</p>'], false)
             ->assertDontSee('name="date"', false)
-            ->assertDontSee('name="time"', false);
+            ->assertDontSee('name="time"', false)
+            ->getContent();
+        $this->assertSame(1, substr_count($html, 'Timezone: Asia/Manila'));
+        $this->assertStringNotContainsString('mentor-interview-timezone', file_get_contents(resource_path('css/app.css')));
         $this->assertStringContainsString("@vite(['resources/css/app.css', 'resources/js/app.js'])", file_get_contents(resource_path('views/layouts/app.blade.php')));
         $frontend = file_get_contents(resource_path('js/app.js'));
         $this->assertStringContainsString("import flatpickr from 'flatpickr';", $frontend);

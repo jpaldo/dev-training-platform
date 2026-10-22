@@ -136,9 +136,8 @@ class SubmissionWorkflowService
                 throw ValidationException::withMessages(['submission' => 'Only the current draft can be submitted.']);
             }
             $values = $version->field_values ?? [];
-            $this->validateWeekFourSubmission($submission->activity, $user, $values);
+            $this->validateSubmissionRequirements($submission->activity, $user, $version);
             $legacyInterview = $submission->activity->week?->week_number === 4 && $submission->activity->position === 2 && app(WeekFourInterviewService::class)->isLegacyAnswers($values);
-            $practiceInterview = $submission->activity->week?->week_number === 4 && $submission->activity->position === 2 && array_key_exists('practice_questions', $values);
             if ($submission->activity->week?->week_number === 4 && $submission->activity->position === 2 && filled($values['partner_user_id'] ?? null)) {
                 $partner = User::query()->where('role', UserRole::Participant)->where('is_active', true)->where('id', '<>', $user->id)->find((int) $values['partner_user_id']);
                 $values['partner_snapshot'] = ['display_name' => $partner?->name, 'email' => $partner?->email, 'training_path' => $partner?->training_path?->value];
@@ -151,30 +150,34 @@ class SubmissionWorkflowService
                 $version->field_values = $values;
                 $version->save();
             }
-            if ($submission->activity->week?->week_number !== 3 && ! $legacyInterview && ! $practiceInterview) {
-                foreach ($this->fieldDefinitions($submission->activity, $user) as $field) {
-                    if (($field['required'] ?? false) && blank($values[$field['key']] ?? null)) {
-                        throw ValidationException::withMessages(['field_values.'.$field['key'] => $field['label'].' is required before submission.']);
-                    }
-                    if (($field['type'] ?? null) === 'select' && filled($values[$field['key']] ?? null) && ! in_array($values[$field['key']], $field['options'] ?? [], true)) {
-                        throw ValidationException::withMessages(['field_values.'.$field['key'] => 'Select a valid '.$field['label'].'.']);
-                    }
-                }
-            }
-            foreach ($this->evidenceRequirements($submission->activity, $user) as $req) {
-                $evidence = $version->evidence()->where('evidence_requirement_id', $req->id)->get();
-                if (in_array($req->evidence_type, ['file', 'screenshot', 'asset'], true)) {
-                    $evidence = $evidence->filter(fn (SubmissionEvidence $item): bool => $item->isUploadedFile()
-                        && Storage::disk($item->disk)->exists($item->path));
-                }
-                if ($req->is_required && $evidence->count() < $req->minimum_count) {
-                    throw ValidationException::withMessages(['evidence' => $req->evidence_type === 'asset' ? 'Please upload your Reusable AI Asset before submitting Activity 1.' : $req->title.' is required before submission.']);
-                }
-            }
             $resubmission = $submission->versions()->whereNotNull('submitted_at')->where('id', '<>', $version->id)->exists();
             $version->update(['status' => SubmissionStatus::Submitted, 'submitted_at' => now()]);
             $submission->update(['status' => $resubmission ? SubmissionStatus::Resubmitted : SubmissionStatus::Submitted, 'submitted_at' => now()]);
         });
+    }
+
+    /**
+     * Whether the version meets the activity's submission requirements, by the same checks as submit(): the Week 4
+     * rules, the required and select fields, and the required evidence. The draft and ownership check is not included.
+     */
+    public function meetsSubmissionRequirements(User $user, Activity $activity, SubmissionVersion $version): bool
+    {
+        try {
+            $this->validateSubmissionRequirements($activity, $user, $version);
+        } catch (ValidationException) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether every required evidence requirement of the activity has enough evidence on the version, counting uploaded
+     * files only when they still exist on their disk (the evidence check of submit()).
+     */
+    public function hasRequiredEvidence(User $user, Activity $activity, SubmissionVersion $version): bool
+    {
+        return $this->firstUnmetEvidenceRequirement($activity, $user, $version) === null;
     }
 
     public function ensureDraft(User $user, SubmissionVersion $version): void
@@ -182,6 +185,53 @@ class SubmissionWorkflowService
         if (! $version->isDraft() || $version->submission->user_id !== $user->id) {
             throw ValidationException::withMessages(['submission' => 'Evidence can only be changed on your current draft.']);
         }
+    }
+
+    /**
+     * Throw the first unmet submission requirement: the Week 4 rules, then the required and select fields (not on Week 3
+     * or the Week 4 peer interview), then the required evidence.
+     *
+     * @throws ValidationException
+     */
+    private function validateSubmissionRequirements(Activity $activity, User $user, SubmissionVersion $version): void
+    {
+        $values = $version->field_values ?? [];
+        $this->validateWeekFourSubmission($activity, $user, $values);
+        $isPeerInterview = $activity->week?->week_number === 4 && $activity->position === 2;
+        $legacyInterview = $isPeerInterview && app(WeekFourInterviewService::class)->isLegacyAnswers($values);
+        $practiceInterview = $isPeerInterview && array_key_exists('practice_questions', $values);
+        if ($activity->week?->week_number !== 3 && ! $legacyInterview && ! $practiceInterview) {
+            foreach ($this->fieldDefinitions($activity, $user) as $field) {
+                if (($field['required'] ?? false) && blank($values[$field['key']] ?? null)) {
+                    throw ValidationException::withMessages(['field_values.'.$field['key'] => $field['label'].' is required before submission.']);
+                }
+                if (($field['type'] ?? null) === 'select' && filled($values[$field['key']] ?? null) && ! in_array($values[$field['key']], $field['options'] ?? [], true)) {
+                    throw ValidationException::withMessages(['field_values.'.$field['key'] => 'Select a valid '.$field['label'].'.']);
+                }
+            }
+        }
+
+        $unmetRequirement = $this->firstUnmetEvidenceRequirement($activity, $user, $version);
+        if ($unmetRequirement !== null) {
+            throw ValidationException::withMessages(['evidence' => $unmetRequirement->evidence_type === 'asset' ? 'Please upload your Reusable AI Asset before submitting Activity 1.' : $unmetRequirement->title.' is required before submission.']);
+        }
+    }
+
+    /**
+     * The first required evidence requirement without enough evidence on the version. File, screenshot and asset
+     * evidence counts only when the uploaded file still exists on its disk.
+     */
+    private function firstUnmetEvidenceRequirement(Activity $activity, User $user, SubmissionVersion $version): ?EvidenceRequirement
+    {
+        return $this->evidenceRequirements($activity, $user)->first(function (EvidenceRequirement $requirement) use ($version): bool {
+            $evidence = $version->evidence->where('evidence_requirement_id', $requirement->id);
+            if (in_array($requirement->evidence_type, ['file', 'screenshot', 'asset'], true)) {
+                $evidence = $evidence->filter(fn (SubmissionEvidence $item): bool => $item->isUploadedFile()
+                    && Storage::disk($item->disk)->exists($item->path));
+            }
+
+            return $requirement->is_required && $evidence->count() < $requirement->minimum_count;
+        });
     }
 
     /** @param array<string, mixed> $values */

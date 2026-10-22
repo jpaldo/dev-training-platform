@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TrainingPath;
 use App\Models\AttendanceSession;
 use App\Models\User;
 use App\Models\WeekFourInterviewPair;
@@ -11,7 +12,7 @@ class CoachParticipantListPageService
 {
     private const PARTICIPANTS_PER_PAGE = 25;
 
-    private const PATH_OPTIONS = ['manual' => 'Manual QA', 'automation' => 'Automation QA'];
+    private const PATH_OPTIONS = [TrainingPath::Manual->value => 'Manual QA', TrainingPath::Automation->value => 'Automation QA'];
 
     public function __construct(
         private readonly CoachReportService $reports,

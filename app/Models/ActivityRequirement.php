@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\TrainingPath;
 use Database\Factories\ActivityRequirementFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,7 +18,11 @@ class ActivityRequirement extends Model
 
     protected function casts(): array
     {
-        return ['is_required' => 'boolean', 'configuration' => 'array'];
+        return [
+            'participant_path' => TrainingPath::class,
+            'is_required' => 'boolean',
+            'configuration' => 'array',
+        ];
     }
 
     public function activity(): BelongsTo

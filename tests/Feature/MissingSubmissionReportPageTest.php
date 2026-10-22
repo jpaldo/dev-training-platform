@@ -2,13 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TrainingPath;
 use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\DailyLog;
 use App\Models\Program;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class MissingSubmissionReportPageTest extends TestCase
@@ -139,6 +142,41 @@ class MissingSubmissionReportPageTest extends TestCase
             ->assertDontSee('Bo Beta</a>', false);
 
         $this->assertMatchesRegularExpression('/border-danger[^"]*">Expectation Not Configured<\/span>/', $response->getContent());
+    }
+
+    /**
+     * @param  list<string>  $missingActivities
+     */
+    #[DataProvider('pathActivities')]
+    public function test_path_specific_activities_are_missing_only_for_participants_on_one_of_their_paths(TrainingPath $trainingPath, array $missingActivities): void
+    {
+        $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);
+        Activity::factory()->for($week, 'week')->create(['title' => 'Shared activity', 'position' => 1]);
+        $manualActivity = Activity::factory()->for($week, 'week')->create(['title' => 'Manual activity', 'position' => 2]);
+        ActivityRequirement::factory()->for($manualActivity)->create(['participant_path' => TrainingPath::Manual]);
+        $automationActivity = Activity::factory()->for($week, 'week')->create(['title' => 'Automation activity', 'position' => 3]);
+        ActivityRequirement::factory()->for($automationActivity)->create(['participant_path' => TrainingPath::Automation]);
+        $participant = User::factory()->create(['training_path' => $trainingPath]);
+
+        $html = $this->actingAs(User::factory()->create(['role' => 'coach']))
+            ->get(route('coach.reports.missing-submissions', ['participant' => $participant->id, 'category' => 'activities']))
+            ->assertOk()
+            ->getContent();
+
+        preg_match_all('/<strong>([^<]+ activity)<\/strong>/', $html, $titles);
+        $this->assertSame($missingActivities, $titles[1]);
+    }
+
+    /**
+     * @return array<string, array{TrainingPath, list<string>}>
+     */
+    public static function pathActivities(): array
+    {
+        return [
+            'manual' => [TrainingPath::Manual, ['Manual activity', 'Shared activity']],
+            'automation' => [TrainingPath::Automation, ['Automation activity', 'Shared activity']],
+            'automation / manual' => [TrainingPath::AutomationManual, ['Automation activity', 'Manual activity', 'Shared activity']],
+        ];
     }
 
     public function test_without_missing_requirements_the_notice_replaces_the_table(): void

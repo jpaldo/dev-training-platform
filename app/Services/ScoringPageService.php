@@ -24,7 +24,7 @@ class ScoringPageService
     /** The scored weeks, in column order on the scoring overview. */
     private const SCORED_WEEKS = [2, 3, 4];
 
-    private const PATH_OPTIONS = ['manual' => 'Manual QA', 'automation' => 'Automation QA'];
+    private const PATH_OPTIONS = [TrainingPath::Manual->value => 'Manual QA', TrainingPath::Automation->value => 'Automation QA'];
 
     private const SCORE_STATUS_OPTIONS = ['scored' => 'Scored', 'unscored' => 'Unscored'];
 

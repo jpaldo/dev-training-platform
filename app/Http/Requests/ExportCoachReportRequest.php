@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\GateEvaluationStatus;
+use App\Enums\TrainingPath;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -28,7 +29,7 @@ class ExportCoachReportRequest extends FormRequest
             'type' => ['nullable', 'in:progress,reviews,gates,risk'],
             'week' => ['nullable', 'integer', 'in:2,3,4'],
             'activity' => ['nullable', 'integer'],
-            'path' => ['nullable', 'in:manual,automation,automation_manual'],
+            'path' => ['nullable', Rule::enum(TrainingPath::class)],
             'status' => ['nullable', Rule::in(['submitted', 'resubmitted', 'under_review', 'needs_revision', GateEvaluationStatus::NotReady, GateEvaluationStatus::Failed, GateEvaluationStatus::Passed])],
             'participant' => ['nullable', 'integer'],
             'search' => ['nullable', 'string', 'max:100'],

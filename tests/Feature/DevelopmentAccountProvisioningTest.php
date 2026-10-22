@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\TrainingPath;
 use App\Enums\ValidationCheckStatus;
 use App\Enums\ValidationDecision;
 use App\Enums\ValidationSubmissionStatus;
@@ -26,6 +27,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
         $this->assertDatabaseHas('users', ['email' => 'admin.dev@example.test', 'role' => 'admin']);
         $this->assertSame(1, User::where('email', 'coach.dev@example.test')->count());
         $this->assertSame(1, User::where('email', 'admin.dev@example.test')->count());
+        $this->assertSame(TrainingPath::Manual, User::query()->where('email', 'test@example.com')->sole()->training_path);
     }
 
     public function test_targeted_development_account_command_is_idempotent(): void

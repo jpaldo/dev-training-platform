@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\TrainingPath;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class FilterDailyLogReportRequest extends FormRequest
 {
@@ -24,7 +26,7 @@ class FilterDailyLogReportRequest extends FormRequest
     {
         return [
             'participant' => ['nullable', 'integer'],
-            'path' => ['nullable', 'in:manual,automation,automation_manual'],
+            'path' => ['nullable', Rule::enum(TrainingPath::class)],
             'mentor' => ['nullable', 'integer'],
             'week' => ['nullable', 'integer', 'in:2,3,4'],
             'activity' => ['nullable', 'integer'],

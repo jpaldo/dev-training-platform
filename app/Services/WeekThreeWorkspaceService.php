@@ -15,8 +15,6 @@ use Illuminate\Validation\ValidationException;
 
 class WeekThreeWorkspaceService
 {
-    public const PATHS = ['manual', 'automation'];
-
     public function workspace(User $user, TrainingWeek $week): WeekThreeWorkspace
     {
         abort_unless($week->week_number === 3, 404);
@@ -46,7 +44,8 @@ class WeekThreeWorkspaceService
                 $finding = $workspace->findings()->updateOrCreate(['position' => (int) $position + 1], array_intersect_key($data, array_flip([
                     'title', 'description', 'steps_to_reproduce', 'expected_result', 'actual_result', 'observed_evidence', 'ai_tool', 'ai_proposed_root_cause', 'human_validation', 'human_validation_explanation', 'severity', 'blast_radius', 'affected_areas', 'next_step',
                 ])));
-                foreach (($data['tests'] ?? []) as $path => $testData) {
+                foreach (($data['tests'] ?? []) as $pathValue => $testData) {
+                    $path = TrainingPath::tryFrom((string) $pathValue);
                     if (! in_array($path, $this->requiredPaths($user), true)) {
                         continue;
                     }
@@ -68,15 +67,11 @@ class WeekThreeWorkspaceService
      * The Week 3 test paths the participant must cover: both for an Automation / Manual participant, otherwise the
      * participant's own (Manual without a path).
      *
-     * @return list<string>
+     * @return list<TrainingPath>
      */
     public function requiredPaths(User $user): array
     {
-        return match ($user->training_path) {
-            TrainingPath::Automation => ['automation'],
-            TrainingPath::AutomationManual => self::PATHS,
-            default => ['manual'],
-        };
+        return ($user->training_path ?? TrainingPath::Manual)->weekThreeTestPaths();
     }
 
     public function validateForSubmission(User $user, Activity $activity): void
@@ -93,10 +88,10 @@ class WeekThreeWorkspaceService
         }
         if ($activity->position === 2) {
             $missing = $complete->filter(function (WeekThreeFinding $finding) use ($user): bool {
-                return ! collect($this->requiredPaths($user))->every(function (string $path) use ($finding): bool {
+                return ! collect($this->requiredPaths($user))->every(function (TrainingPath $path) use ($finding): bool {
                     $test = $finding->tests->firstWhere('path', $path);
                     $required = ['name', 'steps', 'expected_result', 'actual_result', 'execution_result', 'execution_evidence'];
-                    if ($path === 'automation') {
+                    if ($path === TrainingPath::Automation) {
                         $required = array_merge($required, ['framework', 'script_location', 'artifact_evidence']);
                     }
 

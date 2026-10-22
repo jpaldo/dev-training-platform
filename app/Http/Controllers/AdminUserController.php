@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\TrainingPath;
 use App\Http\Requests\FilterAdminUsersRequest;
 use App\Http\Requests\StoreAdminUserRequest;
 use App\Http\Requests\UpdateAdminUserRequest;
@@ -101,14 +102,19 @@ class AdminUserController extends Controller
         }
     }
 
+    /**
+     * The role and training path of an Access Type (coaches and admins have no path).
+     *
+     * @return array{string, ?TrainingPath}
+     */
     private function mapAccessType(string $accessType): array
     {
         return match ($accessType) {
             'admin' => ['admin', null],
             'coach' => ['coach', null],
-            'qa_automation' => ['participant', 'automation'],
-            'qa_automation_manual' => ['participant', 'automation_manual'],
-            default => ['participant', 'manual'],
+            'qa_automation' => ['participant', TrainingPath::Automation],
+            'qa_automation_manual' => ['participant', TrainingPath::AutomationManual],
+            default => ['participant', TrainingPath::Manual],
         };
     }
 

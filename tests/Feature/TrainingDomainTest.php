@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\GateCriterionStatus;
+use App\Enums\TrainingPath;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
@@ -16,6 +17,7 @@ use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 
@@ -39,8 +41,23 @@ class TrainingDomainTest extends TestCase
 
         $this->assertSame($program->id, $week->program->id);
         $this->assertSame($week->id, $activity->week->id);
-        $this->assertSame('automation', $requirement->participant_path);
+        $this->assertSame(TrainingPath::Automation, $requirement->fresh()->participant_path);
         $this->assertSame(['accepted_schemes' => ['https']], $evidenceRequirement->configuration);
+    }
+
+    public function test_program_seeder_gives_every_activity_one_guidance_requirement_per_path_on_every_run(): void
+    {
+        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(QaTrainingProgramSeeder::class);
+
+        $guidance = ActivityRequirement::query()->where('requirement_type', 'path_guidance')->get();
+        $this->assertCount(18, $guidance);
+        foreach ([[TrainingPath::Manual, 'Manual QA path', 20], [TrainingPath::Automation, 'Automation QA path', 21]] as [$path, $title, $position]) {
+            $pathGuidance = $guidance->filter(fn (ActivityRequirement $requirement): bool => $requirement->participant_path === $path);
+            $this->assertCount(9, $pathGuidance);
+            $this->assertSame([$title], $pathGuidance->pluck('title')->unique()->values()->all());
+            $this->assertSame([$position], $pathGuidance->pluck('position')->unique()->values()->all());
+        }
     }
 
     public function test_submission_versions_keep_evidence_attached_to_the_submitted_attempt(): void

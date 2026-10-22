@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\TrainingPath;
 use App\Models\User;
 use App\Services\DevelopmentAccountProvisioner;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -20,7 +21,7 @@ class DatabaseSeeder extends Seeder
         $this->call(QaTrainingProgramSeeder::class);
 
         User::query()->updateOrCreate(['email' => 'test@example.com'], [
-            'name' => 'Test User', 'password' => Hash::make('password'), 'role' => 'participant', 'training_path' => 'manual', 'is_active' => true,
+            'name' => 'Test User', 'password' => Hash::make('password'), 'role' => 'participant', 'training_path' => TrainingPath::Manual, 'is_active' => true,
         ]);
 
         app(DevelopmentAccountProvisioner::class)->provision();

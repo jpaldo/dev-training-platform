@@ -23,7 +23,7 @@ class AdminUserPageService
 
     private const STATUS_OPTIONS = ['active' => 'Active', 'disabled' => 'Disabled'];
 
-    private const PATH_OPTIONS = ['manual' => 'Manual QA', 'automation' => 'Automation QA'];
+    private const PATH_OPTIONS = [TrainingPath::Manual->value => 'Manual QA', TrainingPath::Automation->value => 'Automation QA'];
 
     private const RECENT_ATTENDANCE_SESSIONS = 5;
 
@@ -100,9 +100,9 @@ class AdminUserPageService
             ->when($filters['access_type'] ?? null, fn (Builder $query, string $type): Builder => $query->where(fn (Builder $q): Builder => match ($type) {
                 'admin' => $q->where('role', 'admin'),
                 'coach' => $q->where('role', 'coach'),
-                'qa_manual' => $q->where('role', 'participant')->where('training_path', 'manual'),
-                'qa_automation' => $q->where('role', 'participant')->where('training_path', 'automation'),
-                'qa_automation_manual' => $q->where('role', 'participant')->where('training_path', 'automation_manual'),
+                'qa_manual' => $q->where('role', 'participant')->where('training_path', TrainingPath::Manual),
+                'qa_automation' => $q->where('role', 'participant')->where('training_path', TrainingPath::Automation),
+                'qa_automation_manual' => $q->where('role', 'participant')->where('training_path', TrainingPath::AutomationManual),
             }));
     }
 

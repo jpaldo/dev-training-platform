@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
+use App\Enums\TrainingPath;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
 use App\Models\User;
@@ -25,7 +26,7 @@ class CoachGateBoardPageService
 
     private const WEEK_OPTIONS = [2, 3, 4];
 
-    private const PATH_OPTIONS = ['manual' => 'Manual QA', 'automation' => 'Automation QA'];
+    private const PATH_OPTIONS = [TrainingPath::Manual->value => 'Manual QA', TrainingPath::Automation->value => 'Automation QA'];
 
     /** @var array<string, string> The status filter's option texts by status value, in display order. */
     private const STATUS_OPTIONS = [

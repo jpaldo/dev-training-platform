@@ -12,7 +12,7 @@ class AttendancePageService
 {
     private const SESSIONS_PER_PAGE = 25;
 
-    private const PATH_OPTIONS = ['manual' => 'QA Manual', 'automation' => 'QA Automation'];
+    private const PATH_OPTIONS = [TrainingPath::Manual->value => 'QA Manual', TrainingPath::Automation->value => 'QA Automation'];
 
     private const STATUS_OPTIONS = ['active' => 'Checked in', 'completed' => 'Checked out'];
 

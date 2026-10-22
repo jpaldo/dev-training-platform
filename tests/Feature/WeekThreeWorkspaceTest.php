@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\TrainingPath;
+use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\Program;
@@ -64,7 +65,7 @@ class WeekThreeWorkspaceTest extends TestCase
     }
 
     /**
-     * @param  list<string>  $savedPaths
+     * @param  list<TrainingPath>  $savedPaths
      */
     #[DataProvider('requiredTestPaths')]
     public function test_workspace_saves_only_the_tests_of_the_participants_training_path(TrainingPath $trainingPath, array $savedPaths): void
@@ -78,18 +79,79 @@ class WeekThreeWorkspaceTest extends TestCase
             'tests' => ['manual' => ['name' => 'Manual test'], 'automation' => ['name' => 'Automation test']],
         ]]]);
 
-        $this->assertSame($savedPaths, $workspace->findings->first()->tests->pluck('path')->sort()->values()->all());
+        $this->assertSame($savedPaths, $workspace->findings->first()->tests->sortBy('id')->pluck('path')->values()->all());
     }
 
     /**
-     * @return array<string, array{TrainingPath, list<string>}>
+     * @return array<string, array{TrainingPath, list<TrainingPath>}>
      */
     public static function requiredTestPaths(): array
     {
         return [
-            'manual' => [TrainingPath::Manual, ['manual']],
-            'automation' => [TrainingPath::Automation, ['automation']],
-            'automation / manual' => [TrainingPath::AutomationManual, ['automation', 'manual']],
+            'manual' => [TrainingPath::Manual, [TrainingPath::Manual]],
+            'automation' => [TrainingPath::Automation, [TrainingPath::Automation]],
+            'automation / manual' => [TrainingPath::AutomationManual, [TrainingPath::Manual, TrainingPath::Automation]],
+        ];
+    }
+
+    #[DataProvider('incompleteTestFields')]
+    public function test_activity_two_requires_a_complete_test_on_every_path_of_the_participant(TrainingPath $trainingPath, TrainingPath $incompletePath, string $blankedField): void
+    {
+        $participant = User::factory()->create(['training_path' => $trainingPath]);
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 3]);
+        $activity = Activity::factory()->for($week, 'week')->create(['position' => 2]);
+        $workspace = $this->completeWorkspace($trainingPath->weekThreeTestPaths());
+        $service = app(WeekThreeWorkspaceService::class);
+        $service->save($participant, $week, $workspace);
+
+        $this->assertNull($this->submissionError($participant, $activity));
+
+        $workspace['findings'][4]['tests'][$incompletePath->value][$blankedField] = '';
+        $service->save($participant, $week, $workspace);
+
+        $this->assertSame('Add complete path-specific tests for all five findings before submitting Activity 2.', $this->submissionError($participant, $activity));
+    }
+
+    /**
+     * @return array<string, array{TrainingPath, TrainingPath, string}>
+     */
+    public static function incompleteTestFields(): array
+    {
+        return [
+            'manual test evidence' => [TrainingPath::Manual, TrainingPath::Manual, 'execution_evidence'],
+            'automation framework' => [TrainingPath::Automation, TrainingPath::Automation, 'framework'],
+            'automation / manual script location' => [TrainingPath::AutomationManual, TrainingPath::Automation, 'script_location'],
+            'automation / manual test steps' => [TrainingPath::AutomationManual, TrainingPath::Manual, 'steps'],
+        ];
+    }
+
+    #[DataProvider('incompleteFixValidationPaths')]
+    public function test_activity_three_requires_a_complete_fix_validation_for_every_test_of_the_participants_path(TrainingPath $trainingPath, TrainingPath $incompletePath): void
+    {
+        $participant = User::factory()->create(['training_path' => $trainingPath]);
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 3]);
+        $activity = Activity::factory()->for($week, 'week')->create(['position' => 3]);
+        $workspace = $this->completeWorkspace($trainingPath->weekThreeTestPaths());
+        $service = app(WeekThreeWorkspaceService::class);
+        $service->save($participant, $week, $workspace);
+
+        $this->assertNull($this->submissionError($participant, $activity));
+
+        $workspace['findings'][4]['tests'][$incompletePath->value]['fix_validation']['evidence'] = '';
+        $service->save($participant, $week, $workspace);
+
+        $this->assertSame('Complete fix validation for every test and the regression/coverage conclusion before submitting Activity 3.', $this->submissionError($participant, $activity));
+    }
+
+    /**
+     * @return array<string, array{TrainingPath, TrainingPath}>
+     */
+    public static function incompleteFixValidationPaths(): array
+    {
+        return [
+            'manual' => [TrainingPath::Manual, TrainingPath::Manual],
+            'automation' => [TrainingPath::Automation, TrainingPath::Automation],
+            'automation / manual, automation test' => [TrainingPath::AutomationManual, TrainingPath::Automation],
         ];
     }
 
@@ -102,6 +164,7 @@ class WeekThreeWorkspaceTest extends TestCase
         $service->save($participant, $week, ['findings' => [[
             'title' => 'Original finding', 'description' => 'Observed', 'steps_to_reproduce' => 'Steps', 'expected_result' => 'Expected', 'actual_result' => 'Actual',
             'human_validation' => 'supported', 'human_validation_explanation' => 'Evidence', 'severity' => 'medium', 'blast_radius' => 'Area', 'affected_areas' => 'Feature', 'next_step' => 'Investigate',
+            'tests' => ['manual' => ['name' => 'Original test']],
         ]]]);
         $activity = $week->activities()->where('position', 1)->firstOrFail();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
@@ -110,7 +173,9 @@ class WeekThreeWorkspaceTest extends TestCase
 
         $service->save($participant, $week, ['findings' => [['title' => 'Changed later']]]);
 
+        $this->assertSame('manual', $snapshot['findings'][0]['tests'][0]['path']);
         $this->assertSame('Original finding', $version->fresh()->field_values['week_three_snapshot']['findings'][0]['title']);
+        $this->assertSame('manual', $version->fresh()->field_values['week_three_snapshot']['findings'][0]['tests'][0]['path']);
         $this->assertSame('Changed later', $service->snapshot($participant, $week)['findings'][0]['title']);
     }
 
@@ -197,6 +262,49 @@ class WeekThreeWorkspaceTest extends TestCase
             ->assertSessionHas('status', 'Week 3 workspace saved.');
 
         $this->assertSame(['Submitted finding'], WeekThreeFinding::query()->pluck('title')->all());
+    }
+
+    /**
+     * A complete Week 3 workspace: the regression summary and five complete findings, each with a complete test and fix
+     * validation on every given path.
+     *
+     * @param  list<TrainingPath>  $paths
+     * @return array{regression_areas: string, regression_issues: string, coverage_gaps: string, final_conclusion: string, findings: list<array<string, mixed>>}
+     */
+    private function completeWorkspace(array $paths): array
+    {
+        $finding = ['description' => 'Observed', 'steps_to_reproduce' => 'Steps', 'expected_result' => 'Expected', 'actual_result' => 'Actual', 'human_validation' => 'supported', 'human_validation_explanation' => 'Evidence', 'severity' => 'medium', 'blast_radius' => 'Area', 'affected_areas' => 'Feature', 'next_step' => 'Investigate'];
+        $test = [
+            'name' => 'Regression test', 'steps' => 'Run steps', 'expected_result' => 'Pass', 'actual_result' => 'Observed', 'execution_result' => 'Passed', 'execution_evidence' => 'Report',
+            'framework' => 'Playwright', 'script_location' => 'tests/checkout.spec.ts', 'artifact_evidence' => 'Trace',
+            'fix_validation' => ['buggy_result' => 'Fails', 'bug_free_result' => 'Passes', 'status' => 'fixed', 'evidence' => 'Screenshot'],
+        ];
+        $tests = [];
+        foreach ($paths as $path) {
+            $tests[$path->value] = $test;
+        }
+
+        return [
+            'regression_areas' => 'Checkout',
+            'regression_issues' => 'None found',
+            'coverage_gaps' => 'Refunds',
+            'final_conclusion' => 'Fixed',
+            'findings' => array_map(fn (int $number): array => ['title' => "Finding {$number}", ...$finding, 'tests' => $tests], range(1, 5)),
+        ];
+    }
+
+    /**
+     * The Week 3 workspace error that blocks submitting the activity, or null when the workspace is complete.
+     */
+    private function submissionError(User $participant, Activity $activity): ?string
+    {
+        try {
+            app(WeekThreeWorkspaceService::class)->validateForSubmission($participant, $activity);
+        } catch (ValidationException $exception) {
+            return $exception->errors()['week_three'][0];
+        }
+
+        return null;
     }
 
     /**

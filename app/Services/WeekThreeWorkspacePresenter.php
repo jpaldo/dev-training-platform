@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\TrainingPath;
 use App\Models\Activity;
 use App\Models\TrainingWeek;
 use App\Models\User;
@@ -36,8 +37,8 @@ class WeekThreeWorkspacePresenter
 
     /** @var array<string, array<string, array{string, int}>> The path-specific fields of a Week 3 test: path => key => [label, rows]. */
     private const WEEK_THREE_PATH_TEST_FIELDS = [
-        'automation' => ['framework' => ['Framework', 2], 'script_location' => ['Script / test location', 2], 'artifact_evidence' => ['Artifact evidence', 2], 'execution_evidence' => ['Execution report / evidence', 2]],
-        'manual' => ['execution_evidence' => ['Test evidence', 3]],
+        TrainingPath::Automation->value => ['framework' => ['Framework', 2], 'script_location' => ['Script / test location', 2], 'artifact_evidence' => ['Artifact evidence', 2], 'execution_evidence' => ['Execution report / evidence', 2]],
+        TrainingPath::Manual->value => ['execution_evidence' => ['Test evidence', 3]],
     ];
 
     /** @var array<string, string> The text fields of a Week 3 fix validation: key => label. */
@@ -80,7 +81,7 @@ class WeekThreeWorkspacePresenter
                 'finding' => $finding,
                 'fields' => $stage === 1 ? $this->weekThreeFindingFields($index, $finding) : [],
                 'tests' => $stage === 1 ? [] : array_map(
-                    fn (string $path): array => $this->weekThreeTest($index, $path, $finding?->tests->firstWhere('path', $path), $stage === 3),
+                    fn (TrainingPath $path): array => $this->weekThreeTest($index, $path, $finding?->tests->firstWhere('path', $path), $stage === 3),
                     $paths,
                 ),
             ];
@@ -131,11 +132,11 @@ class WeekThreeWorkspacePresenter
      *
      * @return array{heading: string, fields: list<array<string, mixed>>, fix_fields: list<array<string, mixed>>}
      */
-    private function weekThreeTest(int $index, string $path, ?WeekThreeTest $test, bool $validatesFix): array
+    private function weekThreeTest(int $index, TrainingPath $path, ?WeekThreeTest $test, bool $validatesFix): array
     {
-        $prefix = "findings[{$index}][tests][{$path}]";
+        $prefix = "findings[{$index}][tests][{$path->value}]";
         $fields = [];
-        foreach ([...self::WEEK_THREE_TEST_FIELDS, ...self::WEEK_THREE_PATH_TEST_FIELDS[$path]] as $key => [$label, $rows]) {
+        foreach ([...self::WEEK_THREE_TEST_FIELDS, ...self::WEEK_THREE_PATH_TEST_FIELDS[$path->value]] as $key => [$label, $rows]) {
             $fields[] = $this->weekThreeField("{$prefix}[{$key}]", $label, true, $rows, $test?->{$key});
         }
 
@@ -148,7 +149,7 @@ class WeekThreeWorkspacePresenter
             $fixFields[] = $this->weekThreeField("{$prefix}[fix_validation][status]", 'Fix validation status', true, 1, $fix?->status, self::WEEK_THREE_FIX_STATUSES, 'Select status');
         }
 
-        return ['heading' => ucfirst($path).' test', 'fields' => $fields, 'fix_fields' => $fixFields];
+        return ['heading' => ucfirst($path->value).' test', 'fields' => $fields, 'fix_fields' => $fixFields];
     }
 
     /**

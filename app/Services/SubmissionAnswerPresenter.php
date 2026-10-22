@@ -65,11 +65,7 @@ class SubmissionAnswerPresenter
         }
 
         $findings = collect($snapshot['findings'] ?? [])->filter(fn (mixed $finding): bool => is_array($finding))->values();
-        $allowedPaths = match ($trainingPath) {
-            TrainingPath::Automation => ['automation'],
-            TrainingPath::AutomationManual => ['manual', 'automation'],
-            default => ['manual'],
-        };
+        $allowedPaths = ($trainingPath ?? TrainingPath::Manual)->weekThreeTestPaths();
         $cleanFinding = fn (array $finding, int $index): array => [
             'number' => $index + 1,
             'title' => $this->text($finding['title'] ?? null),
@@ -88,7 +84,7 @@ class SubmissionAnswerPresenter
                 'blast_radius' => 'Blast Radius',
                 'next_step' => 'Next Step',
             ]),
-            'tests' => collect($finding['tests'] ?? [])->filter(fn (mixed $test): bool => is_array($test))->filter(fn (array $test): bool => in_array($test['path'] ?? null, $allowedPaths, true))->values()->map(fn (array $test): array => [
+            'tests' => collect($finding['tests'] ?? [])->filter(fn (mixed $test): bool => is_array($test))->filter(fn (array $test): bool => is_string($test['path'] ?? null) && in_array(TrainingPath::tryFrom($test['path']), $allowedPaths, true))->values()->map(fn (array $test): array => [
                 'path' => $test['path'] ?? null,
                 'path_label' => ucfirst(str_replace('_', ' / ', (string) ($test['path'] ?? ''))),
                 'title' => $this->text($test['name'] ?? null),

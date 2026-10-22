@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\TrainingPath;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\EvidenceRequirement;
@@ -44,8 +45,8 @@ class QaTrainingProgramSeeder extends Seeder
             ['key' => 'action_taken', 'label' => 'Action Taken', 'type' => 'textarea'],
             ['key' => 'finding_and_decision', 'label' => 'Concrete finding and resulting decision', 'type' => 'textarea', 'deprecated' => true],
         ], 'Validation evidence or reference');
-        $this->pathRequirement($activity1, 'manual', 'Validate test steps, expected results, requirements, real behavior, and evidence.');
-        $this->pathRequirement($activity1, 'automation', 'Validate selectors, assertions, scripts, framework conventions, execution, and evidence.');
+        $this->pathRequirement($activity1, TrainingPath::Manual, 'Validate test steps, expected results, requirements, real behavior, and evidence.');
+        $this->pathRequirement($activity1, TrainingPath::Automation, 'Validate selectors, assertions, scripts, framework conventions, execution, and evidence.');
 
         $this->fieldsAndEvidence($activity2, [
             ['key' => 'validation_submission_id', 'label' => 'QA Validation Lab Record', 'type' => 'text', 'required' => true, 'guidance' => ['what' => 'Select the QA Validation Lab record for the AI-generated artifact you are investigating.', 'why' => 'The Lab record is the authoritative artifact context for this connected Week 2 workflow.', 'example' => 'Select the Lab record containing the artifact you checked.', 'avoid' => 'Do not select a record belonging to another participant.']],
@@ -60,8 +61,8 @@ class QaTrainingProgramSeeder extends Seeder
             ['key' => 'prompt', 'label' => 'Prompt', 'type' => 'textarea', 'deprecated' => true],
             ['key' => 'exact_ai_output', 'label' => 'Exact AI output that was wrong', 'type' => 'textarea', 'deprecated' => true],
         ], 'Proof of the AI-wrong case');
-        $this->pathRequirement($activity2, 'manual', 'Prove a wrong expected result, missing edge case, or other manual-QA AI error.');
-        $this->pathRequirement($activity2, 'automation', 'Prove a fabricated selector, wrong assertion, flaky output, or other automation AI error.');
+        $this->pathRequirement($activity2, TrainingPath::Manual, 'Prove a wrong expected result, missing edge case, or other manual-QA AI error.');
+        $this->pathRequirement($activity2, TrainingPath::Automation, 'Prove a fabricated selector, wrong assertion, flaky output, or other automation AI error.');
 
         $this->fieldsAndEvidence($activity3, [
             ['key' => 'validation_submission_id', 'label' => 'QA Validation Lab Record', 'type' => 'text', 'required' => true, 'guidance' => ['what' => 'Select the QA Validation Lab record for the AI-generated artifact you are evaluating before accepting it into your QA work.', 'why' => 'The selected Lab record identifies the artifact without re-entering it here.', 'example' => 'Select the Lab record you validated in Activities 1 and 2.', 'avoid' => 'Do not select a record belonging to another participant.']],
@@ -78,8 +79,8 @@ class QaTrainingProgramSeeder extends Seeder
             ['key' => 'pre_acceptance_question', 'label' => 'Pre-acceptance Question', 'type' => 'textarea', 'deprecated' => true],
         ], 'Pre-acceptance validation evidence');
         $this->weeklyLoomEvidence($activity3, 2);
-        $this->pathRequirement($activity3, 'manual', 'Check affected tests, requirements, environment, and real behavior before acceptance.');
-        $this->pathRequirement($activity3, 'automation', 'Check affected tests, helpers, framework components, environment, and CI before acceptance.');
+        $this->pathRequirement($activity3, TrainingPath::Manual, 'Check affected tests, requirements, environment, and real behavior before acceptance.');
+        $this->pathRequirement($activity3, TrainingPath::Automation, 'Check affected tests, helpers, framework components, environment, and CI before acceptance.');
 
         $this->fieldsAndEvidence($activity4, [
             ['key' => 'feature_area', 'label' => 'Feature / Area', 'type' => 'text'],
@@ -107,8 +108,8 @@ class QaTrainingProgramSeeder extends Seeder
             ['key' => 'final_result', 'label' => 'Final Result', 'type' => 'textarea'],
             ['key' => 'qa_conclusion', 'label' => 'QA Conclusion / Recommendation', 'type' => 'textarea'],
         ], 'RCA report (PDF)', 'file');
-        $this->pathRequirement($activity4, 'manual', 'Validate failure evidence against logs, screenshots, behavior, and affected manual test areas.');
-        $this->pathRequirement($activity4, 'automation', 'Validate failure evidence against logs, stack traces, code, fixtures, and affected automated tests.');
+        $this->pathRequirement($activity4, TrainingPath::Manual, 'Validate failure evidence against logs, screenshots, behavior, and affected manual test areas.');
+        $this->pathRequirement($activity4, TrainingPath::Automation, 'Validate failure evidence against logs, stack traces, code, fixtures, and affected automated tests.');
 
         $this->fieldsAndEvidence($activity5, [
             ['key' => 'feature_requirement_description', 'label' => 'Feature / Requirement Description', 'type' => 'textarea'],
@@ -129,8 +130,8 @@ class QaTrainingProgramSeeder extends Seeder
             ['key' => 'execution_investigation', 'label' => 'Execution Evidence and Investigation', 'type' => 'textarea', 'deprecated' => true],
             ['key' => 'repository_thread_link', 'label' => 'Repository / Thread / Drive Link', 'type' => 'url', 'required' => false],
         ], 'Executed AI-assisted test and write-up', 'file');
-        $this->pathRequirement($activity5, 'manual', 'Generate structured test steps and expected results, validate data and behavior, and retain a validated artifact if automation is unavailable.');
-        $this->pathRequirement($activity5, 'automation', 'Generate existing-framework code, reuse helpers/page objects, follow conventions, review selectors/assertions, and execute it.');
+        $this->pathRequirement($activity5, TrainingPath::Manual, 'Generate structured test steps and expected results, validate data and behavior, and retain a validated artifact if automation is unavailable.');
+        $this->pathRequirement($activity5, TrainingPath::Automation, 'Generate existing-framework code, reuse helpers/page objects, follow conventions, review selectors/assertions, and execute it.');
 
         $this->fieldsAndEvidence($activity6, [
             ['key' => 'feature_change', 'label' => 'Feature / Change Being Tested', 'type' => 'textarea'],
@@ -154,8 +155,8 @@ class QaTrainingProgramSeeder extends Seeder
             ['key' => 'final_notes', 'label' => 'Final Notes', 'type' => 'textarea'],
         ], 'Regression prioritization and coverage-gap report', 'file');
         $this->weeklyLoomEvidence($activity6, 3);
-        $this->pathRequirement($activity6, 'manual', 'Compare requirements, exploratory charters, manual coverage, and PR behavior.');
-        $this->pathRequirement($activity6, 'automation', 'Compare requirements, automated coverage, changed code, flaky tests, and framework execution.');
+        $this->pathRequirement($activity6, TrainingPath::Manual, 'Compare requirements, exploratory charters, manual coverage, and PR behavior.');
+        $this->pathRequirement($activity6, TrainingPath::Automation, 'Compare requirements, automated coverage, changed code, flaky tests, and framework execution.');
 
         $this->fieldsAndEvidence($activity7, [
             ['key' => 'asset_name_purpose', 'label' => 'Legacy asset notes', 'type' => 'textarea', 'deprecated' => true],
@@ -176,8 +177,8 @@ class QaTrainingProgramSeeder extends Seeder
             ['key' => 'reusability_learning', 'label' => 'What made this asset reusable?', 'type' => 'textarea', 'required' => true],
             ['key' => 'reusability_improvement', 'label' => 'What would you improve before using it again?', 'type' => 'textarea', 'required' => true],
         ], 'Reusable AI Asset', 'asset');
-        $this->pathRequirement($activity7, 'manual', 'Build a reusable checklist or prompt for repeated manual QA work and show a second-task result.');
-        $this->pathRequirement($activity7, 'automation', 'Build a reusable script-generation, triage, or regression asset that follows framework conventions and show a second-task result.');
+        $this->pathRequirement($activity7, TrainingPath::Manual, 'Build a reusable checklist or prompt for repeated manual QA work and show a second-task result.');
+        $this->pathRequirement($activity7, TrainingPath::Automation, 'Build a reusable script-generation, triage, or regression asset that follows framework conventions and show a second-task result.');
 
         $this->fieldsAndEvidence($activity8, [
             ['key' => 'interview_evidence', 'label' => 'Full Interview Guide answers grounded in real Weeks 1–4 work', 'type' => 'textarea'],
@@ -186,8 +187,8 @@ class QaTrainingProgramSeeder extends Seeder
             ['key' => 'daily_log_reference', 'label' => 'Daily-log entry reference', 'type' => 'text'],
         ], 'Completed mock interview and feedback notes');
         $this->configureWeekFourInterviewFields($activity8);
-        $this->pathRequirement($activity8, 'manual', 'Ground answers in validated manual QA work and explain concrete evidence.');
-        $this->pathRequirement($activity8, 'automation', 'Ground answers in validated automation QA work and explain framework evidence.');
+        $this->pathRequirement($activity8, TrainingPath::Manual, 'Ground answers in validated manual QA work and explain concrete evidence.');
+        $this->pathRequirement($activity8, TrainingPath::Automation, 'Ground answers in validated automation QA work and explain framework evidence.');
 
         $this->fieldsAndEvidence($activity9, [
             ['key' => 'strict_interview_transcript', 'label' => 'Strict-mode Leveling interview transcript', 'type' => 'textarea'],
@@ -196,8 +197,8 @@ class QaTrainingProgramSeeder extends Seeder
         ], 'Strict-mode transcript and tracker result', 'file');
         $this->configureWeekFourAssessmentFields($activity9);
         $this->weeklyLoomEvidence($activity9, 4);
-        $this->pathRequirement($activity9, 'manual', 'Use real manual QA work from Weeks 1–4 in the strict interview evidence.');
-        $this->pathRequirement($activity9, 'automation', 'Use real automation QA work from Weeks 1–4 in the strict interview evidence.');
+        $this->pathRequirement($activity9, TrainingPath::Manual, 'Use real manual QA work from Weeks 1–4 in the strict interview evidence.');
+        $this->pathRequirement($activity9, TrainingPath::Automation, 'Use real automation QA work from Weeks 1–4 in the strict interview evidence.');
 
         $gate2 = $this->gate($week2, 'Week 2 Gate', 'Evidence that the validation skill has been internalized.');
         foreach ([
@@ -252,9 +253,9 @@ class QaTrainingProgramSeeder extends Seeder
         return Activity::query()->updateOrCreate(['training_week_id' => $week->id, 'position' => $position], compact('title', 'description', 'objectives', 'instructions') + ['requires_coach_review' => $review, 'configuration' => $configuration, 'is_active' => true]);
     }
 
-    private function pathRequirement(Activity $activity, string $path, string $description): void
+    private function pathRequirement(Activity $activity, TrainingPath $path, string $description): void
     {
-        ActivityRequirement::query()->updateOrCreate(['activity_id' => $activity->id, 'participant_path' => $path, 'requirement_type' => 'path_guidance', 'position' => $path === 'manual' ? 20 : 21], ['title' => ucfirst($path).' QA path', 'description' => $description, 'is_required' => true]);
+        ActivityRequirement::query()->updateOrCreate(['activity_id' => $activity->id, 'participant_path' => $path, 'requirement_type' => 'path_guidance', 'position' => $path === TrainingPath::Manual ? 20 : 21], ['title' => ucfirst($path->value).' QA path', 'description' => $description, 'is_required' => true]);
     }
 
     private function weeklyLoomEvidence(Activity $activity, int $weekNumber): void

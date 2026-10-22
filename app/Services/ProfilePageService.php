@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GoogleDriveSyncStatus;
+use App\Enums\TrainingPath;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveSync;
 use App\Models\User;
@@ -15,9 +16,9 @@ class ProfilePageService
      * @var array<string, string>
      */
     private const TRAINING_PATH_LABELS = [
-        'manual' => 'Manual QA',
-        'automation' => 'Automation QA',
-        'automation_manual' => 'Automation / Manual',
+        TrainingPath::Manual->value => 'Manual QA',
+        TrainingPath::Automation->value => 'Automation QA',
+        TrainingPath::AutomationManual->value => 'Automation / Manual',
     ];
 
     public function __construct(private readonly GoogleDriveConfigurationService $configuration) {}

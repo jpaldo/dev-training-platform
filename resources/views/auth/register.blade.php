@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@use('App\Enums\TrainingPath')
+
 @section('content')
     @php
         $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
@@ -38,9 +40,9 @@
                     <label for="training_path" class="{{ $labelClasses }}">Training path</label>
                     <select id="training_path" name="training_path" required class="{{ $controlClasses }}">
                         <option value="">Select a path…</option>
-                        <option value="manual" @selected(old('training_path') === 'manual')>Manual QA</option>
-                        <option value="automation" @selected(old('training_path') === 'automation')>Automation QA</option>
-                        <option value="automation_manual" @selected(old('training_path') === 'automation_manual')>Automation / Manual</option>
+                        <option value="{{ TrainingPath::Manual->value }}" @selected(old('training_path') === TrainingPath::Manual->value)>Manual QA</option>
+                        <option value="{{ TrainingPath::Automation->value }}" @selected(old('training_path') === TrainingPath::Automation->value)>Automation QA</option>
+                        <option value="{{ TrainingPath::AutomationManual->value }}" @selected(old('training_path') === TrainingPath::AutomationManual->value)>Automation / Manual</option>
                     </select>
                     @error('training_path')
                         <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>

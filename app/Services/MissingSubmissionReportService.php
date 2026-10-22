@@ -161,12 +161,16 @@ class MissingSubmissionReportService
             ->count() ?? 0;
     }
 
+    /**
+     * Whether the participant must submit the activity: it has no path requirement, or one on a path the participant
+     * follows.
+     */
     private function activityApplies(User $participant, Activity $activity): bool
     {
-        $paths = $activity->requirements->whereNotNull('participant_path')->pluck('participant_path')->unique();
-        $eligiblePaths = array_map(fn (TrainingPath $path): string => $path->value, $participant->eligibleTrainingPaths());
+        $paths = $activity->requirements->whereNotNull('participant_path')->pluck('participant_path');
+        $eligiblePaths = $participant->eligibleTrainingPaths();
 
-        return $paths->isEmpty() || $paths->intersect($eligiblePaths)->isNotEmpty();
+        return $paths->isEmpty() || $paths->contains(fn (TrainingPath $path): bool => in_array($path, $eligiblePaths, true));
     }
 
     private function matches(array $row, array $filters): bool

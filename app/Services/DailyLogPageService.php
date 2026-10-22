@@ -11,8 +11,6 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class DailyLogPageService
 {
-    private const REQUIRED_DAILY_LOGS_PER_WEEK = 5;
-
     private const LOGS_PER_PAGE = 25;
 
     public function __construct(
@@ -21,14 +19,15 @@ class DailyLogPageService
     ) {}
 
     /**
-     * Everything the participant's training log renders: the daily-log progress of every active week of the active
-     * program and the participant's logs, newest first. The main action is New log.
+     * Everything the participant's training log renders: the weekly daily-log minimum, the daily-log progress of every
+     * active week of the active program and the participant's logs, newest first. The main action is New log.
      *
-     * @return array{weeklyProgress: list<array{label: string, progress: string, is_complete: bool, message: string}>, logs: LengthAwarePaginator<int, array{date: ?string, activity_type: string, week: string, title: string, content: string, edit_url: string}>, createUrl: string}
+     * @return array{requiredDailyLogs: int, weeklyProgress: list<array{label: string, progress: string, is_complete: bool, message: string}>, logs: LengthAwarePaginator<int, array{date: ?string, activity_type: string, week: string, title: string, content: string, edit_url: string}>, createUrl: string}
      */
     public function indexData(User $participant): array
     {
         return [
+            'requiredDailyLogs' => $this->gates->minimumDailyLogs(),
             'weeklyProgress' => $this->weeklyProgress($participant),
             'logs' => $participant->dailyLogs()
                 ->with('activity.week')
@@ -100,7 +99,7 @@ class DailyLogPageService
 
     /**
      * One row per active week of the active program, in week order, with the participant's daily-log count against
-     * the five logs each week requires.
+     * the minimum each week requires (`training.daily_logs_per_week`).
      *
      * @return list<array{label: string, progress: string, is_complete: bool, message: string}>
      */
@@ -113,19 +112,20 @@ class DailyLogPageService
 
         $weeks = $program->weeks->where('is_active', true)->sortBy('week_number');
         $dailyLogCounts = $this->gates->dailyLogCountsByWeek($participant, $weeks->modelKeys());
+        $minimum = $this->gates->minimumDailyLogs();
 
         return $weeks
-            ->map(function (TrainingWeek $week) use ($dailyLogCounts): array {
+            ->map(function (TrainingWeek $week) use ($dailyLogCounts, $minimum): array {
                 $count = $dailyLogCounts->get($week->id, 0);
-                $remaining = self::REQUIRED_DAILY_LOGS_PER_WEEK - $count;
+                $remaining = $minimum - $count;
 
                 return [
                     'label' => "Week {$week->week_number}",
-                    'progress' => $count.' / '.self::REQUIRED_DAILY_LOGS_PER_WEEK.' completed',
+                    'progress' => "{$count} / {$minimum} completed",
                     'is_complete' => $remaining <= 0,
                     'message' => $remaining > 0
                         ? "Complete {$remaining} more daily log".($remaining === 1 ? '' : 's').'.'
-                        : self::REQUIRED_DAILY_LOGS_PER_WEEK.' of '.self::REQUIRED_DAILY_LOGS_PER_WEEK.' daily logs completed.',
+                        : "{$minimum} of {$minimum} daily logs completed.",
                 ];
             })
             ->values()

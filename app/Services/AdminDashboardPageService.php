@@ -30,7 +30,8 @@ class AdminDashboardPageService
     {
         $participantCount = User::query()->where('role', UserRole::Participant)->count();
         $program = Program::query()->where('is_active', true)->first();
-        $pairedParticipantCount = WeekFourInterviewPair::query()->where('status', InterviewPairStatus::Active)->count() * 2;
+        $activeParticipantCount = User::query()->where('role', UserRole::Participant)->where('is_active', true)->count();
+        $pairedParticipantCount = $this->activeParticipantsInActivePairs();
 
         return [
             'systemStats' => [
@@ -51,7 +52,7 @@ class AdminDashboardPageService
             ],
             'weekFourStats' => [
                 ['label' => 'PARTNER ASSIGNED', 'value' => $pairedParticipantCount],
-                ['label' => 'WAITING FOR PARTNER', 'value' => max(0, $participantCount - $pairedParticipantCount)],
+                ['label' => 'WAITING FOR PARTNER', 'value' => $activeParticipantCount - $pairedParticipantCount],
                 ['label' => 'MENTOR INTERVIEWS SCHEDULED', 'value' => WeekFourMentorInterviewSchedule::query()->where('status', MentorInterviewScheduleStatus::Scheduled)->count()],
                 ['label' => 'CALENDAR ATTENTION', 'value' => WeekFourMentorInterviewSchedule::query()->whereIn('status', [MentorInterviewScheduleStatus::Failed, MentorInterviewScheduleStatus::Pending])->count()],
             ],
@@ -71,6 +72,23 @@ class AdminDashboardPageService
                 ['label' => 'Settings', 'url' => route('admin.settings.index')],
             ],
         ];
+    }
+
+    /**
+     * The number of distinct active participants in at least one active Week 4 interview pair (a participant may be
+     * in several pairs).
+     */
+    private function activeParticipantsInActivePairs(): int
+    {
+        $activePairs = WeekFourInterviewPair::query()->where('status', InterviewPairStatus::Active);
+
+        return User::query()
+            ->where('role', UserRole::Participant)
+            ->where('is_active', true)
+            ->where(fn (Builder $query): Builder => $query
+                ->whereIn('id', $activePairs->clone()->select('participant_one_id'))
+                ->orWhereIn('id', $activePairs->clone()->select('participant_two_id')))
+            ->count();
     }
 
     /**

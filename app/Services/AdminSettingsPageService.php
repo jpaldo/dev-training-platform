@@ -8,6 +8,7 @@ use App\Enums\UserRole;
 use App\Models\GoogleDriveConnection;
 use App\Models\InterviewScheduler;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 
 class AdminSettingsPageService
 {
@@ -205,9 +206,10 @@ class AdminSettingsPageService
     }
 
     /**
-     * The Google Drive integration page: the configuration, OAuth and participant connection statuses, the saved
-     * form values, the secret placeholders (secrets only as configured / not configured), the Picker key and
-     * project number sources and the configured scopes.
+     * The Google Drive integration page: the configuration, OAuth and participant connection statuses (participants'
+     * connections only, not the Admin's or coaches' Calendar connections), the saved form values, the secret
+     * placeholders (secrets only as configured / not configured), the Picker key and project number sources and the
+     * configured scopes.
      *
      * @return array{statuses: list<array{label: string, value: string, tone: ?string}>, settings: array{client_id: ?string, project_number: ?string, redirect_uri: ?string, enabled: bool, automatic_export: bool}, clientSecretPlaceholder: string, pickerApiKeyPlaceholder: string, pickerApiKeyStatus: string, projectNumberStatus: string, scopes: string}
      */
@@ -221,7 +223,7 @@ class AdminSettingsPageService
             'statuses' => [
                 ['label' => 'STATUS', 'value' => $isConfigurationValid ? 'Configured' : 'Not Configured', 'tone' => $isConfigurationValid ? 'success' : 'danger'],
                 ['label' => 'OAUTH', 'value' => $isOAuthComplete ? 'Configured' : 'Missing', 'tone' => $isOAuthComplete ? 'success' : 'danger'],
-                ['label' => 'PARTICIPANT CONNECTIONS', 'value' => GoogleDriveConnection::query()->count().' connected', 'tone' => null],
+                ['label' => 'PARTICIPANT CONNECTIONS', 'value' => $this->participantDriveConnectionCount().' connected', 'tone' => null],
             ],
             'settings' => [
                 'client_id' => $settings['client_id'],
@@ -313,6 +315,16 @@ class AdminSettingsPageService
                 ],
             ],
         ];
+    }
+
+    /**
+     * The number of participants with a Google Drive connection.
+     */
+    private function participantDriveConnectionCount(): int
+    {
+        return GoogleDriveConnection::query()
+            ->whereHas('user', fn (Builder $query): Builder => $query->where('role', UserRole::Participant))
+            ->count();
     }
 
     /**

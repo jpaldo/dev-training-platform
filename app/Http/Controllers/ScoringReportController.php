@@ -52,9 +52,11 @@ class ScoringReportController extends Controller
         return $this->csv('participant-score-summary.csv', ['Participant', 'Email', 'QA Path', 'Assigned Coach(es)', 'Completed Activities', 'Scored Activities', 'Unscored Activities', 'Week 2 Average', 'Week 3 Average', 'Week 4 Average', 'Overall Average', 'Current Performance Band', 'Latest Score Date'], $rows->map(function (array $r): array {
             $s = $r[4];
             $flat = $s['weeks'];
-            $scores = $flat->flatMap(fn (array $w): Collection => $w['rows'])->filter(fn (array $x): ?ActivityScore => $x['score']);
+            $activityRows = $flat->flatMap(fn (array $w): Collection => $w['rows']);
+            $scores = $activityRows->filter(fn (array $x): ?ActivityScore => $x['score']);
+            $scoredCompletedCount = $activityRows->filter(fn (array $x): bool => $x['submission']?->isHandedIn() === true && $x['score']?->isPublished() && $x['score']->total_score !== null)->count();
 
-            return [$r[0], $r[1], $r[2], $r[3], $s['completed'], $s['scored'], $s['completed'] - $s['scored'], $flat[2]['average'] ?? null, $flat[3]['average'] ?? null, $flat[4]['average'] ?? null, $s['average'], $s['average'] === null ? 'Not Scored' : app(ScoringService::class)->band($s['average']), $scores->max(fn (array $x): ?CarbonInterface => $x['score']->updated_at)?->toDateTimeString()];
+            return [$r[0], $r[1], $r[2], $r[3], $s['completed'], $s['scored'], $s['completed'] - $scoredCompletedCount, $flat[2]['average'] ?? null, $flat[3]['average'] ?? null, $flat[4]['average'] ?? null, $s['average'], $s['average'] === null ? 'Not Scored' : app(ScoringService::class)->band($s['average']), $scores->max(fn (array $x): ?CarbonInterface => $x['score']->updated_at)?->toDateTimeString()];
         }));
     }
 

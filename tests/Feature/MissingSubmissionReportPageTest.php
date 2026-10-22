@@ -117,6 +117,16 @@ class MissingSubmissionReportPageTest extends TestCase
         $this->assertSame(1, substr_count($secondPage->getContent(), 'data-missing-row'));
     }
 
+    public function test_participants_with_missing_requirements_are_counted_by_id_not_by_name(): void
+    {
+        Program::factory()->create();
+        User::factory()->count(2)->create(['name' => 'Sam Same']);
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.reports.missing-submissions'))
+            ->assertOk()
+            ->assertSeeInOrder(['Participants With Missing Requirements', '>2</dd>'], false);
+    }
+
     public function test_rows_without_a_configured_expectation_are_listed_but_not_counted(): void
     {
         config(['training.general_training_daily_logs_expected' => null]);

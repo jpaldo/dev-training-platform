@@ -95,7 +95,7 @@ class DailyLogReportPageTest extends TestCase
             ->assertSee('value="2026-09-01"', false)
             ->assertSee('value="2026-09-30"', false)
             ->assertSee('href="'.e(route('coach.reports.daily-logs.export', $filters)).'"', false)
-            ->assertSeeInOrder(['Participants With Logs', '>26</dd>', 'Total Logs', '>26</dd>', 'Activities Logged', '>26</dd>'], false)
+            ->assertSeeInOrder(['Participants With Logs', '>26</dd>', 'Total Logs', '>26</dd>', 'Activities Logged', '>26</dd>', '26 grouped row(s)'], false)
             ->assertSee(e(route('coach.reports.daily-logs', [...$filters, 'page' => 2])), false)
             ->assertDontSee('Page Manual</strong>', false)
             ->assertDontSee('Oct 2, 2026');

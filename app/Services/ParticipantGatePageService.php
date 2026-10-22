@@ -12,8 +12,6 @@ use Illuminate\Database\Eloquent\Builder;
 
 class ParticipantGatePageService
 {
-    private const SUMMARY_DAILY_LOG_MINIMUM = 5;
-
     public function __construct(private readonly WeekTwoGateService $gates) {}
 
     /**
@@ -132,7 +130,7 @@ class ParticipantGatePageService
         $items = [];
         if (array_key_exists('daily_logs', $readiness)) {
             $logs = $this->weeklyDailyLogCount($participant, $week);
-            $minimum = self::SUMMARY_DAILY_LOG_MINIMUM;
+            $minimum = $this->gates->minimumDailyLogs();
             $remaining = max(0, $minimum - $logs);
             $items[] = [
                 'label' => 'Daily logs',

@@ -43,7 +43,7 @@ class AdminUserFormPageTest extends TestCase
             ->assertDontSee('Attendance summary');
     }
 
-    public function test_editing_a_participant_shows_the_saved_values_drive_coach_assignment_and_recent_attendance(): void
+    public function test_editing_a_participant_shows_the_saved_values_drive_coach_assignment_and_all_time_attendance(): void
     {
         $participant = User::factory()->create(['name' => 'Hal Hybrid', 'email' => 'hal@example.test', 'training_path' => 'automation_manual', 'is_active' => false, 'drive_link' => 'https://drive.google.com/drive/folders/hal']);
         $assigned = User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Bea Coach', 'email' => 'bea@example.test']);
@@ -78,7 +78,7 @@ class AdminUserFormPageTest extends TestCase
                 'Save Assignments',
                 'Currently assigned: Bea Coach',
                 'Attendance summary',
-                '4 completed session(s) · 6.00 total hours.',
+                '5 completed session(s) · 10.00 total hours.',
                 'href="'.route('admin.attendance.index', ['participant' => $participant->id]).'"', 'View attendance',
             ], false)
             ->assertDontSee('name="is_active" value="1" checked', false)

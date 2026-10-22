@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\GateEvaluationStatus;
 use App\Enums\TrainingPath;
+use App\Models\GateEvaluation;
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
@@ -85,7 +87,7 @@ class CoachProgressReportPageService
 
     /**
      * One participant progress row: name, email, path label, assigned mentor names (or "Not assigned") and the
-     * participant's submission and Gate evaluation counts.
+     * participant's submission count and passed Gate evaluation count.
      *
      * @return array{name: string, email: string, path: string, mentors: string, submission_count: int, gate_count: int}
      */
@@ -97,7 +99,7 @@ class CoachProgressReportPageService
             'path' => $participant->trainingPathLabel(),
             'mentors' => $participant->assignedCoaches->pluck('name')->filter()->join(', ') ?: 'Not assigned',
             'submission_count' => $participant->activitySubmissions->count(),
-            'gate_count' => $participant->gateEvaluations->count(),
+            'gate_count' => $participant->gateEvaluations->filter(fn (GateEvaluation $evaluation): bool => $evaluation->status === GateEvaluationStatus::Passed)->count(),
         ];
     }
 }

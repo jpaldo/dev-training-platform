@@ -59,6 +59,24 @@ class ScoringReportControllerTest extends TestCase
         $this->assertSame(['Ben', 'ben@example.com', 'automation', '', '2', '2', '0', '60', '70', '', '65', 'Developing', '2026-10-01 10:00:00'], $rows['Ben']);
     }
 
+    public function test_participant_summary_counts_unscored_activities_only_among_completed_ones(): void
+    {
+        $this->travelTo('2026-10-01 09:00:00');
+        $coach = User::factory()->create(['role' => 'coach']);
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
+        [$scoredActivity, $revisionActivity, $unscoredActivity] = Activity::factory()->for($week, 'week')->count(3)->sequence(['position' => 1], ['position' => 2], ['position' => 3])->create()->all();
+        $participant = User::factory()->create(['name' => 'Ada']);
+        $this->createScoredSubmission($participant, $scoredActivity, $coach, 80);
+        $this->createScoredSubmission($participant, $revisionActivity, $coach, 60, submissionStatus: 'needs_revision');
+        $unscoredSubmission = ActivitySubmission::factory()->for($unscoredActivity)->for($participant, 'participant')->create(['status' => 'submitted']);
+        SubmissionVersion::factory()->for($unscoredSubmission, 'submission')->create(['status' => 'submitted']);
+
+        $csv = $this->actingAs($coach)->get(route('coach.reports.participant-summary'))->assertOk()->streamedContent();
+        $row = str_getcsv(explode("\n", trim($csv))[1]);
+
+        $this->assertSame(['Ada', '2', '2', '1'], [$row[0], $row[4], $row[5], $row[6]]);
+    }
+
     public function test_activity_scores_export_prints_the_scoring_status_of_each_submitted_version(): void
     {
         $coach = User::factory()->create(['role' => 'coach']);
@@ -113,9 +131,9 @@ class ScoringReportControllerTest extends TestCase
         return count(DB::getQueryLog());
     }
 
-    private function createScoredSubmission(User $participant, Activity $activity, User $scorer, int $totalScore, int $attemptNumber = 1, ActivityScoreStatus $status = ActivityScoreStatus::Published): void
+    private function createScoredSubmission(User $participant, Activity $activity, User $scorer, int $totalScore, int $attemptNumber = 1, ActivityScoreStatus $status = ActivityScoreStatus::Published, string $submissionStatus = 'submitted'): void
     {
-        $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted', 'attempt_number' => $attemptNumber]);
+        $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => $submissionStatus, 'attempt_number' => $attemptNumber]);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
         $version->activityScore()->create(['scorer_id' => $scorer->id, 'status' => $status, 'total_score' => $totalScore, 'performance_band' => 'Proficient']);
     }

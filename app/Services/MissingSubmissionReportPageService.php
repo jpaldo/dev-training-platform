@@ -61,7 +61,7 @@ class MissingSubmissionReportPageService
         $rows = $this->report->rows($filters);
         $actionable = $rows->reject(fn (array $row): bool => $row['status'] === self::NOT_CONFIGURED_STATUS);
         $summary = [
-            'participants' => $actionable->pluck('participant_name')->unique()->count(),
+            'participants' => $actionable->unique(fn (array $row): int => $row['participant']->id)->count(),
             'activities' => $actionable->where('category', 'Activities')->count(),
             'daily_logs' => $actionable->whereIn('category', ['Daily Logs', 'General Training'])->count(),
             'general' => $actionable->where('category', 'General Training')->count(),

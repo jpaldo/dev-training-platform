@@ -19,19 +19,27 @@ class CoachGateReviewPageService
     public function __construct(private readonly WeekTwoGateService $gates) {}
 
     /**
-     * Everything the coach Gate review page renders: the readiness summary, the blockers, the required criteria
-     * (with the weekly video link on the video criterion), the Gate decision options (none preselected, so the first
-     * one shows), the criterion decision options (Not met preselected), the saved evaluation for the comments field and
-     * whether the viewer may decide the Gate (a coach who is not assigned to the participant sees the page read only).
+     * Everything the coach Gate review page renders: the readiness summary (the required criteria met: the weekly
+     * video criterion once its recording is reviewed as met, every other one when the saved evaluation marks it met),
+     * the blockers, the required criteria (with the weekly video link on the video criterion), the Gate decision options
+     * (none preselected, so the first one shows), the criterion decision options (Not met preselected), the saved
+     * evaluation for the comments field and whether the viewer may decide the Gate (a coach who is not assigned to the
+     * participant sees the page read only).
      *
      * @return array{trainingWeek: TrainingWeek, participant: User, gate: TrainingGate, evaluation: ?GateEvaluation, canManage: bool, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, criteria: list<array{id: int, title: string, field_label: string, description: ?string, video_url: ?string}>, decisionOptions: list<array{value: string, label: string}>, criterionStatusOptions: list<array{value: string, label: string, is_selected: bool}>}
      */
     public function showData(TrainingWeek $week, User $participant, TrainingGate $gate, ?GateEvaluation $evaluation, User $viewer): array
     {
         $gate->load('criteria');
+        $evaluation?->loadMissing('criterionEvaluations');
         $requiredCriteria = $gate->criteria->where('is_required', true)->values();
         $readiness = $this->gates->readiness($participant, $gate);
         $weeklyVideo = $this->gates->weeklyVideo($participant, $gate);
+        $metCriteriaCount = $requiredCriteria
+            ->filter(fn (GateCriterion $criterion): bool => in_array($criterion->criterion_type, self::VIDEO_CRITERION_TYPES, true)
+                ? $weeklyVideo['status'] === 'met'
+                : $evaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id)?->isMet() === true)
+            ->count();
 
         return [
             'trainingWeek' => $week,
@@ -40,8 +48,8 @@ class CoachGateReviewPageService
             'evaluation' => $evaluation,
             'canManage' => $viewer->canManageParticipant($participant),
             'readinessItems' => [
-                ['label' => 'Criteria', 'value' => ($requiredCriteria->count() - count($readiness)).' / '.$requiredCriteria->count()],
-                ['label' => 'Daily logs', 'value' => $this->weeklyDailyLogCount($participant, $week).' / 5'],
+                ['label' => 'Criteria', 'value' => $metCriteriaCount.' / '.$requiredCriteria->count()],
+                ['label' => 'Daily logs', 'value' => $this->weeklyDailyLogCount($participant, $week).' / '.$this->gates->minimumDailyLogs()],
                 ['label' => 'Activities', 'value' => $this->activityProgress($participant, $week)],
                 ['label' => 'Video Recording', 'value' => $weeklyVideo['url'] ? 'Uploaded' : 'Missing'],
             ],

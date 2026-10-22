@@ -144,6 +144,18 @@ class CoachParticipantPageTest extends TestCase
             ->assertSeeInOrder(['Week 3 · Blocked Gate', 'Not ready', '(2 blocker(s))', 'Daily logs: 0 / 5']);
     }
 
+    public function test_gate_row_daily_logs_use_the_configured_weekly_minimum(): void
+    {
+        config(['training.daily_logs_per_week' => 3]);
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        $gate = TrainingGate::factory()->for(TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]), 'week')->create(['title' => 'Logged Gate']);
+        DailyLog::factory()->for($participant, 'participant')->for(Activity::factory()->for($gate->week, 'week'))->create();
+
+        $this->actingAs($coach)->get(route('coach.participants.show', $participant))
+            ->assertOk()
+            ->assertSeeInOrder(['Week 2 · Logged Gate', 'Daily logs: 1 / 3']);
+    }
+
     #[DataProvider('savedGateStatuses')]
     public function test_gate_row_badge_shows_the_saved_evaluation_status_with_its_tone(GateEvaluationStatus $status, string $badge): void
     {

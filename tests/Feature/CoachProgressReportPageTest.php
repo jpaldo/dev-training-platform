@@ -57,7 +57,7 @@ class CoachProgressReportPageTest extends TestCase
                 '>Riley Risk</strong>', '>riley@example.test</span>',
                 '>Automation / Manual</span>',
                 '>Admin Blake, Coach Avery</td>',
-                '>1</td>', '>2</td>',
+                '>1</td>', '>1</td>',
                 '>Sam Steady</strong>', '>sam@example.test</span>',
                 '>Manual</span>',
                 '>Not assigned</td>',

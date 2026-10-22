@@ -68,6 +68,18 @@ class ParticipantGatePageTest extends TestCase
         $this->assertSame(1, substr_count($response->getContent(), 'Upload Video Recording'));
     }
 
+    public function test_the_daily_log_summary_uses_the_configured_weekly_minimum(): void
+    {
+        config(['training.daily_logs_per_week' => 3]);
+        $participant = User::factory()->create();
+        ['week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+        DailyLog::factory()->for($participant, 'participant')->for($activities->first())->create();
+
+        $this->actingAs($participant)->get(route('training.gates.show', [$week, $gate]))
+            ->assertOk()
+            ->assertSeeInOrder(['Daily logs', '1 of 3 completed', '2 more Week 2 daily logs are required before this Gate can be passed.']);
+    }
+
     public function test_ready_participant_without_an_evaluation_sees_the_ready_notice_and_no_main_action(): void
     {
         $participant = User::factory()->create();

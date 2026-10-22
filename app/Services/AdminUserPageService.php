@@ -4,10 +4,8 @@ namespace App\Services;
 
 use App\Enums\TrainingPath;
 use App\Enums\UserRole;
-use App\Models\AttendanceSession;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class AdminUserPageService
@@ -25,8 +23,6 @@ class AdminUserPageService
     private const STATUS_OPTIONS = ['active' => 'Active', 'disabled' => 'Disabled'];
 
     private const PATH_OPTIONS = [TrainingPath::Manual->value => 'Manual QA', TrainingPath::Automation->value => 'Automation QA'];
-
-    private const RECENT_ATTENDANCE_SESSIONS = 5;
 
     /**
      * Everything the user management page renders: the settings links, the filter values and the matching user
@@ -58,15 +54,13 @@ class AdminUserPageService
     }
 
     /**
-     * Everything the add / edit user page renders. Editing also shows the Training Drive link, the recent attendance
+     * Everything the add / edit user page renders. Editing also shows the Training Drive link, the all-time attendance
      * summary and, for a participant, the coach assignment form. Saving the user is the page's single main action.
      *
      * @return array{isEditing: bool, title: string, formAction: string, formMethod: ?string, submitLabel: string, cancelUrl: string, name: ?string, email: ?string, accessType: string, accessTypeOptions: list<array{value: string, label: string}>, isActive: bool, driveUrl: ?string, coachAssignment: ?array{url: string, size: int, coachOptions: list<array{value: string, label: string, is_selected: bool}>, assignedNames: string}, attendance: ?array{completedCount: int, totalHours: string, url: string}}
      */
     public function formData(?User $user): array
     {
-        $user?->load(['attendanceSessions' => fn (Relation $query): Relation => $query->latest('check_in_at')->limit(self::RECENT_ATTENDANCE_SESSIONS)]);
-
         return [
             'isEditing' => $user !== null,
             'title' => $user ? 'Edit User' : 'Add User',
@@ -174,17 +168,19 @@ class AdminUserPageService
     }
 
     /**
-     * The completed sessions and their total hours among the user's five latest attendance sessions.
+     * The number of the user's completed attendance sessions (all time) and their total hours.
      *
      * @return array{completedCount: int, totalHours: string, url: string}
      */
     private function attendanceSummary(User $user): array
     {
-        $completedSessions = $user->attendanceSessions->whereNotNull('check_out_at');
+        $completedSessions = fn (Builder $query): Builder => $query->whereNotNull('check_out_at');
+        $user->loadCount(['attendanceSessions as completed_attendance_sessions_count' => $completedSessions])
+            ->loadSum(['attendanceSessions as completed_attendance_seconds' => $completedSessions], 'total_seconds');
 
         return [
-            'completedCount' => $completedSessions->count(),
-            'totalHours' => number_format($completedSessions->sum(fn (AttendanceSession $session): float => $session->totalHours()), 2),
+            'completedCount' => $user->completed_attendance_sessions_count,
+            'totalHours' => number_format((int) $user->completed_attendance_seconds / 3600, 2),
             'url' => route('admin.attendance.index', ['participant' => $user->id]),
         ];
     }

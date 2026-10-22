@@ -24,9 +24,12 @@ class AttendanceSession extends Model
         return $this->check_in_at !== null && $this->check_out_at === null;
     }
 
+    /**
+     * The stored total, or the seconds from check-in to check-out (to now while the session is still open).
+     */
     public function durationSeconds(): int
     {
-        return $this->total_seconds ?? ($this->check_out_at && $this->check_in_at ? max(0, $this->check_in_at->diffInSeconds($this->check_out_at)) : max(0, now()->diffInSeconds($this->check_in_at)));
+        return $this->total_seconds ?? (int) max(0, $this->check_in_at->diffInSeconds($this->check_out_at ?? now()));
     }
 
     public function durationLabel(): string

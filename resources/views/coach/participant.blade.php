@@ -117,7 +117,7 @@
                                                 <span class="text-muted">({{ $row['blocker_count'] }} blocker(s))</span>
                                             @endif
                                         </div>
-                                        <span class="text-sm text-muted">Daily logs: {{ $row['daily_log_count'] }} / 5</span>
+                                        <span class="text-sm text-muted">Daily logs: {{ $row['daily_log_count'] }} / {{ $row['daily_log_required'] }}</span>
                                     </div>
                                     <x-ui.button variant="secondary" :href="route('training.coach.gates.show', [$row['gate']->week, $participant, $row['gate']])">Review Gate</x-ui.button>
                                 </li>

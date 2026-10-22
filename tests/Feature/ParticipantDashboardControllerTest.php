@@ -122,6 +122,18 @@ class ParticipantDashboardControllerTest extends TestCase
             ], false);
     }
 
+    public function test_week_daily_log_progress_uses_the_configured_weekly_minimum(): void
+    {
+        config(['training.daily_logs_per_week' => 3]);
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
+        DailyLog::factory()->for($participant, 'participant')->for(Activity::factory()->for($week, 'week'))->create();
+
+        $this->actingAs($participant)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder(['Daily logs', '1 / 3 completed', 'Complete 2 more daily logs for this week.']);
+    }
+
     /**
      * Build an active program with the given number of weeks, activities per week and gates, fill it with
      * participant progress, and count the queries of a dashboard request after a warm-up request.

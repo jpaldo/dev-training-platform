@@ -77,6 +77,23 @@ class DailyLogPagesTest extends TestCase
         $this->assertSame(12, substr_count($response->getContent(), 'data-daily-log-row'));
     }
 
+    public function test_training_log_counts_weekly_progress_against_the_configured_minimum(): void
+    {
+        config(['training.daily_logs_per_week' => 3]);
+        $participant = User::factory()->create();
+        $program = Program::factory()->create();
+        $this->logs($participant, Activity::factory()->for($this->week($program, 1), 'week')->create(), 3);
+        $this->logs($participant, Activity::factory()->for($this->week($program, 2), 'week')->create(), 1);
+
+        $this->actingAs($participant)->get(route('daily-logs.index'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Each active training week requires 3 completed daily logs.',
+                'Week 1', '3 / 3 completed', '3 of 3 daily logs completed.',
+                'Week 2', '1 / 3 completed', 'Complete 2 more daily logs.',
+            ]);
+    }
+
     public function test_training_log_without_logs_shows_the_empty_state(): void
     {
         $participant = User::factory()->create();

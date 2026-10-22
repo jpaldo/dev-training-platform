@@ -153,6 +153,7 @@ class AttendanceTest extends TestCase
         $this->seed(QaTrainingProgramSeeder::class);
         $checkIn = Carbon::parse('2026-09-11 16:59:00', config('app.timezone'));
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => $checkIn]);
+        $this->travelTo($checkIn->copy()->addHour()->addMinutes(2)->addSeconds(3));
 
         $response = $this->actingAs($participant)->get(route('dashboard'))->assertOk();
 
@@ -160,7 +161,19 @@ class AttendanceTest extends TestCase
             ->assertSee('Date.parse(startedAt)', false)
             ->assertSee('window.setInterval(renderElapsed, 1000)', false)
             ->assertSee('remainderSeconds', false)
-            ->assertSee('Elapsed 0h 00m 00s');
+            ->assertSee('Elapsed 1h 02m 03s');
+    }
+
+    public function test_an_open_session_counts_its_duration_from_check_in_to_now(): void
+    {
+        $participant = User::factory()->create();
+        $this->travelTo(Carbon::parse('2026-09-10 09:00:00', config('app.timezone')));
+        $session = AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()]);
+        $this->travel(150)->minutes();
+
+        $this->assertSame(9000, $session->durationSeconds());
+        $this->assertSame('2h 30m', $session->durationLabel());
+        $this->assertSame(2.5, $session->totalHours());
     }
 
     public function test_current_week_activity_requires_check_in_and_direct_urls_cannot_bypass_it(): void

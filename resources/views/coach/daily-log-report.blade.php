@@ -95,7 +95,7 @@
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="completion-summary-title">
             <div class="flex flex-wrap items-end justify-between gap-2">
                 <h2 id="completion-summary-title" class="m-0 text-xl font-extrabold">Completion summary</h2>
-                <span class="text-sm text-muted">{{ $completionRows->count() }} grouped row(s)</span>
+                <span class="text-sm text-muted">{{ $completionRows->total() }} grouped row(s)</span>
             </div>
             @if($completionRows->isEmpty())
                 <p class="m-0 rounded-xl border border-dashed border-line p-5 text-muted">No Daily Logs match the selected filters.</p>

@@ -87,6 +87,21 @@ class CoachGateBoardPageTest extends TestCase
             ->assertDontSee('No Gate rows match these filters.');
     }
 
+    public function test_daily_log_progress_uses_the_configured_weekly_minimum(): void
+    {
+        config(['training.daily_logs_per_week' => 3]);
+        $week = TrainingWeek::factory()->create(['week_number' => 2]);
+        TrainingGate::factory()->for($week, 'week')->create();
+        $activity = Activity::factory()->for($week, 'week')->create(['position' => 1]);
+        $this->logDays(User::factory()->create(['name' => 'Ada Partial']), $activity, 1);
+        $this->logDays(User::factory()->create(['name' => 'Bo Complete']), $activity, 3);
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.gates'))
+            ->assertOk()
+            ->assertSeeInOrder(['>Ada Partial</a>', '>1 / 3</span>', '>2 remaining</span>'], false)
+            ->assertSeeInOrder(['>Bo Complete</a>', '>3 / 3</span>', '>Complete</span>'], false);
+    }
+
     public function test_filters_keep_their_values_and_the_pagination_links_keep_them(): void
     {
         $week = TrainingWeek::factory()->create(['week_number' => 2]);

@@ -36,13 +36,14 @@ class ParticipantDashboardService
         $dailyLogCounts = $this->gateService->dailyLogCountsByWeek($user, $programWeeks->modelKeys());
         $videoRecordings = WeeklyVideoRecording::query()->where('user_id', $user->id)->whereIn('training_week_id', $programWeeks->modelKeys())->get()->keyBy('training_week_id');
         $this->attachActivityProgress($user, $programWeeks);
+        $minimumDailyLogs = $this->gateService->minimumDailyLogs();
 
-        $weeks = $programWeeks->sortBy('position')->values()->map(function (TrainingWeek $week) use ($weekStates, $dailyLogCounts, $videoRecordings): array {
+        $weeks = $programWeeks->sortBy('position')->values()->map(function (TrainingWeek $week) use ($weekStates, $dailyLogCounts, $videoRecordings, $minimumDailyLogs): array {
             $passed = $weekStates[$week->id]['passed'];
             $available = $passed || $weekStates[$week->id]['accessible'];
             $week->weekly_video_recording = $videoRecordings->get($week->id);
 
-            return ['week' => $week, 'passed' => $passed, 'available' => $available, 'daily_log_count' => $dailyLogCounts->get($week->id, 0), 'daily_log_required' => 5, 'locked_reason' => $passed ? null : ($available ? null : 'Complete and pass the previous Gate before proceeding.')];
+            return ['week' => $week, 'passed' => $passed, 'available' => $available, 'daily_log_count' => $dailyLogCounts->get($week->id, 0), 'daily_log_required' => $minimumDailyLogs, 'locked_reason' => $passed ? null : ($available ? null : 'Complete and pass the previous Gate before proceeding.')];
         });
         $currentWeek = $weeks->first(fn (array $item): bool => $item['available'] && ! $item['passed']);
         $currentWeekId = $currentWeek['week']->id ?? null;

@@ -8,6 +8,7 @@ use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
 use App\Models\GateCriterion;
+use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\TrainingGate;
@@ -38,8 +39,10 @@ class CoachGateReviewPageTest extends TestCase
             DailyLog::factory()->for($participant, 'participant')->for($activities->last())->create(['logged_on' => now()->subDays($day)->toDateString()]);
         }
         $recording = $this->uploadWeeklyVideo($participant, $week);
-        GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision', 'comments' => 'Strong week, finish the video.']);
+        $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision', 'comments' => 'Strong week, finish the video.']);
         [$activityCriterion, $videoCriterion] = $criteria;
+        GateCriterionEvaluation::factory()->for($evaluation)->for($activityCriterion, 'criterion')->create(['status' => GateCriterionStatus::Met]);
+        GateCriterionEvaluation::factory()->for($evaluation)->for($videoCriterion, 'criterion')->create(['status' => GateCriterionStatus::NotMet]);
 
         $response = $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
             ->assertOk()
@@ -52,7 +55,7 @@ class CoachGateReviewPageTest extends TestCase
                 'Save Gate Evaluation',
                 'Gate readiness',
                 '<dt class="text-sm text-muted">Criteria</dt>',
-                '2 / 2',
+                '1 / 2',
                 'Daily logs',
                 '5 / 5',
                 'Activities',
@@ -93,6 +96,8 @@ class CoachGateReviewPageTest extends TestCase
         $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
             ->assertOk()
             ->assertSeeInOrder([
+                'Criteria',
+                '0 / 2',
                 'Daily logs',
                 '0 / 5',
                 'Activities',
@@ -106,6 +111,33 @@ class CoachGateReviewPageTest extends TestCase
                 'Gate criteria',
             ])
             ->assertDontSee('View Video');
+    }
+
+    public function test_met_criteria_count_the_video_criterion_once_its_recording_is_reviewed_as_met(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+        [$activityCriterion, $videoCriterion] = $criteria;
+        $this->uploadWeeklyVideo($participant, $week);
+        $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
+        GateCriterionEvaluation::factory()->for($evaluation)->for($activityCriterion, 'criterion')->create(['status' => GateCriterionStatus::NotMet]);
+        GateCriterionEvaluation::factory()->for($evaluation)->for($videoCriterion, 'criterion')->create(['status' => GateCriterionStatus::Met]);
+
+        $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
+            ->assertOk()
+            ->assertSeeInOrder(['<dt class="text-sm text-muted">Criteria</dt>', '1 / 2', 'Daily logs'], false);
+    }
+
+    public function test_the_daily_log_figure_uses_the_configured_weekly_minimum(): void
+    {
+        config(['training.daily_logs_per_week' => 3]);
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        ['week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+        DailyLog::factory()->for($participant, 'participant')->for($activities->first())->create();
+
+        $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
+            ->assertOk()
+            ->assertSeeInOrder(['Daily logs', '1 / 3', 'Activities', 'Daily logs: 1 of 3 completed.']);
     }
 
     public function test_a_coach_who_is_not_assigned_to_the_participant_sees_the_gate_read_only(): void

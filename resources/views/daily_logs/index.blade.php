@@ -30,7 +30,7 @@
             <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="daily-log-progress-title">
                 <div class="grid gap-1">
                     <h2 id="daily-log-progress-title" class="{{ $sectionTitleClasses }}">Weekly progress</h2>
-                    <p class="m-0 text-sm/relaxed text-muted">Each active training week requires five completed daily logs.</p>
+                    <p class="m-0 text-sm/relaxed text-muted">Each active training week requires {{ $requiredDailyLogs }} completed daily logs.</p>
                 </div>
                 @if($weeklyProgress !== [])
                     <ul class="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 xl:grid-cols-3">

@@ -322,8 +322,8 @@ class AdminSettingsPageTest extends TestCase
             'redirect_uri' => 'https://example.test/profile/google-drive/callback', 'enabled' => true, 'automatic_export' => false,
             'project_number' => '1068406488956',
         ]);
-        foreach (User::factory()->count(2)->create(['role' => 'participant']) as $participant) {
-            GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'account-'.$participant->id, 'access_token' => 'participant-access-token', 'connected_at' => now()]);
+        foreach ([...User::factory()->count(2)->create(['role' => 'participant']), $this->admin(), User::factory()->create(['role' => 'coach'])] as $user) {
+            GoogleDriveConnection::create(['user_id' => $user->id, 'google_account_id' => 'account-'.$user->id, 'access_token' => 'participant-access-token', 'connected_at' => now()]);
         }
 
         $this->actingAs($this->admin())->get(route('admin.settings.google-drive'))

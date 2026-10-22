@@ -86,6 +86,25 @@ class AdminDashboardPageTest extends TestCase
             ], false);
     }
 
+    public function test_week_four_partner_counts_count_distinct_active_participants_in_active_pairs(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        [$shared, $firstPartner, $secondPartner, $closedPartner, $waiting] = User::factory()->count(5)->create()->all();
+        $inactivePartner = User::factory()->create(['is_active' => false]);
+        User::factory()->create(['is_active' => false]);
+        foreach ([[$shared, $firstPartner, 'active'], [$shared, $secondPartner, 'active'], [$closedPartner, $waiting, 'closed'], [$firstPartner, $inactivePartner, 'active']] as [$one, $two, $status]) {
+            WeekFourInterviewPair::create(['participant_one_id' => $one->id, 'participant_two_id' => $two->id, 'assigned_by_id' => $admin->id, 'status' => $status]);
+        }
+
+        $this->actingAs($admin)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'PARTNER ASSIGNED', '<dd class="m-0 text-3xl font-black">3</dd>',
+                'WAITING FOR PARTNER', '<dd class="m-0 text-3xl font-black">2</dd>',
+            ], false);
+    }
+
     public function test_week_counts_are_zero_without_an_active_program(): void
     {
         $activity = Activity::factory()->for(TrainingWeek::factory()->for(Program::factory()->state(['is_active' => false]))->state(['week_number' => 2]), 'week')->create();

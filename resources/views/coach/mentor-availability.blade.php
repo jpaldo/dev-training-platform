@@ -12,13 +12,12 @@
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>MENTOR BOOKING CALENDAR</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Mentor Mock Interview Booking</h1>
+            <x-ui.page-title>Mentor Mock Interview Booking</x-ui.page-title>
         </header>
 
-        {{-- The single main action stays in view: in the page header on desktop, pinned to the bottom of the screen on mobile. --}}
-        <div id="mentor-booking-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
+        <x-ui.main-action id="mentor-booking-main-action">
             <x-ui.button type="submit" form="mentor-booking-form">Save Booking Link</x-ui.button>
-        </div>
+        </x-ui.main-action>
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
             @if(session('status'))

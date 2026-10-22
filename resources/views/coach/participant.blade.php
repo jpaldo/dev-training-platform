@@ -4,7 +4,7 @@
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>PARTICIPANT DETAIL</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">{{ $participant->name }}</h1>
+            <x-ui.page-title>{{ $participant->name }}</x-ui.page-title>
             <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $participant->email }} · {{ $participant->trainingPathLabel() }}</p>
         </header>
 

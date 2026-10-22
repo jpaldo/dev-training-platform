@@ -11,7 +11,7 @@
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>SUBMISSION · WEEK {{ $trainingWeek->week_number }}</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">{{ $activity->title }}</h1>
+            <x-ui.page-title>{{ $activity->title }}</x-ui.page-title>
         </header>
 
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-label="Submission summary">

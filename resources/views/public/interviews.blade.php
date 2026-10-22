@@ -19,7 +19,7 @@
 
         <main class="grid min-w-0 grid-cols-1 gap-7">
             <div class="grid justify-items-center gap-3 text-center">
-                <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Schedule your interview with our Mentors</h1>
+                <x-ui.page-title>Schedule your interview with our Mentors</x-ui.page-title>
                 <p class="m-0 max-w-2xl text-lg/relaxed text-muted">Choose the interview type and select an available interviewer to schedule your session.</p>
                 <a href="{{ $registerUrl }}" class="font-bold text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">Are you an interviewer? Add Your Booking Calendar</a>
             </div>

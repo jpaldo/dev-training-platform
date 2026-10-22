@@ -15,7 +15,7 @@
 
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>AI-OUTPUT VALIDATION</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Choose what you want to validate</h1>
+            <x-ui.page-title>Choose what you want to validate</x-ui.page-title>
             <p class="m-0 leading-relaxed">Select a feature or area and the AI-generated QA artifact you want to inspect. You are responsible for validating whether the AI output is actually correct.</p>
             <p class="m-0 leading-relaxed text-muted">A controlled QA application where Manual and Automation QA participants practice validating AI-generated output using Source → Scope → Spec → Cross-check → Run → Log.</p>
         </header>

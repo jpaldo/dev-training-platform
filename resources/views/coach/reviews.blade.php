@@ -4,7 +4,7 @@
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>COACH · REVIEW QUEUE</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Submission reviews</h1>
+            <x-ui.page-title>Submission reviews</x-ui.page-title>
         </header>
 
         @if($items->isNotEmpty())

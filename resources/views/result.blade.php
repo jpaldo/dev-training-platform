@@ -16,7 +16,7 @@
 
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>ACTIVITY 1 · RESULT</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Validation recorded.</h1>
+            <x-ui.page-title>Validation recorded.</x-ui.page-title>
         </header>
 
         <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-3" aria-label="Lab record">

@@ -12,17 +12,14 @@
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>COACH · GATES</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Gate management</h1>
+            <x-ui.page-title>Gate management</x-ui.page-title>
         </header>
 
         <section aria-labelledby="gate-summary-title">
             <h2 id="gate-summary-title" class="sr-only">Gate summary</h2>
-            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <dl class="m-0 grid grid-cols-2 gap-4 lg:grid-cols-5">
                 @foreach($stats as $stat)
-                    <x-ui.card class="grid content-start gap-2" padding="p-5">
-                        <dt class="text-xs font-black tracking-[0.12em] text-muted">{{ $stat['label'] }}</dt>
-                        <dd class="m-0 text-3xl font-black">{{ $stat['value'] }}</dd>
-                    </x-ui.card>
+                    <x-ui.stat :label="$stat['label']" :value="$stat['value']" />
                 @endforeach
             </dl>
         </section>

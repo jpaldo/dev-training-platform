@@ -8,7 +8,7 @@
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>WEEK {{ $trainingWeek->week_number }} · ACTIVITY {{ $activity->position }}</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">{{ $activity->title }}</h1>
+            <x-ui.page-title>{{ $activity->title }}</x-ui.page-title>
             <p class="m-0 leading-relaxed text-muted">{{ $activity->description }}</p>
         </header>
 
@@ -20,8 +20,7 @@
             </x-ui.alert>
         @endif
 
-        {{-- The single main action stays in view: in the page header on desktop, pinned to the bottom of the screen on mobile. --}}
-        <div id="activity-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
+        <x-ui.main-action id="activity-main-action">
             @if(! $labPrerequisiteMet)
                 <x-ui.button variant="secondary" href="#" disabled>Start submission locked</x-ui.button>
                 @if($latestVersion && ! $latestVersion->isDraft())
@@ -35,7 +34,7 @@
             @else
                 <x-ui.button :href="route('training.submission.edit', [$trainingWeek, $activity])">{{ $latestVersion ? 'Continue submission' : 'Start submission' }} →</x-ui.button>
             @endif
-        </div>
+        </x-ui.main-action>
 
         <div class="min-w-0 lg:col-span-2" data-page-tabs>
             <x-ui.tab-list :tabs="$tabs" :selected="$selectedTab" id-prefix="activity" label="Activity sections" />

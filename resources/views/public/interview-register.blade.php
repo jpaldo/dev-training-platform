@@ -18,7 +18,7 @@
     <main class="mx-auto w-full max-w-2xl px-5 py-12">
         <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-6" aria-labelledby="interviewer-registration-title">
             <header class="grid min-w-0 gap-2">
-                <h1 id="interviewer-registration-title" class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Become an Interviewer</h1>
+                <x-ui.page-title id="interviewer-registration-title">Become an Interviewer</x-ui.page-title>
                 <p class="{{ $hintClasses }}">{{ $publicTitle }}</p>
                 <p class="m-0 leading-relaxed text-muted">Add your booking calendar so participants can schedule an interview with you.</p>
             </header>

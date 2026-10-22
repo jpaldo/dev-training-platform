@@ -27,7 +27,7 @@
 
         <header class="grid gap-2">
             <x-ui.eyebrow>PARTICIPANT DASHBOARD</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black text-transparent sm:text-5xl/tight">{{ $program->name }}</h1>
+            <x-ui.page-title>{{ $program->name }}</x-ui.page-title>
             <p class="m-0 text-muted">{{ $user->name }} · {{ $user->trainingPathLabel() }} QA · Start at Week 2.</p>
         </header>
 

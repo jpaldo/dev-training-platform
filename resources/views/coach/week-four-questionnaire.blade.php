@@ -4,7 +4,7 @@
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>COACH / MENTOR REFERENCE</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Official AI Proficiency Interview Questionnaire</h1>
+            <x-ui.page-title>Official AI Proficiency Interview Questionnaire</x-ui.page-title>
             <p class="m-0 leading-relaxed text-muted">This authoritative questionnaire is for Coach/Mentor/Admin preparation and assessment. It is not shown in participant mock-interview pages.</p>
         </header>
 

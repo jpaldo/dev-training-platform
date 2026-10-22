@@ -16,7 +16,7 @@
                     <svg class="size-4.5 shrink-0" width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12.707 15.293a1 1 0 01-1.414 0L6.586 10l4.707-5.293a1 1 0 011.414 1.414L8.914 10l3.793 3.879a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
                     <span>Back to Reports</span>
                 </x-ui.button>
-                <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Missing submissions</h1>
+                <x-ui.page-title>Missing submissions</x-ui.page-title>
                 <p class="m-0 leading-relaxed text-muted">Actionable training requirements that participants are expected to submit but have not completed.</p>
             </div>
             <x-ui.button variant="secondary" :href="$exportUrl">Export Missing Submissions CSV</x-ui.button>
@@ -99,12 +99,9 @@
 
         <section aria-labelledby="missing-summary-title">
             <h2 id="missing-summary-title" class="sr-only">Missing submission summary</h2>
-            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <dl class="m-0 grid grid-cols-2 gap-4 lg:grid-cols-5">
                 @foreach($stats as $stat)
-                    <x-ui.card class="grid content-start gap-2" padding="p-5">
-                        <dt class="text-sm text-muted">{{ $stat['label'] }}</dt>
-                        <dd class="m-0 text-3xl font-black">{{ $stat['value'] }}</dd>
-                    </x-ui.card>
+                    <x-ui.stat :label="$stat['label']" :value="$stat['value']" />
                 @endforeach
             </dl>
         </section>

@@ -4,7 +4,7 @@
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>SCORING CRITERIA</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">AI Level 3 Accelerator</h1>
+            <x-ui.page-title>AI Level 3 Accelerator</x-ui.page-title>
             <p class="m-0 leading-relaxed text-muted">Activity Scoring Criteria · Version 1.0</p>
         </header>
 

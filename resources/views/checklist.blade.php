@@ -12,7 +12,7 @@
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>ACTIVITY 1 · SIX-CHECK VALIDATION</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Prove it.</h1>
+            <x-ui.page-title>Prove it.</x-ui.page-title>
             <p class="m-0 leading-relaxed wrap-anywhere text-muted">Artifact ID: <strong class="text-slate-100">{{ $artifact['artifact_code'] }}</strong> · Trainee: <strong class="text-slate-100">{{ $trainee }}</strong></p>
         </header>
 

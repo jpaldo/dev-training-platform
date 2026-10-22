@@ -13,7 +13,7 @@
         <header class="flex flex-wrap items-end justify-between gap-4">
             <div class="grid min-w-0 gap-2">
                 <x-ui.eyebrow>COACH / REPORTS</x-ui.eyebrow>
-                <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Progress report</h1>
+                <x-ui.page-title>Progress report</x-ui.page-title>
                 <p class="m-0 leading-relaxed text-muted">A clear view of participant activity, gates, and current risk.</p>
             </div>
             <x-ui.button variant="secondary" :href="$exportUrl">Export Progress CSV</x-ui.button>
@@ -50,12 +50,9 @@
 
         <section aria-labelledby="progress-summary-title">
             <h2 id="progress-summary-title" class="sr-only">Progress summary</h2>
-            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <dl class="m-0 grid grid-cols-2 gap-4 lg:grid-cols-5">
                 @foreach($stats as $stat)
-                    <x-ui.card class="grid content-start gap-2" padding="p-5">
-                        <dt class="text-sm text-muted">{{ $stat['label'] }}</dt>
-                        <dd class="m-0 text-3xl font-black">{{ $stat['value'] }}</dd>
-                    </x-ui.card>
+                    <x-ui.stat :label="$stat['label']" :value="$stat['value']" />
                 @endforeach
             </dl>
         </section>

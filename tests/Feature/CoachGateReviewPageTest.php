@@ -54,7 +54,7 @@ class CoachGateReviewPageTest extends TestCase
                 'form="gate-review-form"',
                 'Save Gate Evaluation',
                 'Gate readiness',
-                '<dt class="text-sm text-muted">Criteria</dt>',
+                '>Criteria</span>',
                 '1 / 2',
                 'Daily logs',
                 '5 / 5',
@@ -140,7 +140,7 @@ class CoachGateReviewPageTest extends TestCase
 
         $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
             ->assertOk()
-            ->assertSeeInOrder(['<dt class="text-sm text-muted">Criteria</dt>', '1 / 2', 'Daily logs'], false);
+            ->assertSeeInOrder(['>Criteria</span>', '1 / 2', 'Daily logs'], false);
     }
 
     public function test_the_daily_log_figure_uses_the_configured_weekly_minimum(): void

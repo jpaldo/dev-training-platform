@@ -9,7 +9,7 @@
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>SCORING · PARTICIPANT</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">{{ $participantName }}</h1>
+            <x-ui.page-title>{{ $participantName }}</x-ui.page-title>
             <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $participantEmail }} · {{ $path }}</p>
         </header>
 
@@ -19,15 +19,9 @@
 
         <section aria-labelledby="overall-scoring-title">
             <h2 id="overall-scoring-title" class="sr-only">Overall scoring</h2>
-            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <dl class="m-0 grid grid-cols-2 gap-4">
                 @foreach($stats as $stat)
-                    <x-ui.card class="grid content-start gap-2" padding="p-5">
-                        <dt class="text-xs font-black tracking-[0.12em] text-muted">{{ $stat['label'] }}</dt>
-                        <dd class="m-0 text-3xl font-black tabular-nums">{{ $stat['value'] }}</dd>
-                        @if($stat['note'])
-                            <dd class="m-0 text-sm text-muted">{{ $stat['note'] }}</dd>
-                        @endif
-                    </x-ui.card>
+                    <x-ui.stat :label="$stat['label']" :value="$stat['value']" :note="$stat['note']" />
                 @endforeach
             </dl>
         </section>

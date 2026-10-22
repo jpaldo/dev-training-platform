@@ -12,7 +12,7 @@
         <header class="flex flex-wrap items-end justify-between gap-4">
             <div class="grid min-w-0 gap-2">
                 <x-ui.eyebrow>COACH · SCORING</x-ui.eyebrow>
-                <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Scoring overview</h1>
+                <x-ui.page-title>Scoring overview</x-ui.page-title>
                 <p class="m-0 leading-relaxed text-muted">Completion and activity scores are separate measures.</p>
             </div>
             <nav class="flex flex-wrap gap-3" aria-label="Scoring pages">

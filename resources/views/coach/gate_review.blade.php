@@ -10,15 +10,14 @@
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>WEEK {{ $trainingWeek->week_number }} · GATE REVIEW</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">{{ $gate->title }}</h1>
+            <x-ui.page-title>{{ $gate->title }}</x-ui.page-title>
             <p class="m-0 leading-relaxed wrap-anywhere text-muted">Participant: {{ $participant->name }} · {{ $participant->trainingPathLabel() }} QA</p>
         </header>
 
         @if($canManage)
-            {{-- The single main action stays in view: in the page header on desktop, pinned to the bottom of the screen on mobile. --}}
-            <div id="gate-review-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
+            <x-ui.main-action id="gate-review-main-action">
                 <x-ui.button type="submit" form="gate-review-form">Save Gate Evaluation</x-ui.button>
-            </div>
+            </x-ui.main-action>
         @endif
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
@@ -31,12 +30,9 @@
 
             <x-ui.card as="section" class="grid gap-4" aria-labelledby="gate-readiness-title">
                 <h2 id="gate-readiness-title" class="m-0 text-xl font-extrabold">Gate readiness</h2>
-                <dl class="m-0 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <dl class="m-0 grid grid-cols-2 gap-3 lg:grid-cols-4">
                     @foreach($readinessItems as $item)
-                        <div class="grid gap-1 rounded-xl border border-line bg-field px-4 py-3.5">
-                            <dt class="text-sm text-muted">{{ $item['label'] }}</dt>
-                            <dd class="m-0 text-lg font-extrabold">{{ $item['value'] }}</dd>
-                        </div>
+                        <x-ui.stat variant="field" size="md" :label="$item['label']" :value="$item['value']" />
                     @endforeach
                 </dl>
             </x-ui.card>

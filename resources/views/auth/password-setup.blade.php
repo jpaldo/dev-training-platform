@@ -9,7 +9,7 @@
     <div class="mx-auto grid w-full max-w-xl grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>ACCOUNT SECURITY</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Set your password</h1>
+            <x-ui.page-title>Set your password</x-ui.page-title>
             <p class="m-0 leading-relaxed wrap-break-word text-muted">Create a password for {{ $user->email }}. This one-time setup link expires shortly.</p>
         </header>
 

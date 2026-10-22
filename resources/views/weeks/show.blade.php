@@ -8,17 +8,16 @@
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>WEEK {{ $trainingWeek->week_number }}</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">{{ $trainingWeek->title }}</h1>
+            <x-ui.page-title>{{ $trainingWeek->title }}</x-ui.page-title>
             @if($trainingWeek->description)
                 <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $trainingWeek->description }}</p>
             @endif
         </header>
 
         @if($uploadVideoUrl)
-            {{-- The single main action stays in view: in the page header on desktop, pinned to the bottom of the screen on mobile. --}}
-            <div id="week-main-action" class="z-20 flex flex-wrap items-center gap-3 max-lg:sticky max-lg:bottom-3 max-lg:order-last max-lg:rounded-2xl max-lg:border max-lg:border-line max-lg:bg-surface/95 max-lg:p-3 max-lg:shadow-2xl max-lg:shadow-black/60 max-lg:backdrop-blur lg:col-start-2 lg:row-start-1 lg:self-start lg:justify-end">
+            <x-ui.main-action id="week-main-action">
                 <x-ui.button :href="$uploadVideoUrl">Upload Video Recording →</x-ui.button>
-            </div>
+            </x-ui.main-action>
         @endif
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">

@@ -4,7 +4,7 @@
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>ACTIVITY 1 · STEP 1</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Review your selected artifact</h1>
+            <x-ui.page-title>Review your selected artifact</x-ui.page-title>
             <p class="m-0 leading-relaxed text-muted">Trainee: <strong class="text-slate-100">{{ $trainee }}</strong></p>
         </header>
 

@@ -4,17 +4,14 @@
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>ADMIN DASHBOARD</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">System overview</h1>
+            <x-ui.page-title>System overview</x-ui.page-title>
         </header>
 
         <section aria-labelledby="admin-accounts-title">
             <h2 id="admin-accounts-title" class="sr-only">Accounts</h2>
-            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <dl class="m-0 grid grid-cols-2 gap-4 sm:grid-cols-3">
                 @foreach($systemStats as $stat)
-                    <x-ui.card class="grid content-start gap-2" padding="p-5">
-                        <dt class="text-xs font-black tracking-[0.12em] text-muted">{{ $stat['label'] }}</dt>
-                        <dd class="m-0 text-3xl font-black">{{ $stat['value'] }}</dd>
-                    </x-ui.card>
+                    <x-ui.stat :label="$stat['label']" :value="$stat['value']" />
                 @endforeach
             </dl>
         </section>
@@ -23,34 +20,27 @@
             <h2 id="admin-training-title" class="m-0 text-xl font-extrabold">Training overview</h2>
             <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 @foreach($trainingStats as $stat)
-                    <div class="grid content-start gap-1.5 rounded-xl border border-line bg-field px-4 py-3.5">
-                        <dt><x-ui.eyebrow as="span">{{ $stat['label'] }}</x-ui.eyebrow></dt>
+                    <x-ui.stat variant="field" :label="$stat['label']">
                         <dd class="m-0 text-sm/relaxed text-muted"><strong class="text-white">{{ $stat['value'] }}</strong> participant(s) with activity or log records</dd>
-                    </div>
+                    </x-ui.stat>
                 @endforeach
             </dl>
         </x-ui.card>
 
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="admin-review-title">
             <h2 id="admin-review-title" class="m-0 text-xl font-extrabold">Review / Gate overview</h2>
-            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <dl class="m-0 grid grid-cols-2 gap-4 sm:grid-cols-3">
                 @foreach($reviewStats as $stat)
-                    <div class="grid content-start gap-1.5 rounded-xl border border-line bg-field px-4 py-3.5">
-                        <dt><x-ui.eyebrow as="span">{{ $stat['label'] }}</x-ui.eyebrow></dt>
-                        <dd class="m-0 text-3xl font-black">{{ $stat['value'] }}</dd>
-                    </div>
+                    <x-ui.stat variant="field" :label="$stat['label']" :value="$stat['value']" />
                 @endforeach
             </dl>
         </x-ui.card>
 
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="admin-week-four-title">
             <h2 id="admin-week-four-title" class="m-0 text-xl font-extrabold">Week 4</h2>
-            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <dl class="m-0 grid grid-cols-2 gap-4 xl:grid-cols-4">
                 @foreach($weekFourStats as $stat)
-                    <div class="grid content-start gap-1.5 rounded-xl border border-line bg-field px-4 py-3.5">
-                        <dt><x-ui.eyebrow as="span">{{ $stat['label'] }}</x-ui.eyebrow></dt>
-                        <dd class="m-0 text-3xl font-black">{{ $stat['value'] }}</dd>
-                    </div>
+                    <x-ui.stat variant="field" :label="$stat['label']" :value="$stat['value']" />
                 @endforeach
             </dl>
         </x-ui.card>

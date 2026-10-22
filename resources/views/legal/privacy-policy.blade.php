@@ -12,7 +12,7 @@
     <x-ui.card as="article" class="mx-auto grid w-full max-w-3xl min-w-0 grid-cols-1 gap-8 wrap-break-word sm:p-8" aria-labelledby="legal-title">
         <header class="grid gap-2">
             <x-ui.eyebrow>LEGAL</x-ui.eyebrow>
-            <h1 id="legal-title" class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black text-transparent sm:text-5xl/tight">Privacy Policy</h1>
+            <x-ui.page-title id="legal-title">Privacy Policy</x-ui.page-title>
             <p class="m-0 text-sm text-muted">Last updated: September 11, 2026</p>
         </header>
 

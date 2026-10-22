@@ -9,7 +9,7 @@
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>ADMIN SETTINGS · GOOGLE</x-ui.eyebrow>
-            <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Google Integration</h1>
+            <x-ui.page-title>Google Integration</x-ui.page-title>
             <p class="m-0 leading-relaxed text-muted">Drive synchronization, OAuth, Calendar scheduling, and Google Meet conference creation.</p>
         </header>
 
@@ -25,10 +25,7 @@
             <h2 id="google-status-title" class="{{ $sectionTitleClasses }}">Overall status</h2>
             <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-3">
                 @foreach($statuses as $status)
-                    <div class="grid min-w-0 content-start justify-items-start gap-2 rounded-xl border border-line bg-field px-4 py-3.5">
-                        <dt><x-ui.eyebrow as="span">{{ $status['label'] }}</x-ui.eyebrow></dt>
-                        <dd class="m-0"><x-ui.badge :tone="$status['tone']">{{ $status['value'] }}</x-ui.badge></dd>
-                    </div>
+                    <x-ui.stat variant="field" :label="$status['label']" :value="$status['value']" :tone="$status['tone']" />
                 @endforeach
             </dl>
         </x-ui.card>

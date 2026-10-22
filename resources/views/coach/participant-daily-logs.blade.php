@@ -12,7 +12,7 @@
         <header class="flex flex-wrap items-end justify-between gap-4">
             <div class="grid min-w-0 gap-2">
                 <x-ui.eyebrow>COACH · DAILY LOGS</x-ui.eyebrow>
-                <h1 class="m-0 bg-linear-to-r from-white via-violet-400 to-accent bg-clip-text text-4xl/tight font-black wrap-break-word text-transparent sm:text-5xl/tight">Daily Logs</h1>
+                <x-ui.page-title>Daily Logs</x-ui.page-title>
                 <p class="m-0 flex flex-wrap gap-x-2.5 gap-y-1 leading-relaxed text-muted">
                     <strong class="wrap-break-word text-white">{{ $participantName }}</strong>
                     <span class="wrap-anywhere">{{ $participantEmail }}</span>

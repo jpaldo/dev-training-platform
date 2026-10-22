@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\JobRole;
 use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Http\Requests\FilterAdminUsersRequest;
@@ -35,7 +36,14 @@ class AdminUserController extends Controller
     {
         $data = $request->validated();
         [$role, $path] = $this->mapAccessType($data['access_type']);
-        $user = User::query()->create(['name' => $data['name'], 'email' => $data['email'], 'password' => Hash::make(Str::random(96)), 'role' => $role, 'training_path' => $path, 'is_active' => $data['is_active'] ?? true]);
+        $user = User::query()->create([
+            ...$this->identityAttributes($request),
+            'email' => $data['email'],
+            'password' => Hash::make(Str::random(96)),
+            'role' => $role,
+            'training_path' => $path,
+            'is_active' => $data['is_active'] ?? true,
+        ]);
         $this->audit($request, $user, 'user_created', ['access_type' => $data['access_type']]);
 
         $token = $passwordSetup->issue($user, $request->user());
@@ -69,12 +77,22 @@ class AdminUserController extends Controller
         if ($user->role === UserRole::Admin && $role !== UserRole::Admin && $user->is_active && User::query()->where('role', UserRole::Admin)->where('is_active', true)->count() <= 1) {
             throw ValidationException::withMessages(['access_type' => 'The last active admin cannot be changed to another access type.']);
         }
-        $attributes = ['name' => $data['name'], 'email' => $data['email'], 'role' => $role, 'training_path' => $path, 'is_active' => $data['is_active'] ?? false];
+        $attributes = [
+            ...$this->identityAttributes($request),
+            'email' => $data['email'],
+            'role' => $role,
+            'training_path' => $path,
+            'is_active' => $data['is_active'] ?? false,
+        ];
         if (filled($data['password'] ?? null)) {
             $attributes['password'] = Hash::make($data['password']);
         }
         $user->update($attributes);
-        $this->audit($request, $user, 'user_updated', ['access_type' => $data['access_type'], 'is_active' => $willBeActive]);
+        $this->audit($request, $user, 'user_updated', [
+            'access_type' => $data['access_type'],
+            'is_active' => $willBeActive,
+            'employee_id_changed' => $user->wasChanged('employee_id'),
+        ]);
 
         return redirect()->route('admin.users.index')->with('status', 'User updated successfully.');
     }
@@ -117,6 +135,22 @@ class AdminUserController extends Controller
             'qa_automation_manual' => [UserRole::Participant, TrainingPath::AutomationManual],
             default => [UserRole::Participant, TrainingPath::Manual],
         };
+    }
+
+    /**
+     * The employee ID, first and last name and job role from the add / edit user form. `name` follows the first and
+     * last name through the `User` saving hook.
+     *
+     * @return array{employee_id: ?string, first_name: string, last_name: string, job_role: ?JobRole}
+     */
+    private function identityAttributes(StoreAdminUserRequest|UpdateAdminUserRequest $request): array
+    {
+        return [
+            'employee_id' => $request->validated('employee_id'),
+            'first_name' => $request->validated('first_name'),
+            'last_name' => $request->validated('last_name'),
+            'job_role' => $request->enum('job_role', JobRole::class),
+        ];
     }
 
     private function audit(Request $request, User $target, string $action, array $metadata = []): void

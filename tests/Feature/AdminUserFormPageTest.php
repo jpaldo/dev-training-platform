@@ -24,8 +24,15 @@ class AdminUserFormPageTest extends TestCase
                 'id="admin-user-main-action"', 'form="admin-user-form"', 'Create User',
                 'href="'.route('admin.users.index').'"', 'Cancel',
                 'method="POST" action="'.route('admin.users.store').'" id="admin-user-form"',
-                'id="name" name="name" value=""',
+                'Employee ID *', 'id="employee_id" name="employee_id" value="" autocomplete="off" required',
+                'First Name *', 'id="first_name" name="first_name" value="" required',
+                'Last Name *', 'id="last_name" name="last_name" value="" required',
                 'id="email" name="email" type="email" value=""',
+                'Job Role', 'id="job_role" name="job_role"',
+                '<option value="">Not set</option>',
+                '<option value="project_manager" >Project Manager (PM)</option>',
+                '<option value="qa_tester" >QA Tester</option>',
+                '<option value="developer" >Developer</option>',
                 'id="access_type" name="access_type"',
                 '<option value="admin" >Admin</option>',
                 '<option value="coach" >Mentor / Coach</option>',
@@ -45,7 +52,7 @@ class AdminUserFormPageTest extends TestCase
 
     public function test_editing_a_participant_shows_the_saved_values_drive_coach_assignment_and_all_time_attendance(): void
     {
-        $participant = User::factory()->create(['name' => 'Hal Hybrid', 'email' => 'hal@example.test', 'training_path' => 'automation_manual', 'is_active' => false, 'drive_link' => 'https://drive.google.com/drive/folders/hal']);
+        $participant = User::factory()->create(['name' => 'Hal Hybrid', 'employee_id' => 'EMP-0042', 'job_role' => 'qa_tester', 'email' => 'hal@example.test', 'training_path' => 'automation_manual', 'is_active' => false, 'drive_link' => 'https://drive.google.com/drive/folders/hal']);
         $assigned = User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Bea Coach', 'email' => 'bea@example.test']);
         User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Abe Coach', 'email' => 'abe@example.test']);
         User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Ina Inactive', 'is_active' => false]);
@@ -63,8 +70,11 @@ class AdminUserFormPageTest extends TestCase
                 'form="admin-user-form"', 'Save User',
                 'action="'.route('admin.users.update', $participant).'" id="admin-user-form"',
                 'name="_method" value="PUT"',
-                'value="Hal Hybrid"',
+                'id="employee_id" name="employee_id" value="EMP-0042"',
+                'id="first_name" name="first_name" value="Hal"',
+                'id="last_name" name="last_name" value="Hybrid"',
                 'value="hal@example.test"',
+                '<option value="qa_tester" selected>QA Tester</option>',
                 '<option value="qa_automation_manual" selected>QA Automation / Manual</option>',
                 'id="password" name="password" type="password"',
                 'id="password_confirmation" name="password_confirmation" type="password"',
@@ -119,6 +129,19 @@ class AdminUserFormPageTest extends TestCase
             ->assertDontSee('Assigned Coaches');
     }
 
+    public function test_editing_a_user_without_an_employee_id_leaves_it_optional_and_the_job_role_unset(): void
+    {
+        $legacy = User::factory()->create(['employee_id' => null, 'job_role' => null]);
+
+        $this->actingAs($this->admin())->get(route('admin.users.edit', $legacy))
+            ->assertOk()
+            ->assertSee('>Employee ID</label>', false)
+            ->assertSee('id="employee_id" name="employee_id" value=""', false)
+            ->assertDontSee('Employee ID *')
+            ->assertDontSee('autocomplete="off" required', false)
+            ->assertDontSee('selected>Developer</option>', false);
+    }
+
     public function test_a_rejected_save_returns_to_the_form_with_the_error_and_the_old_input(): void
     {
         $participant = User::factory()->create();
@@ -126,12 +149,15 @@ class AdminUserFormPageTest extends TestCase
         $this->actingAs($this->admin())
             ->from(route('admin.users.edit', $participant))
             ->followingRedirects()
-            ->put(route('admin.users.update', $participant), ['name' => 'Renamed Person', 'email' => 'not-an-email', 'access_type' => 'coach', 'is_active' => '0'])
+            ->put(route('admin.users.update', $participant), ['employee_id' => 'EMP-7777', 'first_name' => 'Renamed', 'last_name' => 'Person', 'email' => 'not-an-email', 'job_role' => 'project_manager', 'access_type' => 'coach', 'is_active' => '0'])
             ->assertOk()
             ->assertSeeInOrder([
                 'role="alert"',
-                'value="Renamed Person"',
+                'value="EMP-7777"',
+                'value="Renamed"',
+                'value="Person"',
                 'value="not-an-email"',
+                '<option value="project_manager" selected>Project Manager (PM)</option>',
                 '<option value="coach" selected>Mentor / Coach</option>',
             ], false)
             ->assertDontSee('name="is_active" value="1" checked', false);

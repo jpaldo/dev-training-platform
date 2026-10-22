@@ -49,7 +49,7 @@
             <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" aria-label="Filter users">
                 <div class="grid min-w-0 gap-2">
                     <label for="user-search" class="{{ $labelClasses }}">Search</label>
-                    <input id="user-search" name="search" value="{{ $search }}" placeholder="Name or email" class="{{ $controlClasses }}">
+                    <input id="user-search" name="search" value="{{ $search }}" placeholder="Name, email or employee ID" class="{{ $controlClasses }}">
                 </div>
                 <div class="grid min-w-0 gap-2">
                     <label for="access-type" class="{{ $labelClasses }}">Access Type</label>
@@ -85,10 +85,11 @@
                 <h2 id="user-list-title" class="m-0 text-xl font-extrabold">Users</h2>
                 @if($users->isNotEmpty())
                     <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="user-list-title" tabindex="0">
-                        <table class="w-full min-w-220 border-collapse text-sm" aria-labelledby="user-list-title">
+                        <table class="w-full min-w-240 border-collapse text-sm" aria-labelledby="user-list-title">
                             <thead>
                                 <tr>
                                     <th scope="col" class="{{ $headerCellClasses }}">Name</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Employee ID</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">Email</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">Access Type</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">QA Path</th>
@@ -101,6 +102,7 @@
                                 @foreach($users as $user)
                                     <tr data-user-row>
                                         <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">{{ $user['name'] }}</th>
+                                        <td class="{{ $cellClasses }} whitespace-nowrap">{{ $user['employee_id'] }}</td>
                                         <td class="{{ $cellClasses }} wrap-break-word text-muted">{{ $user['email'] }}</td>
                                         <td class="{{ $cellClasses }} whitespace-nowrap">{{ $user['access_type'] }}</td>
                                         <td class="{{ $cellClasses }} whitespace-nowrap">{{ $user['path'] }}</td>

@@ -32,13 +32,35 @@
                 @endif
 
                 <div class="grid gap-2">
-                    <label for="name" class="{{ $labelClasses }}">Full Name *</label>
-                    <input id="name" name="name" value="{{ old('name', $name) }}" required class="{{ $controlClasses }}">
+                    <label for="employee_id" class="{{ $labelClasses }}">Employee ID{{ $isEmployeeIdRequired ? ' *' : '' }}</label>
+                    <input id="employee_id" name="employee_id" value="{{ old('employee_id', $employeeId) }}" autocomplete="off" @required($isEmployeeIdRequired) class="{{ $controlClasses }}">
+                </div>
+
+                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div class="grid min-w-0 gap-2">
+                        <label for="first_name" class="{{ $labelClasses }}">First Name *</label>
+                        <input id="first_name" name="first_name" value="{{ old('first_name', $firstName) }}" required class="{{ $controlClasses }}">
+                    </div>
+
+                    <div class="grid min-w-0 gap-2">
+                        <label for="last_name" class="{{ $labelClasses }}">Last Name *</label>
+                        <input id="last_name" name="last_name" value="{{ old('last_name', $lastName) }}" required class="{{ $controlClasses }}">
+                    </div>
                 </div>
 
                 <div class="grid gap-2">
                     <label for="email" class="{{ $labelClasses }}">Email *</label>
                     <input id="email" name="email" type="email" value="{{ old('email', $email) }}" required class="{{ $controlClasses }}">
+                </div>
+
+                <div class="grid gap-2">
+                    <label for="job_role" class="{{ $labelClasses }}">Job Role</label>
+                    <select id="job_role" name="job_role" class="{{ $controlClasses }}">
+                        <option value="">Not set</option>
+                        @foreach($jobRoleOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected(old('job_role', $jobRole) === $option['value'])>{{ $option['label'] }}</option>
+                        @endforeach
+                    </select>
                 </div>
 
                 <div class="grid gap-2">

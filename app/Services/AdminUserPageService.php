@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\JobRole;
 use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\User;
@@ -27,7 +28,7 @@ class AdminUserPageService
      * rows. Add User is the page's single main action; every other button is secondary.
      *
      * @param  array{search?: ?string, access_type?: ?string, status?: ?string, path?: ?string}  $filters
-     * @return array{createUrl: string, settingsLinks: list<array{label: string, url: string}>, passwordSetupExpiresInMinutes: int, search: string, accessTypeOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, pathOptions: list<array{value: string, label: string, is_selected: bool}>, users: LengthAwarePaginator<int, array{name: string, email: string, access_type: string, path: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string}>, attendanceUrl: string}
+     * @return array{createUrl: string, settingsLinks: list<array{label: string, url: string}>, passwordSetupExpiresInMinutes: int, search: string, accessTypeOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, pathOptions: list<array{value: string, label: string, is_selected: bool}>, users: LengthAwarePaginator<int, array{name: string, employee_id: string, email: string, access_type: string, path: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string}>, attendanceUrl: string}
      */
     public function indexData(array $filters): array
     {
@@ -52,10 +53,12 @@ class AdminUserPageService
     }
 
     /**
-     * Everything the add / edit user page renders. Editing also shows the Training Drive link, the all-time attendance
-     * summary and, for a participant, the coach assignment form. Saving the user is the page's single main action.
+     * Everything the add / edit user page renders. The employee ID is required when adding a user and optional when
+     * editing one (users created before it existed may have none); the job role is optional. Editing also shows the
+     * Training Drive link, the all-time attendance summary and, for a participant, the coach assignment form. Saving
+     * the user is the page's single main action.
      *
-     * @return array{isEditing: bool, title: string, formAction: string, formMethod: ?string, submitLabel: string, cancelUrl: string, name: ?string, email: ?string, accessType: string, accessTypeOptions: list<array{value: string, label: string}>, isActive: bool, driveUrl: ?string, coachAssignment: ?array{url: string, size: int, coachOptions: list<array{value: string, label: string, is_selected: bool}>, assignedNames: string}, attendance: ?array{completedCount: int, totalHours: string, url: string}}
+     * @return array{isEditing: bool, title: string, formAction: string, formMethod: ?string, submitLabel: string, cancelUrl: string, employeeId: ?string, isEmployeeIdRequired: bool, firstName: ?string, lastName: ?string, email: ?string, jobRole: string, jobRoleOptions: list<array{value: string, label: string}>, accessType: string, accessTypeOptions: list<array{value: string, label: string}>, isActive: bool, driveUrl: ?string, coachAssignment: ?array{url: string, size: int, coachOptions: list<array{value: string, label: string, is_selected: bool}>, assignedNames: string}, attendance: ?array{completedCount: int, totalHours: string, url: string}}
      */
     public function formData(?User $user): array
     {
@@ -66,8 +69,16 @@ class AdminUserPageService
             'formMethod' => $user ? 'PUT' : null,
             'submitLabel' => $user ? 'Save User' : 'Create User',
             'cancelUrl' => route('admin.users.index'),
-            'name' => $user?->name,
+            'employeeId' => $user?->employee_id,
+            'isEmployeeIdRequired' => $user === null,
+            'firstName' => $user?->first_name,
+            'lastName' => $user?->last_name,
             'email' => $user?->email,
+            'jobRole' => $user?->job_role?->value ?? '',
+            'jobRoleOptions' => collect(JobRole::options())
+                ->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])
+                ->values()
+                ->all(),
             'accessType' => $user ? $this->accessType($user) : '',
             'accessTypeOptions' => collect(self::ACCESS_TYPES)
                 ->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])
@@ -87,7 +98,10 @@ class AdminUserPageService
     private function filteredUsers(array $filters): Builder
     {
         return User::query()
-            ->when($filters['search'] ?? null, fn (Builder $query, string $search): Builder => $query->where(fn (Builder $q): Builder => $q->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")))
+            ->when($filters['search'] ?? null, fn (Builder $query, string $search): Builder => $query->where(fn (Builder $q): Builder => $q
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%")
+                ->orWhere('employee_id', 'like', "%{$search}%")))
             ->when($filters['status'] ?? null, fn (Builder $query, string $status): Builder => $query->where('is_active', $status === 'active'))
             ->when($filters['path'] ?? null, fn (Builder $query, string $path): Builder => $query->where('training_path', $path))
             ->when($filters['access_type'] ?? null, fn (Builder $query, string $type): Builder => $query->where(fn (Builder $q): Builder => match ($type) {
@@ -100,15 +114,16 @@ class AdminUserPageService
     }
 
     /**
-     * One table row. The access type label comes from the same mapping as the edit form's Access Type and the QA path
-     * from the training path's label.
+     * One table row ("—" for a user without an employee ID). The access type label comes from the same mapping as the
+     * edit form's Access Type and the QA path from the training path's label.
      *
-     * @return array{name: string, email: string, access_type: string, path: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string}
+     * @return array{name: string, employee_id: string, email: string, access_type: string, path: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string}
      */
     private function userRow(User $user): array
     {
         return [
             'name' => $user->name,
+            'employee_id' => filled($user->employee_id) ? $user->employee_id : '—',
             'email' => $user->email,
             'access_type' => self::ACCESS_TYPES[$this->accessType($user)],
             'path' => $user->training_path?->label() ?? '—',

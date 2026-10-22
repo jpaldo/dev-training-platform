@@ -10,14 +10,14 @@ class AdminUserListPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_rows_show_the_access_type_path_status_and_account_actions_of_each_user(): void
+    public function test_rows_show_the_employee_id_access_type_path_status_and_account_actions_of_each_user(): void
     {
         $this->travelTo(now()->setDate(2026, 3, 10));
         $admin = User::factory()->create(['role' => 'admin', 'training_path' => null, 'name' => 'Ada Admin', 'created_at' => now()->subDays(5)]);
-        User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Cole Coach', 'created_at' => now()->subDays(4)]);
+        User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Cole Coach', 'employee_id' => null, 'created_at' => now()->subDays(4)]);
         User::factory()->create(['training_path' => 'manual', 'name' => 'Max Manual', 'created_at' => now()->subDays(3)]);
         User::factory()->create(['training_path' => 'automation', 'name' => 'Ava Automation', 'created_at' => now()->subDays(2)]);
-        $hybrid = User::factory()->create(['training_path' => 'automation_manual', 'name' => 'Hal Hybrid', 'is_active' => false, 'created_at' => now()->subDay()]);
+        $hybrid = User::factory()->create(['training_path' => 'automation_manual', 'name' => 'Hal Hybrid', 'employee_id' => 'EMP-0042', 'is_active' => false, 'created_at' => now()->subDay()]);
 
         $response = $this->actingAs($admin)->get(route('admin.users.index'))
             ->assertOk()
@@ -31,12 +31,13 @@ class AdminUserListPageTest extends TestCase
                 'href="'.route('admin.settings.ai').'"', 'AI Settings',
                 'aria-label="Filter users"',
                 'role="region" aria-labelledby="user-list-title"',
-                '>Hal Hybrid</th>', 'QA Automation / Manual', 'Automation / Manual', '>Disabled</span>', 'Mar 9, 2026',
+                '>Name</th>', '>Employee ID</th>', '>Email</th>',
+                '>Hal Hybrid</th>', '>EMP-0042</td>', 'QA Automation / Manual', 'Automation / Manual', '>Disabled</span>', 'Mar 9, 2026',
                 'href="'.route('admin.users.edit', $hybrid).'"', 'Edit',
                 'action="'.route('admin.users.enable', $hybrid).'"', 'Enable',
                 '>Ava Automation</th>', 'QA Automation', 'Automation', '>Active</span>', 'Mar 8, 2026',
                 '>Max Manual</th>', 'QA Manual', 'Manual', '>Active</span>',
-                '>Cole Coach</th>', 'Mentor / Coach', '—', '>Active</span>',
+                '>Cole Coach</th>', '>—</td>', 'Mentor / Coach', '—', '>Active</span>',
                 '>Ada Admin</th>', 'Admin', '—', '>Active</span>', 'Mar 5, 2026',
                 'action="'.route('admin.users.disable', $admin).'"', 'data-confirm="Disable this account? Historical training records will be preserved."', 'Disable',
             ], false)
@@ -67,6 +68,19 @@ class AdminUserListPageTest extends TestCase
             ->assertSee('<option value="disabled" selected>Disabled</option>', false)
             ->assertSee('No users match these filters.')
             ->assertDontSee('<table', false);
+    }
+
+    public function test_searching_for_an_employee_id_finds_that_user(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        User::factory()->create(['name' => 'Ava Automation', 'employee_id' => 'EMP-1234']);
+        User::factory()->create(['name' => 'Max Manual', 'employee_id' => 'EMP-9876']);
+
+        $this->actingAs($admin)->get(route('admin.users.index', ['search' => 'EMP-1234']))
+            ->assertOk()
+            ->assertSee('placeholder="Name, email or employee ID"', false)
+            ->assertSee('>Ava Automation</th>', false)
+            ->assertDontSee('Max Manual');
     }
 
     public function test_the_one_time_password_setup_link_is_shown_with_its_expiry_after_creating_a_user(): void

@@ -18,7 +18,9 @@ class PasswordSetupTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
 
         $response = $this->actingAs($admin)->post(route('admin.users.store'), [
-            'name' => 'New Admin',
+            'employee_id' => 'EMP-9001',
+            'first_name' => 'New',
+            'last_name' => 'Admin',
             'email' => 'new-admin@example.test',
             'access_type' => 'admin',
             'is_active' => 1,
@@ -76,7 +78,9 @@ class PasswordSetupTest extends TestCase
     {
         $this->actingAs(User::factory()->create(['role' => 'coach']))
             ->post(route('admin.users.store'), [
-                'name' => 'Blocked',
+                'employee_id' => 'EMP-9002',
+                'first_name' => 'Blocked',
+                'last_name' => 'Admin',
                 'email' => 'blocked@example.test',
                 'access_type' => 'admin',
             ])->assertForbidden();
@@ -89,7 +93,9 @@ class PasswordSetupTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
 
         $response = $this->actingAs($admin)->post(route('admin.users.store'), [
-            'name' => 'Direct Admin',
+            'employee_id' => 'EMP-9003',
+            'first_name' => 'Direct',
+            'last_name' => 'Admin',
             'email' => 'direct-admin@example.test',
             'access_type' => 'admin',
             'is_active' => 1,

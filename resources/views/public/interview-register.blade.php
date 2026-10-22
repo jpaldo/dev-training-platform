@@ -67,20 +67,20 @@
                         </select>
                     </div>
 
-                    {{-- The script in `initializeInterviewRegistrationFields` shows and requires the links the selected type needs. --}}
+                    {{-- The links the old interview type needs start shown and required; `initializeInterviewRegistrationFields` follows the selected type. --}}
                     <div id="booking-fields" class="contents">
-                        <div id="mock-booking-field" data-mock-booking-field hidden>
+                        <div id="mock-booking-field" data-mock-booking-field @if(! $isMockBookingShown) hidden @endif>
                             <div class="grid min-w-0 gap-2">
                                 <label for="mock_booking_url" class="{{ $labelClasses }}">Mock Interview Booking Link *</label>
-                                <input id="mock_booking_url" name="mock_booking_url" type="url" value="{{ old('mock_booking_url') }}" placeholder="https://booking.example.com/mock" aria-describedby="mock_booking_url-hint" class="{{ $controlClasses }}">
+                                <input id="mock_booking_url" name="mock_booking_url" type="url" value="{{ old('mock_booking_url') }}" placeholder="https://booking.example.com/mock" aria-describedby="mock_booking_url-hint" @required($isMockBookingShown) class="{{ $controlClasses }}">
                                 <p id="mock_booking_url-hint" class="{{ $hintClasses }}">Paste the public booking page link participants should use to schedule this interview.</p>
                             </div>
                         </div>
 
-                        <div id="final-booking-field" data-final-booking-field hidden>
+                        <div id="final-booking-field" data-final-booking-field @if(! $isFinalBookingShown) hidden @endif>
                             <div class="grid min-w-0 gap-2">
                                 <label for="final_booking_url" class="{{ $labelClasses }}">Final Re-assessment Booking Link *</label>
-                                <input id="final_booking_url" name="final_booking_url" type="url" value="{{ old('final_booking_url') }}" placeholder="https://booking.example.com/final" aria-describedby="final_booking_url-hint" class="{{ $controlClasses }}">
+                                <input id="final_booking_url" name="final_booking_url" type="url" value="{{ old('final_booking_url') }}" placeholder="https://booking.example.com/final" aria-describedby="final_booking_url-hint" @required($isFinalBookingShown) class="{{ $controlClasses }}">
                                 <p id="final_booking_url-hint" class="{{ $hintClasses }}">Paste the public booking page link participants should use to schedule this interview.</p>
                             </div>
                         </div>

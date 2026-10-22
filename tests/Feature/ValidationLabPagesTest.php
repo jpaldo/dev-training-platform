@@ -171,9 +171,10 @@ class ValidationLabPagesTest extends TestCase
                 '>Verify OTP</button>',
                 '</form>',
                 '<button type="button"',
-                'onclick="alert(\'A new OTP was sent. The validity window remains 2 minutes.\')"',
+                'data-alert="A new OTP was sent. The validity window remains 2 minutes."',
                 '>Resend OTP</button>',
-            ], false);
+            ], false)
+            ->assertDontSee('onclick=', false);
 
         $form = $this->formMarkup($response->getContent());
         $this->assertStringNotContainsString(' id=', $form);

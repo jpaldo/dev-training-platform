@@ -97,6 +97,4 @@
             </x-ui.card>
         </form>
     </div>
-
-    @vite('resources/js/markdown-preview.js')
 @endsection

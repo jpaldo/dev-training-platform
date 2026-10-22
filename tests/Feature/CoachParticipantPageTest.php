@@ -72,6 +72,32 @@ class CoachParticipantPageTest extends TestCase
             ->assertDontSee('Peer Mock Interview Requirement');
     }
 
+    public function test_peer_waiver_forms_ask_for_confirmation_through_data_confirm(): void
+    {
+        $peerActivity = $this->peerInterviewActivity();
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+
+        $this->actingAs($coach)->get(route('coach.participants.show', $participant))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'action="'.route('coach.week-four.peer-waiver.store', $participant).'"',
+                'data-confirm="Allow this participant to skip the peer mock interview requirement?"',
+                '>Allow Skip Peer Mock Interview</button>',
+            ], false)
+            ->assertDontSee('onsubmit=', false);
+
+        WeekFourPeerInterviewWaiver::create(['participant_id' => $participant->id, 'activity_id' => $peerActivity->id, 'authorized_by_id' => $coach->id, 'waived_at' => now()]);
+
+        $this->actingAs($coach)->get(route('coach.participants.show', $participant))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'action="'.route('coach.week-four.peer-waiver.revoke', $participant).'"',
+                'data-confirm="Revoke this peer mock interview waiver?"',
+                '>Revoke Waiver</button>',
+            ], false)
+            ->assertDontSee('onsubmit=', false);
+    }
+
     #[DataProvider('viewerAccess')]
     public function test_access_notice_and_retry_action_follow_the_viewer(string $role, bool $isAssigned, string $notice, bool $canRetry): void
     {

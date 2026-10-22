@@ -60,7 +60,7 @@
                         @foreach($pairs as $pair)
                             <li class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-field px-4 py-3">
                                 <span class="min-w-0 text-sm/relaxed wrap-anywhere">{{ $pair['participant_one'] }} ↔ {{ $pair['participant_two'] }}</span>
-                                <form method="POST" action="{{ $pair['unpair_url'] }}" class="m-0" onsubmit="return confirm('Unpair these participants? Existing submitted history will be preserved.');">
+                                <form method="POST" action="{{ $pair['unpair_url'] }}" class="m-0" data-confirm="Unpair these participants? Existing submitted history will be preserved.">
                                     @csrf
                                     <x-ui.button variant="secondary" type="submit">Unpair</x-ui.button>
                                 </form>

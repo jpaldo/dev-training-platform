@@ -95,8 +95,10 @@ class CoachParticipantListPageTest extends TestCase
                 'Active peer interview pairs',
                 'Ann Alpha (ann@example.test) ↔ Ben Beta (ben@example.test)',
                 'action="'.route('coach.week-four.pairs.unpair', $activePair).'"',
+                'data-confirm="Unpair these participants? Existing submitted history will be preserved."',
                 'Unpair',
             ], false)
+            ->assertDontSee('onsubmit=', false)
             ->assertDontSee('Ina Inactive — Mentor')
             ->assertDontSee(route('coach.week-four.pairs.unpair', $inactivePair), false);
 

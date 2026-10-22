@@ -13,7 +13,7 @@ class MarkdownFieldComponentTest extends TestCase
             ['value' => '<b>Kept</b> as text'],
         )
             ->assertSeeInOrder([
-                'class="markdown-field',
+                'data-markdown-field data-preview-url="'.route('markdown.preview').'"',
                 'role="group" aria-label="Write or preview"',
                 '<button type="button"', 'data-markdown-mode="write" aria-pressed="true">Write</button>',
                 '<button type="button"', 'data-markdown-mode="preview" aria-pressed="false">Preview</button>',

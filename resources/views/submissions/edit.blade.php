@@ -256,7 +256,7 @@
                                         $value = old('field_values.'.$key, $version?->field_values[$key] ?? '');
                                         $isCustomArtifactType = $field['control'] === 'artifact_type' && $value !== '' && ! in_array($value, $artifactTypes, true);
                                     @endphp
-                                    <div class="grid min-w-0 gap-2" data-field>
+                                    <div class="grid min-w-0 gap-2" data-character-counter>
                                         <label for="{{ $key }}" class="{{ $labelClasses }}">{{ $field['label'] }}{{ $isRequired ? ' *' : '' }}</label>
                                         @if($field['has_length_note'])
                                             <p class="{{ $hintClasses }}">Maximum 50,000 characters.</p>
@@ -679,14 +679,6 @@
                 });
                 window.setTimeout(saveDraft, 150);
             }
-            document.querySelectorAll('[data-field]').forEach(field => {
-                const control = field.querySelector('input[maxlength], textarea[maxlength]:not([data-markdown-source])');
-                const counter = field.querySelector('[data-char-count]');
-                if (!control || !counter) return;
-                const update = () => { counter.textContent = control.value.length + ' / ' + control.maxLength + ' characters'; };
-                control.addEventListener('input', update);
-                update();
-            });
             let pendingUploads = 0;
             document.querySelectorAll('[data-evidence-form]').forEach(form => {
                 const file = form.querySelector('[data-evidence-file]');
@@ -734,5 +726,4 @@
             });
         })();
     </script>
-    @vite('resources/js/markdown-preview.js')
 @endsection

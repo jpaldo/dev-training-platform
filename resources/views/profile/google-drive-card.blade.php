@@ -112,7 +112,7 @@
                         class="disabled:cursor-not-allowed disabled:opacity-55"
                     >{{ $picker['label'] }}</x-ui.button>
 
-                    <form method="post" action="{{ route('profile.google-drive.disconnect') }}" onsubmit="return confirm('Disconnect Google Drive? Your existing Training Drive Link will not be changed.');" class="m-0 max-w-full">
+                    <form method="post" action="{{ route('profile.google-drive.disconnect') }}" data-confirm="Disconnect Google Drive? Your existing Training Drive Link will not be changed." class="m-0 max-w-full">
                         @csrf
                         <x-ui.button variant="secondary" type="submit">Disconnect Google Drive</x-ui.button>
                     </form>

@@ -19,7 +19,7 @@ class EvidenceActionsComponentTest extends TestCase
         return [
             'image by extension' => ['proof.PNG', null, 'image', ['PNG', 'data-evidence-preview-image', 'data-preview-src="{view}"']],
             'image by mime type' => ['screenshot', 'image/webp', 'image', ['IMAGE/WEBP', 'data-evidence-preview-image', 'data-preview-src="{view}"']],
-            'pdf' => ['report.pdf', 'application/pdf', 'pdf', ['PDF', 'data-evidence-preview-frame', 'data-preview-src="{view}"', 'PDF preview is not available in this browser.']],
+            'pdf' => ['report.pdf', 'application/pdf', 'pdf', ['PDF', 'data-evidence-preview-frame', 'data-preview-src="{view}"']],
             'video by mime type' => ['walkthrough', 'video/quicktime', 'video', ['VIDEO/QUICKTIME', 'data-evidence-preview-video', 'data-preview-src="{view}"', '<source type="video/quicktime">']],
             'video by extension' => ['walkthrough.m4v', null, 'video', ['M4V', 'data-evidence-preview-video', 'data-preview-src="{view}"', '<source type="video/mp4">']],
             'structured' => ['results.csv', 'text/csv', 'structured', ['CSV', 'data-evidence-preview-text', 'data-preview-src="{preview}"', 'data-evidence-preview-table']],
@@ -55,7 +55,9 @@ class EvidenceActionsComponentTest extends TestCase
             'href="'.route('training.evidence.download', $evidence).'"', '>Download</a>',
             '</dialog>',
         ], false);
-        $view->assertDontSee('from-brand to-brand-deep', false);
+        $view->assertDontSee('from-brand to-brand-deep', false)
+            ->assertDontSee('data-evidence-preview-fallback', false)
+            ->assertDontSee('PDF preview is not available in this browser.');
     }
 
     public function test_unsupported_files_link_to_view_and_download_without_a_modal(): void

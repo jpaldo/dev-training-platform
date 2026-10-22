@@ -112,7 +112,7 @@
                                             <div class="flex flex-wrap items-center gap-2">
                                                 <x-ui.button variant="secondary" :href="$user['edit_url']">Edit</x-ui.button>
                                                 @if($user['disable_url'])
-                                                    <form method="POST" action="{{ $user['disable_url'] }}" class="m-0" onsubmit="return confirm('Disable this account? Historical training records will be preserved.')">
+                                                    <form method="POST" action="{{ $user['disable_url'] }}" class="m-0" data-confirm="Disable this account? Historical training records will be preserved.">
                                                         @csrf
                                                         <x-ui.button variant="secondary" type="submit">Disable</x-ui.button>
                                                     </form>

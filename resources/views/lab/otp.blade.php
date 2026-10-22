@@ -34,7 +34,7 @@
             </form>
 
             <div class="flex flex-wrap gap-3">
-                <x-ui.button variant="secondary" onclick="alert('A new OTP was sent. The validity window remains 2 minutes.')" class="w-full sm:w-auto">Resend OTP</x-ui.button>
+                <x-ui.button variant="secondary" data-alert="A new OTP was sent. The validity window remains 2 minutes." class="w-full sm:w-auto">Resend OTP</x-ui.button>
             </div>
         </x-ui.card>
     </div>

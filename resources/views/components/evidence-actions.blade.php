@@ -48,7 +48,6 @@
                         data-preview-src="{{ $viewUrl }}"
                         hidden
                     ></iframe>
-                    <p class="m-0 text-muted" data-evidence-preview-fallback hidden>PDF preview is not available in this browser.</p>
                 @elseif($preview->kind === \App\Support\EvidencePreview::VIDEO)
                     <video
                         class="max-h-[72vh] w-full rounded-xl bg-black"

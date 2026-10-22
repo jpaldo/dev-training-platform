@@ -232,6 +232,4 @@
             </x-ui.card>
         </div>
     </div>
-
-    @vite('resources/js/markdown-preview.js')
 @endsection

@@ -167,7 +167,7 @@ class ProfilePageTest extends TestCase
                 'SYNC TO GOOGLE DRIVE',
                 'data-drive-picker="data-drive-picker" data-token-url="'.route('profile.google-drive.picker-token').'" data-save-url="'.route('profile.google-drive.destination').'" data-api-key="picker-key" data-app-id="1068406488956"',
                 'Change Folder',
-                'action="'.route('profile.google-drive.disconnect').'" onsubmit="return confirm(',
+                'action="'.route('profile.google-drive.disconnect').'" data-confirm="Disconnect Google Drive? Your existing Training Drive Link will not be changed."',
                 'Disconnect Google Drive',
                 'data-drive-picker-error="data-drive-picker-error" hidden="hidden"></div>',
                 '<script src="https://apis.google.com/js/api.js" async defer></script>',

@@ -58,6 +58,8 @@ class AppLayoutTest extends TestCase
         $this->assertStringContainsString('<strong class="text-slate-100">Pat Participant</strong>', $sidebar);
         $this->assertStringContainsString('>Participant</span>', $sidebar);
         $this->assertStringContainsString('action="'.route('logout').'"', $sidebar);
+        $this->assertStringContainsString(' data-sliding:transition ', strstr($sidebar, '>', true));
+        $this->assertStringNotContainsString(' transition ', strstr($sidebar, '>', true));
         $response->assertSeeInOrder([
             'data-sidebar-toggle aria-controls="app-sidebar" aria-expanded="false">☰ Menu</button>',
             '<main>',

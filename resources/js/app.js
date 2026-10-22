@@ -44,6 +44,12 @@ const initializeMentorDateTimePickers = () => {
     });
 };
 
+/**
+ * Open and close the `#app-sidebar` drawer (below `lg`) from the `[data-sidebar-toggle]` button, any
+ * `[data-sidebar-close]` element and Escape. While the drawer is open the page behind it does not scroll, and the
+ * sidebar only animates while `data-sliding` is set (from a toggle until its transition ends), so resizing across
+ * `lg` does not slide it in or out.
+ */
 const initializeSidebarDrawer = () => {
     const toggle = document.querySelector('[data-sidebar-toggle]');
     const sidebar = document.getElementById('app-sidebar');
@@ -56,8 +62,10 @@ const initializeSidebarDrawer = () => {
     const isOpen = () => sidebar.hasAttribute('data-open');
 
     const setOpen = (open) => {
+        sidebar.setAttribute('data-sliding', '');
         sidebar.toggleAttribute('data-open', open);
         toggle.setAttribute('aria-expanded', String(open));
+        document.body.classList.toggle('max-lg:overflow-hidden', open);
 
         if (backdrop) {
             backdrop.hidden = !open;
@@ -68,6 +76,14 @@ const initializeSidebarDrawer = () => {
         }
     };
 
+    const stopSliding = (event) => {
+        if (event.target === sidebar) {
+            sidebar.removeAttribute('data-sliding');
+        }
+    };
+
+    sidebar.addEventListener('transitionend', stopSliding);
+    sidebar.addEventListener('transitioncancel', stopSliding);
     toggle.addEventListener('click', () => setOpen(!isOpen()));
     document.querySelectorAll('[data-sidebar-close]').forEach((element) => {
         element.addEventListener('click', () => {
@@ -171,7 +187,7 @@ const initializeMarkdownFlushOnSubmit = () => {
             form.querySelectorAll('[data-markdown-source]').forEach((textarea) => {
                 textarea.hidden = false;
 
-                const panel = textarea.closest('.markdown-field')?.querySelector('[data-markdown-preview]');
+                const panel = textarea.closest('[data-markdown-field]')?.querySelector('[data-markdown-preview]');
 
                 if (panel) {
                     panel.hidden = true;
@@ -182,8 +198,13 @@ const initializeMarkdownFlushOnSubmit = () => {
 };
 
 /**
+ * The "N / max characters" counter text of a `maxlength` control, with thousands separators.
+ */
+const characterCountText = (control) => `${control.value.length.toLocaleString('en-US')} / ${control.maxLength.toLocaleString('en-US')} characters`;
+
+/**
  * Keep the `[data-char-count]` text of each `[data-character-counter]` field at "N / max characters" for its
- * `maxlength` input or plain textarea. Markdown fields count their own characters in `markdown-preview.js`.
+ * `maxlength` input or plain textarea. Markdown fields count their own characters in `initializeMarkdownFields`.
  */
 const initializeCharacterCounters = () => {
     document.querySelectorAll('[data-character-counter]').forEach((field) => {
@@ -195,11 +216,212 @@ const initializeCharacterCounters = () => {
         }
 
         const update = () => {
-            counter.textContent = `${control.value.length.toLocaleString('en-US')} / ${control.maxLength.toLocaleString('en-US')} characters`;
+            counter.textContent = characterCountText(control);
         };
 
         control.addEventListener('input', update);
         update();
+    });
+};
+
+let markdownConverter;
+
+/**
+ * Load the HTML to Markdown converter for pasted rich text on first use, so pages without a Markdown field do not
+ * download `turndown` (a failed load is retried on the next paste).
+ */
+const loadMarkdownConverter = () => {
+    markdownConverter ??= Promise.all([import('turndown'), import('turndown-plugin-gfm')]).then(([{ default: TurndownService }, { gfm }]) => {
+        const converter = new TurndownService({
+            headingStyle: 'atx',
+            codeBlockStyle: 'fenced',
+            bulletListMarker: '-',
+            emDelimiter: '*',
+            strongDelimiter: '**',
+        });
+        converter.use(gfm);
+
+        return converter;
+    }).catch((error) => {
+        markdownConverter = undefined;
+
+        throw error;
+    });
+
+    return markdownConverter;
+};
+
+/**
+ * Make each `x-markdown-field` (`[data-markdown-field]`) work: the Write / Preview buttons (`[data-markdown-mode]`)
+ * switch between the `[data-markdown-source]` textarea and the `[data-markdown-preview]` panel, which shows the
+ * Markdown rendered by the root's `data-preview-url` (cached per content and CSRF token, refreshed while typing; the
+ * escaped source if the request fails); pasted HTML becomes Markdown (or its plain text if the converter cannot load)
+ * within the `maxlength`; and `[data-char-count]` reads "N / max characters".
+ */
+const initializeMarkdownFields = () => {
+    const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+    })[character]);
+
+    document.querySelectorAll('[data-markdown-field]').forEach((field) => {
+        const textarea = field.querySelector('[data-markdown-source]');
+        const panel = field.querySelector('[data-markdown-preview]');
+
+        if (!textarea || !panel) {
+            return;
+        }
+
+        const counter = field.querySelector('[data-char-count]');
+        const modeButtons = [...field.querySelectorAll('[data-markdown-mode]')];
+        const state = { mode: 'write', cache: null, cacheSource: null, cacheToken: null, timer: null };
+
+        const csrfToken = () => textarea.closest('form')?.querySelector('input[name="_token"]')?.value || '';
+
+        const enforceMaxLength = () => {
+            if (textarea.maxLength <= 0 || textarea.value.length <= textarea.maxLength) {
+                return;
+            }
+
+            textarea.value = textarea.value.slice(0, textarea.maxLength);
+            textarea.selectionStart = Math.min(textarea.selectionStart, textarea.maxLength);
+            textarea.selectionEnd = Math.min(textarea.selectionEnd, textarea.maxLength);
+        };
+
+        const updateCount = () => {
+            if (counter && textarea.maxLength > 0) {
+                counter.textContent = characterCountText(textarea);
+            }
+        };
+
+        const renderPreview = () => {
+            const content = textarea.value;
+            const token = csrfToken();
+
+            if (state.cacheSource === content && state.cacheToken === token && state.cache !== null) {
+                panel.innerHTML = state.cache;
+
+                return;
+            }
+
+            if (!content.trim()) {
+                panel.innerHTML = '<p class="text-muted">Nothing to preview.</p>';
+
+                return;
+            }
+
+            panel.textContent = 'Rendering…';
+
+            const body = new FormData();
+            body.append('_token', token);
+            body.append('content', content);
+
+            fetch(field.dataset.previewUrl, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body,
+            })
+                .then(async (response) => {
+                    if (!response.ok) {
+                        throw new Error('preview_failed');
+                    }
+
+                    const data = await response.json();
+                    state.cache = data.html;
+                    state.cacheSource = content;
+                    state.cacheToken = token;
+                    panel.innerHTML = data.html;
+                })
+                .catch(() => {
+                    panel.innerHTML = `<pre>${escapeHtml(content)}</pre>`;
+                });
+        };
+
+        const setMode = (mode) => {
+            const isPreview = mode === 'preview';
+
+            state.mode = mode;
+            modeButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.markdownMode === mode)));
+            textarea.hidden = isPreview;
+            panel.hidden = !isPreview;
+
+            if (isPreview) {
+                renderPreview();
+            }
+        };
+
+        const insertPastedText = (text, selectionStart, selectionEnd) => {
+            const room = textarea.maxLength > 0
+                ? textarea.maxLength - (textarea.value.length - (selectionEnd - selectionStart))
+                : Infinity;
+
+            textarea.setRangeText(text.slice(0, Math.max(0, room)), selectionStart, selectionEnd, 'end');
+            enforceMaxLength();
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            textarea.focus();
+        };
+
+        modeButtons.forEach((button) => button.addEventListener('click', () => setMode(button.dataset.markdownMode)));
+        textarea.addEventListener('paste', (event) => {
+            const html = event.clipboardData?.getData('text/html');
+
+            if (!html) {
+                return;
+            }
+
+            event.preventDefault();
+
+            const plainText = event.clipboardData.getData('text/plain');
+            const { selectionStart, selectionEnd } = textarea;
+
+            loadMarkdownConverter()
+                .then((converter) => converter.turndown(html).replace(/\n{3,}/g, '\n\n').trim())
+                .catch(() => plainText)
+                .then((text) => insertPastedText(text, selectionStart, selectionEnd));
+        });
+        textarea.addEventListener('input', () => {
+            enforceMaxLength();
+            updateCount();
+
+            if (state.mode === 'preview') {
+                clearTimeout(state.timer);
+                state.timer = window.setTimeout(renderPreview, 300);
+            }
+        });
+        textarea.addEventListener('change', () => {
+            if (state.mode === 'preview') {
+                renderPreview();
+            }
+        });
+
+        updateCount();
+    });
+};
+
+/**
+ * Ask for confirmation before each `form[data-confirm]` submits (the attribute holds the question); cancelling stops
+ * the submit.
+ */
+const initializeConfirmations = () => {
+    document.querySelectorAll('form[data-confirm]').forEach((form) => {
+        form.addEventListener('submit', (event) => {
+            if (!window.confirm(form.dataset.confirm)) {
+                event.preventDefault();
+            }
+        });
+    });
+};
+
+/**
+ * Show the `data-alert` message of each `[data-alert]` button in a browser alert when it is clicked (the QA
+ * Validation Lab mock app's Resend OTP).
+ */
+const initializeAlertButtons = () => {
+    document.querySelectorAll('[data-alert]').forEach((button) => {
+        button.addEventListener('click', () => window.alert(button.dataset.alert));
     });
 };
 
@@ -508,7 +730,7 @@ const initializeGoogleDrivePicker = () => {
 
 /**
  * On the profile page, while the latest Google Drive sync is still running (`data-drive-sync-status-url` is set),
- * poll its status every two seconds and reload the page once the sync has finished.
+ * poll its status every two seconds and reload the page once the status JSON reports it `finished`.
  */
 const initializeGoogleDriveSyncStatus = () => {
     const status = document.querySelector('[data-drive-sync-status-url]');
@@ -517,14 +739,12 @@ const initializeGoogleDriveSyncStatus = () => {
         return;
     }
 
-    const finishedStatuses = ['completed', 'completed_with_errors', 'failed'];
-
     const poll = async () => {
         try {
             const response = await fetch(status.dataset.driveSyncStatusUrl, { headers: { Accept: 'application/json' } });
             const data = await response.json();
 
-            if (finishedStatuses.includes(data.status)) {
+            if (data.finished === true) {
                 window.location.reload();
 
                 return;
@@ -541,8 +761,7 @@ const initializeGoogleDriveSyncStatus = () => {
 
 /**
  * Open the evidence preview `<dialog>` of each `[data-evidence-preview-open]` button (`data-evidence-preview-dialog`
- * is the dialog id) and load the file the way its `data-evidence-preview-kind` says: an image, a PDF frame (with a
- * fallback message), a video, or the `structured` text / table JSON fetched from the `<pre>`'s `data-preview-src`.
+ * is the dialog id) and load the file the way its `data-evidence-preview-kind` says: an image, a PDF frame, a video, or the `structured` text / table JSON fetched from the `<pre>`'s `data-preview-src`.
  * Every opening starts from the loading state. Closing (a close button, Escape or a click on the backdrop) returns
  * focus to the button.
  */
@@ -560,7 +779,6 @@ const initializeEvidencePreviews = () => {
         const error = dialog.querySelector('[data-evidence-preview-error]');
         const image = dialog.querySelector('[data-evidence-preview-image]');
         const frame = dialog.querySelector('[data-evidence-preview-frame]');
-        const fallback = dialog.querySelector('[data-evidence-preview-fallback]');
         const video = dialog.querySelector('[data-evidence-preview-video]');
         const text = dialog.querySelector('[data-evidence-preview-text]');
         const tableWrap = dialog.querySelector('[data-evidence-preview-table-wrap]');
@@ -569,7 +787,7 @@ const initializeEvidencePreviews = () => {
         const reset = () => {
             loading.hidden = false;
             error.hidden = true;
-            [image, frame, video, text, tableWrap, fallback].filter(Boolean).forEach((element) => {
+            [image, frame, video, text, tableWrap].filter(Boolean).forEach((element) => {
                 element.hidden = true;
             });
 
@@ -652,10 +870,6 @@ const initializeEvidencePreviews = () => {
                 frame.onload = () => {
                     loading.hidden = true;
                     frame.hidden = false;
-                };
-                frame.onerror = () => {
-                    loading.hidden = true;
-                    fallback.hidden = false;
                 };
                 frame.src = frame.dataset.previewSrc;
             },
@@ -772,6 +986,9 @@ const initializePage = () => {
     initializeDatePickers();
     initializeMarkdownFlushOnSubmit();
     initializeCharacterCounters();
+    initializeMarkdownFields();
+    initializeConfirmations();
+    initializeAlertButtons();
     initializeAiProviderSettings();
     initializeInterviewerTypeFields();
     initializeInterviewRegistrationFields();

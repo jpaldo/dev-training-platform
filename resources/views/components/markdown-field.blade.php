@@ -12,7 +12,7 @@
     $modeButtonClasses = 'cursor-pointer rounded-lg border-0 bg-transparent px-3 py-1.5 font-sans text-sm font-extrabold text-muted transition hover:text-slate-100 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent/50 aria-pressed:bg-brand-soft aria-pressed:text-white';
 @endphp
 
-<div class="markdown-field grid min-w-0 grid-cols-1 gap-2">
+<div class="grid min-w-0 grid-cols-1 gap-2" data-markdown-field data-preview-url="{{ route('markdown.preview') }}">
     <div class="flex w-fit gap-1 rounded-xl border border-line bg-field p-0.5" role="group" aria-label="Write or preview">
         <button type="button" class="{{ $modeButtonClasses }}" data-markdown-mode="write" aria-pressed="true">Write</button>
         <button type="button" class="{{ $modeButtonClasses }}" data-markdown-mode="preview" aria-pressed="false">Preview</button>

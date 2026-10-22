@@ -10,6 +10,7 @@ use App\Services\InterviewBookingLinkService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Foundation\Vite;
 use Illuminate\Testing\TestResponse;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class PublicInterviewPagesTest extends TestCase
@@ -119,12 +120,12 @@ class PublicInterviewPagesTest extends TestCase
                 '<option value="mock" data-offers-mock="true" data-offers-final="false" >Mock Interview</option>',
                 '<option value="final_reassessment" data-offers-mock="false" data-offers-final="true" >Final Re-assessment Interview</option>',
                 '<option value="both" data-offers-mock="true" data-offers-final="true" >Both</option>',
-                '<div id="mock-booking-field" data-mock-booking-field hidden>',
+                '<div id="mock-booking-field" data-mock-booking-field',
                 '>Mock Interview Booking Link *</label>',
                 '<input id="mock_booking_url" name="mock_booking_url" type="url" value="" placeholder="https://booking.example.com/mock" aria-describedby="mock_booking_url-hint"',
                 'id="mock_booking_url-hint"',
                 'Paste the public booking page link participants should use to schedule this interview.',
-                '<div id="final-booking-field" data-final-booking-field hidden>',
+                '<div id="final-booking-field" data-final-booking-field',
                 '>Final Re-assessment Booking Link *</label>',
                 '<input id="final_booking_url" name="final_booking_url" type="url" value="" placeholder="https://booking.example.com/final" aria-describedby="final_booking_url-hint"',
                 'id="final_booking_url-hint"',
@@ -136,8 +137,12 @@ class PublicInterviewPagesTest extends TestCase
                 '</main>',
             ], false)
             ->assertDontSee('role="status"', false)
-            ->assertDontSee('role="alert"', false);
+            ->assertDontSee('role="alert"', false)
+            ->assertDontSee('aria-describedby="mock_booking_url-hint" required', false)
+            ->assertDontSee('aria-describedby="final_booking_url-hint" required', false);
 
+        $this->assertMatchesRegularExpression('/data-mock-booking-field\s+hidden\s*>/', $response->getContent());
+        $this->assertMatchesRegularExpression('/data-final-booking-field\s+hidden\s*>/', $response->getContent());
         $this->assertStandaloneAppStyledPage($response);
     }
 
@@ -181,6 +186,34 @@ class PublicInterviewPagesTest extends TestCase
                 'name="final_booking_url" type="url" value=""',
             ], false)
             ->assertDontSee('role="status"', false);
+    }
+
+    /**
+     * @return array<string, array{string, bool, bool}>
+     */
+    public static function oldInterviewTypes(): array
+    {
+        return [
+            'mock' => ['mock', true, false],
+            'final re-assessment' => ['final_reassessment', false, true],
+            'both' => ['both', true, true],
+            'unknown type' => ['panel', false, false],
+        ];
+    }
+
+    #[DataProvider('oldInterviewTypes')]
+    public function test_rejected_registration_shows_and_requires_the_booking_links_of_the_old_interview_type(string $interviewType, bool $isMockShown, bool $isFinalShown): void
+    {
+        $this->from(route('interviews.register'))
+            ->post(route('interviews.register.store'), ['full_name' => '', 'interview_type' => $interviewType])
+            ->assertRedirect(route('interviews.register'));
+
+        $content = $this->get(route('interviews.register'))->assertOk()->getContent();
+
+        $this->assertSame(! $isMockShown, (bool) preg_match('/data-mock-booking-field\s+hidden\s*>/', $content));
+        $this->assertSame($isMockShown, str_contains($content, 'aria-describedby="mock_booking_url-hint" required'));
+        $this->assertSame(! $isFinalShown, (bool) preg_match('/data-final-booking-field\s+hidden\s*>/', $content));
+        $this->assertSame($isFinalShown, str_contains($content, 'aria-describedby="final_booking_url-hint" required'));
     }
 
     /**

@@ -158,7 +158,7 @@
                             <x-ui.alert tone="success" class="w-full">Peer Mock Interview: Skipped</x-ui.alert>
                             <p class="m-0 text-sm text-muted">Authorized by {{ $peerWaiver->authorizedBy?->name ?? 'Coach/Admin' }} · {{ $peerWaiver->waived_at?->format('M j, Y g:i A') }}</p>
                             @if($canManage)
-                                <form method="POST" action="{{ route('coach.week-four.peer-waiver.revoke', $participant) }}" class="m-0" onsubmit="return confirm('Revoke this peer mock interview waiver?');">
+                                <form method="POST" action="{{ route('coach.week-four.peer-waiver.revoke', $participant) }}" class="m-0" data-confirm="Revoke this peer mock interview waiver?">
                                     @csrf
                                     <x-ui.button variant="secondary" type="submit">Revoke Waiver</x-ui.button>
                                 </form>
@@ -166,7 +166,7 @@
                         @else
                             <p class="m-0 text-muted">Peer mock interview prerequisite is active.</p>
                             @if($canManage)
-                                <form method="POST" action="{{ route('coach.week-four.peer-waiver.store', $participant) }}" class="m-0 grid w-full justify-items-start gap-3" onsubmit="return confirm('Allow this participant to skip the peer mock interview requirement?');">
+                                <form method="POST" action="{{ route('coach.week-four.peer-waiver.store', $participant) }}" class="m-0 grid w-full justify-items-start gap-3" data-confirm="Allow this participant to skip the peer mock interview requirement?">
                                     @csrf
                                     <div class="grid w-full gap-2">
                                         <label for="waiver-reason" class="text-sm font-extrabold">Reason (optional)</label>

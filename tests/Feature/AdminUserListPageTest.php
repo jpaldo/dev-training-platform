@@ -38,7 +38,7 @@ class AdminUserListPageTest extends TestCase
                 '>Max Manual</th>', 'QA Manual', 'Manual', '>Active</span>',
                 '>Cole Coach</th>', 'Mentor / Coach', '—', '>Active</span>',
                 '>Ada Admin</th>', 'Admin', '—', '>Active</span>', 'Mar 5, 2026',
-                'action="'.route('admin.users.disable', $admin).'"', 'onsubmit="return confirm(\'Disable this account? Historical training records will be preserved.\')"', 'Disable',
+                'action="'.route('admin.users.disable', $admin).'"', 'data-confirm="Disable this account? Historical training records will be preserved."', 'Disable',
                 'href="'.route('admin.attendance.index').'"', 'View Attendance',
             ], false)
             ->assertDontSee('action="'.route('admin.users.disable', $hybrid).'"', false)

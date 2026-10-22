@@ -82,6 +82,24 @@ class SubmissionFormPageTest extends TestCase
             ->assertSee('<option value="Reject"', false);
     }
 
+    public function test_length_limited_fields_use_the_shared_character_counter_and_markdown_fields_without_a_page_script(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $this->submissionField($activity, 1, ['key' => 'tool_name', 'label' => 'Tool name', 'type' => 'text']);
+        $this->submissionField($activity, 2, ['key' => 'finding', 'label' => 'Finding summary', 'type' => 'textarea']);
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'data-character-counter>', '>Tool name</label>', 'maxlength="'.FieldLimits::TEXT.'"', 'data-char-count></span>',
+                'data-character-counter>', '>Finding summary</label>', 'maxlength="'.FieldLimits::TEXTAREA.'"', 'data-char-count></span>',
+                'data-markdown-field data-preview-url="'.route('markdown.preview').'"', 'id="participant_note"',
+            ], false)
+            ->assertDontSee('data-field>', false)
+            ->assertDontSee("querySelectorAll('[data-field]')", false)
+            ->assertDontSee('markdown-preview.js', false);
+    }
+
     public function test_each_evidence_requirement_renders_the_upload_form_for_its_type(): void
     {
         [$participant, $week, $activity] = $this->activityFixture();

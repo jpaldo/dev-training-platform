@@ -44,16 +44,21 @@ class PublicInterviewPageService
     }
 
     /**
-     * The public interviewer registration page: the public title, the interview type options (in case order) and
-     * the form URLs.
+     * The public interviewer registration page: the public title, the interview type options (in case order), whether
+     * the Mock Interview and Final Re-assessment booking link fields start shown (and required) for the previously
+     * submitted interview type (both hidden without one), and the form URLs.
      *
-     * @return array{publicTitle: string, interviewTypes: list<array{value: string, label: string, offers_mock: bool, offers_final: bool}>, storeUrl: string, schedulingUrl: string}
+     * @return array{publicTitle: string, interviewTypes: list<array{value: string, label: string, offers_mock: bool, offers_final: bool}>, isMockBookingShown: bool, isFinalBookingShown: bool, storeUrl: string, schedulingUrl: string}
      */
-    public function registerData(): array
+    public function registerData(?string $selectedInterviewType = null): array
     {
+        $interviewType = $selectedInterviewType === null ? null : InterviewType::tryFrom($selectedInterviewType);
+
         return [
             'publicTitle' => $this->interviewBookingLinks->publicTitle(),
             'interviewTypes' => InterviewType::options(),
+            'isMockBookingShown' => $interviewType?->offers(InterviewType::Mock) ?? false,
+            'isFinalBookingShown' => $interviewType?->offers(InterviewType::FinalReassessment) ?? false,
             'storeUrl' => route('interviews.register.store'),
             'schedulingUrl' => route('interviews.index'),
         ];

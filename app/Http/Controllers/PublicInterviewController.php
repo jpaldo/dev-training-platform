@@ -9,6 +9,7 @@ use App\Services\InterviewBookingLinkService;
 use App\Services\PublicInterviewPageService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
@@ -20,9 +21,11 @@ class PublicInterviewController extends Controller
         return view('public.interviews', $page->indexData());
     }
 
-    public function register(PublicInterviewPageService $page): View
+    public function register(Request $request, PublicInterviewPageService $page): View
     {
-        return view('public.interview-register', $page->registerData());
+        $oldInterviewType = $request->old('interview_type');
+
+        return view('public.interview-register', $page->registerData(is_string($oldInterviewType) ? $oldInterviewType : null));
     }
 
     public function storeRegistration(StoreInterviewerRegistrationRequest $request): RedirectResponse

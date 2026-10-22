@@ -118,6 +118,4 @@
             </form>
         </x-ui.card>
     </div>
-
-    @vite('resources/js/markdown-preview.js')
 @endsection

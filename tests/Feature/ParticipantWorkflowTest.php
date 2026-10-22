@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\ActivityScoreStatus;
+use App\Enums\GateEvaluationStatus;
 use App\Enums\RecoveryRequestStatus;
 use App\Enums\ValidationSubmissionStatus;
 use App\Jobs\ExportActivityJob;
@@ -955,7 +956,7 @@ class ParticipantWorkflowTest extends TestCase
     }
 
     #[DataProvider('incompleteStatuses')]
-    public function test_incomplete_week_three_statuses_do_not_unlock_week_four(string $status): void
+    public function test_incomplete_week_three_statuses_do_not_unlock_week_four(GateEvaluationStatus $status): void
     {
         [$participant, $week2] = $this->trainingFixture();
         $week3 = TrainingWeek::factory()->for($week2->program)->create(['week_number' => 3, 'position' => 2]);
@@ -969,7 +970,7 @@ class ParticipantWorkflowTest extends TestCase
     }
 
     #[DataProvider('incompleteStatuses')]
-    public function test_incomplete_week_two_statuses_do_not_unlock_week_three(string $status): void
+    public function test_incomplete_week_two_statuses_do_not_unlock_week_three(GateEvaluationStatus $status): void
     {
         [$participant, $week2] = $this->trainingFixture();
         $week3 = TrainingWeek::factory()->for($week2->program)->create(['week_number' => 3, 'position' => 2]);
@@ -979,9 +980,20 @@ class ParticipantWorkflowTest extends TestCase
         $this->actingAs($participant)->get(route('training.weeks.show', $week3))->assertForbidden();
     }
 
+    /**
+     * Every Gate status other than passed.
+     *
+     * @return array<string, array{GateEvaluationStatus}>
+     */
     public static function incompleteStatuses(): array
     {
-        return ['draft' => ['draft'], 'under review' => ['under_review'], 'needs revision' => ['needs_revision'], 'rejected' => ['failed']];
+        return [
+            'not ready' => [GateEvaluationStatus::NotReady],
+            'ready for review' => [GateEvaluationStatus::ReadyForReview],
+            'awaiting review' => [GateEvaluationStatus::AwaitingReview],
+            'needs revision' => [GateEvaluationStatus::NeedsRevision],
+            'failed' => [GateEvaluationStatus::Failed],
+        ];
     }
 
     private function trainingFixture(): array

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\GateEvaluationStatus;
 use App\Http\Requests\ExportCoachReportRequest;
 use App\Http\Requests\FilterCoachGatesRequest;
 use App\Http\Requests\FilterCoachReportsRequest;
@@ -26,7 +27,9 @@ class CoachOperationsController extends Controller
 
     public function gates(FilterCoachGatesRequest $request, CoachGateBoardPageService $page): View
     {
-        return view('coach.gates', $page->indexData($request->validated(), max(1, $request->integer('page', 1))));
+        $filters = [...$request->validated(), 'status' => $request->enum('status', GateEvaluationStatus::class)];
+
+        return view('coach.gates', $page->indexData($filters, max(1, $request->integer('page', 1))));
     }
 
     public function reports(FilterCoachReportsRequest $request, CoachProgressReportPageService $page): View

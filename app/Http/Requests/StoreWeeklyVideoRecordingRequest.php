@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\GateEvaluationStatus;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\EvidenceFilePolicy;
@@ -25,7 +26,7 @@ class StoreWeeklyVideoRecordingRequest extends FormRequest
         /** @var TrainingWeek $trainingWeek */
         $trainingWeek = $this->route('trainingWeek');
         app(WeekProgressionService::class)->ensureCanAccessWeek($user, $trainingWeek);
-        $gatePassed = $trainingWeek->gates()->where('is_active', true)->whereHas('evaluations', fn (Builder $query): Builder => $query->where('user_id', $user->id)->where('status', 'passed'))->exists();
+        $gatePassed = $trainingWeek->gates()->where('is_active', true)->whereHas('evaluations', fn (Builder $query): Builder => $query->where('user_id', $user->id)->where('status', GateEvaluationStatus::Passed))->exists();
         abort_if($gatePassed, 422, 'This week is locked after Gate completion.');
 
         return true;

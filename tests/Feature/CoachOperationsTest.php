@@ -283,6 +283,7 @@ class CoachOperationsTest extends TestCase
         $response = $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'gates', 'participant' => $manual->id, 'week' => 2, 'status' => 'passed', 'path' => 'manual']));
         $response->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
         $this->assertStringContainsString($manual->name, $response->streamedContent());
+        $this->assertStringContainsString(',2,"'.$w2->title.'",passed,', $response->streamedContent());
         $this->assertStringNotContainsString($automation->name, $response->streamedContent());
     }
 

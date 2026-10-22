@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\GateEvaluationStatus;
 use App\Observers\ParticipantProgressObserver;
 use Database\Factories\GateEvaluationFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -20,7 +21,7 @@ class GateEvaluation extends Model
 
     protected function casts(): array
     {
-        return ['evaluated_at' => 'datetime'];
+        return ['status' => GateEvaluationStatus::class, 'evaluated_at' => 'datetime'];
     }
 
     public function gate(): BelongsTo

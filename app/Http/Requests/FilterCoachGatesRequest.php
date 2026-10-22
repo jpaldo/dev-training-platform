@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\GateEvaluationStatus;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class FilterCoachGatesRequest extends FormRequest
 {
@@ -24,7 +26,7 @@ class FilterCoachGatesRequest extends FormRequest
     {
         return [
             'week' => ['nullable', 'integer', 'in:2,3,4'],
-            'status' => ['nullable', 'in:not_ready,ready_for_review,awaiting_review,needs_revision,failed,passed'],
+            'status' => ['nullable', Rule::enum(GateEvaluationStatus::class)],
             'search' => ['nullable', 'string', 'max:100'],
             'path' => ['nullable', 'in:manual,automation,automation_manual'],
         ];

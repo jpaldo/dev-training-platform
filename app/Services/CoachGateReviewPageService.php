@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GateCriterionStatus;
+use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
@@ -21,10 +22,10 @@ class CoachGateReviewPageService
 
     /**
      * Everything the coach Gate review page renders: the readiness summary, the blockers, the required criteria
-     * (with the weekly video link on the video criterion), the criterion decision options (Not met preselected) and the
-     * saved evaluation for the comments field.
+     * (with the weekly video link on the video criterion), the Gate decision options (none preselected, so the first
+     * one shows), the criterion decision options (Not met preselected) and the saved evaluation for the comments field.
      *
-     * @return array{trainingWeek: TrainingWeek, participant: User, gate: TrainingGate, evaluation: ?GateEvaluation, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, criteria: list<array{id: int, title: string, field_label: string, description: ?string, video_url: ?string}>, criterionStatusOptions: list<array{value: string, label: string, is_selected: bool}>}
+     * @return array{trainingWeek: TrainingWeek, participant: User, gate: TrainingGate, evaluation: ?GateEvaluation, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, criteria: list<array{id: int, title: string, field_label: string, description: ?string, video_url: ?string}>, decisionOptions: list<array{value: string, label: string}>, criterionStatusOptions: list<array{value: string, label: string, is_selected: bool}>}
      */
     public function showData(TrainingWeek $week, User $participant, TrainingGate $gate, ?GateEvaluation $evaluation): array
     {
@@ -56,12 +57,27 @@ class CoachGateReviewPageService
                     'video_url' => $isVideo ? $weeklyVideo['url'] : null,
                 ];
             })->all(),
+            'decisionOptions' => array_map(fn (GateEvaluationStatus $status): array => [
+                'value' => $status->value,
+                'label' => $this->decisionLabel($status),
+            ], GateEvaluationStatus::decisions()),
             'criterionStatusOptions' => array_map(fn (GateCriterionStatus $status): array => [
                 'value' => $status->value,
                 'label' => $status->label(),
                 'is_selected' => $status === GateCriterionStatus::NotMet,
             ], GateCriterionStatus::cases()),
         ];
+    }
+
+    /**
+     * The review form's text for a Gate decision: the generic label, with "Needs Revision" in title case.
+     */
+    private function decisionLabel(GateEvaluationStatus $status): string
+    {
+        return match ($status) {
+            GateEvaluationStatus::NeedsRevision => 'Needs Revision',
+            default => $status->label(),
+        };
     }
 
     /**

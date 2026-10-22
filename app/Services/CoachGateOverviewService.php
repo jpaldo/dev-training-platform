@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\GateCriterionStatus;
+use App\Enums\GateEvaluationStatus;
 use App\Models\DailyLog;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
@@ -13,16 +14,23 @@ use Illuminate\Support\Collection;
 
 class CoachGateOverviewService
 {
-    /** @var array<string, int> Gate board sort order, most actionable status first. */
-    private const STATUS_ORDER = ['ready_for_review' => 1, 'awaiting_review' => 2, 'needs_revision' => 3, 'not_ready' => 4, 'failed' => 5, 'passed' => 6];
+    /** @var array<string, int> Gate board sort order by status value, most actionable status first. */
+    private const STATUS_ORDER = [
+        GateEvaluationStatus::ReadyForReview->value => 1,
+        GateEvaluationStatus::AwaitingReview->value => 2,
+        GateEvaluationStatus::NeedsRevision->value => 3,
+        GateEvaluationStatus::NotReady->value => 4,
+        GateEvaluationStatus::Failed->value => 5,
+        GateEvaluationStatus::Passed->value => 6,
+    ];
 
     public function __construct(private readonly WeekTwoGateService $readiness) {}
 
     /**
      * Build the coach Gate board: one row per active Gate and participant, sorted by status, with summary counts.
      *
-     * @param  array{week?: int|string|null, path?: string|null, search?: string|null, status?: string|null}  $filters
-     * @return array{gates: Collection<int, TrainingGate>, rows: Collection<int, array{gate: TrainingGate, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: string, daily_log_count: int, criteria_met: int, criteria_total: int, loom: array<string, mixed>}>, summary: array{total: int, ready: int, awaiting: int, passed: int, not_ready: int}}
+     * @param  array{week?: int|string|null, path?: string|null, search?: string|null, status?: GateEvaluationStatus|null}  $filters
+     * @return array{gates: Collection<int, TrainingGate>, rows: Collection<int, array{gate: TrainingGate, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, daily_log_count: int, criteria_met: int, criteria_total: int, loom: array<string, mixed>}>, summary: array{total: int, ready: int, awaiting: int, passed: int, not_ready: int}}
      */
     public function board(array $filters): array
     {
@@ -35,7 +43,7 @@ class CoachGateOverviewService
             foreach ($participants as $participant) {
                 $evaluation = $gate->evaluations->firstWhere('user_id', $participant->id);
                 $readinessReasons = $readinessByParticipant->get($participant->id)->get($gate->id);
-                $status = $evaluation?->status ?? ($readinessReasons === [] ? 'ready_for_review' : 'not_ready');
+                $status = $evaluation?->status ?? GateEvaluationStatus::fromReadiness($readinessReasons);
                 if (($filters['status'] ?? null) && $status !== $filters['status']) {
                     continue;
                 }
@@ -52,17 +60,17 @@ class CoachGateOverviewService
                 ]);
             }
         }
-        $rows = $rows->sortBy(fn (array $row): int => self::STATUS_ORDER[$row['status']] ?? 99)->values();
+        $rows = $rows->sortBy(fn (array $row): int => self::STATUS_ORDER[$row['status']->value])->values();
 
         return [
             'gates' => $gates,
             'rows' => $rows,
             'summary' => [
                 'total' => $rows->count(),
-                'ready' => $rows->where('status', 'ready_for_review')->count(),
-                'awaiting' => $rows->where('status', 'awaiting_review')->count(),
-                'passed' => $rows->where('status', 'passed')->count(),
-                'not_ready' => $rows->where('status', 'not_ready')->count(),
+                'ready' => $rows->where('status', GateEvaluationStatus::ReadyForReview)->count(),
+                'awaiting' => $rows->where('status', GateEvaluationStatus::AwaitingReview)->count(),
+                'passed' => $rows->where('status', GateEvaluationStatus::Passed)->count(),
+                'not_ready' => $rows->where('status', GateEvaluationStatus::NotReady)->count(),
             ],
         ];
     }

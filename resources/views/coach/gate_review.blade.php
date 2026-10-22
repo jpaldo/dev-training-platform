@@ -78,9 +78,9 @@
                 <div class="grid gap-2">
                     <label for="gate-status" class="{{ $labelClasses }}">Decision</label>
                     <select id="gate-status" name="status" class="{{ $controlClasses }}">
-                        <option value="passed">Passed</option>
-                        <option value="needs_revision">Needs Revision</option>
-                        <option value="failed">Failed</option>
+                        @foreach($decisionOptions as $option)
+                            <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
+                        @endforeach
                     </select>
                 </div>
 

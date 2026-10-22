@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\GateCriterionStatus;
+use App\Enums\GateEvaluationStatus;
 use App\Models\GateCriterion;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -29,7 +30,7 @@ class StoreGateReviewRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', 'in:failed,needs_revision,passed'],
+            'status' => ['required', Rule::enum(GateEvaluationStatus::class)->only(GateEvaluationStatus::decisions())],
             'comments' => ['nullable', 'string', 'max:5000'],
             'criteria' => ['required', 'array'],
             'criteria.*' => ['required', Rule::enum(GateCriterionStatus::class)],

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GateEvaluationStatus;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -49,7 +50,7 @@ class WeeklyVideoRecordingPageService
     {
         return $week->gates()
             ->where('is_active', true)
-            ->whereHas('evaluations', fn (Builder $query): Builder => $query->where('user_id', $user->id)->where('status', 'passed'))
+            ->whereHas('evaluations', fn (Builder $query): Builder => $query->where('user_id', $user->id)->where('status', GateEvaluationStatus::Passed))
             ->exists();
     }
 }

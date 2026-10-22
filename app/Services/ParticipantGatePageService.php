@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GateEvaluationStatus;
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
@@ -60,11 +61,7 @@ class ParticipantGatePageService
      */
     private function statusLabel(?GateEvaluation $evaluation, array $readiness): string
     {
-        if ($evaluation?->status) {
-            return strtoupper(str_replace('_', ' ', $evaluation->status));
-        }
-
-        return $readiness === [] ? 'READY FOR REVIEW' : 'NOT READY';
+        return strtoupper(($evaluation?->status ?? GateEvaluationStatus::fromReadiness($readiness))->label());
     }
 
     /**
@@ -82,12 +79,12 @@ class ParticipantGatePageService
     /**
      * The badge tone of a saved Gate evaluation status.
      */
-    public function evaluationStatusTone(string $status): string
+    public function evaluationStatusTone(GateEvaluationStatus $status): string
     {
         return match ($status) {
-            'passed' => 'success',
-            'needs_revision' => 'warning',
-            'failed' => 'danger',
+            GateEvaluationStatus::Passed => 'success',
+            GateEvaluationStatus::NeedsRevision => 'warning',
+            GateEvaluationStatus::Failed => 'danger',
             default => 'neutral',
         };
     }

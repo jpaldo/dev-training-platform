@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\ActivityScoreStatus;
+use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivityScore;
@@ -55,6 +56,22 @@ class ParticipantDashboardControllerTest extends TestCase
         $this->assertSame(1, substr_count($html, 'Score: <strong'));
         $this->assertStringContainsString('>88 / 100</strong>', $html);
         $this->assertStringNotContainsString('41 / 100', $html);
+    }
+
+    public function test_gate_card_shows_the_saved_evaluation_status_or_the_readiness_status(): void
+    {
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
+        $evaluatedGate = TrainingGate::factory()->for($week, 'week')->create(['title' => 'Evaluated Gate', 'position' => 1]);
+        TrainingGate::factory()->for($week, 'week')->create(['title' => 'Unevaluated Gate', 'position' => 2]);
+        GateEvaluation::factory()->for($evaluatedGate, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
+
+        $this->actingAs($participant)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Week 2 Gate · Evaluated Gate', 'Status: <strong>Needs revision</strong>',
+                'Week 2 Gate · Unevaluated Gate', 'Status: <strong>Not ready</strong>',
+            ], false);
     }
 
     /**

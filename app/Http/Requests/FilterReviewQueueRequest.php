@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\GateEvaluationStatus;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class FilterReviewQueueRequest extends FormRequest
 {
@@ -26,7 +28,7 @@ class FilterReviewQueueRequest extends FormRequest
             'week' => ['nullable', 'integer', 'in:2,3,4'],
             'activity' => ['nullable', 'integer'],
             'path' => ['nullable', 'in:manual,automation,automation_manual'],
-            'status' => ['nullable', 'in:submitted,resubmitted,under_review,needs_revision,not_ready,failed,passed'],
+            'status' => ['nullable', Rule::in(['submitted', 'resubmitted', 'under_review', 'needs_revision', GateEvaluationStatus::NotReady, GateEvaluationStatus::Failed, GateEvaluationStatus::Passed])],
             'participant' => ['nullable', 'integer'],
         ];
     }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GateEvaluationStatus;
 use App\Enums\GoogleDriveExportStatus;
 use App\Jobs\ExportActivityJob;
 use App\Jobs\ExportDailyLogsJob;
@@ -12,10 +13,14 @@ use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
 use App\Models\DailyLog;
+use App\Models\GateEvaluation;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveExport;
+use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingGate;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\ValidationSubmission;
 use App\Services\GoogleDriveConnectionService;
@@ -45,6 +50,22 @@ class GoogleDriveExportTest extends TestCase
         $this->assertStringContainsString('Training Week', $csv);
         $this->assertStringContainsString('Validated OTP flow', $csv);
         $this->assertStringNotContainsString('another participant', $csv);
+    }
+
+    public function test_gate_progress_csv_prints_the_participant_status_of_each_gate_or_not_evaluated(): void
+    {
+        $participant = User::factory()->create(['name' => 'Gina']);
+        $program = Program::factory()->create();
+        $gates = collect([2, 3, 4])->map(fn (int $weekNumber): TrainingGate => TrainingGate::factory()
+            ->for(TrainingWeek::factory()->for($program)->create(['week_number' => $weekNumber, 'position' => $weekNumber]), 'week')
+            ->create(['title' => "Gate{$weekNumber}"]));
+        GateEvaluation::factory()->for($gates[0], 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::Passed]);
+        GateEvaluation::factory()->for($gates[1], 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
+        GateEvaluation::factory()->for($gates[2], 'gate')->for(User::factory(), 'participant')->create(['status' => GateEvaluationStatus::Failed]);
+
+        $csv = app(TrainingExportService::class)->gateProgress($participant);
+
+        $this->assertSame("Participant,Week,Gate,Status\nGina,2,Gate2,passed\nGina,3,Gate3,needs_revision\nGina,4,Gate4,\"not evaluated\"\n", $csv);
     }
 
     public function test_manual_daily_log_export_requires_owned_connection(): void

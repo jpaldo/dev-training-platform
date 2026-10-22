@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
@@ -111,6 +112,33 @@ class CoachParticipantPageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder(['Week 2 · Passed Gate', 'Passed', 'Daily logs: 1 / 5'])
             ->assertSeeInOrder(['Week 3 · Blocked Gate', 'Not ready', '(2 blocker(s))', 'Daily logs: 0 / 5']);
+    }
+
+    #[DataProvider('savedGateStatuses')]
+    public function test_gate_row_badge_shows_the_saved_evaluation_status_with_its_tone(GateEvaluationStatus $status, string $badge): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        $gate = TrainingGate::factory()->for(TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]), 'week')->create(['title' => 'Evaluated Gate']);
+        GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => $status]);
+
+        $this->actingAs($coach)->get(route('coach.participants.show', $participant))
+            ->assertOk()
+            ->assertSeeInOrder(['Week 2 · Evaluated Gate', $badge], false);
+    }
+
+    /**
+     * Each status a Gate evaluation can be saved with and its badge on the coach participant page.
+     *
+     * @return array<string, array{GateEvaluationStatus, string}>
+     */
+    public static function savedGateStatuses(): array
+    {
+        return [
+            'not ready' => [GateEvaluationStatus::NotReady, 'border-line text-muted">Not ready</span>'],
+            'needs revision' => [GateEvaluationStatus::NeedsRevision, 'border-amber-500 text-amber-200">Needs revision</span>'],
+            'failed' => [GateEvaluationStatus::Failed, 'border-danger text-rose-200">Failed</span>'],
+            'passed' => [GateEvaluationStatus::Passed, 'border-emerald-400 text-emerald-200">Passed</span>'],
+        ];
     }
 
     public function test_participant_page_query_count_does_not_grow_with_submissions_videos_and_attendance(): void

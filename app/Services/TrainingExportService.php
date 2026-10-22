@@ -123,7 +123,7 @@ class TrainingExportService
     {
         $gates = TrainingGate::query()->with('week')->whereHas('week', fn (Builder $q): Builder => $q->whereIn('week_number', [2, 3, 4]))->get();
 
-        return $this->csv(['Participant', 'Week', 'Gate', 'Status'], $gates->map(fn (TrainingGate $gate): array => [$participant->name, $gate->week->week_number, $gate->title, $participant->gateEvaluations()->where('training_gate_id', $gate->id)->value('status') ?? 'not evaluated']));
+        return $this->csv(['Participant', 'Week', 'Gate', 'Status'], $gates->map(fn (TrainingGate $gate): array => [$participant->name, $gate->week->week_number, $gate->title, $participant->gateEvaluations()->where('training_gate_id', $gate->id)->value('status')?->value ?? 'not evaluated']));
     }
 
     public function activityScores(User $participant): string

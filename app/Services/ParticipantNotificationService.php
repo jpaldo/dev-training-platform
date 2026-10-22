@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GateEvaluationStatus;
 use App\Enums\ParticipantNotificationPriority;
 use App\Enums\ParticipantNotificationType;
 use App\Models\Activity;
@@ -75,7 +76,7 @@ class ParticipantNotificationService
             $gate = $week->gates->first();
             if ($gate) {
                 $reasons = $this->gates->readiness($participant, $gate);
-                $passed = $gate->evaluations()->where('user_id', $participant->id)->where('status', 'passed')->latest('evaluated_at')->first();
+                $passed = $gate->evaluations()->where('user_id', $participant->id)->where('status', GateEvaluationStatus::Passed)->latest('evaluated_at')->first();
                 $this->state($participant, "week:{$week->id}:gate", ParticipantNotificationType::GateIncomplete, "Week {$week->week_number} Gate requirements incomplete", 'You still have requirements to complete before your Gate can be passed.', route('training.gates.show', [$week, $gate]), ! $passed && $reasons !== []);
                 if ($passed) {
                     $this->event($participant, "event:gate:{$passed->id}", ParticipantNotificationType::GatePassed, "Week {$week->week_number} Gate passed", "Your Week {$week->week_number} Gate has been completed successfully.", route('training.weeks.show', $week));

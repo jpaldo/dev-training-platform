@@ -187,12 +187,9 @@
                                 <h3 class="m-0 mb-3 text-base font-extrabold">Gate</h3>
                                 <div class="grid divide-y divide-line">
                                     @forelse($weekGates as $gateItem)
-                                        @php
-                                            $status = $gateItem['evaluation']?->status ? ucfirst(str_replace('_', ' ', $gateItem['evaluation']->status)) : ($gateItem['readiness'] === [] ? 'Ready for review' : 'Not ready');
-                                        @endphp
                                         <div class="grid justify-items-start gap-2 py-4 first:pt-0 last:pb-0">
                                             <strong class="text-sm">Week {{ $gateItem['week']->week_number }} Gate · {{ $gateItem['gate']->title }}</strong>
-                                            <p class="m-0 text-sm">Status: <strong>{{ $status }}</strong></p>
+                                            <p class="m-0 text-sm">Status: <strong>{{ $gateItem['status_label'] }}</strong></p>
                                             @if($gateItem['readiness'])
                                                 <ul class="m-0 list-disc pl-5 text-sm/relaxed text-muted">@foreach($gateItem['readiness'] as $reason)<li>{{ $reason }}</li>@endforeach</ul>
                                             @elseif(!$gateItem['evaluation'])

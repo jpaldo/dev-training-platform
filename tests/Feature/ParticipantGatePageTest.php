@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
@@ -16,6 +17,7 @@ use App\Models\WeeklyVideoRecording;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ParticipantGatePageTest extends TestCase
@@ -114,6 +116,33 @@ class ParticipantGatePageTest extends TestCase
                 'Re-record the walkthrough.',
             ])
             ->assertDontSee('Your Gate is ready for Coach review');
+    }
+
+    #[DataProvider('savedGateStatuses')]
+    public function test_gate_status_badge_shows_the_saved_evaluation_status_with_its_tone(GateEvaluationStatus $status, string $badge): void
+    {
+        $participant = User::factory()->create();
+        ['week' => $week, 'gate' => $gate] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+        GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => $status]);
+
+        $this->actingAs($participant)->get(route('training.gates.show', [$week, $gate]))
+            ->assertOk()
+            ->assertSee($badge, false);
+    }
+
+    /**
+     * Each status a Gate evaluation can be saved with and its badge on the participant Gate page.
+     *
+     * @return array<string, array{GateEvaluationStatus, string}>
+     */
+    public static function savedGateStatuses(): array
+    {
+        return [
+            'not ready' => [GateEvaluationStatus::NotReady, 'border-line text-muted">NOT READY</span>'],
+            'needs revision' => [GateEvaluationStatus::NeedsRevision, 'border-amber-500 text-amber-200">NEEDS REVISION</span>'],
+            'failed' => [GateEvaluationStatus::Failed, 'border-danger text-rose-200">FAILED</span>'],
+            'passed' => [GateEvaluationStatus::Passed, 'border-emerald-400 text-emerald-200">PASSED</span>'],
+        ];
     }
 
     public function test_gate_page_query_count_does_not_grow_with_activities_daily_logs_and_criteria(): void

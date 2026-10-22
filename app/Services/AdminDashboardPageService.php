@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GateEvaluationStatus;
 use App\Enums\InterviewPairStatus;
 use App\Enums\MentorInterviewScheduleStatus;
 use App\Models\ActivitySubmission;
@@ -44,7 +45,7 @@ class AdminDashboardPageService
             'reviewStats' => [
                 ['label' => 'AWAITING REVIEW', 'value' => ActivitySubmission::query()->whereIn('status', ['submitted', 'resubmitted', 'under_review'])->count()],
                 ['label' => 'NEEDS REVISION', 'value' => ActivitySubmission::query()->where('status', 'needs_revision')->count()],
-                ['label' => 'PENDING GATES', 'value' => GateEvaluation::query()->whereNotIn('status', ['passed'])->count()],
+                ['label' => 'PENDING GATES', 'value' => GateEvaluation::query()->whereNotIn('status', [GateEvaluationStatus::Passed])->count()],
             ],
             'weekFourStats' => [
                 ['label' => 'PARTNER ASSIGNED', 'value' => $pairedParticipantCount],

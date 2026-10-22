@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\GateEvaluationStatus;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
 use App\Models\User;
@@ -22,7 +23,7 @@ class GateEvaluationFactory extends Factory
         return [
             'training_gate_id' => TrainingGate::factory(),
             'user_id' => User::factory(),
-            'status' => 'not_ready',
+            'status' => GateEvaluationStatus::NotReady,
             'reviewer_id' => null,
             'evaluated_at' => null,
             'comments' => null,

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\Program;
 use App\Models\TrainingGate;
@@ -76,7 +77,7 @@ class WeekProgressionService
         $gatesByWeek = TrainingGate::query()
             ->select(['id', 'training_week_id'])
             ->whereIn('training_week_id', $weeks->pluck('id'))
-            ->with(['evaluations' => fn (Relation $query): Relation => $query->select(['id', 'training_gate_id', 'user_id'])->whereIn('user_id', $participants->pluck('id'))->where('status', 'passed')])
+            ->with(['evaluations' => fn (Relation $query): Relation => $query->select(['id', 'training_gate_id', 'user_id'])->whereIn('user_id', $participants->pluck('id'))->where('status', GateEvaluationStatus::Passed)])
             ->get()
             ->groupBy('training_week_id');
 
@@ -107,7 +108,7 @@ class WeekProgressionService
         return TrainingGate::query()
             ->select(['id', 'training_week_id'])
             ->whereIn('training_week_id', $weeks->pluck('id'))
-            ->withExists(['evaluations as passed_by_user' => fn (Builder $query): Builder => $query->where('user_id', $user->id)->where('status', 'passed')])
+            ->withExists(['evaluations as passed_by_user' => fn (Builder $query): Builder => $query->where('user_id', $user->id)->where('status', GateEvaluationStatus::Passed)])
             ->get()
             ->groupBy('training_week_id')
             ->filter(fn (Collection $gates): bool => $gates->every(fn (TrainingGate $gate): bool => $gate->passed_by_user))

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\GateEvaluation;
 use App\Models\TrainingWeek;
@@ -67,11 +68,11 @@ class TrainingWeekPageService
 
         /** @var ?GateEvaluation $evaluation */
         $evaluation = $gate->evaluations()->where('user_id', $user->id)->with('criterionEvaluations')->first();
-        $status = $evaluation?->status ?? 'not_ready';
+        $status = $evaluation?->status ?? GateEvaluationStatus::NotReady;
 
         return [
             'title' => $gate->title,
-            'status_label' => strtoupper(str_replace('_', ' ', $status)),
+            'status_label' => strtoupper($status->label()),
             'status_tone' => $evaluation ? $this->gatePage->evaluationStatusTone($status) : 'warning',
             'criteria' => $this->gatePage->criterionRows($gate, $evaluation),
         ];

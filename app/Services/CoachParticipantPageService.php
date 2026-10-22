@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
@@ -87,17 +88,17 @@ class CoachParticipantPageService
         ['gateRows' => $gateRows, 'weeklyLogCounts' => $weeklyLogCounts] = $this->gateOverview->participantOverview($participant);
 
         return $gateRows->map(function (array $row) use ($weeklyLogCounts): array {
-            $status = $row['evaluation']?->status ?: ($row['readiness'] === [] ? 'ready_for_review' : 'not_ready');
+            $status = $row['evaluation']?->status ?? GateEvaluationStatus::fromReadiness($row['readiness']);
 
             return [
                 'gate' => $row['gate'],
-                'status_label' => $row['evaluation']?->status ? ucfirst(str_replace('_', ' ', $status)) : ($status === 'ready_for_review' ? 'Ready for review' : 'Not ready'),
+                'status_label' => $status->label(),
                 'tone' => match ($status) {
-                    'passed' => 'success',
-                    'failed' => 'danger',
-                    'needs_revision' => 'warning',
-                    'ready_for_review', 'awaiting_review' => 'accent',
-                    default => 'neutral',
+                    GateEvaluationStatus::Passed => 'success',
+                    GateEvaluationStatus::Failed => 'danger',
+                    GateEvaluationStatus::NeedsRevision => 'warning',
+                    GateEvaluationStatus::ReadyForReview, GateEvaluationStatus::AwaitingReview => 'accent',
+                    GateEvaluationStatus::NotReady => 'neutral',
                 },
                 'blocker_count' => count($row['readiness'] ?? []),
                 'daily_log_count' => $weeklyLogCounts[$row['gate']->week->id] ?? 0,

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GateEvaluationStatus;
 use App\Enums\ValidationSubmissionStatus;
 use App\Models\Activity;
 use App\Models\AttendanceSession;
@@ -54,9 +55,10 @@ class ParticipantDashboardService
     }
 
     /**
-     * Build the Gate rows of the program's active weeks with the participant's evaluation and readiness.
+     * Build the Gate rows of the program's active weeks with the participant's evaluation, readiness and status label
+     * (the saved evaluation status, or whether the Gate is ready for Coach review while it has none).
      *
-     * @return Collection<int, array{week: TrainingWeek, gate: TrainingGate, evaluation: ?GateEvaluation, readiness: array<string, string>, criterionEvaluations: Collection<int, GateCriterionEvaluation>}>
+     * @return Collection<int, array{week: TrainingWeek, gate: TrainingGate, evaluation: ?GateEvaluation, readiness: array<string, string>, criterionEvaluations: Collection<int, GateCriterionEvaluation>, status_label: string}>
      */
     public function gates(User $user, Program $program): Collection
     {
@@ -69,7 +71,10 @@ class ParticipantDashboardService
                 $readiness = $readinessByGate->get($gate->id);
                 $criterionEvaluations = $evaluation?->criterionEvaluations->keyBy('gate_criterion_id') ?? collect();
 
-                return compact('week', 'gate', 'evaluation', 'readiness', 'criterionEvaluations');
+                return [
+                    ...compact('week', 'gate', 'evaluation', 'readiness', 'criterionEvaluations'),
+                    'status_label' => ($evaluation?->status ?? GateEvaluationStatus::fromReadiness($readiness))->label(),
+                ];
             })->all();
         })->values();
     }

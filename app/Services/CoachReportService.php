@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GateEvaluationStatus;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
 use App\Models\GateEvaluation;
@@ -52,7 +53,7 @@ class CoachReportService
             ->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))
             ->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $search): Builder => $search->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))
             ->when($filters['mentor'] ?? $filters['assigned_coach'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($v)))
-            ->withCount(['activitySubmissions', 'gateEvaluations as passed_gate_evaluations_count' => fn (Builder $query): Builder => $query->where('status', 'passed')]);
+            ->withCount(['activitySubmissions', 'gateEvaluations as passed_gate_evaluations_count' => fn (Builder $query): Builder => $query->where('status', GateEvaluationStatus::Passed)]);
     }
 
     public function reviewQueue(?array $filters = null): Builder
@@ -70,7 +71,7 @@ class CoachReportService
     {
         return $this->participants($filters)->get()->map(function (User $participant): ?array {
             $reasons = $participant->activitySubmissions->filter(fn (ActivitySubmission $s): bool => in_array($s->status, ['needs_revision', 'failed'], true))->map(fn (ActivitySubmission $s): string => "Activity {$s->activity_id}: {$s->status}")->values()->all();
-            $reasons = array_merge($reasons, $participant->gateEvaluations->filter(fn (GateEvaluation $g): bool => $g->status !== 'passed')->map(fn (GateEvaluation $g): string => "Gate {$g->training_gate_id}: {$g->status}")->values()->all());
+            $reasons = array_merge($reasons, $participant->gateEvaluations->filter(fn (GateEvaluation $g): bool => $g->status !== GateEvaluationStatus::Passed)->map(fn (GateEvaluation $g): string => "Gate {$g->training_gate_id}: {$g->status->value}")->values()->all());
 
             return $reasons === [] ? null : ['participant' => $participant, 'reasons' => $reasons];
         })->filter()->values();
@@ -179,7 +180,7 @@ class CoachReportService
             'gates' => [
                 'filename' => 'gate-results.csv',
                 'header' => ['Participant', 'Path', 'Week', 'Gate', 'Status', 'Evaluated', 'Reviewer'],
-                'rows' => $this->filteredGateResults($filters)->get()->map(fn (GateEvaluation $e): array => [$e->participant->name, $e->participant->trainingPathLabel(), $e->gate->week->week_number, $e->gate->title, $e->status, $e->evaluated_at, $e->reviewer_id]),
+                'rows' => $this->filteredGateResults($filters)->get()->map(fn (GateEvaluation $e): array => [$e->participant->name, $e->participant->trainingPathLabel(), $e->gate->week->week_number, $e->gate->title, $e->status->value, $e->evaluated_at, $e->reviewer_id]),
             ],
             'risk' => [
                 'filename' => 'at-risk.csv',

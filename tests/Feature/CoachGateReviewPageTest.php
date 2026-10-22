@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\GateCriterionStatus;
+use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\DailyLog;
@@ -16,6 +17,7 @@ use App\Models\WeeklyVideoRecording;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class CoachGateReviewPageTest extends TestCase
@@ -64,6 +66,9 @@ class CoachGateReviewPageTest extends TestCase
                 'View Video',
                 'action="'.route('training.coach.gates.update', [$week, $participant, $gate]).'" id="gate-review-form"',
                 'name="status"',
+                '<option value="passed">Passed</option>',
+                '<option value="needs_revision">Needs Revision</option>',
+                '<option value="failed">Failed</option>',
                 'Criterion decisions',
                 'name="criteria['.$activityCriterion->id.']"',
                 'value="met"', '>Met</option>',
@@ -133,7 +138,9 @@ class CoachGateReviewPageTest extends TestCase
             ])
             ->assertSessionHasNoErrors();
 
-        $criterionEvaluations = GateEvaluation::query()->where('user_id', $participant->id)->sole()->criterionEvaluations->keyBy('gate_criterion_id');
+        $evaluation = GateEvaluation::query()->where('user_id', $participant->id)->sole();
+        $this->assertSame(GateEvaluationStatus::NeedsRevision, $evaluation->status);
+        $criterionEvaluations = $evaluation->criterionEvaluations->keyBy('gate_criterion_id');
         $this->assertCount(3, $criterionEvaluations);
         $this->assertSame(GateCriterionStatus::Met, $criterionEvaluations->get($metCriterion->id)->status);
         $this->assertSame(GateCriterionStatus::NotMet, $criterionEvaluations->get($notMetCriterion->id)->status);
@@ -165,7 +172,36 @@ class CoachGateReviewPageTest extends TestCase
                 'criteria' => [$activityCriterion->id => 'met', $videoCriterion->id => 'met'],
             ])
             ->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('gate_evaluations', ['user_id' => $participant->id, 'status' => 'passed']);
+        $this->assertSame(GateEvaluationStatus::Passed, GateEvaluation::query()->where('user_id', $participant->id)->sole()->status);
+    }
+
+    #[DataProvider('statusesThatAreNotDecisions')]
+    public function test_a_gate_decision_must_be_passed_needs_revision_or_failed(string $status): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+
+        $this->actingAs($coach)
+            ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
+                'status' => $status,
+                'criteria' => $criteria->mapWithKeys(fn (GateCriterion $criterion): array => [$criterion->id => 'not_met'])->all(),
+            ])
+            ->assertSessionHasErrors(['status' => 'The selected status is invalid.']);
+
+        $this->assertDatabaseMissing('gate_evaluations', ['user_id' => $participant->id]);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function statusesThatAreNotDecisions(): array
+    {
+        return [
+            'not ready' => ['not_ready'],
+            'ready for review' => ['ready_for_review'],
+            'awaiting review' => ['awaiting_review'],
+            'unknown' => ['approved'],
+        ];
     }
 
     public function test_a_criterion_decision_must_be_met_or_not_met(): void

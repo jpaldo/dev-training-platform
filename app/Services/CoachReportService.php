@@ -12,6 +12,7 @@ use App\Models\SubmissionVersion;
 use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Arr;
@@ -37,9 +38,7 @@ class CoachReportService
      */
     public function dashboardStats(User $viewer): array
     {
-        $memberships = TrainingSessionParticipant::query()
-            ->whereHas('participant', fn (Builder $participants): Builder => $participants->where('role', UserRole::Participant))
-            ->unless($viewer->hasAnyRole(UserRole::Admin), fn (Builder $query): Builder => $query->currentlyMentoredBy($viewer))
+        $memberships = $this->dashboardMemberships($viewer)
             ->with('trainingSession:id,program_id,weeks_count')
             ->get(['id', 'training_session_id', 'user_id']);
 
@@ -50,6 +49,49 @@ class CoachReportService
             'needs_revision' => $this->reviewQueue($viewer)->where('status', SubmissionStatus::NeedsRevision)->count(),
             'at_risk' => $this->atRiskMemberships($viewer)->count(),
         ];
+    }
+
+    /**
+     * The session memberships the viewer may see (dashboardMemberships()) whose participant handed in work after the
+     * incomplete review that locks the later weeks of their session, in that review's week
+     * (WeekProgressionService::lockingReviewsForMemberships() and latestWorkSinceReviews(), Q2), so the mentor should
+     * verify that week. Each comes with that review (its Gate and the Gate's week set) and the time of the latest such
+     * work, the longest waiting first. A fixed number of queries for any number of memberships.
+     *
+     * @return list<array{membership: TrainingSessionParticipant, review: GateEvaluation, latest_submitted_at: CarbonInterface}>
+     */
+    public function awaitingVerification(User $viewer): array
+    {
+        $memberships = $this->dashboardMemberships($viewer)
+            ->whereExists($this->workOfMembership(GateEvaluation::query())->whereIn('status', GateEvaluationStatus::incompleteReviews()))
+            ->with(['participant:id,name', 'trainingSession:id,program_id,title,weeks_count,starts_on,ends_on'])
+            ->get(['id', 'training_session_id', 'user_id']);
+        if ($memberships->isEmpty()) {
+            return [];
+        }
+
+        $weeks = TrainingWeek::query()
+            ->whereIn('program_id', $memberships->map(fn (TrainingSessionParticipant $membership): int => $membership->trainingSession->program_id)->unique()->values())
+            ->where('is_active', true)
+            ->get(['id', 'program_id', 'week_number', 'is_active']);
+        $lockingReviews = $this->progression->lockingReviewsForMemberships($memberships, $weeks);
+        $latestWork = $this->progression->latestWorkSinceReviews($lockingReviews->filter()->values());
+        $rows = [];
+
+        foreach ($memberships as $key => $membership) {
+            $review = $lockingReviews->get($key);
+            if ($review !== null && $latestWork->has($review->id)) {
+                $rows[] = ['membership' => $membership, 'review' => $review, 'latest_submitted_at' => $latestWork->get($review->id)];
+            }
+        }
+
+        return collect($rows)
+            ->sortBy([
+                fn (array $first, array $second): int => $first['latest_submitted_at'] <=> $second['latest_submitted_at'],
+                fn (array $first, array $second): int => $first['membership']->id <=> $second['membership']->id,
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -276,6 +318,19 @@ class CoachReportService
     private function reviewableSubmissions(): Builder
     {
         return ActivitySubmission::query()->whereIn('status', [...SubmissionStatus::awaitingReview(), SubmissionStatus::NeedsRevision]);
+    }
+
+    /**
+     * The session memberships of users with the Participant role that the viewer may see on the dashboard: every one
+     * for an admin, otherwise those where the viewer is the participant's current mentor.
+     *
+     * @return Builder<TrainingSessionParticipant>
+     */
+    private function dashboardMemberships(User $viewer): Builder
+    {
+        return TrainingSessionParticipant::query()
+            ->whereHas('participant', fn (Builder $participants): Builder => $participants->where('role', UserRole::Participant))
+            ->unless($viewer->hasAnyRole(UserRole::Admin), fn (Builder $query): Builder => $query->currentlyMentoredBy($viewer));
     }
 
     /**

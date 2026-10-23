@@ -2,15 +2,25 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GateCriterionStatus;
+use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
+use App\Models\GateCriterion;
+use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
 use App\Models\MentorAssignment;
+use App\Models\Program;
+use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingSession;
+use App\Models\TrainingWeek;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class CoachDashboardPageTest extends TestCase
@@ -116,6 +126,90 @@ class CoachDashboardPageTest extends TestCase
         $this->assertSame($this->dashboardQueryCount(1), $this->dashboardQueryCount(3));
     }
 
+    public function test_the_current_mentor_and_admins_see_a_mentee_who_handed_in_work_for_the_incomplete_week_after_its_review(): void
+    {
+        ['session' => $session, 'weekOne' => $weekOne, 'weekOneActivity' => $weekOneActivity, 'pat' => $pat, 'ben' => $ben] = $this->waitingForVerificationFixture();
+        $this->handInVersion($session, $weekOneActivity, $pat, '2026-11-15 08:00:00');
+        $reviewUrl = route('training.coach.gates.show', [$session, $weekOne, $pat, $weekOne->gates()->sole()]);
+
+        foreach ([$ben, User::factory()->create(['role' => 'admin'])] as $viewer) {
+            $response = $this->actingAs($viewer)
+                ->get(route('coach.dashboard'))
+                ->assertOk()
+                ->assertSeeInOrder([
+                    'id="waiting-verification-title"', 'Waiting for verification',
+                    '>Pat Participant</h3>',
+                    'Session Z ('.$session->dateRangeLabel().')', 'Week 1',
+                    'Latest submission', '<time datetime="'.Date::parse('2026-11-15 08:00:00')->toIso8601String().'"', '>Nov 15, 2026 · 8:00 AM</time>',
+                    'href="'.$reviewUrl.'"', 'Review Week 1<span class="sr-only"> of Pat Participant</span>',
+                ], false)
+                ->assertDontSee('No participant is waiting for a week to be verified.');
+
+            $this->assertSame(1, substr_count($response->getContent(), 'data-waiting-verification'));
+        }
+    }
+
+    public function test_an_admin_sees_every_mentors_waiting_mentees_the_longest_waiting_first(): void
+    {
+        ['session' => $session, 'weekOne' => $weekOne, 'weekOneActivity' => $weekOneActivity, 'pat' => $pat, 'rae' => $rae] = $this->waitingForVerificationFixture();
+        GateEvaluation::factory()->for($weekOne->gates()->sole(), 'gate')->for($session)->for($rae, 'participant')->create([
+            'status' => GateEvaluationStatus::NeedsRevision,
+            'evaluated_at' => '2026-11-14 10:00:00',
+        ]);
+        $this->handInVersion($session, $weekOneActivity, $pat, '2026-11-15 08:00:00');
+        $this->handInVersion($session, $weekOneActivity, $rae, '2026-11-14 12:00:00');
+
+        $response = $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->get(route('coach.dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '>Rae Else</h3>', '>Nov 14, 2026 · 12:00 PM</time>',
+                '>Pat Participant</h3>', '>Nov 15, 2026 · 8:00 AM</time>',
+            ], false);
+
+        $this->assertSame(2, substr_count($response->getContent(), 'data-waiting-verification'));
+    }
+
+    public function test_a_mentee_is_not_waiting_for_verification_before_handing_in_work_after_the_review(): void
+    {
+        ['session' => $session, 'weekOneActivity' => $weekOneActivity, 'pat' => $pat, 'ben' => $ben] = $this->waitingForVerificationFixture();
+
+        $this->assertNoneWaitingForVerification($ben);
+
+        $this->handInVersion($session, $weekOneActivity, $pat, '2026-11-14 09:59:59');
+
+        $this->assertNoneWaitingForVerification($ben);
+    }
+
+    public function test_other_and_previous_mentors_do_not_see_a_mentee_waiting_for_verification(): void
+    {
+        ['session' => $session, 'weekOneActivity' => $weekOneActivity, 'pat' => $pat, 'ana' => $ana, 'dan' => $dan] = $this->waitingForVerificationFixture();
+        $this->handInVersion($session, $weekOneActivity, $pat, '2026-11-15 08:00:00');
+
+        $this->assertNoneWaitingForVerification($ana);
+        $this->assertNoneWaitingForVerification($dan);
+    }
+
+    public function test_a_mentee_stops_waiting_for_verification_once_the_mentor_marks_the_week_completed(): void
+    {
+        Queue::fake();
+        ['session' => $session, 'weekOne' => $weekOne, 'weekOneActivity' => $weekOneActivity, 'criterion' => $criterion, 'pat' => $pat, 'ben' => $ben] = $this->waitingForVerificationFixture();
+        $this->handInVersion($session, $weekOneActivity, $pat, '2026-11-15 08:00:00');
+        $this->actingAs($ben)->get(route('coach.dashboard'))->assertOk()->assertSee('data-waiting-verification', false);
+
+        $this->actingAs($ben)->post(route('training.coach.gates.update', [$session, $weekOne, $pat, $weekOne->gates()->sole()]), [
+            'status' => GateEvaluationStatus::Passed->value,
+            'criteria' => [$criterion->id => GateCriterionStatus::Met->value],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertNoneWaitingForVerification($ben);
+    }
+
+    public function test_query_count_does_not_grow_with_mentees_waiting_for_verification(): void
+    {
+        $this->assertSame($this->waitingForVerificationQueryCount(1), $this->waitingForVerificationQueryCount(3));
+    }
+
     /**
      * A program whose only week has an activity and a Gate, and two sessions of it: Session X (active), where an admin
      * assigned Ana and then Ben as Pat's mentor and Dan mentors Rae, and Session Y (upcoming), where Ben mentors Quinn.
@@ -164,6 +258,63 @@ class CoachDashboardPageTest extends TestCase
     }
 
     /**
+     * Assert that the viewer's dashboard shows the "Waiting for verification" card with its empty text and no row.
+     */
+    private function assertNoneWaitingForVerification(User $viewer): void
+    {
+        $this->actingAs($viewer)
+            ->get(route('coach.dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder(['Waiting for verification', 'No participant is waiting for a week to be verified.'])
+            ->assertDontSee('data-waiting-verification', false)
+            ->assertDontSee('Pat Participant');
+    }
+
+    /**
+     * A two-week session "Session Z" (Mon 9 to Sun 22 Nov 2026) whose Week 1 has an activity and a one-item checklist.
+     * An admin assigned Ana and then Ben as Pat's mentor there, Dan mentors Rae there, and Ben marked Pat's Week 1
+     * incomplete on Sat 14 Nov 2026 at 10:00 (the item not met), which locks Week 2. The clock is Mon 16 Nov 2026, 09:00.
+     *
+     * @return array{session: TrainingSession, weekOne: TrainingWeek, weekOneActivity: Activity, criterion: GateCriterion, pat: User, rae: User, ana: User, ben: User, dan: User}
+     */
+    private function waitingForVerificationFixture(): array
+    {
+        $this->travelTo('2026-11-16 09:00:00');
+        $program = Program::factory()->create();
+        $weekOne = TrainingWeek::factory()->for($program)->create(['week_number' => 1, 'position' => 1]);
+        TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 2]);
+        $weekOneActivity = Activity::factory()->for($weekOne, 'week')->create();
+        $gate = TrainingGate::factory()->for($weekOne, 'week')->create();
+        $criterion = GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => GateCriterion::TYPE_DELIVERABLE]);
+        $session = TrainingSession::factory()->for($program)->create(['title' => 'Session Z', 'weeks_count' => 2, 'starts_on' => '2026-11-09', 'ends_on' => '2026-11-22']);
+        $pat = User::factory()->create(['name' => 'Pat Participant']);
+        $rae = User::factory()->create(['name' => 'Rae Else']);
+        [$ana, $ben, $dan] = User::factory()->count(3)->create(['role' => 'coach'])->all();
+        $this->mentor($session, $ana, $pat);
+        MentorAssignment::query()->where('mentor_id', $ana->id)->update(['ended_at' => now()]);
+        $this->mentor($session, $ben, $pat);
+        $this->mentor($session, $dan, $rae);
+        $review = GateEvaluation::factory()->for($gate, 'gate')->for($session)->for($pat, 'participant')->create([
+            'status' => GateEvaluationStatus::NeedsRevision,
+            'reviewer_id' => $ben->id,
+            'evaluated_at' => '2026-11-14 10:00:00',
+        ]);
+        GateCriterionEvaluation::factory()->for($review, 'gateEvaluation')->for($criterion, 'criterion')->create(['status' => GateCriterionStatus::NotMet]);
+
+        return compact('session', 'weekOne', 'weekOneActivity', 'criterion', 'pat', 'rae', 'ana', 'ben', 'dan');
+    }
+
+    /**
+     * A version of the participant's attempt at the activity in the session, handed in at the given time.
+     */
+    private function handInVersion(TrainingSession $session, Activity $activity, User $participant, CarbonInterface|string $submittedAt): SubmissionVersion
+    {
+        return SubmissionVersion::factory()
+            ->for(ActivitySubmission::factory()->for($session)->for($activity)->for($participant, 'participant')->create(['status' => 'submitted', 'submitted_at' => $submittedAt]), 'submission')
+            ->create(['status' => 'submitted', 'submitted_at' => $submittedAt]);
+    }
+
+    /**
      * Create a coach who mentors one new participant in each of the given number of new sessions, each participant
      * with a submission needing revision and a passed Gate evaluation there, and count the queries of that coach's
      * dashboard request after a warm-up request.
@@ -182,13 +333,50 @@ class CoachDashboardPageTest extends TestCase
             GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->for($session)->create(['status' => 'passed']);
         }
 
-        $this->actingAs($coach)->get(route('coach.dashboard'))->assertOk();
+        ['queries' => $queries, 'html' => $html] = $this->measureDashboard($coach);
+        $this->assertSame($sessionCount, substr_count($html, 'data-my-session'));
+
+        return $queries;
+    }
+
+    /**
+     * Create a coach who mentors one new participant in each of the given number of new sessions, each of another
+     * program, each participant having handed in work for the week of their incomplete review since it, and count the
+     * queries of that coach's dashboard request after a warm-up request.
+     */
+    private function waitingForVerificationQueryCount(int $mentees): int
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+
+        foreach (range(1, $mentees) as $index) {
+            $activity = Activity::factory()->create();
+            $gate = TrainingGate::factory()->for($activity->week, 'week')->create();
+            $session = TrainingSession::factory()->forWeek($activity->week)->create();
+            $participant = User::factory()->create();
+            $this->mentor($session, $coach, $participant);
+            GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->for($session)->create(['status' => 'needs_revision', 'evaluated_at' => now()->subDay()]);
+            $this->handInVersion($session, $activity, $participant, now()->subHour());
+        }
+
+        ['queries' => $queries, 'html' => $html] = $this->measureDashboard($coach);
+        $this->assertSame($mentees, substr_count($html, 'data-waiting-verification'));
+
+        return $queries;
+    }
+
+    /**
+     * Request the viewer's dashboard once to warm up, then again while counting its queries.
+     *
+     * @return array{queries: int, html: string}
+     */
+    private function measureDashboard(User $viewer): array
+    {
+        $this->actingAs($viewer)->get(route('coach.dashboard'))->assertOk();
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $response = $this->actingAs($coach)->get(route('coach.dashboard'))->assertOk();
+        $html = $this->actingAs($viewer)->get(route('coach.dashboard'))->assertOk()->getContent();
         DB::disableQueryLog();
-        $this->assertSame($sessionCount, substr_count($response->getContent(), 'data-my-session'));
 
-        return count(DB::getQueryLog());
+        return ['queries' => count(DB::getQueryLog()), 'html' => $html];
     }
 }

@@ -113,12 +113,7 @@ class WeekProgressionService
             $programWeeks,
         );
 
-        $lockingReviews = $memberships->map(fn (TrainingSessionParticipant $membership): ?GateEvaluation => $this->lockingReview(
-            $membership->trainingSession,
-            (int) $membership->user_id,
-            $programWeeks,
-            $gatesByWeek,
-        ));
+        $lockingReviews = $this->lockingReviewsOf($memberships, $programWeeks, $gatesByWeek);
         $latestWork = $this->latestWorkSinceReviews($lockingReviews->filter()->values());
 
         return $memberships->map(fn (TrainingSessionParticipant $membership, int|string $key): Collection => $this->sessionWeekStates(
@@ -129,6 +124,25 @@ class WeekProgressionService
             $lockingReviews->get($key),
             $latestWork,
         ));
+    }
+
+    /**
+     * For each session membership, the participant's incomplete review that locks the later weeks of the session
+     * (lockingReview(): walking the session's weeks in order, the first incomplete review of an active Gate, with its
+     * Gate and the Gate's week set), or null when no week of the session has one. Two queries for any number of
+     * memberships, of any programs; pass the result to latestWorkSinceReviews() to learn which reviews have new work.
+     *
+     * @param  Collection<array-key, TrainingSessionParticipant>  $memberships  with their training session loaded
+     * @param  Collection<int, TrainingWeek>  $weeks  the weeks of the memberships' programs (weeks outside a membership's session are ignored for it)
+     * @return Collection<array-key, ?GateEvaluation> keyed like the memberships
+     */
+    public function lockingReviewsForMemberships(Collection $memberships, Collection $weeks): Collection
+    {
+        return $this->lockingReviewsOf(
+            $memberships,
+            $weeks,
+            $this->reviewedGatesByWeek($memberships->pluck('training_session_id'), $memberships->pluck('user_id'), $weeks),
+        );
     }
 
     /**
@@ -388,6 +402,24 @@ class WeekProgressionService
         }
 
         return null;
+    }
+
+    /**
+     * The locking review of each membership (lockingReview()), keyed like the memberships.
+     *
+     * @param  Collection<array-key, TrainingSessionParticipant>  $memberships  with their training session loaded
+     * @param  Collection<int, TrainingWeek>  $weeks
+     * @param  Collection<int, Collection<int, TrainingGate>>  $gatesByWeek  see reviewedGatesByWeek()
+     * @return Collection<array-key, ?GateEvaluation>
+     */
+    private function lockingReviewsOf(Collection $memberships, Collection $weeks, Collection $gatesByWeek): Collection
+    {
+        return $memberships->map(fn (TrainingSessionParticipant $membership): ?GateEvaluation => $this->lockingReview(
+            $membership->trainingSession,
+            (int) $membership->user_id,
+            $weeks,
+            $gatesByWeek,
+        ));
     }
 
     /**

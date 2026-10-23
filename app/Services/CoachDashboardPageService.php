@@ -25,9 +25,9 @@ class CoachDashboardPageService
      * Everything the coach dashboard renders: the viewer's headline counts (CoachReportService::dashboardStats()) with
      * their labels and, where a page lists that set, the link to it with its accessible text, and for a coach the
      * "My sessions" list (null for an admin, who is never a session mentor). The page has no single main action, so
-     * every link is secondary.
+     * every link is secondary. Coaches and admins also get the "Waiting for verification" list (waitingForVerification()).
      *
-     * @return array{stats: array<string, array{label: string, value: int, url: ?string, link_label: ?string}>, mySessions: ?list<array{title: string, date_range: string, status_label: string, status_tone: string, participant_count_label: string, participants_url: string}>}
+     * @return array{stats: array<string, array{label: string, value: int, url: ?string, link_label: ?string}>, waitingForVerification: list<array{participant_name: string, session_label: string, week_label: string, latest_submitted_at: string, latest_submitted_label: string, review_url: string}>, mySessions: ?list<array{title: string, date_range: string, status_label: string, status_tone: string, participant_count_label: string, participants_url: string}>}
      */
     public function showData(User $viewer): array
     {
@@ -45,8 +45,33 @@ class CoachDashboardPageService
 
         return [
             'stats' => $stats,
+            'waitingForVerification' => $this->waitingForVerification($viewer),
             'mySessions' => $viewer->hasAnyRole(UserRole::Coach) ? $this->mySessions($viewer) : null,
         ];
+    }
+
+    /**
+     * The viewer's current mentees (every participant for an admin) who handed in work for the week whose incomplete
+     * review locks their later weeks since that review (CoachReportService::awaitingVerification()), the longest
+     * waiting first, one row per session membership: the participant, the session with its dates, the week, the time
+     * of the latest such work and the week's Gate review.
+     *
+     * @return list<array{participant_name: string, session_label: string, week_label: string, latest_submitted_at: string, latest_submitted_label: string, review_url: string}>
+     */
+    private function waitingForVerification(User $viewer): array
+    {
+        return array_map(function (array $row): array {
+            ['membership' => $membership, 'review' => $review, 'latest_submitted_at' => $latestSubmittedAt] = $row;
+
+            return [
+                'participant_name' => $membership->participant->name,
+                'session_label' => $membership->trainingSession->titleWithDates(),
+                'week_label' => "Week {$review->gate->week->week_number}",
+                'latest_submitted_at' => $latestSubmittedAt->toIso8601String(),
+                'latest_submitted_label' => $latestSubmittedAt->format('M j, Y · g:i A'),
+                'review_url' => route('training.coach.gates.show', [$membership->trainingSession, $review->gate->week, $membership->participant, $review->gate]),
+            ];
+        }, $this->reports->awaitingVerification($viewer));
     }
 
     /**

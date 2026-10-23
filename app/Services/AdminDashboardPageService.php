@@ -13,14 +13,20 @@ use Illuminate\Database\Eloquent\Builder;
 
 class AdminDashboardPageService
 {
-    public function __construct(private readonly AdminSettingsStatusService $settings) {}
+    private const RECENT_SESSIONS = 5;
+
+    public function __construct(
+        private readonly AdminSettingsStatusService $settings,
+        private readonly AdminTrainingSessionPageService $sessionPages,
+    ) {}
 
     /**
-     * Everything the admin dashboard renders: the account counts, whether a program is active (the training overview
-     * shows a notice when none is), the training and review / Gate counts with their labels, the integration statuses
-     * and the admin tool links. The page has no single main action, so every link is secondary.
+     * Everything the admin dashboard renders: the account counts, the 5 training sessions with the latest start dates
+     * (the session list's rows) with links to all sessions and to the create form, whether a program is active (the
+     * training overview shows a notice when none is), the training and review / Gate counts with their labels, the
+     * integration statuses and the admin tool links. The page has no single main action, so every link is secondary.
      *
-     * @return array{systemStats: list<array{label: string, value: int}>, hasActiveProgram: bool, trainingStats: list<array{label: string, value: int}>, reviewStats: list<array{label: string, value: int}>, integrationStatuses: list<array{label: string, status: string}>, toolLinks: list<array{label: string, url: string}>}
+     * @return array{systemStats: list<array{label: string, value: int}>, recentSessions: list<array{title: string, program: string, date_range: string, status_label: string, status_tone: string, participant_count: int, show_url: string, edit_url: string}>, sessionsUrl: string, createSessionUrl: string, hasActiveProgram: bool, trainingStats: list<array{label: string, value: int}>, reviewStats: list<array{label: string, value: int}>, integrationStatuses: list<array{label: string, status: string}>, toolLinks: list<array{label: string, url: string}>}
      */
     public function showData(): array
     {
@@ -33,6 +39,9 @@ class AdminDashboardPageService
                 ['label' => 'MENTORS', 'value' => User::query()->where('role', UserRole::Coach)->count()],
                 ['label' => 'ADMINS', 'value' => User::query()->where('role', UserRole::Admin)->count()],
             ],
+            'recentSessions' => $this->sessionPages->recentSessionRows(self::RECENT_SESSIONS),
+            'sessionsUrl' => route('admin.sessions.index'),
+            'createSessionUrl' => route('admin.sessions.create'),
             'hasActiveProgram' => $program !== null,
             'trainingStats' => [
                 ['label' => 'WEEK2', 'value' => $this->participantsWithWeek($program, 2)],

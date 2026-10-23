@@ -32,15 +32,25 @@ class AdminTrainingSessionPageService
     {
         return [
             'createUrl' => route('admin.sessions.create'),
-            'sessions' => TrainingSession::query()
-                ->with('program:id,name')
-                ->withCount('participants')
-                ->orderByDesc('starts_on')
-                ->orderByDesc('id')
+            'sessions' => $this->newestSessionsQuery()
                 ->paginate(self::SESSIONS_PER_PAGE)
                 ->withQueryString()
                 ->through(fn (TrainingSession $session): array => $this->sessionRow($session)),
         ];
+    }
+
+    /**
+     * The sessions with the latest start dates, newest first, as the same rows the session list shows (two queries).
+     *
+     * @return list<array{title: string, program: string, date_range: string, status_label: string, status_tone: string, participant_count: int, show_url: string, edit_url: string}>
+     */
+    public function recentSessionRows(int $limit): array
+    {
+        return $this->newestSessionsQuery()
+            ->limit($limit)
+            ->get()
+            ->map(fn (TrainingSession $session): array => $this->sessionRow($session))
+            ->all();
     }
 
     /**
@@ -120,6 +130,20 @@ class AdminTrainingSessionPageService
             'startsOn' => $trainingSession?->starts_on->toDateString(),
             'endsOn' => $trainingSession?->ends_on->toDateString(),
         ];
+    }
+
+    /**
+     * Every session with its program and participant count, newest start date first.
+     *
+     * @return Builder<TrainingSession>
+     */
+    private function newestSessionsQuery(): Builder
+    {
+        return TrainingSession::query()
+            ->with('program:id,name')
+            ->withCount('participants')
+            ->orderByDesc('starts_on')
+            ->orderByDesc('id');
     }
 
     /**

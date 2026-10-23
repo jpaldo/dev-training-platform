@@ -47,7 +47,7 @@ class ParticipantGatePageTest extends TestCase
                 'Activity 1 must have a submitted version.',
                 'Weekly Video Recording',
                 'Missing',
-                'Upload the required weekly video recording before this Gate can be passed.',
+                'Upload the required weekly video recording before this week can be marked completed.',
                 'id="gate-video-title"',
                 'Status:',
                 'MISSING',
@@ -90,12 +90,12 @@ class ParticipantGatePageTest extends TestCase
                 'Not submitted',
                 'Activity 2 must have a submitted version.',
                 '<strong>Weekly Video Recording</strong>',
-                'Upload the required weekly video recording before this Gate can be passed.',
+                'Upload the required weekly video recording before this week can be marked completed.',
                 'id="gate-video-title"',
             ], false)
             ->assertDontSee('Complete the outstanding activity and evidence requirements');
 
-        $this->assertSame(1, substr_count($response->getContent(), 'Upload the required weekly video recording before this Gate can be passed.'));
+        $this->assertSame(1, substr_count($response->getContent(), 'Upload the required weekly video recording before this week can be marked completed.'));
     }
 
     public function test_ready_participant_without_an_evaluation_sees_the_ready_notice_and_no_main_action(): void
@@ -154,7 +154,7 @@ class ParticipantGatePageTest extends TestCase
         $response = $this->actingAs($participant)->get(route('training.gates.show', [$week, $gate]))
             ->assertOk()
             ->assertSeeInOrder([
-                'NEEDS REVISION',
+                'INCOMPLETE',
                 'Status:',
                 'MET',
                 'Weekly checklist',
@@ -195,9 +195,9 @@ class ParticipantGatePageTest extends TestCase
     {
         return [
             'not ready' => [GateEvaluationStatus::NotReady, 'border-line text-muted">NOT READY</span>'],
-            'needs revision' => [GateEvaluationStatus::NeedsRevision, 'border-amber-500 text-amber-200">NEEDS REVISION</span>'],
+            'needs revision' => [GateEvaluationStatus::NeedsRevision, 'border-amber-500 text-amber-200">INCOMPLETE</span>'],
             'failed' => [GateEvaluationStatus::Failed, 'border-danger text-rose-200">FAILED</span>'],
-            'passed' => [GateEvaluationStatus::Passed, 'border-emerald-400 text-emerald-200">PASSED</span>'],
+            'passed' => [GateEvaluationStatus::Passed, 'border-emerald-400 text-emerald-200">COMPLETED</span>'],
         ];
     }
 

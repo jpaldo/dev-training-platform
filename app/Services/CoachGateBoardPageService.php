@@ -20,18 +20,18 @@ class CoachGateBoardPageService
         'total' => 'TOTAL GATES',
         'ready' => 'READY FOR REVIEW',
         'awaiting' => 'AWAITING REVIEW',
-        'passed' => 'PASSED',
+        'passed' => 'COMPLETED',
         'not_ready' => 'NOT READY',
     ];
 
-    /** @var array<string, string> The status filter's option texts by status value, in display order. */
+    /** @var array<string, string> The status filter's option texts by status value, in display order (Failed stays for older reviews). */
     private const STATUS_OPTIONS = [
         GateEvaluationStatus::NotReady->value => 'Not Ready',
         GateEvaluationStatus::ReadyForReview->value => 'Ready for Review',
         GateEvaluationStatus::AwaitingReview->value => 'Awaiting Review',
-        GateEvaluationStatus::Passed->value => 'Passed',
+        GateEvaluationStatus::Passed->value => 'Completed',
         GateEvaluationStatus::Failed->value => 'Failed',
-        GateEvaluationStatus::NeedsRevision->value => 'Needs Revision',
+        GateEvaluationStatus::NeedsRevision->value => 'Incomplete',
     ];
 
     public function __construct(
@@ -101,7 +101,7 @@ class CoachGateBoardPageService
 
     /**
      * One table row: the Gate and its week, the participant, the status with its badge tone, the
-     * required criteria met, the weekly video (a link when uploaded, otherwise Missing, or Not required when the Gate has no weekly video criterion), the blocker count (null without blockers) and the link to review (or, once passed, view) the Gate.
+     * required criteria met, the weekly video (a link when uploaded, otherwise Missing, or Not required when the Gate has no weekly video criterion), the blocker count (null without blockers) and the link to review (or, once completed, view) the Gate.
      *
      * @param  array{gate: TrainingGate, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, criteria_met: int, criteria_total: int, weekly_video: array{status: string, url: ?string, criterion: ?GateCriterion, recording: ?WeeklyVideoRecording}}  $row
      * @return array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, status_label: string, status_tone: string, criteria_met: int, criteria_total: int, video: array{url: ?string, label: string}, blocker_label: ?string, action_label: string, action_url: string}

@@ -49,7 +49,7 @@ class GateReadinessTest extends TestCase
         $this->assertSame($withoutVideo, $readiness->get($participant->id)->get($gates[0]->id));
         $this->assertSame([
             ...$withoutVideo,
-            'weekly_video' => 'Required Weekly Video Recording is missing. Upload the video before this Gate can be passed.',
+            'weekly_video' => 'Required Weekly Video Recording is missing. Upload the video before this week can be marked completed.',
         ], $readiness->get($participant->id)->get($gates[1]->id));
         $this->assertSame($withoutVideo, $readiness->get($participant->id)->get($gates[2]->id));
         foreach ($gates as $gate) {

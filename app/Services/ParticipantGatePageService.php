@@ -139,7 +139,7 @@ class ParticipantGatePageService
         $items = [];
         foreach ($readiness as $key => $reason) {
             $items[] = match (true) {
-                $key === 'weekly_video' => ['label' => 'Weekly Video Recording', 'progress' => 'Missing', 'message' => 'Upload the required weekly video recording before this Gate can be passed.'],
+                $key === 'weekly_video' => ['label' => 'Weekly Video Recording', 'progress' => 'Missing', 'message' => 'Upload the required weekly video recording before this week can be marked completed.'],
                 str_starts_with($key, 'activity_') => ['label' => 'Activity '.Str::after($key, 'activity_'), 'progress' => 'Not submitted', 'message' => $reason],
                 str_starts_with($key, 'evidence_') => ['label' => 'Activity '.Str::after($key, 'evidence_').' evidence', 'progress' => 'Missing', 'message' => $reason],
                 default => ['label' => 'Requirements', 'progress' => 'Incomplete', 'message' => $reason],

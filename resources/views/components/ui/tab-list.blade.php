@@ -2,7 +2,7 @@
 
 @php
     $stateIcons = ['passed' => '✓', 'current' => '●', 'locked' => '🔒'];
-    $stateLabels = ['passed' => 'Passed', 'current' => 'Current week', 'locked' => 'Locked'];
+    $stateLabels = ['passed' => 'Completed', 'current' => 'Current week', 'locked' => 'Locked'];
 @endphp
 
 <div {{ $attributes->class(['mb-6 flex flex-wrap gap-1 border-b border-line']) }} role="tablist" aria-label="{{ $label }}">

@@ -22,7 +22,7 @@
                 <x-ui.button variant="secondary" :href="route('profile.show')">{{ auth()->user()->googleDriveConnection ? 'Choose Export Folder' : 'Connect Google Drive' }}</x-ui.button>
             </x-ui.alert>
         @endif
-        @if ($programCompleted)<x-ui.alert tone="success">Program complete — all official Gates passed.</x-ui.alert>@endif
+        @if ($programCompleted)<x-ui.alert tone="success">Program complete — every week completed.</x-ui.alert>@endif
 
         <header class="grid gap-2">
             <x-ui.eyebrow>PARTICIPANT DASHBOARD</x-ui.eyebrow>
@@ -138,7 +138,7 @@
                             <p class="m-0 leading-relaxed text-muted">{{ $item['week']->description }}</p>
                         </div>
                         @if ($item['passed'])
-                            <x-ui.alert tone="success">Passed</x-ui.alert>
+                            <x-ui.alert tone="success">Completed</x-ui.alert>
                         @elseif ($item['available'])
                             <x-ui.button :href="route('training.weeks.show', $item['week'])">Open week →</x-ui.button>
                         @else
@@ -234,7 +234,7 @@
                     </ul>
                     <x-ui.alert class="mt-2 grid gap-2">
                         <strong class="text-cyan-200">Gates &amp; progression</strong>
-                        <p class="m-0">Each week includes required activities and evidence. A Mentor must review and pass the Gate before the next week becomes available.</p>
+                        <p class="m-0">Each week includes required activities and evidence. A Mentor must review the weekly checklist and mark the week completed before the next week becomes available.</p>
                         <p class="m-0">Your progress is based on demonstrated judgment and evidence — not simply completing AI-generated work.</p>
                     </x-ui.alert>
                 </x-ui.card>

@@ -24,15 +24,16 @@ class CoachGateReviewPageService
     ) {}
 
     /**
-     * Everything the coach Gate review page renders: the readiness summary (the required checklist items met: the
-     * weekly video item once its recording is reviewed as met, every other one when the saved evaluation marks it met;
-     * the video recording as Not required when the Gate has no weekly video item), the blockers, the week's checklist
-     * (the required items, each ticked only when the saved evaluation marks it met, never from readiness or
-     * submissions, with the weekly video link on the video item), the participant's GitHub deliverable links for each
-     * of the week's activities, the Gate decision options, the decision to preselect (the saved evaluation's when it is
-     * a coach decision; none otherwise, so the first one shows), the values a ticked and an unticked item post, the
-     * saved evaluation for the comments field and whether the viewer may decide the Gate (a coach who is not assigned
-     * to the participant sees the page read only). Old input overrides the preselected values in the view.
+     * Everything the coach Gate review page renders: the readiness summary, shown for information only (the required
+     * checklist items met: the weekly video item once its recording is reviewed as met, every other one when the saved
+     * evaluation marks it met; the video recording as Not required when the Gate has no weekly video item), the
+     * readiness blockers, the week's checklist (the required items, each ticked only when the saved evaluation marks it
+     * met, never from readiness or submissions, with the weekly video link on the video item), the participant's
+     * GitHub deliverable links for each of the week's activities, the decision options (Completed, Incomplete), the
+     * decision to preselect (the saved evaluation's when it is one of them; none otherwise, so the first one shows),
+     * the values a ticked and an unticked item post, the saved evaluation for the comments field and whether the
+     * viewer may decide the Gate (a coach who is not assigned to the participant sees the page read only). Old input
+     * overrides the preselected values in the view.
      *
      * @return array{trainingWeek: TrainingWeek, participant: User, gate: TrainingGate, evaluation: ?GateEvaluation, canManage: bool, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, checklist: list<array{id: int, title: string, description: ?string, video_url: ?string, saved_status: string}>, deliverables: list<array{position: int, title: string, links: list<array{label: string, url: string}>}>, decisionOptions: list<array{value: string, label: string}>, selectedDecision: ?string, tickedValue: string, untickedValue: string}
      */
@@ -86,23 +87,12 @@ class CoachGateReviewPageService
             'deliverables' => $this->deliverables($activities, $latestSubmissions),
             'decisionOptions' => array_map(fn (GateEvaluationStatus $status): array => [
                 'value' => $status->value,
-                'label' => $this->decisionLabel($status),
+                'label' => $status->label(),
             ], GateEvaluationStatus::decisions()),
             'selectedDecision' => in_array($evaluation?->status, GateEvaluationStatus::decisions(), true) ? $evaluation->status->value : null,
             'tickedValue' => GateCriterionStatus::Met->value,
             'untickedValue' => GateCriterionStatus::NotMet->value,
         ];
-    }
-
-    /**
-     * The review form's text for a Gate decision: the generic label, with "Needs Revision" in title case.
-     */
-    private function decisionLabel(GateEvaluationStatus $status): string
-    {
-        return match ($status) {
-            GateEvaluationStatus::NeedsRevision => 'Needs Revision',
-            default => $status->label(),
-        };
     }
 
     /**

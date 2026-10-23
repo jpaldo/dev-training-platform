@@ -123,7 +123,7 @@ class CoachParticipantPageTest extends TestCase
 
         $this->actingAs($coach)->get(route('coach.participants.show', $participant))
             ->assertOk()
-            ->assertSeeInOrder(['Week 2 · Passed Gate', 'Passed'])
+            ->assertSeeInOrder(['Week 2 · Passed Gate', 'Completed'])
             ->assertSeeInOrder(['Week 3 · Blocked Gate', 'Not ready', '(1 blocker(s))'])
             ->assertDontSee('Daily logs');
     }
@@ -149,9 +149,9 @@ class CoachParticipantPageTest extends TestCase
     {
         return [
             'not ready' => [GateEvaluationStatus::NotReady, 'border-line text-muted">Not ready</span>'],
-            'needs revision' => [GateEvaluationStatus::NeedsRevision, 'border-amber-500 text-amber-200">Needs revision</span>'],
+            'needs revision' => [GateEvaluationStatus::NeedsRevision, 'border-amber-500 text-amber-200">Incomplete</span>'],
             'failed' => [GateEvaluationStatus::Failed, 'border-danger text-rose-200">Failed</span>'],
-            'passed' => [GateEvaluationStatus::Passed, 'border-emerald-400 text-emerald-200">Passed</span>'],
+            'passed' => [GateEvaluationStatus::Passed, 'border-emerald-400 text-emerald-200">Completed</span>'],
         ];
     }
 

@@ -110,7 +110,7 @@ class GateReadinessService
             $isWeeklyVideoMissing = $videoGateIds->contains($gate->id)
                 && ! $recordedWeekIds->get($participant->id, collect())->contains($gate->training_week_id);
             if ($isWeeklyVideoMissing) {
-                $reasons['weekly_video'] = 'Required Weekly Video Recording is missing. Upload the video before this Gate can be passed.';
+                $reasons['weekly_video'] = 'Required Weekly Video Recording is missing. Upload the video before this week can be marked completed.';
             }
 
             return [$gate->id => $reasons];

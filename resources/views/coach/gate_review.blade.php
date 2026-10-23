@@ -28,7 +28,10 @@
             @endif
 
             <x-ui.card as="section" class="grid gap-4" aria-labelledby="gate-readiness-title">
-                <h2 id="gate-readiness-title" class="m-0 text-xl font-extrabold">Gate readiness</h2>
+                <div class="grid gap-1">
+                    <h2 id="gate-readiness-title" class="m-0 text-xl font-extrabold">Gate readiness</h2>
+                    <p class="m-0 text-sm/relaxed text-muted">For information only. The weekly checklist decides whether the week is completed.</p>
+                </div>
                 <dl class="m-0 grid grid-cols-2 gap-3 lg:grid-cols-4">
                     @foreach($readinessItems as $item)
                         <x-ui.stat variant="field" size="md" :label="$item['label']" :value="$item['value']" />
@@ -125,7 +128,8 @@
 
                     <div class="grid gap-2">
                         <label for="gate-status" class="{{ $labelClasses }}">Decision</label>
-                        <select id="gate-status" name="status" class="{{ $controlClasses }}">
+                        <p id="gate-status-hint" class="m-0 text-sm/relaxed text-muted">Completed needs every checklist item ticked. Incomplete needs at least one item left unticked; the unticked items are recorded as missing.</p>
+                        <select id="gate-status" name="status" aria-describedby="gate-status-hint" class="{{ $controlClasses }}">
                             @foreach($decisionOptions as $option)
                                 <option value="{{ $option['value'] }}" @selected(old('status', $selectedDecision) === $option['value'])>{{ $option['label'] }}</option>
                             @endforeach

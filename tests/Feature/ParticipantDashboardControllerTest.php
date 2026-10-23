@@ -127,7 +127,7 @@ class ParticipantDashboardControllerTest extends TestCase
         $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                'Week 2 Gate · Evaluated Gate', 'Status: <strong>Needs revision</strong>',
+                'Week 2 Gate · Evaluated Gate', 'Status: <strong>Incomplete</strong>',
                 'Week 2 Gate · Unevaluated Gate', 'Status: <strong>Not ready</strong>',
             ], false);
     }

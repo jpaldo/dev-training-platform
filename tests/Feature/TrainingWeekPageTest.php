@@ -87,7 +87,7 @@ class TrainingWeekPageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 'Gate status:',
-                'NEEDS REVISION',
+                'INCOMPLETE',
                 'font-black border-emerald-400 bg-emerald-400 text-canvas"',
                 '>✓</span>',
                 e($criteria[0]->title),

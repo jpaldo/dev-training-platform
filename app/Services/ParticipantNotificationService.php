@@ -73,9 +73,9 @@ class ParticipantNotificationService
             if ($gate) {
                 $reasons = $this->gates->readiness($participant, $gate);
                 $passed = $gate->evaluations()->where('user_id', $participant->id)->where('status', GateEvaluationStatus::Passed)->latest('evaluated_at')->first();
-                $this->state($participant, "week:{$week->id}:gate", ParticipantNotificationType::GateIncomplete, "Week {$week->week_number} Gate requirements incomplete", 'You still have requirements to complete before your Gate can be passed.', route('training.gates.show', [$week, $gate]), ! $passed && $reasons !== []);
+                $this->state($participant, "week:{$week->id}:gate", ParticipantNotificationType::GateIncomplete, "Week {$week->week_number} requirements incomplete", "You still have requirements to complete before your mentor can mark Week {$week->week_number} completed.", route('training.gates.show', [$week, $gate]), ! $passed && $reasons !== []);
                 if ($passed) {
-                    $this->event($participant, "event:gate:{$passed->id}", ParticipantNotificationType::GatePassed, "Week {$week->week_number} Gate passed", "Your Week {$week->week_number} Gate has been completed successfully.", route('training.weeks.show', $week));
+                    $this->event($participant, "event:gate:{$passed->id}", ParticipantNotificationType::GatePassed, "Week {$week->week_number} completed", "Your mentor marked Week {$week->week_number} completed.", route('training.weeks.show', $week));
                 }
             }
         }

@@ -168,7 +168,7 @@ class CoachOperationsTest extends TestCase
         GateEvaluation::create(['training_gate_id' => $gate->id, 'user_id' => $manual->id, 'status' => 'passed', 'evaluated_at' => now()]);
 
         $response = $this->actingAs($coach)->get(route('coach.gates'));
-        $response->assertOk()->assertSee('<table', false)->assertSee('Week 1')->assertSee('Week 2')->assertSee('Week 4')->assertSee('Gate Manual')->assertSee('Gate Automation')->assertSee('PASSED')->assertSee('Criteria')->assertSee('Video')->assertSee('Review Gate');
+        $response->assertOk()->assertSee('<table', false)->assertSee('Week 1')->assertSee('Week 2')->assertSee('Week 4')->assertSee('Gate Manual')->assertSee('Gate Automation')->assertSee('COMPLETED')->assertSee('Criteria')->assertSee('Video')->assertSee('Review Gate');
         $this->actingAs($coach)->get(route('coach.gates', ['search' => 'Gate Manual']))->assertOk()->assertSee('Gate Manual')->assertDontSee('Gate Automation');
         $this->actingAs($coach)->get(route('coach.gates', ['week' => 1, 'status' => 'passed']))->assertOk()->assertSee('Gate Manual')->assertDontSee('Gate Automation');
         $this->actingAs($manual)->get(route('coach.gates'))->assertForbidden();

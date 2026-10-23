@@ -43,7 +43,7 @@ class ParticipantDashboardService
                 'week' => $week,
                 'passed' => $passed,
                 'available' => $available,
-                'locked_reason' => $passed ? null : ($available ? null : 'Complete and pass the previous Gate before proceeding.'),
+                'locked_reason' => $passed ? null : ($available ? null : 'Your mentor must mark the previous week completed before you can continue.'),
                 'shows_weekly_video' => $available && $week->asksForWeeklyVideo(),
             ];
         });

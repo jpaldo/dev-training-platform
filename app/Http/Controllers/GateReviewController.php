@@ -2,24 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\GateCriterionStatus;
 use App\Enums\GateEvaluationStatus;
 use App\Enums\UserRole;
 use App\Http\Requests\StoreGateReviewRequest;
-use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\CoachGateReviewPageService;
-use App\Services\GateReadinessService;
+use App\Services\GateReviewService;
 use App\Services\ParticipantGatePageService;
-use App\Services\TrainingExportCoordinator;
-use App\Services\TrainingSyncCoordinator;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class GateReviewController extends Controller
@@ -42,32 +36,20 @@ class GateReviewController extends Controller
         return view('coach.gate_review', $page->showData($trainingWeek, $participant, $trainingGate, $evaluation, request()->user()));
     }
 
-    public function update(StoreGateReviewRequest $request, TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, GateReadinessService $service, TrainingExportCoordinator $exports, TrainingSyncCoordinator $syncs): RedirectResponse
+    public function update(StoreGateReviewRequest $request, TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, GateReviewService $reviews): RedirectResponse
     {
         $this->guard($trainingWeek, $participant, $trainingGate);
         abort_unless($request->user()->canManageParticipant($participant), 403);
-        $data = $request->validated();
-        $decision = $request->enum('status', GateEvaluationStatus::class);
         $existing = $trainingGate->evaluations()->where('user_id', $participant->id)->first();
         Gate::authorize($existing ? 'update' : 'create', $existing ?? GateEvaluation::class);
-        $criteria = $trainingGate->criteria()->where('is_required', true)->get();
-        $missing = $criteria->filter(fn (GateCriterion $criterion): bool => $request->criterionStatus($criterion) !== GateCriterionStatus::Met);
-        $readiness = $service->readiness($participant, $trainingGate);
-        $weeklyVideoCriterion = $criteria->first(fn (GateCriterion $criterion): bool => $criterion->isWeeklyVideo());
-        if ($decision !== GateEvaluationStatus::Passed && $weeklyVideoCriterion && $request->criterionStatus($weeklyVideoCriterion) === GateCriterionStatus::Met && $service->weeklyVideo($participant, $trainingGate)['status'] === 'missing') {
-            throw ValidationException::withMessages(['criteria.'.$weeklyVideoCriterion->id => 'The Weekly Video Recording cannot be marked Met until a video is uploaded.']);
-        }
-        if ($decision === GateEvaluationStatus::Passed && ($missing->isNotEmpty() || $readiness !== [])) {
-            throw ValidationException::withMessages(['gate' => "The Week {$trainingWeek->week_number} Gate cannot pass until every required criterion and objective requirement is satisfied."]);
-        }
-        DB::transaction(function () use (&$evaluation, $trainingGate, $participant, $data, $decision, $request, $criteria): void {
-            $evaluation = GateEvaluation::query()->updateOrCreate(['training_gate_id' => $trainingGate->id, 'user_id' => $participant->id], ['status' => $decision, 'reviewer_id' => $request->user()->id, 'evaluated_at' => now(), 'comments' => $data['comments'] ?? null]);
-            foreach ($criteria as $criterion) {
-                $evaluation->criterionEvaluations()->updateOrCreate(['gate_criterion_id' => $criterion->id], ['status' => $request->criterionStatus($criterion), 'reviewer_id' => $request->user()->id, 'evaluated_at' => now()]);
-            }
-        });
-        $exports->queueSummaryReports($participant);
-        $syncs->request($participant, 'gate_updated');
+        $reviews->record(
+            gate: $trainingGate,
+            participant: $participant,
+            reviewer: $request->user(),
+            decision: $request->enum('status', GateEvaluationStatus::class),
+            comments: $request->validated('comments'),
+            criterionStatuses: $request->criterionStatuses(),
+        );
 
         return back()->with('status', 'Gate evaluation saved.');
     }

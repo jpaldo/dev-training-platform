@@ -54,7 +54,7 @@ class CoachGateBoardPageTest extends TestCase
                 'TOTAL GATES', '>3</dd>',
                 'READY FOR REVIEW', '>0</dd>',
                 'AWAITING REVIEW', '>1</dd>',
-                'PASSED', '>1</dd>',
+                'COMPLETED', '>1</dd>',
                 'NOT READY', '>1</dd>',
                 'One row per participant and training Gate',
                 '>Week 2</strong>', '>Release readiness</span>',
@@ -71,7 +71,7 @@ class CoachGateBoardPageTest extends TestCase
                 '>2 blockers</strong>',
                 'href="'.route('training.coach.gates.show', [$week, $notReady, $gate]).'"', '>Review Gate</a>',
                 '>Pat Passed</a>',
-                'border-emerald-400 text-emerald-200 whitespace-nowrap">PASSED</span>',
+                'border-emerald-400 text-emerald-200 whitespace-nowrap">COMPLETED</span>',
                 '>2 / 2</span>',
                 'href="'.route('training.video-recording.view', [$week, $passedRecording]).'"', '>✓ Uploaded</a>',
                 '>—</span>',
@@ -172,7 +172,7 @@ class CoachGateBoardPageTest extends TestCase
             ->assertSeeInOrder([
                 'READY FOR REVIEW', '>1</dd>',
                 'AWAITING REVIEW', '>1</dd>',
-                'PASSED', '>1</dd>',
+                'COMPLETED', '>1</dd>',
                 'NOT READY', '>1</dd>',
                 $participants['ready_for_review']->name,
                 $participants['awaiting_review']->name,
@@ -184,13 +184,13 @@ class CoachGateBoardPageTest extends TestCase
     }
 
     #[DataProvider('statusRows')]
-    public function test_status_filter_keeps_only_the_rows_with_that_status(GateEvaluationStatus $status, string $badge, string $action): void
+    public function test_status_filter_keeps_only_the_rows_with_that_status(GateEvaluationStatus $status, string $option, string $badge, string $action): void
     {
         $participants = $this->participantInEveryStatus();
 
         $response = $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.gates', ['status' => $status->value]))
             ->assertOk()
-            ->assertSee('<option value="'.$status->value.'" selected>', false)
+            ->assertSee('<option value="'.$status->value.'" selected>'.$option.'</option>', false)
             ->assertSeeInOrder([$participants[$status->value]->name, $badge, $action], false);
 
         foreach (collect($participants)->except($status->value) as $otherParticipant) {
@@ -200,19 +200,19 @@ class CoachGateBoardPageTest extends TestCase
     }
 
     /**
-     * The badge and action link of a row with the given Gate status.
+     * The status filter option text, and the badge and action link of a row with the given Gate status.
      *
-     * @return array<string, array{GateEvaluationStatus, string, string}>
+     * @return array<string, array{GateEvaluationStatus, string, string, string}>
      */
     public static function statusRows(): array
     {
         return [
-            'not ready' => [GateEvaluationStatus::NotReady, 'border-line text-muted whitespace-nowrap">NOT READY</span>', '>Review Gate</a>'],
-            'ready for review' => [GateEvaluationStatus::ReadyForReview, 'border-accent text-cyan-200 whitespace-nowrap">READY FOR REVIEW</span>', '>Review Gate</a>'],
-            'awaiting review' => [GateEvaluationStatus::AwaitingReview, 'border-accent text-cyan-200 whitespace-nowrap">AWAITING REVIEW</span>', '>Review Gate</a>'],
-            'needs revision' => [GateEvaluationStatus::NeedsRevision, 'border-amber-500 text-amber-200 whitespace-nowrap">NEEDS REVISION</span>', '>Review Gate</a>'],
-            'failed' => [GateEvaluationStatus::Failed, 'border-danger text-rose-200 whitespace-nowrap">FAILED</span>', '>Review Gate</a>'],
-            'passed' => [GateEvaluationStatus::Passed, 'border-emerald-400 text-emerald-200 whitespace-nowrap">PASSED</span>', '>View Gate</a>'],
+            'not ready' => [GateEvaluationStatus::NotReady, 'Not Ready', 'border-line text-muted whitespace-nowrap">NOT READY</span>', '>Review Gate</a>'],
+            'ready for review' => [GateEvaluationStatus::ReadyForReview, 'Ready for Review', 'border-accent text-cyan-200 whitespace-nowrap">READY FOR REVIEW</span>', '>Review Gate</a>'],
+            'awaiting review' => [GateEvaluationStatus::AwaitingReview, 'Awaiting Review', 'border-accent text-cyan-200 whitespace-nowrap">AWAITING REVIEW</span>', '>Review Gate</a>'],
+            'needs revision' => [GateEvaluationStatus::NeedsRevision, 'Incomplete', 'border-amber-500 text-amber-200 whitespace-nowrap">INCOMPLETE</span>', '>Review Gate</a>'],
+            'failed' => [GateEvaluationStatus::Failed, 'Failed', 'border-danger text-rose-200 whitespace-nowrap">FAILED</span>', '>Review Gate</a>'],
+            'passed' => [GateEvaluationStatus::Passed, 'Completed', 'border-emerald-400 text-emerald-200 whitespace-nowrap">COMPLETED</span>', '>View Gate</a>'],
         ];
     }
 

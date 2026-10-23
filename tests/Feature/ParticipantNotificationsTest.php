@@ -194,6 +194,31 @@ class ParticipantNotificationsTest extends TestCase
         $this->assertFalse($participant->participantNotifications()->active()->where('key', "week:{$weeks[3]->id}:video")->exists());
     }
 
+    public function test_an_unready_week_raises_the_requirements_reminder_and_a_completed_week_the_completed_event(): void
+    {
+        $participant = User::factory()->create();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 2]);
+        $gate = TrainingGate::factory()->for($week, 'week')->create();
+        GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => GateCriterion::TYPE_DELIVERABLE]);
+        Activity::factory()->for($week, 'week')->create();
+
+        app(ParticipantNotificationService::class)->sync($participant);
+
+        $reminder = $participant->participantNotifications()->active()->where('key', "week:{$week->id}:gate")->sole();
+        $this->assertSame(ParticipantNotificationType::GateIncomplete, $reminder->type);
+        $this->assertSame('Week 2 requirements incomplete', $reminder->title);
+        $this->assertSame('You still have requirements to complete before your mentor can mark Week 2 completed.', $reminder->body);
+
+        $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+        app(ParticipantNotificationService::class)->sync($participant);
+
+        $completed = $participant->participantNotifications()->active()->where('key', "event:gate:{$evaluation->id}")->sole();
+        $this->assertSame(ParticipantNotificationType::GatePassed, $completed->type);
+        $this->assertSame('Week 2 completed', $completed->title);
+        $this->assertSame('Your mentor marked Week 2 completed.', $completed->body);
+        $this->assertFalse($participant->participantNotifications()->active()->where('key', "week:{$week->id}:gate")->exists());
+    }
+
     public function test_week_one_work_raises_the_activity_video_and_gate_reminders(): void
     {
         $participant = User::factory()->create();

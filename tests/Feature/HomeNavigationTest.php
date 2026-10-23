@@ -116,7 +116,7 @@ class HomeNavigationTest extends TestCase
                 '>How this training works</h2>',
                 'Throughout the training, you will practice how to:',
                 'Gates &amp; progression',
-                'A Mentor must review and pass the Gate before the next week becomes available.',
+                'A Mentor must review the weekly checklist and mark the week completed before the next week becomes available.',
             ], false)
             ->assertDontSee('AI-Assisted QA Level 3')
             ->assertDontSee('AI-Output Validation')

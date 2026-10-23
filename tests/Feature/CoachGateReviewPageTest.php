@@ -50,6 +50,7 @@ class CoachGateReviewPageTest extends TestCase
                 'form="gate-review-form"',
                 'Save Gate Evaluation',
                 'Gate readiness',
+                'For information only. The weekly checklist decides whether the week is completed.',
                 '>Checklist</span>',
                 '1 / 2',
                 'Activities',
@@ -80,14 +81,16 @@ class CoachGateReviewPageTest extends TestCase
                 'View Video',
                 'Deliverable links',
                 'action="'.route('training.coach.gates.update', [$week, $participant, $gate]).'" id="gate-review-form"',
+                'Completed needs every checklist item ticked. Incomplete needs at least one item left unticked; the unticked items are recorded as missing.',
                 'name="status"',
-                '<option value="passed" >Passed</option>',
-                '<option value="needs_revision" selected>Needs Revision</option>',
-                '<option value="failed" >Failed</option>',
+                '<option value="passed" >Completed</option>',
+                '<option value="needs_revision" selected>Incomplete</option>',
+                '</select>',
                 'name="comments"',
                 'Strong week, finish the video.',
             ], false)
             ->assertDontSee('Blockers')
+            ->assertDontSee('value="failed"', false)
             ->assertDontSee('Criterion decisions')
             ->assertDontSee('Optional stretch goal')
             ->assertDontSee('Read only');
@@ -171,7 +174,7 @@ class CoachGateReviewPageTest extends TestCase
                 'Missing',
                 'Blockers',
                 'Activity 1 must have a submitted version.',
-                'Required Weekly Video Recording is missing. Upload the video before this Gate can be passed.',
+                'Required Weekly Video Recording is missing. Upload the video before this week can be marked completed.',
                 'Weekly checklist',
                 'Deliverable links',
                 'No GitHub link submitted yet.',
@@ -242,22 +245,23 @@ class CoachGateReviewPageTest extends TestCase
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+        [$activityCriterion, $videoCriterion] = $criteria;
         $pageUrl = route('training.coach.gates.show', [$week, $participant, $gate]);
 
         $content = $this->actingAs($coach)->from($pageUrl)->followingRedirects()
             ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
                 'status' => 'passed',
-                'criteria' => $criteria->mapWithKeys(fn (GateCriterion $criterion): array => [$criterion->id => 'met'])->all(),
-                'comments' => 'Passing early.',
+                'criteria' => [$activityCriterion->id => 'met', $videoCriterion->id => 'not_met'],
+                'comments' => 'Completing early.',
             ])
             ->assertOk()
             ->assertSee('role="alert"', false)
-            ->assertSee('The Week 2 Gate cannot pass until every required criterion and objective requirement is satisfied.')
-            ->assertSee('Passing early.')
-            ->assertSee('<option value="passed" selected>Passed</option>', false)
+            ->assertSee('Tick every checklist item to mark the week completed.')
+            ->assertSee('Completing early.')
+            ->assertSee('<option value="passed" selected>Completed</option>', false)
             ->getContent();
 
-        $this->assertSame(2, substr_count($content, ' checked'));
+        $this->assertSame(1, substr_count($content, ' checked'));
     }
 
     public function test_saving_a_review_stores_each_required_criterion_decision_and_a_left_out_criterion_as_not_met(): void
@@ -282,7 +286,7 @@ class CoachGateReviewPageTest extends TestCase
         $this->assertSame(GateCriterionStatus::NotMet, $criterionEvaluations->get($videoCriterion->id)->status);
     }
 
-    public function test_a_ready_gate_cannot_pass_while_a_required_criterion_is_not_met(): void
+    public function test_completing_a_week_fails_while_a_checklist_item_is_unticked(): void
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
@@ -295,16 +299,85 @@ class CoachGateReviewPageTest extends TestCase
                 'status' => 'passed',
                 'criteria' => [$activityCriterion->id => 'not_met', $videoCriterion->id => 'met'],
             ])
-            ->assertSessionHasErrors(['gate' => 'The Week 2 Gate cannot pass until every required criterion and objective requirement is satisfied.']);
+            ->assertSessionHasErrors(['criteria' => 'Tick every checklist item to mark the week completed.']);
         $this->assertDatabaseMissing('gate_evaluations', ['user_id' => $participant->id]);
 
         $this->actingAs($coach)
             ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
                 'status' => 'passed',
-                'criteria' => [$activityCriterion->id => 'met', $videoCriterion->id => 'met'],
+                'criteria' => [$videoCriterion->id => 'met'],
+            ])
+            ->assertSessionHasErrors(['criteria' => 'Tick every checklist item to mark the week completed.']);
+        $this->assertDatabaseMissing('gate_evaluations', ['user_id' => $participant->id]);
+    }
+
+    public function test_every_ticked_item_completes_the_week_while_readiness_still_has_blockers(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+        $this->uploadWeeklyVideo($participant, $week);
+
+        $this->actingAs($coach)
+            ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
+                'status' => 'passed',
+                'criteria' => $criteria->mapWithKeys(fn (GateCriterion $criterion): array => [$criterion->id => 'met'])->all(),
             ])
             ->assertSessionHasNoErrors();
-        $this->assertSame(GateEvaluationStatus::Passed, GateEvaluation::query()->where('user_id', $participant->id)->sole()->status);
+
+        $evaluation = GateEvaluation::query()->where('user_id', $participant->id)->sole();
+        $this->assertSame(GateEvaluationStatus::Passed, $evaluation->status);
+        $this->assertSame([GateCriterionStatus::Met, GateCriterionStatus::Met], $evaluation->criterionEvaluations->pluck('status')->all());
+    }
+
+    public function test_a_week_cannot_be_completed_with_the_weekly_video_ticked_before_it_is_uploaded(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+        $videoCriterion = $criteria->last();
+
+        $this->actingAs($coach)
+            ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
+                'status' => 'passed',
+                'criteria' => $criteria->mapWithKeys(fn (GateCriterion $criterion): array => [$criterion->id => 'met'])->all(),
+            ])
+            ->assertSessionHasErrors(['criteria.'.$videoCriterion->id => 'The Weekly Video Recording cannot be marked Met until a video is uploaded.']);
+
+        $this->assertDatabaseMissing('gate_evaluations', ['user_id' => $participant->id]);
+    }
+
+    public function test_marking_a_week_incomplete_fails_when_every_checklist_item_is_ticked(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+        $this->uploadWeeklyVideo($participant, $week);
+
+        $this->actingAs($coach)
+            ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
+                'status' => 'needs_revision',
+                'criteria' => $criteria->mapWithKeys(fn (GateCriterion $criterion): array => [$criterion->id => 'met'])->all(),
+            ])
+            ->assertSessionHasErrors(['criteria' => 'Leave at least one item unticked to mark the week incomplete.']);
+
+        $this->assertDatabaseMissing('gate_evaluations', ['user_id' => $participant->id]);
+    }
+
+    public function test_an_admin_can_mark_a_week_completed(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $participant = User::factory()->create();
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+        $this->uploadWeeklyVideo($participant, $week);
+
+        $this->actingAs($admin)
+            ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
+                'status' => 'passed',
+                'criteria' => $criteria->mapWithKeys(fn (GateCriterion $criterion): array => [$criterion->id => 'met'])->all(),
+            ])
+            ->assertSessionHasNoErrors();
+
+        $evaluation = GateEvaluation::query()->where('user_id', $participant->id)->sole();
+        $this->assertSame(GateEvaluationStatus::Passed, $evaluation->status);
+        $this->assertTrue($evaluation->reviewer->is($admin));
     }
 
     public function test_a_week_one_gate_can_be_reviewed(): void
@@ -329,7 +402,7 @@ class CoachGateReviewPageTest extends TestCase
     }
 
     #[DataProvider('statusesThatAreNotDecisions')]
-    public function test_a_gate_decision_must_be_passed_needs_revision_or_failed(string $status): void
+    public function test_a_gate_decision_must_be_completed_or_incomplete(string $status): void
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
@@ -353,6 +426,7 @@ class CoachGateReviewPageTest extends TestCase
             'not ready' => ['not_ready'],
             'ready for review' => ['ready_for_review'],
             'awaiting review' => ['awaiting_review'],
+            'failed' => ['failed'],
             'unknown' => ['approved'],
         ];
     }

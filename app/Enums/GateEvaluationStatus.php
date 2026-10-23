@@ -3,8 +3,9 @@
 namespace App\Enums;
 
 /**
- * Where a participant's Gate stands (stored in `gate_evaluations.status`). Coaches save a review as `Passed`,
- * `NeedsRevision` or `Failed`; `NotReady` is the column default. `ReadyForReview` is derived, never stored: a Gate with
+ * Where a participant's Gate (the week's checklist) stands (stored in `gate_evaluations.status`). Mentors and admins
+ * save a review as `Passed` (the week is completed) or `NeedsRevision` (the week is incomplete); `Failed` is no longer
+ * offered but older reviews may still hold it. `NotReady` is the column default. `ReadyForReview` is derived, never stored: a Gate with
  * no saved evaluation and no readiness blockers. No code produces `AwaitingReview`, but the coach Gate board accepts it
  * as a filter and orders it.
  */
@@ -27,20 +28,21 @@ enum GateEvaluationStatus: string
             self::NotReady => 'Not ready',
             self::ReadyForReview => 'Ready for review',
             self::AwaitingReview => 'Awaiting review',
-            self::NeedsRevision => 'Needs revision',
+            self::NeedsRevision => 'Incomplete',
             self::Failed => 'Failed',
-            self::Passed => 'Passed',
+            self::Passed => 'Completed',
         };
     }
 
     /**
-     * The statuses a coach can save a Gate review with, in the order the review form offers them.
+     * The statuses a mentor or admin can save a Gate review with, in the order the review form offers them: completed,
+     * then incomplete.
      *
      * @return list<self>
      */
     public static function decisions(): array
     {
-        return [self::Passed, self::NeedsRevision, self::Failed];
+        return [self::Passed, self::NeedsRevision];
     }
 
     /**

@@ -125,6 +125,28 @@ class TrainingSessionService
     }
 
     /**
+     * The sessions a new participant can tick on the registration form: those open to join, the earliest start first
+     * (the order of the landing page's Available trainings), each with its title and dates. `value` is the session ID
+     * as the form posts it.
+     *
+     * @return list<array{value: string, title: string, date_range: string}>
+     */
+    public function registrationChoices(): array
+    {
+        return TrainingSession::query()
+            ->openToJoin()
+            ->orderBy('starts_on')
+            ->orderBy('id')
+            ->get(['id', 'title', 'starts_on', 'ends_on'])
+            ->map(fn (TrainingSession $session): array => [
+                'value' => (string) $session->id,
+                'title' => $session->title,
+                'date_range' => $session->dateRangeLabel(),
+            ])
+            ->all();
+    }
+
+    /**
      * The session columns an admin sets, with the end date that follows from the start date and weeks.
      *
      * @param  array{program_id: int|string, title: string, weeks_count: int|string, starts_on: string}  $details

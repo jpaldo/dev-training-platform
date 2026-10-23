@@ -10,6 +10,7 @@ use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -49,6 +50,72 @@ class AuthenticationAuthorizationTest extends TestCase
             'job_role' => 'qa_tester',
             'role' => 'participant',
         ]);
+        $this->assertDatabaseCount('training_session_participants', 0);
+    }
+
+    public function test_registration_joins_the_ticked_trainings_and_lists_them_under_my_trainings(): void
+    {
+        $this->travelTo('2026-11-10 09:30:00');
+        $active = TrainingSession::factory()->active()->create(['title' => 'November run']);
+        $upcoming = TrainingSession::factory()->upcoming()->create(['title' => 'December run']);
+        TrainingSession::factory()->upcoming()->create(['title' => 'January run']);
+
+        $this->post(route('register.store'), [
+            ...$this->registrationFields(),
+            'training_session_ids' => [(string) $active->id, (string) $upcoming->id],
+        ])->assertRedirect(route('profile.show'));
+
+        $participant = User::query()->where('email', 'manual@example.test')->sole();
+        $this->assertAuthenticatedAs($participant);
+        foreach ([$active, $upcoming] as $session) {
+            $this->assertDatabaseHas('training_session_participants', [
+                'training_session_id' => $session->id,
+                'user_id' => $participant->id,
+                'joined_at' => '2026-11-10 09:30:00',
+                'added_by' => null,
+            ]);
+        }
+        $this->assertDatabaseCount('training_session_participants', 2);
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '>My trainings</h2>',
+                '>November run</a>',
+                '>December run</a>',
+                '>Available trainings</h2>',
+                '>January run</p>',
+                '>Past trainings</h2>',
+            ], false);
+    }
+
+    /**
+     * @param  callable(): string  $sessionId
+     */
+    #[DataProvider('trainingSessionsNotOpenToJoin')]
+    public function test_registration_with_a_training_not_open_to_join_creates_nothing(callable $sessionId): void
+    {
+        $openSession = TrainingSession::factory()->upcoming()->create();
+
+        $this->post(route('register.store'), [
+            ...$this->registrationFields(),
+            'training_session_ids' => [(string) $openSession->id, $sessionId()],
+        ])->assertSessionHasErrors(['training_session_ids.1' => 'The selected training is not open to join.']);
+
+        $this->assertGuest();
+        $this->assertDatabaseMissing('users', ['email' => 'manual@example.test']);
+        $this->assertDatabaseCount('training_session_participants', 0);
+    }
+
+    /**
+     * @return array<string, array{callable(): string}>
+     */
+    public static function trainingSessionsNotOpenToJoin(): array
+    {
+        return [
+            'completed session' => [fn (): string => (string) TrainingSession::factory()->completed()->create()->id],
+            'unknown session' => [fn (): string => '999999'],
+        ];
     }
 
     public function test_registration_with_a_taken_employee_id_creates_nothing(): void

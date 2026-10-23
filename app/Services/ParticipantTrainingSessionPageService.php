@@ -24,8 +24,8 @@ class ParticipantTrainingSessionPageService
     /**
      * The training sessions for the landing page, from two session queries: My trainings are the sessions the
      * participant is in that are not completed (the earliest start first, so an active session comes before an upcoming
-     * one), Available trainings the sessions that are not completed and that they are not in (the earliest start
-     * first), and Past trainings the completed sessions they are in (the latest start first). Their rows link to the
+     * one), Available trainings the sessions open to join (not completed) that they are not in (the earliest
+     * start first), and Past trainings the completed sessions they are in (the latest start first). Their rows link to the
      * session page; available rows have no page link (only members open it) and a Join URL instead.
      *
      * @return array{myTrainings: list<array{title: string, program: string, date_range: string, status_label: string, status_tone: string, url: ?string, join_url: ?string}>, availableTrainings: list<array{title: string, program: string, date_range: string, status_label: string, status_tone: string, url: ?string, join_url: ?string}>, pastTrainings: list<array{title: string, program: string, date_range: string, status_label: string, status_tone: string, url: ?string, join_url: ?string}>}
@@ -38,7 +38,7 @@ class ParticipantTrainingSessionPageService
             ->get()
             ->partition(fn (TrainingSession $trainingSession): bool => $trainingSession->isCompleted());
         $availableSessions = TrainingSession::query()
-            ->notCompleted()
+            ->openToJoin()
             ->whereDoesntHave('participants', fn (Builder $participants): Builder => $participants->whereKey($participant->id))
             ->with('program:id,name')
             ->orderBy('starts_on')

@@ -78,6 +78,38 @@
                     <input id="password_confirmation" name="password_confirmation" type="password" autocomplete="new-password" required class="{{ $controlClasses }}">
                 </div>
 
+                @if($trainingSessionChoices !== [])
+                    <fieldset class="grid min-w-0 grid-cols-1 gap-3" aria-describedby="training_session_ids-hint">
+                        <legend class="mb-2 {{ $labelClasses }}">Trainings to join <span class="font-normal text-muted">(optional)</span></legend>
+                        <p id="training_session_ids-hint" class="text-sm/relaxed text-muted">Tick any training you want to join now. You can also join trainings later from your dashboard.</p>
+                        <ul class="grid grid-cols-1 gap-3">
+                            @foreach($trainingSessionChoices as $choice)
+                                <li>
+                                    <label class="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-line bg-field px-4 py-3.5 has-checked:border-accent">
+                                        <input
+                                            type="checkbox"
+                                            name="training_session_ids[]"
+                                            value="{{ $choice['value'] }}"
+                                            @checked(in_array($choice['value'], (array) old('training_session_ids', []), true))
+                                            class="mt-0.5 size-5 shrink-0 accent-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent/50"
+                                        >
+                                        <span class="grid min-w-0 gap-1">
+                                            <span class="font-extrabold wrap-break-word">{{ $choice['title'] }}</span>
+                                            <span class="text-sm text-muted">{{ $choice['date_range'] }}</span>
+                                        </span>
+                                    </label>
+                                </li>
+                            @endforeach
+                        </ul>
+                        @error('training_session_ids')
+                            <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                        @enderror
+                        @error('training_session_ids.*')
+                            <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                        @enderror
+                    </fieldset>
+                @endif
+
                 <x-ui.button type="submit" class="w-full sm:w-auto sm:justify-self-start">Create account</x-ui.button>
             </form>
 

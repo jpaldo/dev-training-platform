@@ -128,6 +128,15 @@ class TrainingSession extends Model
     }
 
     /**
+     * Limit the query to sessions a participant may join themselves: every session that is not completed. The landing
+     * page's Available trainings and the registration form both offer these.
+     */
+    public function scopeOpenToJoin(Builder $query): Builder
+    {
+        return $query->notCompleted();
+    }
+
+    /**
      * Limit the query to sessions whose end date has passed.
      */
     public function scopeCompleted(Builder $query): Builder

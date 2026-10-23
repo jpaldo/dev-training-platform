@@ -69,6 +69,14 @@ class TrainingSessionFactory extends Factory
     }
 
     /**
+     * Add the users (coaches) to the session as its mentors.
+     */
+    public function withMentors(User ...$mentors): static
+    {
+        return $this->hasAttached($mentors, [], 'mentors');
+    }
+
+    /**
      * A session that starts next week.
      */
     public function upcoming(): static

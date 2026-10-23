@@ -53,6 +53,24 @@ class TrainingSession extends Model
             ->withTimestamps();
     }
 
+    /**
+     * The coaches who mentor participants in the session.
+     */
+    public function mentors(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'training_session_mentors')
+            ->using(TrainingSessionMentor::class)
+            ->withTimestamps();
+    }
+
+    /**
+     * Every mentor assignment in the session, current and ended.
+     */
+    public function mentorAssignments(): HasMany
+    {
+        return $this->hasMany(MentorAssignment::class);
+    }
+
     public function resources(): HasMany
     {
         return $this->hasMany(TrainingSessionResource::class);
@@ -117,6 +135,14 @@ class TrainingSession extends Model
     public function includesParticipant(User $user): bool
     {
         return $this->participants()->whereKey($user->id)->exists();
+    }
+
+    /**
+     * Whether the user is a mentor of the session.
+     */
+    public function includesMentor(User $user): bool
+    {
+        return $this->mentors()->whereKey($user->id)->exists();
     }
 
     /**

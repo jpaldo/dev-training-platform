@@ -184,4 +184,22 @@ class User extends Authenticatable
             ->withPivot(['joined_at', 'added_by'])
             ->withTimestamps();
     }
+
+    /**
+     * The training sessions the user (a coach) is a mentor of.
+     */
+    public function mentoredSessions(): BelongsToMany
+    {
+        return $this->belongsToMany(TrainingSession::class, 'training_session_mentors')
+            ->using(TrainingSessionMentor::class)
+            ->withTimestamps();
+    }
+
+    /**
+     * The user's current assignments as a mentor, in every session: those that have not ended.
+     */
+    public function currentMentorAssignments(): HasMany
+    {
+        return $this->hasMany(MentorAssignment::class, 'mentor_id')->current();
+    }
 }

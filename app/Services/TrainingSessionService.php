@@ -12,7 +12,10 @@ use Illuminate\Support\Facades\DB;
 
 class TrainingSessionService
 {
-    public function __construct(private AdminAuditService $audit) {}
+    public function __construct(
+        private AdminAuditService $audit,
+        private MentorAssignmentService $mentorAssignments,
+    ) {}
 
     /**
      * The end date of a session: the last day of its last week, the start date plus weeks × 7 − 1 days (4 weeks from
@@ -98,12 +101,15 @@ class TrainingSessionService
     }
 
     /**
-     * Remove the participant from the session and record `session_participant_removed`. Only the membership row is
-     * deleted: their work keeps its session, so adding them again restores access to it.
+     * Remove the participant from the session, end their current mentor assignment there and record
+     * `session_participant_removed`. Only the membership row is deleted: their work and mentor history keep their
+     * session, so adding them again restores access to the work (without a mentor until one is assigned).
      */
     public function removeParticipant(TrainingSession $session, User $participant, User $admin): void
     {
         DB::transaction(function () use ($session, $participant, $admin): void {
+            $this->mentorAssignments->endCurrentAssignment($session, $participant);
+
             $session->participants()->detach($participant->id);
 
             $this->audit->record($admin, 'session_participant_removed', $participant, [

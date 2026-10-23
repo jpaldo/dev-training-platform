@@ -108,6 +108,7 @@
         @endif
 
         <x-training-session-list id="my-trainings" title="My trainings" :sessions="$myTrainings" empty="You are not in a training yet." />
+        <x-training-session-list id="available-trainings" title="Available trainings" :sessions="$availableTrainings" empty="No trainings are open to join right now." />
         <x-training-session-list id="past-trainings" title="Past trainings" :sessions="$pastTrainings" empty="No past trainings yet." />
     </div>
 @endsection

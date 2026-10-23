@@ -9,6 +9,7 @@ use App\Models\TrainingSession;
 use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 class ParticipantTrainingSessionPageService
@@ -21,11 +22,13 @@ class ParticipantTrainingSessionPageService
     ) {}
 
     /**
-     * The participant's training sessions for the landing page, in one query: My trainings are the sessions they are in
-     * that are not completed (the earliest start first, so an active session comes before an upcoming one) and Past
-     * trainings the completed ones (the latest start first). Each row links to the session page.
+     * The training sessions for the landing page, from two session queries: My trainings are the sessions the
+     * participant is in that are not completed (the earliest start first, so an active session comes before an upcoming
+     * one), Available trainings the sessions that are not completed and that they are not in (the earliest start
+     * first), and Past trainings the completed sessions they are in (the latest start first). Their rows link to the
+     * session page; available rows have no page link (only members open it) and a Join URL instead.
      *
-     * @return array{myTrainings: list<array{title: string, program: string, date_range: string, status_label: string, status_tone: string, url: string}>, pastTrainings: list<array{title: string, program: string, date_range: string, status_label: string, status_tone: string, url: string}>}
+     * @return array{myTrainings: list<array{title: string, program: string, date_range: string, status_label: string, status_tone: string, url: ?string, join_url: ?string}>, availableTrainings: list<array{title: string, program: string, date_range: string, status_label: string, status_tone: string, url: ?string, join_url: ?string}>, pastTrainings: list<array{title: string, program: string, date_range: string, status_label: string, status_tone: string, url: ?string, join_url: ?string}>}
      */
     public function landingData(User $participant): array
     {
@@ -34,10 +37,18 @@ class ParticipantTrainingSessionPageService
             ->orderBy('starts_on')
             ->get()
             ->partition(fn (TrainingSession $trainingSession): bool => $trainingSession->isCompleted());
+        $availableSessions = TrainingSession::query()
+            ->notCompleted()
+            ->whereDoesntHave('participants', fn (Builder $participants): Builder => $participants->whereKey($participant->id))
+            ->with('program:id,name')
+            ->orderBy('starts_on')
+            ->orderBy('id')
+            ->get();
 
         return [
-            'myTrainings' => $currentSessions->map(fn (TrainingSession $trainingSession): array => $this->sessionRow($trainingSession))->values()->all(),
-            'pastTrainings' => $pastSessions->reverse()->map(fn (TrainingSession $trainingSession): array => $this->sessionRow($trainingSession))->values()->all(),
+            'myTrainings' => $currentSessions->map(fn (TrainingSession $trainingSession): array => $this->sessionRow($trainingSession, isMember: true))->values()->all(),
+            'availableTrainings' => $availableSessions->map(fn (TrainingSession $trainingSession): array => $this->sessionRow($trainingSession, isMember: false))->all(),
+            'pastTrainings' => $pastSessions->reverse()->map(fn (TrainingSession $trainingSession): array => $this->sessionRow($trainingSession, isMember: true))->values()->all(),
         ];
     }
 
@@ -120,11 +131,12 @@ class ParticipantTrainingSessionPageService
     }
 
     /**
-     * A row of the landing page lists.
+     * A row of the landing page lists: a session the participant is in links to its page, any other session offers
+     * the Join URL instead.
      *
-     * @return array{title: string, program: string, date_range: string, status_label: string, status_tone: string, url: string}
+     * @return array{title: string, program: string, date_range: string, status_label: string, status_tone: string, url: ?string, join_url: ?string}
      */
-    private function sessionRow(TrainingSession $trainingSession): array
+    private function sessionRow(TrainingSession $trainingSession, bool $isMember): array
     {
         $status = $trainingSession->status();
 
@@ -134,7 +146,8 @@ class ParticipantTrainingSessionPageService
             'date_range' => $trainingSession->dateRangeLabel(),
             'status_label' => $status->label(),
             'status_tone' => $status->tone(),
-            'url' => route('training.sessions.show', $trainingSession),
+            'url' => $isMember ? route('training.sessions.show', $trainingSession) : null,
+            'join_url' => $isMember ? null : route('training.sessions.join', $trainingSession),
         ];
     }
 }

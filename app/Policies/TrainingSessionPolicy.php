@@ -8,8 +8,8 @@ use App\Models\User;
 
 /**
  * Admins list, create, edit and manage (participants, mentors, resources) training sessions. Admins, the session's
- * participants and coaches view a session (its weeks and activities). Joining one is added with the participant
- * screens.
+ * participants and coaches view a session (its weeks and activities). Active participants join sessions that are not
+ * completed.
  */
 class TrainingSessionPolicy
 {
@@ -32,6 +32,18 @@ class TrainingSessionPolicy
         }
 
         return $user->hasAnyRole(UserRole::Participant) && $trainingSession->includesParticipant($user);
+    }
+
+    /**
+     * Determine whether the user can join the session themselves: an active participant who is not in it yet, while the
+     * session is not completed (upcoming or active).
+     */
+    public function join(User $user, TrainingSession $trainingSession): bool
+    {
+        return $user->hasAnyRole(UserRole::Participant)
+            && $user->is_active
+            && ! $trainingSession->isCompleted()
+            && ! $trainingSession->includesParticipant($user);
     }
 
     /**

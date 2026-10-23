@@ -2,6 +2,9 @@
 
 @section('content')
     <div class="grid grid-cols-1 gap-6">
+        @if(session('status'))
+            <x-ui.alert tone="success" role="status">{{ session('status') }}</x-ui.alert>
+        @endif
         @if($isTrainingComplete)
             <x-ui.alert tone="success">Training complete — every week completed.</x-ui.alert>
         @endif

@@ -19,7 +19,7 @@ class ParticipantDashboardControllerTest extends TestCase
         $active = TrainingSession::factory()->for($program)->active()->withParticipants($participant)->create(['title' => 'Active run']);
         $upcoming = TrainingSession::factory()->for($program)->upcoming()->withParticipants($participant)->create(['title' => 'Upcoming run']);
         $completed = TrainingSession::factory()->for($program)->completed()->withParticipants($participant)->create(['title' => 'Completed run']);
-        TrainingSession::factory()->for($program)->active()->create(['title' => 'Someone else’s run']);
+        $notJoined = TrainingSession::factory()->for($program)->active()->create(['title' => 'Someone else’s run']);
 
         $html = $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
@@ -33,17 +33,20 @@ class ParticipantDashboardControllerTest extends TestCase
                 'href="'.route('training.sessions.show', $upcoming).'"',
                 '>Upcoming run</a>',
                 '>Upcoming</span>',
+                '>Available trainings</h2>',
+                '>Someone else’s run</p>',
                 '>Past trainings</h2>',
                 'href="'.route('training.sessions.show', $completed).'"',
                 '>Completed run</a>',
                 '>Completed</span>',
             ], false)
-            ->assertDontSee('Someone else’s run')
+            ->assertDontSee('href="'.route('training.sessions.show', $notJoined).'"', false)
             ->assertDontSee('You are not in a training yet.')
             ->assertDontSee('No past trainings yet.')
             ->getContent();
 
         $this->assertSame(1, substr_count($html, '>Completed run</a>'));
+        $this->assertSame(1, substr_count($html, '>Someone else’s run</p>'));
 
         $this->actingAs($participant)->get(route('training.sessions.show', $active))->assertOk();
         $this->actingAs($participant)->get(route('training.sessions.show', $completed))->assertOk();
@@ -63,17 +66,19 @@ class ParticipantDashboardControllerTest extends TestCase
     public function test_a_participant_in_no_session_sees_both_empty_states(): void
     {
         $participant = User::factory()->create();
-        TrainingSession::factory()->create();
+        $notJoined = TrainingSession::factory()->create(['title' => 'Open run']);
 
         $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
                 '>My trainings</h2>',
                 'You are not in a training yet.',
+                '>Available trainings</h2>',
+                '>Open run</p>',
                 '>Past trainings</h2>',
                 'No past trainings yet.',
             ], false)
-            ->assertDontSee('/training/sessions/', false);
+            ->assertDontSee('href="'.route('training.sessions.show', $notJoined).'"', false);
     }
 
     public function test_the_landing_page_keeps_the_attendance_card_and_has_no_week_tabs(): void

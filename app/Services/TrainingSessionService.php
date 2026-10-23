@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AdminAuditLog;
 use App\Models\TrainingSession;
+use App\Models\TrainingSessionParticipant;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
@@ -109,6 +110,18 @@ class TrainingSessionService
                 'training_session_id' => $session->id,
             ]);
         });
+    }
+
+    /**
+     * Add the participant to the session as joining themselves: joined now, with no admin in `added_by` and no audit row
+     * (it is not an admin action). Idempotent: a participant already in the session keeps their membership as it is.
+     */
+    public function join(TrainingSession $session, User $participant): TrainingSessionParticipant
+    {
+        return TrainingSessionParticipant::query()->firstOrCreate(
+            ['training_session_id' => $session->id, 'user_id' => $participant->id],
+            ['joined_at' => now(), 'added_by' => null],
+        );
     }
 
     /**

@@ -16,9 +16,9 @@ class WeeklyVideoRecordingPageService
     /**
      * Everything the Weekly Video Recording page renders: the participant's chosen Google Drive video for the week
      * (with its name, size and when it was chosen), the participant's Google Drive state (`unavailable` while Drive
-     * cannot connect, `not_connected` or `connected`) with the connect link, and the Picker settings and label. The
-     * Picker form is replaced by a locked message once the participant has passed one of the week's active Gates. The
-     * page never reads Google Drive.
+     * cannot connect, `not_connected` or `connected`) with the connect link, which brings the participant back to this
+     * page, and the Picker settings and label. The Picker form is replaced by a locked message once the participant has
+     * passed one of the week's active Gates. The page never reads Google Drive.
      *
      * @return array{trainingWeek: TrainingWeek, recording: ?WeeklyVideoRecording, recordingDetails: ?string, isLocked: bool, storeUrl: string, backUrl: string, driveState: string, connectUrl: string, picker: array{api_key: ?string, app_id: ?string, token_url: string, unavailable_message: ?string}, pickerLabel: string}
      */
@@ -38,7 +38,7 @@ class WeeklyVideoRecordingPageService
                 $user->googleDriveConnection()->doesntExist() => 'not_connected',
                 default => 'connected',
             },
-            'connectUrl' => route('profile.google-drive.connect'),
+            'connectUrl' => route('profile.google-drive.connect', ['return_to' => route('training.video-recording.edit', $week, absolute: false)]),
             'picker' => $this->googleDrive->pickerSettings('video'),
             'pickerLabel' => $recording ? 'Choose a Different Video' : 'Choose Video from Google Drive',
         ];

@@ -45,7 +45,7 @@ class WeeklyVideoRecordingPageTest extends TestCase
                 'Video Recording',
                 'Record your actual work for this week.',
                 'Upload your video to your own Google Drive first, then choose it here. The app keeps a link to the file, not the video.',
-                'href="'.route('profile.google-drive.connect').'"',
+                'href="'.route('profile.google-drive.connect', ['return_to' => '/training/weeks/'.$week->id.'/video-recording']).'"',
                 '>Connect Google Drive</a>',
             ], false)
             ->assertDontSee('data-drive-picker', false)
@@ -70,7 +70,7 @@ class WeeklyVideoRecordingPageTest extends TestCase
                 'href="https://drive.google.com/file/d/drive-video-1/view" target="_blank" rel="noopener noreferrer"',
                 '>Open in Drive<span class="sr-only">: week-2-walkthrough.mp4 (opens in a new tab)</span></a>',
                 'Connect Google Drive to choose a different video.',
-                'href="'.route('profile.google-drive.connect').'"',
+                'href="'.route('profile.google-drive.connect', ['return_to' => '/training/weeks/'.$week->id.'/video-recording']).'"',
                 '>Connect Google Drive</a>',
             ], false)
             ->assertDontSee('Record your actual work for this week.')

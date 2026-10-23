@@ -3,8 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\GoogleDriveSyncStatus;
+use App\Models\GateCriterion;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveSync;
+use App\Models\Program;
+use App\Models\TrainingGate;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\GoogleDriveConfigurationService;
 use App\Services\GoogleDriveConnectionService;
@@ -12,6 +16,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class GoogleDriveConnectionTest extends TestCase
@@ -122,6 +127,84 @@ class GoogleDriveConnectionTest extends TestCase
         $this->actingAs($participant)->get(route('profile.google-drive.callback', ['state' => $state, 'error' => 'access_denied']))
             ->assertRedirect(route('profile.show'))->assertSessionHas('status', 'Google Drive connection was cancelled.');
         $this->assertDatabaseCount('google_drive_connections', 0);
+    }
+
+    /**
+     * @return array<string, array{array<string, string>, int, string, int}>
+     */
+    public static function callbackOutcomes(): array
+    {
+        return [
+            'approved' => [['code' => 'authorization-code'], 200, 'Google Drive connected successfully.', 1],
+            'cancelled' => [['error' => 'access_denied'], 200, 'Google Drive connection was cancelled.', 0],
+            'failed' => [['code' => 'authorization-code'], 500, 'Unable to connect Google Drive. Please try again.', 0],
+        ];
+    }
+
+    /**
+     * @param  array<string, string>  $callbackQuery
+     */
+    #[DataProvider('callbackOutcomes')]
+    public function test_connecting_from_the_weekly_video_page_returns_there_with_the_outcome(array $callbackQuery, int $tokenStatus, string $message, int $connections): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        $videoPage = route('training.video-recording.edit', $this->weekAskingForTheVideo(), absolute: false);
+        Http::fake([
+            'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'access', 'refresh_token' => 'refresh', 'expires_in' => 3600], $tokenStatus),
+            'https://openidconnect.googleapis.com/v1/userinfo' => Http::response(['sub' => 'account', 'email' => 'participant@example.com'], 200),
+        ]);
+
+        $this->actingAs($participant)->get(route('profile.google-drive.connect', ['return_to' => $videoPage]))
+            ->assertRedirectContains('accounts.google.com/o/oauth2/v2/auth');
+        $this->assertSame($videoPage, session('google_drive_oauth.return_to'));
+
+        $this->actingAs($participant)->get(route('profile.google-drive.callback', ['state' => session('google_drive_oauth.state'), ...$callbackQuery]))
+            ->assertRedirect($videoPage);
+
+        $this->assertDatabaseCount('google_drive_connections', $connections);
+        $this->actingAs($participant)->get($videoPage)->assertOk()->assertSee($message);
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function returnTargetsThatFallBackToTheProfile(): array
+    {
+        return [
+            'no return_to' => [[]],
+            'empty' => [['return_to' => '']],
+            'absolute URL' => [['return_to' => 'https://evil.example']],
+            'protocol-relative URL' => [['return_to' => '//evil.example']],
+            'backslash after the slash' => [['return_to' => '/\evil.example']],
+            'page outside training' => [['return_to' => '/profile']],
+            'double slash under training' => [['return_to' => '/training//evil.example']],
+            'backslash under training' => [['return_to' => '/training/\evil.example']],
+            'dot segments' => [['return_to' => '/training/../profile']],
+            'encoded slashes' => [['return_to' => '/training/%2F%2Fevil.example']],
+            'encoded backslash' => [['return_to' => '/training/%5Cevil.example']],
+            'encoded dot segments' => [['return_to' => '/training/%2e%2e/profile']],
+            'line break' => [['return_to' => "/training/weeks\r\nLocation: https://evil.example"]],
+            'over 2048 characters' => [['return_to' => '/training/'.str_repeat('a', 2039)]],
+            'array' => [['return_to' => ['/training/weeks/1/video-recording']]],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $connectQuery
+     */
+    #[DataProvider('returnTargetsThatFallBackToTheProfile')]
+    public function test_an_unusable_return_target_is_not_an_error_and_the_callback_returns_to_the_profile(array $connectQuery): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+
+        $this->actingAs($participant)->get(route('profile.google-drive.connect', $connectQuery))
+            ->assertRedirectContains('accounts.google.com/o/oauth2/v2/auth')
+            ->assertSessionHasNoErrors();
+        $this->assertNull(session('google_drive_oauth.return_to'));
+
+        $this->actingAs($participant)->get(route('profile.google-drive.callback', ['state' => session('google_drive_oauth.state'), 'error' => 'access_denied']))
+            ->assertRedirect(route('profile.show'))
+            ->assertSessionHas('status', 'Google Drive connection was cancelled.');
     }
 
     public function test_participant_can_disconnect_without_removing_drive_link_and_other_roles_are_blocked(): void
@@ -251,5 +334,14 @@ class GoogleDriveConnectionTest extends TestCase
         $this->actingAs($participant)->get(route('profile.google-drive.picker-token'))->assertOk()->assertJson(['expires_in' => 300])->assertDontSee('refresh-token');
         Auth::logout();
         $this->get(route('profile.google-drive.picker-token'))->assertRedirect(route('login'));
+    }
+
+    private function weekAskingForTheVideo(): TrainingWeek
+    {
+        $week = TrainingWeek::factory()->for(Program::factory()->create(['is_active' => true]))->create(['week_number' => 1, 'position' => 1, 'is_active' => true]);
+        $gate = TrainingGate::factory()->for($week, 'week')->create(['is_active' => true, 'position' => 1]);
+        GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_video']);
+
+        return $week;
     }
 }

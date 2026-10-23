@@ -25,6 +25,10 @@
                 <x-ui.alert tone="success" role="status" class="max-w-190">{{ session('status') }}</x-ui.alert>
             @endif
 
+            @error('google_drive')
+                <x-ui.alert tone="error" role="alert" class="max-w-190">{{ $message }}</x-ui.alert>
+            @enderror
+
             <x-ui.card as="section" class="grid w-full max-w-190 min-w-0 grid-cols-1 gap-5" aria-labelledby="video-recording-title">
                 <h2 id="video-recording-title" class="m-0 text-xl font-extrabold">Video Recording</h2>
 

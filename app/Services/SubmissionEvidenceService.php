@@ -34,7 +34,7 @@ class SubmissionEvidenceService
      */
     public function store(User $participant, Activity $activity, SubmissionVersion $version, array $data, array $files): array
     {
-        $requirement = $this->requirementFor($participant, $activity, $data['evidence_requirement_id']);
+        $requirement = $this->requirementFor($activity, $data['evidence_requirement_id']);
         $type = $requirement->evidence_type;
         $this->ensureRequiredInput($type, $data, $files !== []);
 
@@ -60,14 +60,12 @@ class SubmissionEvidenceService
     }
 
     /**
-     * Resolve an evidence requirement of the activity that applies to the participant's training path, or fail with a 404.
+     * Resolve an evidence requirement of the activity, or fail with a 404.
      */
-    private function requirementFor(User $participant, Activity $activity, int|string $requirementId): EvidenceRequirement
+    private function requirementFor(Activity $activity, int|string $requirementId): EvidenceRequirement
     {
-        return EvidenceRequirement::query()->whereKey($requirementId)->whereHas('activityRequirement', function (Builder $query) use ($activity, $participant): void {
-            $query->where('activity_id', $activity->id)->where(function (Builder $q) use ($participant): void {
-                $q->whereNull('participant_path')->orWhereIn('participant_path', $participant->eligibleTrainingPaths());
-            });
+        return EvidenceRequirement::query()->whereKey($requirementId)->whereHas('activityRequirement', function (Builder $query) use ($activity): void {
+            $query->where('activity_id', $activity->id);
         })->firstOrFail();
     }
 

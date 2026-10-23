@@ -22,7 +22,6 @@ class ActivityRequirementFactory extends Factory
     {
         return [
             'activity_id' => Activity::factory(),
-            'participant_path' => null,
             'requirement_type' => 'deliverable',
             'title' => fake()->sentence(3),
             'description' => fake()->paragraph(),

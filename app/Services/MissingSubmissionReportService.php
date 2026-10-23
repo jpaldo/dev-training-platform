@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\SubmissionStatus;
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
@@ -33,7 +32,7 @@ class MissingSubmissionReportService
             ->orderBy('name')
             ->get();
 
-        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $query): Relation => $query->where('is_active', true)->withAsksForWeeklyVideo()->with(['activities' => fn (Relation $activities): Relation => $activities->where('is_active', true)->with('requirements')->orderBy('position')])])->first();
+        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $query): Relation => $query->where('is_active', true)->withAsksForWeeklyVideo()->with(['activities' => fn (Relation $activities): Relation => $activities->where('is_active', true)->orderBy('position')])])->first();
         if (! $program) {
             return collect();
         }
@@ -53,9 +52,6 @@ class MissingSubmissionReportService
                 }
 
                 foreach ($week->activities as $activity) {
-                    if (! $this->activityApplies($participant, $activity)) {
-                        continue;
-                    }
                     $hasSubmittedVersion = $participant->activitySubmissions
                         ->where('activity_id', $activity->id)
                         ->contains(fn (ActivitySubmission $submission): bool => $submission->versions->contains(fn (SubmissionVersion $version): bool => filled($version->submitted_at) || in_array($version->status, [...SubmissionStatus::handedIn(), SubmissionStatus::Failed], true)));
@@ -106,18 +102,6 @@ class MissingSubmissionReportService
         return $version?->evidence
             ->filter(fn (SubmissionEvidence $evidence): bool => filled($evidence->path))
             ->count() ?? 0;
-    }
-
-    /**
-     * Whether the participant must submit the activity: it has no path requirement, or one on a path the participant
-     * follows.
-     */
-    private function activityApplies(User $participant, Activity $activity): bool
-    {
-        $paths = $activity->requirements->whereNotNull('participant_path')->pluck('participant_path');
-        $eligiblePaths = $participant->eligibleTrainingPaths();
-
-        return $paths->isEmpty() || $paths->contains(fn (TrainingPath $path): bool => in_array($path, $eligiblePaths, true));
     }
 
     private function matches(array $row, array $filters): bool

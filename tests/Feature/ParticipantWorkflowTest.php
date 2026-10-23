@@ -6,7 +6,6 @@ use App\Enums\ActivityScoreStatus;
 use App\Enums\GateEvaluationStatus;
 use App\Enums\RecoveryRequestStatus;
 use App\Enums\SubmissionStatus;
-use App\Enums\TrainingPath;
 use App\Models\Activity;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivityRequirement;
@@ -923,30 +922,47 @@ class ParticipantWorkflowTest extends TestCase
         $this->actingAs($coach)->get(route('training.weeks.show', $week3))->assertOk();
     }
 
-    public function test_manual_and_automation_participants_see_only_their_path_requirements(): void
-    {
-        [$manual, $week2, $activity] = $this->trainingFixture();
-        $automation = User::factory()->create(['training_path' => 'automation']);
-        $this->actingAs($manual)->post(route('participant.attendance.check-in'))->assertRedirect();
-        $this->actingAs($automation)->post(route('participant.attendance.check-in'))->assertRedirect();
-        ActivityRequirement::factory()->for($activity)->create(['participant_path' => 'manual', 'title' => 'Manual-only requirement', 'position' => 1]);
-        ActivityRequirement::factory()->for($activity)->create(['participant_path' => 'automation', 'title' => 'Automation-only requirement', 'position' => 2]);
-
-        $this->actingAs($manual)->get(route('training.activities.show', [$week2, $activity]))->assertSee('Manual-only requirement')->assertDontSee('Automation-only requirement');
-        $this->actingAs($automation)->get(route('training.activities.show', [$week2, $activity]))->assertSee('Automation-only requirement')->assertDontSee('Manual-only requirement');
-    }
-
-    public function test_automation_manual_participant_sees_the_requirements_of_both_paths(): void
+    public function test_participants_without_a_path_and_coaches_see_requirements_formerly_tied_to_a_path(): void
     {
         [, $week2, $activity] = $this->trainingFixture();
-        $participant = User::factory()->create(['training_path' => TrainingPath::AutomationManual]);
+        $participant = User::factory()->create(['training_path' => null]);
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         ActivityRequirement::factory()->for($activity)->create(['participant_path' => 'manual', 'title' => 'Manual-only requirement', 'position' => 1]);
         ActivityRequirement::factory()->for($activity)->create(['participant_path' => 'automation', 'title' => 'Automation-only requirement', 'position' => 2]);
+        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
 
         $this->actingAs($participant)->get(route('training.activities.show', [$week2, $activity]))
             ->assertOk()
-            ->assertSeeInOrder(['Requirements for Automation / Manual QA', 'Manual-only requirement', 'Automation-only requirement']);
+            ->assertSeeInOrder(['Manual-only requirement', 'Automation-only requirement']);
+        $this->actingAs($coach)->get(route('training.activities.show', [$week2, $activity]))
+            ->assertOk()
+            ->assertSeeInOrder(['Manual-only requirement', 'Automation-only requirement']);
+    }
+
+    public function test_a_requirement_formerly_tied_to_a_path_is_required_for_a_participant_without_a_path(): void
+    {
+        [, $week2, $activity] = $this->trainingFixture();
+        $participant = User::factory()->create(['training_path' => null]);
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+        ActivityRequirement::factory()->for($activity)->create(['participant_path' => 'automation', 'requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea', 'required' => true]]);
+        $deliverable = ActivityRequirement::factory()->for($activity)->create(['participant_path' => 'automation', 'requirement_type' => 'deliverable', 'position' => 2]);
+        $evidenceRequirement = EvidenceRequirement::factory()->for($deliverable)->create(['title' => 'Automation run log', 'evidence_type' => 'text', 'is_required' => true, 'minimum_count' => 1]);
+
+        $this->actingAs($participant)->post(route('training.submission.draft', [$week2, $activity]), ['field_values' => ['finding' => '']])->assertRedirect();
+        $version = ActivitySubmission::query()->firstOrFail()->versions()->firstOrFail();
+        $this->actingAs($participant)->post(route('training.submission.submit', [$week2, $activity, $version]))
+            ->assertSessionHasErrors(['field_values.finding' => 'Finding is required before submission.']);
+
+        $this->actingAs($participant)->post(route('training.submission.draft', [$week2, $activity]), ['field_values' => ['finding' => 'Checkout times out']])->assertRedirect();
+        $this->actingAs($participant)->post(route('training.submission.submit', [$week2, $activity, $version]))
+            ->assertSessionHasErrors(['evidence' => 'Automation run log is required before submission.']);
+
+        $this->actingAs($participant)->post(route('training.evidence.store', [$week2, $activity, $version]), ['evidence_requirement_id' => $evidenceRequirement->id, 'content' => 'Run 42 passed.'])
+            ->assertSessionHasNoErrors();
+        $this->actingAs($participant)->post(route('training.submission.submit', [$week2, $activity, $version]))->assertSessionHasNoErrors();
+
+        $this->assertSame(SubmissionStatus::Submitted, $version->fresh()->status);
+        $this->assertSame(['finding' => 'Checkout times out'], $version->fresh()->field_values);
     }
 
     public function test_direct_cross_week_activity_ids_cannot_bypass_progression(): void

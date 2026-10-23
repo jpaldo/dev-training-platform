@@ -17,7 +17,6 @@ use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Carbon\CarbonInterface;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
@@ -77,25 +76,19 @@ class TrainingActivityPageService
     }
 
     /**
-     * The activity requirements in order with their evidence requirements; participants see only their training path's
-     * requirements and none that are deprecated.
+     * The activity requirements in order with their evidence requirements; participants see every requirement except
+     * deprecated ones.
      *
      * @return Collection<int, ActivityRequirement>
      */
     private function requirements(User $user, Activity $activity): Collection
     {
-        $isParticipant = $user->hasAnyRole(UserRole::Participant);
         $requirements = $activity->requirements()
-            ->when($isParticipant, function (Builder $query) use ($user): void {
-                $query->where(function (Builder $pathQuery) use ($user): void {
-                    $pathQuery->whereNull('participant_path')->orWhereIn('participant_path', $user->eligibleTrainingPaths());
-                });
-            })
             ->with('evidenceRequirements')
             ->orderBy('position')
             ->get();
 
-        if (! $isParticipant) {
+        if (! $user->hasAnyRole(UserRole::Participant)) {
             return $requirements;
         }
 

@@ -168,11 +168,8 @@ class MissingSubmissionReportPageTest extends TestCase
             ->assertSessionHasErrors(['category', 'week', 'status']);
     }
 
-    /**
-     * @param  list<string>  $missingActivities
-     */
-    #[DataProvider('pathActivities')]
-    public function test_path_specific_activities_are_missing_only_for_participants_on_one_of_their_paths(TrainingPath $trainingPath, array $missingActivities): void
+    #[DataProvider('participantPaths')]
+    public function test_activities_formerly_tied_to_a_path_are_missing_for_every_participant(?TrainingPath $trainingPath): void
     {
         $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);
         Activity::factory()->for($week, 'week')->create(['title' => 'Shared activity', 'position' => 1]);
@@ -188,18 +185,17 @@ class MissingSubmissionReportPageTest extends TestCase
             ->getContent();
 
         preg_match_all('/<strong>([^<]+ activity)<\/strong>/', $html, $titles);
-        $this->assertSame($missingActivities, $titles[1]);
+        $this->assertSame(['Automation activity', 'Manual activity', 'Shared activity'], $titles[1]);
     }
 
     /**
-     * @return array<string, array{TrainingPath, list<string>}>
+     * @return array<string, array{?TrainingPath}>
      */
-    public static function pathActivities(): array
+    public static function participantPaths(): array
     {
         return [
-            'manual' => [TrainingPath::Manual, ['Manual activity', 'Shared activity']],
-            'automation' => [TrainingPath::Automation, ['Automation activity', 'Shared activity']],
-            'automation / manual' => [TrainingPath::AutomationManual, ['Automation activity', 'Manual activity', 'Shared activity']],
+            'no path' => [null],
+            'manual' => [TrainingPath::Manual],
         ];
     }
 

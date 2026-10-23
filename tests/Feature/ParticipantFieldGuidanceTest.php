@@ -18,21 +18,17 @@ class ParticipantFieldGuidanceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_participants_get_only_the_fields_and_evidence_of_their_path_while_coaches_get_every_path(): void
+    public function test_fields_and_evidence_include_requirements_formerly_tied_to_a_path(): void
     {
         $activity = Activity::factory()->create();
         foreach ([TrainingPath::Manual, TrainingPath::Automation] as $position => $path) {
             $requirement = ActivityRequirement::factory()->for($activity)->create(['participant_path' => $path, 'requirement_type' => 'submission_field', 'position' => $position + 1, 'configuration' => ['key' => $path->value.'_notes']]);
             EvidenceRequirement::factory()->for($requirement)->create(['title' => $path->value.' evidence', 'position' => $position + 1]);
         }
-        $participant = User::factory()->create(['training_path' => TrainingPath::Manual]);
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
         $workflow = app(SubmissionWorkflowService::class);
 
-        $this->assertSame(['manual_notes'], array_keys($workflow->fieldDefinitions($activity, $participant)));
-        $this->assertSame(['manual evidence'], $workflow->evidenceRequirements($activity, $participant)->pluck('title')->all());
-        $this->assertSame(['manual_notes', 'automation_notes'], array_keys($workflow->fieldDefinitions($activity, $coach)));
-        $this->assertSame(['manual evidence', 'automation evidence'], $workflow->evidenceRequirements($activity, $coach)->pluck('title')->all());
+        $this->assertSame(['manual_notes', 'automation_notes'], array_keys($workflow->fieldDefinitions($activity)));
+        $this->assertSame(['manual evidence', 'automation evidence'], $workflow->evidenceRequirements($activity)->pluck('title')->all());
     }
 
     public function test_participant_submission_page_exposes_expandable_field_guidance(): void
@@ -63,7 +59,7 @@ class ParticipantFieldGuidanceTest extends TestCase
         $this->submissionField($activity, ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea']);
         $deprecated = $this->submissionField($activity, ['key' => 'artifact_context', 'label' => 'Real AI artifact and work context', 'type' => 'textarea', 'deprecated' => true]);
 
-        $this->assertSame(['finding'], array_keys(app(SubmissionWorkflowService::class)->fieldDefinitions($activity, $participant)));
+        $this->assertSame(['finding'], array_keys(app(SubmissionWorkflowService::class)->fieldDefinitions($activity)));
         $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
             ->assertOk()
             ->assertSee('Finding')

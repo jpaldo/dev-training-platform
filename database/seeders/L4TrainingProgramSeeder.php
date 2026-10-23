@@ -219,7 +219,6 @@ class L4TrainingProgramSeeder extends Seeder
 
         foreach ($definition['fields'] as $index => $field) {
             $attributes = [
-                'participant_path' => null,
                 'title' => $field['label'],
                 'description' => $field['help'],
                 'is_required' => $field['required'],

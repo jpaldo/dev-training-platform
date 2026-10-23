@@ -42,7 +42,7 @@ class ActivitySubmissionPageService
     {
         $submission = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $participant->id)->with(['versions' => fn (Relation $query): Relation => $query->with(['evidence', 'reviews', 'interactions'])->orderByDesc('version_number')])->orderByDesc('attempt_number')->first();
         $version = $submission?->versions->first();
-        $fields = $this->workflow->fieldDefinitions($activity, $participant);
+        $fields = $this->workflow->fieldDefinitions($activity);
         $showInteractions = collect($fields)->keys()->intersect(['prompt', 'exact_prompt', 'ai_output', 'exact_ai_output'])->isNotEmpty();
         /** @var ?SubmissionReview $coachFeedback */
         $coachFeedback = $submission?->versions->flatMap->reviews->sortByDesc('reviewed_at')->firstWhere('decision', ReviewDecision::NeedsRevision);
@@ -64,7 +64,7 @@ class ActivitySubmissionPageService
             'interactionRows' => $showInteractions ? $this->interactionRows($version) : [],
             'fieldSections' => $this->fieldSections($fields),
             'artifactTypes' => config('training.artifact_types'),
-            'evidenceRows' => $this->evidenceRows($this->workflow->evidenceRequirements($activity, $participant), $version),
+            'evidenceRows' => $this->evidenceRows($this->workflow->evidenceRequirements($activity), $version),
             'versionRows' => $this->versionRows($submission?->versions ?? collect(), $version),
         ];
     }
@@ -77,7 +77,7 @@ class ActivitySubmissionPageService
      */
     public function showData(User $participant, Activity $activity, SubmissionVersion $version): array
     {
-        $configured = collect($this->workflow->fieldDefinitions($activity, $participant))->mapWithKeys(fn (array $field): array => [$field['key'] => $field['label']])->all();
+        $configured = collect($this->workflow->fieldDefinitions($activity))->mapWithKeys(fn (array $field): array => [$field['key'] => $field['label']])->all();
         $responses = collect($version->field_values ?? [])->map(fn (mixed $value, int|string $key): array => [
             'label' => $configured[$key] ?? self::LEGACY_LABELS[$key] ?? ucwords(str_replace('_', ' ', $key)),
             'value' => $value,

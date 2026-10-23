@@ -36,8 +36,8 @@ class TrainingWorkbookService
 
     private function activityRows(User $participant, Activity $activity): array
     {
-        $requirements = $activity->requirements()->where('requirement_type', 'submission_field')->where(fn (Builder $q): Builder => $q->whereNull('participant_path')->orWhereIn('participant_path', $participant->eligibleTrainingPaths()))->orderBy('position')->get()->filter(fn (ActivityRequirement $r): bool => ! ($r->configuration['deprecated'] ?? false));
-        $allRequirements = $activity->requirements()->where('requirement_type', 'submission_field')->where(fn (Builder $q): Builder => $q->whereNull('participant_path')->orWhereIn('participant_path', $participant->eligibleTrainingPaths()))->orderBy('position')->get();
+        $requirements = $activity->requirements()->where('requirement_type', 'submission_field')->orderBy('position')->get()->filter(fn (ActivityRequirement $r): bool => ! ($r->configuration['deprecated'] ?? false));
+        $allRequirements = $activity->requirements()->where('requirement_type', 'submission_field')->orderBy('position')->get();
         $fields = $requirements->mapWithKeys(fn (ActivityRequirement $r): array => [$r->configuration['key'] => $r->configuration['label'] ?? $r->title]);
         $headers = ['Participant', 'QA Path', 'Week', 'Activity', 'Submission ID', 'Attempt', 'Submission Version', 'Submission Status', 'Submitted At', 'Participant Notes', ...$fields->values()->all()];
         $submission = ActivitySubmission::query()

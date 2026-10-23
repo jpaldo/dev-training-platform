@@ -153,7 +153,6 @@ class L4TrainingProgramSeederTest extends TestCase
     public function test_running_without_a_field_removes_it_from_the_submission_form_but_keeps_the_record(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
-        $participant = User::factory()->create();
 
         $this->runSeederWithDefinition(function (array $definition): array {
             $definition['weeks'][0]['activities'][0]['fields'] = [$definition['weeks'][0]['activities'][0]['fields'][0]];
@@ -162,7 +161,7 @@ class L4TrainingProgramSeederTest extends TestCase
         });
 
         $activity = Activity::query()->where('title', 'Placeholder Activity 1.1')->sole();
-        $this->assertSame(['deliverable_url'], array_keys(app(SubmissionWorkflowService::class)->fieldDefinitions($activity, $participant)));
+        $this->assertSame(['deliverable_url'], array_keys(app(SubmissionWorkflowService::class)->fieldDefinitions($activity)));
         $notes = $activity->requirements()->where('title', 'Notes')->sole();
         $this->assertFalse($notes->is_required);
         $this->assertTrue($notes->configuration['deprecated']);

@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\SubmissionStatus;
-use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
@@ -21,32 +20,32 @@ use Illuminate\Validation\ValidationException;
 
 class SubmissionWorkflowService
 {
-    public function fieldDefinitions(Activity $activity, User $user): array
+    /**
+     * The activity's submission fields in order, keyed by field key and without deprecated fields. Every participant
+     * gets every field.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function fieldDefinitions(Activity $activity): array
     {
-        return $activity->requirements()->where('requirement_type', 'submission_field')->when($user->role === UserRole::Participant, function (Builder $query) use ($user): void {
-            $query->where(function (Builder $pathQuery) use ($user): void {
-                $pathQuery->whereNull('participant_path')->orWhereIn('participant_path', $user->eligibleTrainingPaths());
-            });
-        })->orderBy('position')->get()->filter(fn (ActivityRequirement $req): bool => ! ($req->configuration['deprecated'] ?? false))->mapWithKeys(fn (ActivityRequirement $req): array => [$req->configuration['key'] => $req->configuration])->all();
+        return $activity->requirements()->where('requirement_type', 'submission_field')->orderBy('position')->get()->filter(fn (ActivityRequirement $req): bool => ! ($req->configuration['deprecated'] ?? false))->mapWithKeys(fn (ActivityRequirement $req): array => [$req->configuration['key'] => $req->configuration])->all();
     }
 
     /**
+     * The activity's evidence requirements in order, except gate evidence. Every participant gets every requirement.
+     *
      * @return Collection<int, EvidenceRequirement>
      */
-    public function evidenceRequirements(Activity $activity, User $user): Collection
+    public function evidenceRequirements(Activity $activity): Collection
     {
-        return EvidenceRequirement::query()->whereHas('activityRequirement', function (Builder $query) use ($activity, $user): void {
-            $query->where('activity_id', $activity->id)->where('requirement_type', '!=', 'gate_evidence')->when($user->role === UserRole::Participant, function (Builder $q) use ($user): void {
-                $q->where(function (Builder $pathQuery) use ($user): void {
-                    $pathQuery->whereNull('participant_path')->orWhereIn('participant_path', $user->eligibleTrainingPaths());
-                });
-            });
+        return EvidenceRequirement::query()->whereHas('activityRequirement', function (Builder $query) use ($activity): void {
+            $query->where('activity_id', $activity->id)->where('requirement_type', '!=', 'gate_evidence');
         })->with('activityRequirement')->orderBy('position')->get();
     }
 
     public function saveDraft(User $user, Activity $activity, array $fieldValues, ?string $note, ?array $interactions = null): SubmissionVersion
     {
-        $allowed = Arr::only($fieldValues, array_keys($this->fieldDefinitions($activity, $user)));
+        $allowed = Arr::only($fieldValues, array_keys($this->fieldDefinitions($activity)));
         if (array_key_exists('artifact_type_other', $fieldValues) && filled($fieldValues['artifact_type_other'])) {
             $allowed['artifact_type'] = trim((string) $fieldValues['artifact_type_other']);
         }
@@ -112,7 +111,7 @@ class SubmissionWorkflowService
             if ($submission->user_id !== $user->id || ! $version->isDraft()) {
                 throw ValidationException::withMessages(['submission' => 'Only the current draft can be submitted.']);
             }
-            $this->validateSubmissionRequirements($submission->activity, $user, $version);
+            $this->validateSubmissionRequirements($submission->activity, $version);
             $resubmission = $submission->versions()->whereNotNull('submitted_at')->where('id', '<>', $version->id)->exists();
             $version->update(['status' => SubmissionStatus::Submitted, 'submitted_at' => now()]);
             $submission->update(['status' => $resubmission ? SubmissionStatus::Resubmitted : SubmissionStatus::Submitted, 'submitted_at' => now()]);
@@ -131,10 +130,10 @@ class SubmissionWorkflowService
      *
      * @throws ValidationException
      */
-    private function validateSubmissionRequirements(Activity $activity, User $user, SubmissionVersion $version): void
+    private function validateSubmissionRequirements(Activity $activity, SubmissionVersion $version): void
     {
         $values = $version->field_values ?? [];
-        foreach ($this->fieldDefinitions($activity, $user) as $field) {
+        foreach ($this->fieldDefinitions($activity) as $field) {
             if (($field['required'] ?? false) && blank($values[$field['key']] ?? null)) {
                 throw ValidationException::withMessages(['field_values.'.$field['key'] => $field['label'].' is required before submission.']);
             }
@@ -143,7 +142,7 @@ class SubmissionWorkflowService
             }
         }
 
-        $unmetRequirement = $this->firstUnmetEvidenceRequirement($activity, $user, $version);
+        $unmetRequirement = $this->firstUnmetEvidenceRequirement($activity, $version);
         if ($unmetRequirement !== null) {
             throw ValidationException::withMessages(['evidence' => $unmetRequirement->evidence_type === 'asset' ? 'Please upload your Reusable AI Asset before submitting Activity 1.' : $unmetRequirement->title.' is required before submission.']);
         }
@@ -153,9 +152,9 @@ class SubmissionWorkflowService
      * The first required evidence requirement without enough evidence on the version. File, screenshot and asset
      * evidence counts only when the uploaded file still exists on its disk.
      */
-    private function firstUnmetEvidenceRequirement(Activity $activity, User $user, SubmissionVersion $version): ?EvidenceRequirement
+    private function firstUnmetEvidenceRequirement(Activity $activity, SubmissionVersion $version): ?EvidenceRequirement
     {
-        return $this->evidenceRequirements($activity, $user)->first(function (EvidenceRequirement $requirement) use ($version): bool {
+        return $this->evidenceRequirements($activity)->first(function (EvidenceRequirement $requirement) use ($version): bool {
             $evidence = $version->evidence->where('evidence_requirement_id', $requirement->id);
             if (in_array($requirement->evidence_type, ['file', 'screenshot', 'asset'], true)) {
                 $evidence = $evidence->filter(fn (SubmissionEvidence $item): bool => $item->isUploadedFile()

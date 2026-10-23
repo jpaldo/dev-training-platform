@@ -6,7 +6,8 @@ use App\Enums\UserRole;
 /**
  * Demo accounts that `DevelopmentAccountProvisioner` keeps in place in local, staging and testing environments, with
  * employee IDs in the `FS-` sequence: three participants and three mentors (`coach` role), all job role Developer,
- * plus one admin.
+ * plus one admin. Each participant's `mentor_email` names the demo mentor they get in the first L4 session, where the
+ * provisioner enrolls both (demo mentor n mentors demo participant n).
  */
 return [
     'accounts' => [
@@ -18,6 +19,7 @@ return [
             'password' => 'password',
             'role' => UserRole::Participant->value,
             'job_role' => JobRole::Developer->value,
+            'mentor_email' => 'coach.dev@example.test',
         ],
         [
             'employee_id' => 'FS-0002',
@@ -45,6 +47,7 @@ return [
             'password' => 'ParticipantDev1!2026',
             'role' => UserRole::Participant->value,
             'job_role' => JobRole::Developer->value,
+            'mentor_email' => 'mentor1.dev@example.test',
         ],
         [
             'employee_id' => 'FS-0005',
@@ -54,6 +57,7 @@ return [
             'password' => 'ParticipantDev2!2026',
             'role' => UserRole::Participant->value,
             'job_role' => JobRole::Developer->value,
+            'mentor_email' => 'mentor2.dev@example.test',
         ],
         [
             'employee_id' => 'FS-0006',

@@ -18,6 +18,8 @@ class DatabaseSeeder extends Seeder
         $this->call(L4TrainingProgramSeeder::class);
         $this->call(L4FirstSessionSeeder::class);
 
-        app(DevelopmentAccountProvisioner::class)->provision();
+        $provisioner = app(DevelopmentAccountProvisioner::class);
+        $provisioner->provision();
+        $provisioner->enrollInFirstSession();
     }
 }

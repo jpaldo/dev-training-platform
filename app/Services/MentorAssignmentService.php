@@ -21,21 +21,24 @@ class MentorAssignmentService
     public function __construct(private AdminAuditService $audit) {}
 
     /**
-     * Add the coaches to the session as mentors and record `session_mentor_added` for each of them. Returns the number
-     * added. The request has already checked that each is an active coach who is not yet a mentor of the session.
+     * Add the coaches to the session as mentors and record `session_mentor_added` for each of them for the admin who
+     * added them. Returns the number added. The caller has already checked that each is an active coach who is not yet
+     * a mentor of the session. Without an admin (demo provisioning, not an admin action) no audit row is written.
      *
      * @param  list<int>  $mentorIds
      */
-    public function addMentors(TrainingSession $session, array $mentorIds, User $admin): int
+    public function addMentors(TrainingSession $session, array $mentorIds, ?User $admin): int
     {
         return DB::transaction(function () use ($session, $mentorIds, $admin): int {
             $mentors = User::query()->whereKey($mentorIds)->get();
 
             $session->mentors()->attach($mentors->modelKeys());
 
-            $mentors->each(fn (User $mentor): AdminAuditLog => $this->audit->record($admin, 'session_mentor_added', $mentor, [
-                'training_session_id' => $session->id,
-            ]));
+            if ($admin !== null) {
+                $mentors->each(fn (User $mentor): AdminAuditLog => $this->audit->record($admin, 'session_mentor_added', $mentor, [
+                    'training_session_id' => $session->id,
+                ]));
+            }
 
             return $mentors->count();
         });
@@ -65,12 +68,13 @@ class MentorAssignmentService
      * Make the mentor the participant's current mentor in the session: end the current assignment, if any, and open a
      * new one from the same moment, and record `session_mentor_assigned` with the previous and new mentor IDs. When the
      * mentor already is the current one, nothing changes and that assignment is returned. The participant's membership
-     * row is locked first, so two assignments at once cannot both open a row.
+     * row is locked first, so two assignments at once cannot both open a row. Without an actor (demo provisioning, not
+     * an admin action) the new assignment has no `assigned_by` and no audit row is written.
      *
      * @throws ValidationException when the participant is not in the session (`participant`) or the mentor is not a
      *                             mentor of the session (`mentor_id`).
      */
-    public function assign(TrainingSession $session, User $participant, User $mentor, User $actor): MentorAssignment
+    public function assign(TrainingSession $session, User $participant, User $mentor, ?User $actor): MentorAssignment
     {
         return DB::transaction(function () use ($session, $participant, $mentor, $actor): MentorAssignment {
             $membership = TrainingSessionParticipant::query()
@@ -99,15 +103,17 @@ class MentorAssignmentService
             $assignment = $session->mentorAssignments()->create([
                 'participant_id' => $participant->id,
                 'mentor_id' => $mentor->id,
-                'assigned_by' => $actor->id,
+                'assigned_by' => $actor?->id,
                 'started_at' => $changedAt,
             ]);
 
-            $this->audit->record($actor, 'session_mentor_assigned', $participant, [
-                'training_session_id' => $session->id,
-                'previous_mentor_id' => $current?->mentor_id,
-                'mentor_id' => $mentor->id,
-            ]);
+            if ($actor !== null) {
+                $this->audit->record($actor, 'session_mentor_assigned', $participant, [
+                    'training_session_id' => $session->id,
+                    'previous_mentor_id' => $current?->mentor_id,
+                    'mentor_id' => $mentor->id,
+                ]);
+            }
 
             return $assignment;
         });

@@ -88,7 +88,6 @@ class ParticipantDashboardService
             ->orderBy('attempt_number')
             ->get()
             ->groupBy('activity_id');
-        $scoreMax = array_sum(array_column(ScoringService::DIMENSIONS, 'max'));
 
         foreach ($weeks as $week) {
             foreach ($week->activities as $activity) {
@@ -99,7 +98,7 @@ class ParticipantDashboardService
                 $activity->participant_status_tone = $activity->participant_submission?->status->tone() ?? 'neutral';
                 $activity->participant_action = $this->activityAction($activity->participant_submission?->status);
                 $activity->participant_score = $activity->participant_submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $version): bool => $version->publishedActivityScore !== null)?->publishedActivityScore;
-                $activity->participant_score_max = $scoreMax;
+                $activity->participant_score_max = $activity->scoringMaximum();
             }
         }
     }

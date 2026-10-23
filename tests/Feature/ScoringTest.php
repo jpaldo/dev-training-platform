@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Contracts\ScoringSuggestionProvider;
 use App\Enums\ActivityScoreStatus;
+use App\Models\Activity;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
@@ -27,11 +28,28 @@ class ScoringTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** The fixture activity's scoring dimensions: D1 to D5 worth 30, 25, 20, 15 and 10 points. */
+    private const DIMENSIONS = [
+        ['key' => 'D1', 'label' => 'Deliverable quality', 'max' => 30],
+        ['key' => 'D2', 'label' => 'Validation & verification', 'max' => 25],
+        ['key' => 'D3', 'label' => 'AI-augmented workflow', 'max' => 20],
+        ['key' => 'D4', 'label' => 'Judgment & iteration', 'max' => 15],
+        ['key' => 'D5', 'label' => 'Evidence & reasoning', 'max' => 10],
+    ];
+
+    /** D1 to D3 worth 50, 30 and 20 points. */
+    private const THREE_DIMENSIONS = [
+        ['key' => 'D1', 'label' => 'Problem solving', 'max' => 50],
+        ['key' => 'D2', 'label' => 'Code quality', 'max' => 30],
+        ['key' => 'D3', 'label' => 'Testing', 'max' => 20],
+    ];
+
     private function fixture(): array
     {
         $this->seed(QaTrainingProgramSeeder::class);
         $program = Program::where('name', 'AI-Assisted QA Level 3')->firstOrFail();
         $activity = $program->weeks()->where('week_number', 2)->firstOrFail()->activities()->firstOrFail();
+        $activity->update(['configuration' => [...$activity->configuration, 'scoring_dimensions' => self::DIMENSIONS]]);
         $participant = User::factory()->create(['training_path' => 'automation']);
         $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
         $coach->assignedParticipants()->attach($participant->id);
@@ -114,6 +132,66 @@ class ScoringTest extends TestCase
         $payload = ['dimensions' => ['D1' => ['points' => 31, 'evidence_reasoning' => 'x'], 'D2' => ['points' => 0, 'evidence_reasoning' => ''], 'D3' => ['points' => 0, 'evidence_reasoning' => 'x'], 'D4' => ['points' => 0, 'evidence_reasoning' => 'x'], 'D5' => ['points' => 0, 'evidence_reasoning' => 'x']]];
         $this->actingAs($coach)->post(route('coach.scoring.store', $version), $payload)->assertSessionHasErrors(['dimensions.D1.points', 'dimensions.D2.evidence_reasoning']);
         $this->assertDatabaseCount('activity_scores', 0);
+    }
+
+    public function test_a_score_covers_exactly_the_dimensions_of_the_versions_activity(): void
+    {
+        [$coach, $version] = $this->versionWithDimensions(self::THREE_DIMENSIONS);
+        $payload = ['dimensions' => ['D1' => ['points' => 45, 'evidence_reasoning' => 'Solved.'], 'D2' => ['points' => 25, 'evidence_reasoning' => 'Clean.'], 'D3' => ['points' => 15, 'evidence_reasoning' => 'Explained.']]];
+
+        $this->actingAs($coach)->post(route('coach.scoring.store', $version), $payload)->assertSessionHasNoErrors()->assertRedirect();
+
+        $score = ActivityScore::with('dimensions')->sole();
+        $this->assertSame(85, $score->total_score);
+        $this->assertSame(['D1', 'D2', 'D3'], $score->dimensions->pluck('dimension')->sort()->values()->all());
+    }
+
+    public function test_a_dimension_the_activity_does_not_have_is_rejected(): void
+    {
+        [$coach, $version] = $this->versionWithDimensions(self::THREE_DIMENSIONS);
+        $payload = ['dimensions' => ['D1' => ['points' => 45, 'evidence_reasoning' => 'Solved.'], 'D2' => ['points' => 25, 'evidence_reasoning' => 'Clean.'], 'D3' => ['points' => 15, 'evidence_reasoning' => 'Explained.'], 'D4' => ['points' => 10, 'evidence_reasoning' => 'Extra.']]];
+
+        $this->actingAs($coach)->post(route('coach.scoring.store', $version), $payload)
+            ->assertSessionHasErrors(['dimensions' => 'Score only the dimensions of this activity: D1, D2, D3.']);
+        $this->assertDatabaseCount('activity_scores', 0);
+    }
+
+    public function test_points_above_a_dimension_maximum_and_a_missing_dimension_are_rejected_by_label(): void
+    {
+        [$coach, $version] = $this->versionWithDimensions(self::THREE_DIMENSIONS);
+        $payload = ['dimensions' => ['D1' => ['points' => 60, 'evidence_reasoning' => 'Solved.'], 'D2' => ['points' => 25, 'evidence_reasoning' => 'Clean.']]];
+
+        $this->actingAs($coach)->post(route('coach.scoring.store', $version), $payload)
+            ->assertSessionHasErrors([
+                'dimensions.D1.points' => 'The Problem solving points field must not be greater than 50.',
+                'dimensions.D3.points' => 'The Testing points field is required.',
+                'dimensions.D3.evidence_reasoning' => 'The Testing evidence / reasoning field is required.',
+            ]);
+        $this->assertDatabaseCount('activity_scores', 0);
+    }
+
+    public function test_an_activity_without_dimensions_can_neither_be_scored_nor_get_a_suggestion(): void
+    {
+        [$coach, $version] = $this->versionWithDimensions([]);
+        $this->configureAiScoring();
+        Http::fake();
+
+        $this->actingAs($coach)->post(route('coach.scoring.store', $version), ['dimensions' => ['D1' => ['points' => 10, 'evidence_reasoning' => 'Reason']]])
+            ->assertSessionHasErrors(['dimensions' => 'This activity has no scoring dimensions, so it cannot be scored.']);
+        $this->actingAs($coach)->post(route('coach.scoring.suggestion', $version))
+            ->assertSessionHasErrors(['suggestion' => 'This activity has no scoring dimensions, so it cannot be scored.']);
+
+        Http::assertNothingSent();
+        $this->assertDatabaseCount('activity_scores', 0);
+        $this->assertDatabaseCount('activity_score_suggestions', 0);
+    }
+
+    public function test_feedback_can_only_be_improved_for_a_dimension_of_the_activity(): void
+    {
+        [$coach, $version] = $this->versionWithDimensions(self::THREE_DIMENSIONS);
+
+        $this->actingAs($coach)->postJson(route('coach.scoring.improve', $version), ['text' => 'Original feedback.', 'dimension' => 'D4'])
+            ->assertJsonValidationErrors('dimension');
     }
 
     public function test_completion_is_independent_from_score_and_zero_band_is_reserved_for_missing_score(): void
@@ -339,7 +417,7 @@ class ScoringTest extends TestCase
     public function test_production_top_level_missing_feedback_shape_is_rejected_without_persistence(): void
     {
         [, $coach, $version] = $this->fixture();
-        $shape = collect(ScoringService::DIMENSIONS)->mapWithKeys(fn ($dimension, $key) => [$key => ['suggested_score' => min(25, $dimension['max']), 'label' => $dimension['label'], 'max' => $dimension['max']]])->all();
+        $shape = collect(self::DIMENSIONS)->mapWithKeys(fn (array $dimension): array => [$dimension['key'] => ['suggested_score' => min(25, $dimension['max']), 'label' => $dimension['label'], 'max' => $dimension['max']]])->all();
         $shape += ['feedback' => 'Global feedback', 'evidence_basis' => 'Global basis', 'overall_feedback' => 'Overall feedback'];
         Http::fake(['*' => Http::response(['choices' => [['message' => ['content' => json_encode($shape)]]]], 200)]);
 
@@ -456,6 +534,23 @@ class ScoringTest extends TestCase
         $this->assertDatabaseCount('activity_scores', 0);
     }
 
+    /**
+     * A coach assigned to the participant of a submitted version of an activity with the given scoring dimensions.
+     *
+     * @param  list<array{key: string, label: string, max: int}>  $dimensions
+     * @return array{0: User, 1: SubmissionVersion}
+     */
+    private function versionWithDimensions(array $dimensions): array
+    {
+        $activity = Activity::factory()->withScoringDimensions($dimensions)->create();
+        $submission = ActivitySubmission::factory()->for($activity)->create(['status' => 'submitted', 'submitted_at' => now()]);
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $coach->assignedParticipants()->attach($submission->user_id);
+
+        return [$coach, $version];
+    }
+
     private function configureAiScoring(): void
     {
         ApplicationSetting::query()->updateOrCreate(['key' => 'ai_scoring.enabled'], ['value' => '1', 'is_encrypted' => false]);
@@ -466,7 +561,7 @@ class ScoringTest extends TestCase
 
     private function validSuggestion(): array
     {
-        return ['dimensions' => collect(ScoringService::DIMENSIONS)->mapWithKeys(fn ($dimension, $key) => [$key => ['suggested_score' => 1, 'feedback' => 'Suggested feedback', 'evidence_basis' => 'Submitted answer']])->all(), 'overall_feedback' => 'Review the evidence.'];
+        return ['dimensions' => collect(self::DIMENSIONS)->mapWithKeys(fn (array $dimension): array => [$dimension['key'] => ['suggested_score' => 1, 'feedback' => 'Suggested feedback', 'evidence_basis' => 'Submitted answer']])->all(), 'overall_feedback' => 'Review the evidence.'];
     }
 
     public function test_ai_dimension_diagnostics_distinguish_structural_failures_without_logging_text(): void
@@ -501,8 +596,8 @@ class ScoringTest extends TestCase
         $method = $reflection->getMethod('dimensionDiagnostics');
         $method->setAccessible(true);
 
-        foreach (ScoringService::DIMENSIONS as $key => $dimension) {
-            $metadata = $method->invoke($provider, $key, $dimension['max'], ['suggested_score' => $dimension['max'], 'feedback' => 'ok']);
+        foreach (self::DIMENSIONS as $dimension) {
+            $metadata = $method->invoke($provider, $dimension['key'], $dimension['max'], ['suggested_score' => $dimension['max'], 'feedback' => 'ok']);
             $this->assertSame($dimension['max'], $metadata['dimension_max']);
             $this->assertTrue($metadata['points_in_range']);
             $this->assertSame('valid', $metadata['validation_result']);

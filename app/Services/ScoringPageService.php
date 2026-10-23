@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\TrainingPath;
 use App\Enums\UserRole;
+use App\Models\Activity;
 use App\Models\ActivityScore;
 use App\Models\ActivityScoreSuggestion;
 use App\Models\Program;
@@ -13,6 +14,7 @@ use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class ScoringPageService
@@ -29,14 +31,11 @@ class ScoringPageService
     /** The band a submitted version without a score is counted under in the scoring reports' band distribution. */
     private const NOT_SCORED_BAND = 'Not Scored';
 
-    /** The points range of each performance band per rubric dimension, shown on the scoring criteria page. */
-    private const DIMENSION_BAND_RANGES = [
-        'D1' => ['Exemplary' => '27–30', 'Proficient' => '24–26', 'Developing' => '18–23', 'Beginning' => '11–17', 'Minimal' => '1–10'],
-        'D2' => ['Exemplary' => '23–25', 'Proficient' => '20–22', 'Developing' => '15–19', 'Beginning' => '9–14', 'Minimal' => '1–8'],
-        'D3' => ['Exemplary' => '18–20', 'Proficient' => '16–17', 'Developing' => '12–15', 'Beginning' => '7–11', 'Minimal' => '1–6'],
-        'D4' => ['Exemplary' => '14–15', 'Proficient' => '12–13', 'Developing' => '9–11', 'Beginning' => '6–8', 'Minimal' => '1–5'],
-        'D5' => ['Exemplary' => '9–10', 'Proficient' => '8', 'Developing' => '6–7', 'Beginning' => '4–5', 'Minimal' => '1–3'],
-    ];
+    /**
+     * The lowest score of each performance band as a percentage of the maximum, highest band first (the 0–100 bands
+     * of ScoringService::band()); a dimension's band ranges on the scoring criteria page scale them to its maximum.
+     */
+    private const BAND_MINIMUM_PERCENTAGES = ['Exemplary' => 90, 'Proficient' => 80, 'Developing' => 60, 'Beginning' => 35, 'Minimal' => 1];
 
     public function __construct(
         private readonly ScoringService $scoring,
@@ -49,10 +48,11 @@ class ScoringPageService
      * Everything the coach scoring page of a submission version renders: the header, the immutable submission (answers,
      * prompt / output history, evidence), the AI suggestions, the scoring fields with their values
      * (a suggestion draft kept from the page, otherwise the saved score, otherwise the suggestion when nothing is saved
-     * yet), the live score context and the second-reader review. The single main action is Save / Publish Score.
+     * yet), the live score context and the second-reader review. The scoring fields are the activity's scoring
+     * dimensions; an activity without dimensions cannot be scored. The single main action is Save / Publish Score.
      *
      * @param  array<string, mixed>|null  $draft  The scoring form values flashed when a suggestion was generated.
-     * @return array{version: SubmissionVersion, activityTitle: string, participantName: string, weekNumber: int, submissionStatus: string, submittedAt: string, answers: list<array{label: string, text: mixed}>, evidenceRows: list<array{title: string, detail: ?string}>, suggestion: ?ActivityScoreSuggestion, suggestionRows: list<array{heading: string, feedback: mixed, evidence_basis: mixed}>, evidenceProcessing: list<string>, suggestionData: ?array{dimensions: mixed, overall_feedback: ?string}, aiStatus: string, isAiConfigured: bool, canManage: bool, scoreFields: list<array{key: string, label: string, max: int, evidence_id: string, points_id: string, points: mixed, evidence_reasoning: mixed}>, overallFeedback: mixed, previousAverage: ?int, score: ?ActivityScore, canManageSecondReader: bool, readers: Collection<int, User>}
+     * @return array{version: SubmissionVersion, activityTitle: string, participantName: string, weekNumber: int, submissionStatus: string, submittedAt: string, answers: list<array{label: string, text: mixed}>, evidenceRows: list<array{title: string, detail: ?string}>, suggestion: ?ActivityScoreSuggestion, suggestionRows: list<array{heading: string, feedback: mixed, evidence_basis: mixed}>, evidenceProcessing: list<string>, suggestionData: ?array{dimensions: mixed, overall_feedback: ?string}, aiStatus: string, isAiConfigured: bool, canManage: bool, canScore: bool, rubricSummary: ?string, scoreMaximum: int, scoreFields: list<array{key: string, label: string, max: int, evidence_id: string, points_id: string, points: mixed, evidence_reasoning: mixed}>, overallFeedback: mixed, previousAverage: ?int, score: ?ActivityScore, canManageSecondReader: bool, readers: Collection<int, User>}
      */
     public function editData(SubmissionVersion $version, User $viewer, ?array $draft): array
     {
@@ -60,6 +60,7 @@ class ScoringPageService
         $submission = $version->submission;
         $score = $version->activityScore;
         $suggestion = $version->scoreSuggestion;
+        $dimensions = $submission->activity->scoringDimensions();
         $canManage = $viewer->canManageParticipant($submission->participant);
         $canManageSecondReader = $canManage && (bool) $score?->second_reader_required;
         $aiStatus = $this->configuration->adminValues()['status'];
@@ -74,13 +75,16 @@ class ScoringPageService
             'answers' => $this->answerRows($version),
             'evidenceRows' => $this->evidenceRows($version->evidence),
             'suggestion' => $suggestion,
-            'suggestionRows' => $this->suggestionRows($suggestion),
+            'suggestionRows' => $this->suggestionRows($dimensions, $suggestion),
             'evidenceProcessing' => $this->evidenceProcessing($suggestion),
             'suggestionData' => $suggestion ? ['dimensions' => $suggestion->dimensions, 'overall_feedback' => $suggestion->overall_feedback] : null,
             'aiStatus' => $aiStatus,
             'isAiConfigured' => $aiStatus === self::AI_CONFIGURED,
             'canManage' => $canManage,
-            'scoreFields' => $this->scoreFields($score, $suggestion, $draft),
+            'canScore' => $canManage && $dimensions !== [],
+            'rubricSummary' => $this->rubricSummary($dimensions),
+            'scoreMaximum' => $submission->activity->scoringMaximum(),
+            'scoreFields' => $this->scoreFields($dimensions, $score, $suggestion, $draft),
             'overallFeedback' => $this->overallFeedback($score, $suggestion, $draft),
             'previousAverage' => $this->scoring->runningAverage($submission->participant, $version->id),
             'score' => $score,
@@ -162,23 +166,31 @@ class ScoringPageService
     }
 
     /**
-     * The scoring criteria page: each rubric dimension with its maximum and the points range of every band.
+     * The scoring criteria page: the active program's name and, per active activity of its active weeks (week, then
+     * activity order), each scoring dimension with its maximum and the points range of every band.
      *
-     * @return array{dimensions: list<array{key: string, label: string, max: int, ranges: list<array{band: string, range: string}>}>}
+     * @return array{programName: ?string, activities: list<array{id: int, heading: string, dimensions: list<array{key: string, label: string, max: int, ranges: list<array{band: string, range: string}>}>}>}
      */
     public function criteriaData(): array
     {
+        $weeks = TrainingWeek::query()
+            ->inActiveProgram()
+            ->with(['program', 'activities' => fn (Relation $query): Relation => $query->where('is_active', true)->orderBy('position')])
+            ->orderBy('position')
+            ->get();
+
         return [
-            'dimensions' => collect(ScoringService::DIMENSIONS)
-                ->map(fn (array $dimension, string $key): array => [
-                    'key' => $key,
-                    'label' => $dimension['label'],
-                    'max' => $dimension['max'],
-                    'ranges' => collect(self::DIMENSION_BAND_RANGES[$key])
-                        ->map(fn (string $range, string $band): array => ['band' => $band, 'range' => $range])
-                        ->values()
-                        ->all(),
-                ])
+            'programName' => $weeks->first()?->program->name,
+            'activities' => $weeks
+                ->flatMap(fn (TrainingWeek $week): array => $week->activities
+                    ->map(fn (Activity $activity): array => [
+                        'id' => $activity->id,
+                        'heading' => "Week {$week->week_number} · {$activity->title}",
+                        'dimensions' => collect($activity->scoringDimensions())
+                            ->map(fn (array $dimension): array => [...$dimension, 'ranges' => $this->bandRanges($dimension['max'])])
+                            ->all(),
+                    ])
+                    ->all())
                 ->values()
                 ->all(),
         ];
@@ -221,6 +233,46 @@ class ScoringPageService
     public function completionData(array $filters): array
     {
         return ['stats' => $this->scoringCompletionStats($this->reports->versions($filters)->get())];
+    }
+
+    /**
+     * The points range of every performance band for a dimension with the given maximum ("27–30", or "8" when the
+     * range is one point, or "—" when the maximum is too small for the band).
+     *
+     * @return list<array{band: string, range: string}>
+     */
+    private function bandRanges(int $maximum): array
+    {
+        $ranges = [];
+        $upper = $maximum;
+        foreach (self::BAND_MINIMUM_PERCENTAGES as $band => $percentage) {
+            $lower = (int) ceil($maximum * $percentage / 100);
+            $ranges[] = ['band' => $band, 'range' => match (true) {
+                $lower > $upper => '—',
+                $lower === $upper => (string) $lower,
+                default => "{$lower}–{$upper}",
+            }];
+            $upper = min($upper, $lower - 1);
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * "D1 30 · D2 25 · … · Total 100" for the activity's scoring dimensions, or null without dimensions.
+     *
+     * @param  list<array{key: string, label: string, max: int}>  $dimensions
+     */
+    private function rubricSummary(array $dimensions): ?string
+    {
+        if ($dimensions === []) {
+            return null;
+        }
+
+        return collect($dimensions)
+            ->map(fn (array $dimension): string => "{$dimension['key']} {$dimension['max']}")
+            ->push('Total '.array_sum(array_column($dimensions, 'max')))
+            ->implode(' · ');
     }
 
     private function activeProgram(): Program
@@ -394,23 +446,28 @@ class ScoringPageService
     }
 
     /**
-     * The AI-suggested score and feedback for each dimension that has a suggestion, in rubric order.
+     * The AI-suggested score and feedback for each of the activity's dimensions that has a suggestion, in rubric order.
      *
+     * @param  list<array{key: string, label: string, max: int}>  $dimensions
      * @return list<array{heading: string, feedback: mixed, evidence_basis: mixed}>
      */
-    private function suggestionRows(?ActivityScoreSuggestion $suggestion): array
+    private function suggestionRows(array $dimensions, ?ActivityScoreSuggestion $suggestion): array
     {
         if (! $suggestion) {
             return [];
         }
 
-        return collect(ScoringService::DIMENSIONS)
-            ->filter(fn (array $dimension, string $key): bool => (bool) ($suggestion->dimensions[$key] ?? null))
-            ->map(fn (array $dimension, string $key): array => [
-                'heading' => "{$key} · {$dimension['label']} — Suggested {$suggestion->dimensions[$key]['suggested_score']}/{$dimension['max']}",
-                'feedback' => $suggestion->dimensions[$key]['feedback'],
-                'evidence_basis' => empty($suggestion->dimensions[$key]['evidence_basis']) ? null : $suggestion->dimensions[$key]['evidence_basis'],
-            ])
+        return collect($dimensions)
+            ->filter(fn (array $dimension): bool => (bool) ($suggestion->dimensions[$dimension['key']] ?? null))
+            ->map(function (array $dimension) use ($suggestion): array {
+                $suggested = $suggestion->dimensions[$dimension['key']];
+
+                return [
+                    'heading' => "{$dimension['key']} · {$dimension['label']} — Suggested {$suggested['suggested_score']}/{$dimension['max']}",
+                    'feedback' => $suggested['feedback'],
+                    'evidence_basis' => empty($suggested['evidence_basis']) ? null : $suggested['evidence_basis'],
+                ];
+            })
             ->values()
             ->all();
     }
@@ -433,18 +490,20 @@ class ScoringPageService
     }
 
     /**
-     * The scoring fields of each rubric dimension with their values: the draft kept while generating a suggestion,
-     * otherwise the saved score, otherwise (only while nothing is saved) the AI suggestion.
+     * The scoring fields of each of the activity's dimensions with their values: the draft kept while generating a
+     * suggestion, otherwise the saved score, otherwise (only while nothing is saved) the AI suggestion.
      *
+     * @param  list<array{key: string, label: string, max: int}>  $dimensions
      * @param  array<string, mixed>|null  $draft
      * @return list<array{key: string, label: string, max: int, evidence_id: string, points_id: string, points: mixed, evidence_reasoning: mixed}>
      */
-    private function scoreFields(?ActivityScore $score, ?ActivityScoreSuggestion $suggestion, ?array $draft): array
+    private function scoreFields(array $dimensions, ?ActivityScore $score, ?ActivityScoreSuggestion $suggestion, ?array $draft): array
     {
         $draftDimensions = is_array($draft['dimensions'] ?? null) ? $draft['dimensions'] : [];
         $suggestedDimensions = $suggestion?->dimensions ?? [];
 
-        return collect(ScoringService::DIMENSIONS)->map(function (array $dimension, string $key) use ($score, $draftDimensions, $suggestedDimensions): array {
+        return collect($dimensions)->map(function (array $dimension) use ($score, $draftDimensions, $suggestedDimensions): array {
+            $key = $dimension['key'];
             $existing = $score?->dimensions->firstWhere('dimension', $key);
             $draftValue = array_key_exists($key, $draftDimensions) ? ($draftDimensions[$key] ?? []) : null;
             $suggested = $suggestedDimensions[$key] ?? [];

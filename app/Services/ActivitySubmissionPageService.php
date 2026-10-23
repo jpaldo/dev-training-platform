@@ -6,6 +6,7 @@ use App\Enums\ReviewDecision;
 use App\Enums\SubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityScore;
+use App\Models\ActivityScoreDimension;
 use App\Models\ActivitySubmission;
 use App\Models\EvidenceRequirement;
 use App\Models\SubmissionEvidence;
@@ -97,7 +98,7 @@ class ActivitySubmissionPageService
                 'comments' => $review->comments,
             ])->values()->all(),
             'finalScore' => $finalScore,
-            'dimensionRows' => $this->dimensionRows($finalScore),
+            'dimensionRows' => $this->dimensionRows($activity, $finalScore),
             'isAwaitingRevision' => $version->submission->needsRevision(),
             'versionRows' => $versions->count() > 1 ? $this->versionRows($versions->where('status', '!=', SubmissionStatus::Draft)->sortByDesc('version_number'), $version) : [],
         ];
@@ -211,20 +212,24 @@ class ActivitySubmissionPageService
     }
 
     /**
-     * The published score's dimension rows (D1 to D5, in order) that were scored.
+     * The published score's dimension rows in the activity's rubric order; a scored dimension the activity no longer
+     * has follows, by key.
      *
      * @return list<array{dimension: string, points: int, evidence_reasoning: string}>
      */
-    private function dimensionRows(?ActivityScore $score): array
+    private function dimensionRows(Activity $activity, ?ActivityScore $score): array
     {
-        $dimensions = $score?->dimensions->keyBy('dimension') ?? collect();
+        $rubricOrder = array_flip(array_column($activity->scoringDimensions(), 'key'));
 
-        return collect(array_keys(ScoringService::DIMENSIONS))
-            ->filter(fn (string $dimension): bool => $dimensions->has($dimension))
-            ->map(fn (string $dimension): array => [
-                'dimension' => $dimension,
-                'points' => $dimensions->get($dimension)->points,
-                'evidence_reasoning' => $dimensions->get($dimension)->evidence_reasoning,
+        return ($score?->dimensions ?? collect())
+            ->sortBy([
+                fn (ActivityScoreDimension $first, ActivityScoreDimension $second): int => ($rubricOrder[$first->dimension] ?? PHP_INT_MAX) <=> ($rubricOrder[$second->dimension] ?? PHP_INT_MAX),
+                fn (ActivityScoreDimension $first, ActivityScoreDimension $second): int => $first->dimension <=> $second->dimension,
+            ])
+            ->map(fn (ActivityScoreDimension $dimension): array => [
+                'dimension' => $dimension->dimension,
+                'points' => $dimension->points,
+                'evidence_reasoning' => $dimension->evidence_reasoning,
             ])
             ->values()
             ->all();

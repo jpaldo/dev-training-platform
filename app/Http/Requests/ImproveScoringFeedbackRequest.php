@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Models\SubmissionVersion;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class ImproveScoringFeedbackRequest extends FormRequest
 {
@@ -31,7 +32,7 @@ class ImproveScoringFeedbackRequest extends FormRequest
     {
         return [
             'text' => ['required', 'string', 'max:10000'],
-            'dimension' => ['nullable', 'string', 'in:D1,D2,D3,D4,D5'],
+            'dimension' => ['nullable', 'string', Rule::in(array_column($this->route('submissionVersion')->loadMissing('submission.activity')->submission->activity->scoringDimensions(), 'key'))],
         ];
     }
 }

@@ -2,10 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Contracts\ScoringSuggestionProvider;
+use App\Models\Activity;
+use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
+use App\Models\Program;
+use App\Models\SubmissionVersion;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\AiProviderConfigurationService;
 use App\Services\AiScoringProviderResolver;
+use App\Services\ScoringSuggestionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
@@ -36,6 +43,46 @@ class AiProviderArchitectureTest extends TestCase
         foreach ($responses as $provider => $response) {
             $result = app(AiScoringProviderResolver::class)->test(['enabled' => true, 'provider' => $provider, 'model' => 'test-model', 'api_key' => 'test-key']);
             $this->assertTrue($result['ok'], $provider.': '.$result['message']);
+        }
+    }
+
+    public function test_every_provider_builds_the_scoring_prompt_from_the_program_week_activity_and_its_dimensions(): void
+    {
+        $week = TrainingWeek::factory()
+            ->for(Program::factory()->state(['name' => 'L4 Accelerator Training']))
+            ->create(['week_number' => 1, 'title' => 'Foundations']);
+        $activity = Activity::factory()->for($week, 'week')->withScoringDimensions([
+            ['key' => 'D1', 'label' => 'Problem solving', 'max' => 50],
+            ['key' => 'D2', 'label' => 'Code quality', 'max' => 30],
+            ['key' => 'D3', 'label' => 'Testing', 'max' => 20],
+        ])->create(['title' => 'Build the API', 'description' => 'Design and ship a small REST endpoint.']);
+        $submission = ActivitySubmission::factory()->for($activity)->create(['status' => 'submitted', 'submitted_at' => now()]);
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'field_values' => ['notes' => 'Shipped it.'], 'submitted_at' => now()]);
+        $suggestion = json_encode([
+            'dimensions' => collect(['D1', 'D2', 'D3'])->mapWithKeys(fn (string $key): array => [$key => ['suggested_score' => 10, 'feedback' => 'ok', 'evidence_basis' => 'answer']])->all(),
+            'overall_feedback' => 'ok',
+        ]);
+        Http::fake([
+            'api.anthropic.com/*' => Http::response(['content' => [['type' => 'text', 'text' => $suggestion]]]),
+            'generativelanguage.googleapis.com/*' => Http::response(['candidates' => [['content' => ['parts' => [['text' => $suggestion]]]]]]),
+            '*' => Http::response(['choices' => [['message' => ['content' => $suggestion]]]]),
+        ]);
+
+        foreach (['openrouter', 'openai', 'anthropic', 'gemini'] as $provider) {
+            app(AiProviderConfigurationService::class)->save(['enabled' => true, 'provider' => $provider, 'model' => 'test-model', 'api_key' => 'test-key']);
+            app()->forgetInstance(ScoringSuggestionProvider::class);
+
+            $this->assertSame(['D1', 'D2', 'D3'], array_keys(app(ScoringSuggestionService::class)->generate($version)->dimensions), $provider);
+        }
+
+        $prompts = Http::recorded()->map(fn (array $exchange): string => json_encode($exchange[0]->data(), JSON_UNESCAPED_UNICODE));
+        $this->assertCount(4, $prompts);
+        foreach ($prompts as $prompt) {
+            foreach (['L4 Accelerator Training', 'Week 1: Foundations', 'Build the API', 'Design and ship a small REST endpoint.', 'Problem solving', 'Code quality', 'Testing', 'dimensions.D1, dimensions.D2 and dimensions.D3'] as $expected) {
+                $this->assertStringContainsString($expected, $prompt);
+            }
+            $this->assertStringNotContainsString('D4', $prompt);
+            $this->assertDoesNotMatchRegularExpression('/qa/i', $prompt);
         }
     }
 

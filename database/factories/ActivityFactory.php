@@ -31,4 +31,24 @@ class ActivityFactory extends Factory
             'is_active' => true,
         ];
     }
+
+    /**
+     * Give the activity scoring dimensions: the given ones, or D1 to D4 worth 40, 30, 20 and 10 points.
+     *
+     * @param  list<array{key: string, label: string, max: int}>|null  $dimensions
+     */
+    public function withScoringDimensions(?array $dimensions = null): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'configuration' => [
+                ...($attributes['configuration'] ?? []),
+                'scoring_dimensions' => $dimensions ?? [
+                    ['key' => 'D1', 'label' => 'Deliverable', 'max' => 40],
+                    ['key' => 'D2', 'label' => 'Code quality', 'max' => 30],
+                    ['key' => 'D3', 'label' => 'Testing', 'max' => 20],
+                    ['key' => 'D4', 'label' => 'Reflection', 'max' => 10],
+                ],
+            ],
+        ]);
+    }
 }

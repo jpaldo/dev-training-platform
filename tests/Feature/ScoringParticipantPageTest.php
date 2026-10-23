@@ -9,7 +9,6 @@ use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Services\ScoringService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -108,12 +107,12 @@ class ScoringParticipantPageTest extends TestCase
     public function test_a_saved_score_returns_to_the_page_with_the_saved_status(): void
     {
         Queue::fake();
-        $activity = Activity::factory()->for($this->week(Program::factory()->create(), 2), 'week')->create();
+        $activity = Activity::factory()->for($this->week(Program::factory()->create(), 2), 'week')->withScoringDimensions()->create();
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
         $coach->assignedParticipants()->attach($participant->id);
         $version = $this->version($participant, $activity, 'submitted');
-        $dimensions = collect(ScoringService::DIMENSIONS)->map(fn (array $dimension): array => ['points' => 1, 'evidence_reasoning' => 'Reason'])->all();
+        $dimensions = collect($activity->scoringDimensions())->mapWithKeys(fn (array $dimension): array => [$dimension['key'] => ['points' => 1, 'evidence_reasoning' => 'Reason']])->all();
 
         $this->actingAs($coach)->followingRedirects()
             ->post(route('coach.scoring.store', $version), ['dimensions' => $dimensions])

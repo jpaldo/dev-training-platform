@@ -81,6 +81,24 @@ class SubmissionVersionPageTest extends TestCase
         $this->assertStringNotContainsString('<strong>D2:</strong>', $html);
     }
 
+    public function test_published_dimension_scores_follow_the_activity_rubric_order_then_dimensions_it_no_longer_has(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $activity->update(['configuration' => ['scoring_dimensions' => [
+            ['key' => 'D2', 'label' => 'Code quality', 'max' => 60],
+            ['key' => 'D1', 'label' => 'Problem solving', 'max' => 40],
+        ]]]);
+        $version = $this->submittedVersion($participant, $activity, 'approved');
+        $score = ActivityScore::create(['submission_version_id' => $version->id, 'scorer_id' => User::factory()->create(['role' => 'coach'])->id, 'status' => 'published', 'total_score' => 70, 'performance_band' => 'Developing']);
+        foreach ([['D5', 5], ['D1', 30], ['D2', 35]] as [$dimension, $points]) {
+            ActivityScoreDimension::create(['activity_score_id' => $score->id, 'dimension' => $dimension, 'points' => $points, 'evidence_reasoning' => '']);
+        }
+
+        $this->actingAs($participant)->get(route('training.submission.show', [$week, $activity, $version]))
+            ->assertOk()
+            ->assertSeeInOrder(['<strong>D2:</strong> 35 points', '<strong>D1:</strong> 30 points', '<strong>D5:</strong> 5 points'], false);
+    }
+
     #[DataProvider('unscoredReviewStates')]
     public function test_unscored_review_explains_what_happens_next(string $submissionStatus, string $message): void
     {

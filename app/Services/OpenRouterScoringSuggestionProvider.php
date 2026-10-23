@@ -149,7 +149,7 @@ class OpenRouterScoringSuggestionProvider implements ScoringSuggestionProvider
 
         $shape = is_array($decoded['dimensions'] ?? null)
             ? 'wrapped_dimensions'
-            : (collect(['D1', 'D2', 'D3', 'D4', 'D5'])->every(fn (string $key): bool => array_key_exists($key, $decoded)) ? 'top_level_dimensions' : 'other');
+            : (preg_grep('/^D[1-9]$/', array_keys($decoded)) !== [] ? 'top_level_dimensions' : 'other');
         Log::warning('AI scoring response metadata received.', [
             'phase' => $phase,
             'http_status' => $response->status(),
@@ -324,7 +324,7 @@ class OpenRouterScoringSuggestionProvider implements ScoringSuggestionProvider
         return [
             'type' => 'json_schema',
             'json_schema' => [
-                'name' => 'qa_scoring_suggestion',
+                'name' => 'scoring_suggestion',
                 'strict' => true,
                 'schema' => [
                     'type' => 'object',
@@ -344,16 +344,29 @@ class OpenRouterScoringSuggestionProvider implements ScoringSuggestionProvider
         ];
     }
 
+    /**
+     * The scoring request: the program, week and activity the submission answers, the submission itself (answers,
+     * prompt / output history, evidence) and the activity's scoring dimensions, followed by any image evidence.
+     *
+     * @param  array<string, array{key: string, label: string, max: int}>  $dimensions
+     * @param  list<array<string, mixed>>  $answers
+     * @param  array{items: array<int, array<string, mixed>>, statuses: array<int, array<string, mixed>>}  $evidence
+     * @return string|list<array<string, mixed>>
+     */
     private function prompt(SubmissionVersion $version, array $dimensions, array $answers, array $evidence): string|array
     {
+        $activity = $version->loadMissing('submission.activity.week.program')->submission->activity;
         $context = json_encode([
             'task' => 'Suggest, do not finalize, a mentor score for this immutable submission.',
+            'program' => $activity->week->program->name,
+            'week' => "Week {$activity->week->week_number}: {$activity->week->title}",
+            'activity' => ['title' => $activity->title, 'description' => $activity->description],
             'submission_version' => $version->id,
             'answers' => $answers,
             'interactions' => $version->interactions->map(fn (SubmissionInteraction $item): array => ['sequence' => $item->sequence, 'prompt' => $item->prompt, 'output' => $item->output])->values()->all(),
             'evidence' => array_map(fn (array $item): array => array_filter($item, fn (int|string $key): bool => $key !== 'image_url', ARRAY_FILTER_USE_KEY), $evidence['items']),
-            'dimensions' => $dimensions,
-            'output_contract' => 'Return only the exact JSON schema: dimensions.D1 through dimensions.D5 must each contain suggested_score as an integer within its supplied maximum, non-empty feedback, and non-empty evidence_basis. Include non-empty overall_feedback. Do not put dimension fields or feedback at the top level.',
+            'dimensions' => array_values($dimensions),
+            'output_contract' => 'Return only the exact JSON schema: '.collect(array_keys($dimensions))->map(fn (string $key): string => "dimensions.{$key}")->join(', ', ' and ').' must each contain suggested_score as an integer within its supplied maximum, non-empty feedback, and non-empty evidence_basis. Include non-empty overall_feedback. Do not put dimension fields or feedback at the top level.',
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $images = array_values(array_filter($evidence['items'], fn (array $item): bool => isset($item['image_url'])));
         if ($images === []) {

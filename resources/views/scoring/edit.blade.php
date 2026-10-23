@@ -21,7 +21,7 @@
             <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $participantName }} · Week {{ $weekNumber }} · Submission Version {{ $version->version_number }}</p>
         </header>
 
-        @if($canManage)
+        @if($canScore)
             <x-ui.main-action id="scoring-main-action">
                 <x-ui.button type="submit" form="score-form">Save / Publish Score</x-ui.button>
             </x-ui.main-action>
@@ -91,7 +91,11 @@
             <x-ui.card as="section" class="grid grid-cols-1 gap-2" aria-labelledby="rubric-title">
                 <h2 id="rubric-title" class="{{ $sectionTitleClasses }}">Rubric reference</h2>
                 <p class="{{ $hintClasses }}">Write evidence/reasoning before assigning points. The total and performance band are calculated server-side.</p>
-                <p class="m-0">D1 30 · D2 25 · D3 20 · D4 15 · D5 10 · Total 100</p>
+                @if($rubricSummary)
+                    <p class="m-0">{{ $rubricSummary }}</p>
+                @else
+                    <p class="m-0">No scoring dimensions are set for this activity.</p>
+                @endif
             </x-ui.card>
 
             @if($suggestion)
@@ -131,7 +135,7 @@
 
             <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_16.25rem]">
                 <x-ui.card as="section" class="grid min-w-0 grid-cols-1 gap-5" aria-label="Activity score">
-                    @if($canManage)
+                    @if($canScore)
                         <div class="grid justify-items-start gap-3">
                             <p class="{{ $hintClasses }}">AI scoring status: {{ $aiStatus }}.</p>
                             @if($isAiConfigured)
@@ -195,16 +199,20 @@
                                 @enderror
                             </div>
                         </form>
+                    @elseif($canManage)
+                        <x-ui.alert tone="warning" role="status">This activity has no scoring dimensions, so it cannot be scored.</x-ui.alert>
                     @else
                         <x-ui.alert tone="error" role="status">Read only — this participant is not assigned to you.</x-ui.alert>
                     @endif
                 </x-ui.card>
 
-                <x-ui.card as="aside" class="grid gap-3 max-lg:order-first lg:sticky lg:top-6 lg:text-center" aria-live="polite" aria-label="Live score">
-                    <div class="text-xs tracking-[0.08em] text-muted uppercase">Live Score</div>
-                    <div class="text-4xl/tight font-bold"><strong id="score-total">0</strong> / 100</div>
-                    <div class="text-sm/relaxed text-muted">Previous running average<br><strong class="text-slate-100">{{ $previousAverage ?? '—' }}</strong></div>
-                </x-ui.card>
+                @if($scoreFields !== [])
+                    <x-ui.card as="aside" class="grid gap-3 max-lg:order-first lg:sticky lg:top-6 lg:text-center" aria-live="polite" aria-label="Live score">
+                        <div class="text-xs tracking-[0.08em] text-muted uppercase">Live Score</div>
+                        <div class="text-4xl/tight font-bold"><strong id="score-total">0</strong> / {{ $scoreMaximum }}</div>
+                        <div class="text-sm/relaxed text-muted">Previous running average<br><strong class="text-slate-100">{{ $previousAverage ?? '—' }}</strong></div>
+                    </x-ui.card>
+                @endif
             </div>
 
             @if($canManageSecondReader)

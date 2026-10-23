@@ -55,7 +55,7 @@ class ParticipantDashboardControllerTest extends TestCase
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
 
         foreach ([[1, ActivityScoreStatus::Published, 88], [2, ActivityScoreStatus::Draft, 41]] as [$position, $status, $totalScore]) {
-            $activity = Activity::factory()->for($week, 'week')->create(['position' => $position]);
+            $activity = Activity::factory()->for($week, 'week')->withScoringDimensions()->create(['position' => $position]);
             $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted']);
             $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
             ActivityScore::create(['submission_version_id' => $version->id, 'scorer_id' => $coach->id, 'status' => $status, 'total_score' => $totalScore, 'performance_band' => 'Proficient']);

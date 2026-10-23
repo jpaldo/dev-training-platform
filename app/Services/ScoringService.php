@@ -15,13 +15,8 @@ use Illuminate\Support\Collection;
 
 class ScoringService
 {
-    public const DIMENSIONS = [
-        'D1' => ['label' => 'Deliverable quality', 'max' => 30],
-        'D2' => ['label' => 'Validation & verification', 'max' => 25],
-        'D3' => ['label' => 'AI-augmented workflow', 'max' => 20],
-        'D4' => ['label' => 'Judgment & iteration', 'max' => 15],
-        'D5' => ['label' => 'Evidence & reasoning', 'max' => 10],
-    ];
+    /** Why an activity without scoring dimensions can neither be scored nor get an AI suggestion. */
+    public const NO_DIMENSIONS_MESSAGE = 'This activity has no scoring dimensions, so it cannot be scored.';
 
     public function band(?int $score): string
     {

@@ -12,7 +12,6 @@ use App\Models\SubmissionInteraction;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Services\ScoringService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +20,13 @@ use Tests\TestCase;
 class ScoringEditPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
+
+    /** The scoring dimensions of the version's activity: D1 to D3 worth 50, 30 and 20 points. */
+    private const DIMENSIONS = [
+        ['key' => 'D1', 'label' => 'Problem solving', 'max' => 50],
+        ['key' => 'D2', 'label' => 'Code quality', 'max' => 30],
+        ['key' => 'D3', 'label' => 'Testing & verification', 'max' => 20],
+    ];
 
     public function test_assigned_coach_sees_the_submission_and_a_single_main_action_for_the_score_form(): void
     {
@@ -43,16 +49,17 @@ class ScoringEditPageTest extends TestCase
             '>Checks</strong>', 'a/b',
             'Prompt / output history', 'Prompt 1', 'First prompt', 'AI Output 1', 'First output',
             '>Evidence</h3>', '>Bug link</strong>', 'https://example.com/bug', '>text</strong>', 'Plain text evidence',
-            'Rubric reference', 'D1 30 · D2 25 · D3 20 · D4 15 · D5 10 · Total 100',
+            'Rubric reference', 'D1 50 · D2 30 · D3 20 · Total 100',
             'AI scoring status: Disabled.',
             'AI scoring suggestions are unavailable. Manual scoring remains enabled.',
             'id="score-form" method="POST" action="'.route('coach.scoring.store', $version).'" data-improve-url="'.route('coach.scoring.improve', $version).'"',
-            'for="d1_evidence"', 'D1 &mdash; Deliverable quality evidence / reasoning (then points, max 30)',
+            'for="d1_evidence"', 'D1 &mdash; Problem solving evidence / reasoning (then points, max 50)',
             'data-ai-available="0" data-improve-target="d1_evidence" data-improve-dimension="D1" disabled>Improve</button>',
             'id="d1_evidence" name="dimensions[D1][evidence_reasoning]" required',
-            'data-score-points data-max="30" id="d1_points" type="number" name="dimensions[D1][points]" min="0" max="30" value="" required',
-            'D5 &mdash; Evidence &amp; reasoning evidence / reasoning (then points, max 10)',
-            'id="d5_points" type="number" name="dimensions[D5][points]" min="0" max="10" value="" required',
+            'data-score-points data-max="50" id="d1_points" type="number" name="dimensions[D1][points]" min="0" max="50" value="" required',
+            'D2 &mdash; Code quality evidence / reasoning (then points, max 30)',
+            'D3 &mdash; Testing &amp; verification evidence / reasoning (then points, max 20)',
+            'id="d3_points" type="number" name="dimensions[D3][points]" min="0" max="20" value="" required',
             'for="overall_feedback"', 'id="overall_feedback" name="overall_feedback" rows="4" maxlength="10000"',
             'for="history_reason"', 'id="history_reason" name="history_reason"',
             'Live Score', '<strong id="score-total">0</strong> / 100', 'Previous running average', '—',
@@ -63,6 +70,7 @@ class ScoringEditPageTest extends TestCase
         $this->assertSame(1, substr_count($content, '>Save / Publish Score</button>'));
         $this->assertSame(1, substr_count($content, 'from-brand to-brand-deep'), 'Save / Publish Score is the only primary button.');
         $this->assertStringNotContainsString('a\/b', $content);
+        $this->assertSame(3, substr_count($content, 'data-score-points data-max='));
         $response->assertDontSee('AI-assisted suggestions')->assertDontSee('id="suggestion-form"', false)->assertDontSee('Read only')->assertDontSee('Second reader')->assertDontSee('No submitted activity answers.');
     }
 
@@ -79,8 +87,8 @@ class ScoringEditPageTest extends TestCase
 
         $response->assertSeeInOrder([
             'AI-assisted suggestions',
-            'D1 · Deliverable quality — Suggested 1/30', 'Suggested feedback', 'Basis: Submitted answer',
-            'D5 · Evidence &amp; reasoning — Suggested 1/10',
+            'D1 · Problem solving — Suggested 1/50', 'Suggested feedback', 'Basis: Submitted answer',
+            'D3 · Testing &amp; verification — Suggested 1/20',
             '<strong>Overall Suggested Feedback:</strong> Suggested overall feedback.',
             'Evidence considered:', 'notes.txt → inspected (text extract)', 'Evidence → not supported',
             'AI scoring status: Configured.',
@@ -89,11 +97,11 @@ class ScoringEditPageTest extends TestCase
             'id="apply-message"', 'hidden>AI suggestions applied. Review the scoring before saving.</p>',
             'data-ai-available="1" data-improve-target="d1_evidence"',
             'name="dimensions[D1][evidence_reasoning]"', '>Suggested feedback</textarea>',
-            'name="dimensions[D1][points]" min="0" max="30" value="1" required',
+            'name="dimensions[D1][points]" min="0" max="50" value="1" required',
             '>Suggested overall feedback.</textarea>',
             'id="ai-suggestion-data"',
         ], false);
-        $this->assertSame(5, substr_count($response->getContent(), '>Suggested feedback</textarea>'));
+        $this->assertSame(3, substr_count($response->getContent(), '>Suggested feedback</textarea>'));
     }
 
     public function test_a_saved_score_fills_the_fields_instead_of_the_suggestion(): void
@@ -106,8 +114,8 @@ class ScoringEditPageTest extends TestCase
 
         $response->assertSeeInOrder([
             '>Saved D1</textarea>',
-            'name="dimensions[D1][points]" min="0" max="30" value="25" required',
-            'name="dimensions[D2][points]" min="0" max="25" value="" required',
+            'name="dimensions[D1][points]" min="0" max="50" value="25" required',
+            'name="dimensions[D2][points]" min="0" max="30" value="" required',
             '>Saved overall</textarea>',
         ], false);
         $this->assertStringNotContainsString('>Suggested feedback</textarea>', $response->getContent());
@@ -129,9 +137,9 @@ class ScoringEditPageTest extends TestCase
         $response->assertSeeInOrder([
             '>Generate Suggested Score &amp; Feedback</button>',
             '>Draft D1</textarea>',
-            'name="dimensions[D1][points]" min="0" max="30" value="7" required',
+            'name="dimensions[D1][points]" min="0" max="50" value="7" required',
             'name="dimensions[D2][evidence_reasoning]" required', '></textarea>',
-            'name="dimensions[D2][points]" min="0" max="25" value="" required',
+            'name="dimensions[D2][points]" min="0" max="30" value="" required',
             '>Saved D3</textarea>',
             'name="dimensions[D3][points]" min="0" max="20" value="15" required',
             '>Draft overall</textarea>',
@@ -145,8 +153,8 @@ class ScoringEditPageTest extends TestCase
     {
         [$coach, $version] = $this->assignedCoachWithVersion();
         $url = route('coach.scoring.edit', $version);
-        $payload = ['dimensions' => collect(ScoringService::DIMENSIONS)->map(fn (array $dimension): array => ['points' => 1, 'evidence_reasoning' => 'Reason'])->all(), 'overall_feedback' => 'Old overall'];
-        $payload['dimensions']['D1']['points'] = 31;
+        $payload = ['dimensions' => collect(self::DIMENSIONS)->mapWithKeys(fn (array $dimension): array => [$dimension['key'] => ['points' => 1, 'evidence_reasoning' => 'Reason']])->all(), 'overall_feedback' => 'Old overall'];
+        $payload['dimensions']['D1']['points'] = 51;
 
         $this->actingAs($coach)->from($url)->post(route('coach.scoring.store', $version), $payload)->assertRedirect($url);
 
@@ -154,8 +162,8 @@ class ScoringEditPageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 'role="alert"',
-                'name="dimensions[D1][points]" min="0" max="30" value="31" required',
-                'role="alert">', 'must not be greater than 30.</p>',
+                'name="dimensions[D1][points]" min="0" max="50" value="51" required',
+                'role="alert">', 'The Problem solving points field must not be greater than 50.</p>',
                 'name="dimensions[D2][points]"',
                 '>Old overall</textarea>',
             ], false);
@@ -241,6 +249,23 @@ class ScoringEditPageTest extends TestCase
         $response->assertDontSee('Ina Inactive')->assertDontSee('Pat Participant (participant)');
     }
 
+    public function test_an_activity_without_scoring_dimensions_explains_that_it_cannot_be_scored(): void
+    {
+        [$coach, $version] = $this->assignedCoachWithVersion(dimensions: []);
+        $this->configureAiScoring();
+
+        $response = $this->actingAs($coach)->get(route('coach.scoring.edit', $version))->assertOk();
+
+        $response->assertSeeInOrder([
+            'Rubric reference', 'No scoring dimensions are set for this activity.',
+            'role="status">This activity has no scoring dimensions, so it cannot be scored.</div>',
+        ], false);
+        $response->assertDontSee('id="score-form"', false)
+            ->assertDontSee('form="score-form"', false)
+            ->assertDontSee('id="suggestion-form"', false)
+            ->assertDontSee('Live Score');
+    }
+
     public function test_a_draft_version_is_not_found(): void
     {
         [$coach, $version] = $this->assignedCoachWithVersion();
@@ -258,26 +283,30 @@ class ScoringEditPageTest extends TestCase
      * A coach assigned to the participant of a new submitted version.
      *
      * @param  array<string, mixed>  $fieldValues
+     * @param  list<array{key: string, label: string, max: int}>  $dimensions
      * @return array{0: User, 1: SubmissionVersion}
      */
-    private function assignedCoachWithVersion(array $fieldValues = []): array
+    private function assignedCoachWithVersion(array $fieldValues = [], array $dimensions = self::DIMENSIONS): array
     {
         $coach = User::factory()->create(['role' => 'coach']);
-        $version = $this->version($fieldValues);
+        $version = $this->version($fieldValues, $dimensions);
         $coach->assignedParticipants()->attach($version->submission->user_id);
 
         return [$coach, $version];
     }
 
     /**
-     * A version of "Exploratory charter" by Pat Participant submitted on October 20, 2026 at 14:30.
+     * A version of "Exploratory charter" (scored on the given dimensions, by default D1 to D3) by Pat Participant
+     * submitted on October 20, 2026 at 14:30.
      *
      * @param  array<string, mixed>  $fieldValues
+     * @param  list<array{key: string, label: string, max: int}>  $dimensions
      */
-    private function version(array $fieldValues = []): SubmissionVersion
+    private function version(array $fieldValues = [], array $dimensions = self::DIMENSIONS): SubmissionVersion
     {
         $activity = Activity::factory()
             ->for(TrainingWeek::factory()->state(['week_number' => 2]), 'week')
+            ->withScoringDimensions($dimensions)
             ->create(['title' => 'Exploratory charter']);
         $submission = ActivitySubmission::factory()
             ->for($activity)
@@ -321,7 +350,7 @@ class ScoringEditPageTest extends TestCase
     {
         return ActivityScoreSuggestion::create([
             'submission_version_id' => $version->id,
-            'dimensions' => collect(ScoringService::DIMENSIONS)->map(fn (array $dimension): array => ['suggested_score' => 1, 'feedback' => 'Suggested feedback', 'evidence_basis' => 'Submitted answer'])->all(),
+            'dimensions' => collect(self::DIMENSIONS)->mapWithKeys(fn (array $dimension): array => [$dimension['key'] => ['suggested_score' => 1, 'feedback' => 'Suggested feedback', 'evidence_basis' => 'Submitted answer']])->all(),
             'overall_feedback' => 'Suggested overall feedback.',
             'evidence_processing' => $evidenceProcessing,
             'provider' => 'fake',
@@ -346,7 +375,7 @@ class ScoringEditPageTest extends TestCase
     {
         $fieldValues = collect(range(1, $itemCount))->mapWithKeys(fn (int $index): array => ["field_{$index}" => "Answer {$index}"])->all();
         [$coach, $version] = $this->assignedCoachWithVersion($fieldValues);
-        $dimensions = collect(ScoringService::DIMENSIONS)->keys()->take($itemCount)->mapWithKeys(fn (string $key): array => [$key => [1, "Reason {$key}"]])->all();
+        $dimensions = collect(self::DIMENSIONS)->pluck('key')->take($itemCount)->mapWithKeys(fn (string $key): array => [$key => [1, "Reason {$key}"]])->all();
         $this->score($version, $dimensions, 'Overall');
         $this->suggestion($version);
 

@@ -70,8 +70,16 @@ class SessionWeekState
             WeekAccessState::Locked => $this->awaitingVerification
                 ? "Waiting for your mentor to verify Week {$this->lockedByWeekNumber}"
                 : "Complete your Week {$this->lockedByWeekNumber} deliverables to unlock",
-            WeekAccessState::NotOpen => "Opens on {$this->opensOn->format('D j M')}",
+            WeekAccessState::NotOpen => self::opensOnMessage($this->opensOn),
             WeekAccessState::Open => null,
         };
+    }
+
+    /**
+     * The date a week, or one of its resources, opens on as the session page says it, e.g. "Opens on Mon 16 Nov".
+     */
+    public static function opensOnMessage(CarbonInterface $opensOn): string
+    {
+        return "Opens on {$opensOn->format('D j M')}";
     }
 }

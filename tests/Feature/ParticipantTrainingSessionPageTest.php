@@ -36,6 +36,10 @@ class ParticipantTrainingSessionPageTest extends TestCase
 
     private const YOUTUBE_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 
+    private const WEEK_TWO_URL = 'https://drive.google.com/file/d/2wEeK-Two/view?usp=sharing';
+
+    private const WEEK_TWO_PREVIEW_URL = 'https://drive.google.com/file/d/2wEeK-Two/preview';
+
     public function test_the_header_shows_the_session_title_program_dates_and_status(): void
     {
         $participant = User::factory()->create();
@@ -148,6 +152,7 @@ class ParticipantTrainingSessionPageTest extends TestCase
         $participant = User::factory()->create();
         $session = TrainingSession::factory()->withParticipants($participant)->create(['weeks_count' => 2]);
         TrainingSessionResource::factory()->for($session)->forWeek(2)->create(['title' => 'Kick-off recording', 'url' => self::YOUTUBE_URL]);
+        $this->travelTo($session->weekOpensOn(2));
 
         $this->actingAs($participant)->get(route('training.sessions.show', $session))
             ->assertOk()
@@ -156,6 +161,135 @@ class ParticipantTrainingSessionPageTest extends TestCase
             ->assertDontSee('Open in Drive')
             ->assertDontSee('Show preview')
             ->assertDontSee('<iframe', false);
+    }
+
+    public function test_a_week_resource_shows_only_its_title_and_open_date_until_its_week_opens(): void
+    {
+        ['participant' => $participant, 'session' => $session] = $this->twoWeekSession();
+        $this->addWeekTwoResource($session);
+        $this->travelTo('2026-11-12 09:00:00');
+
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSee('Resources (1)')
+            ->assertSeeInOrder(['id="session-panel-resources"', 'Week 2', 'Week two notes', '<span class="sr-only">Locked: </span>Opens on Mon 16 Nov</span>'], false)
+            ->assertDontSee(e(self::WEEK_TWO_URL), false)
+            ->assertDontSee(self::WEEK_TWO_PREVIEW_URL, false)
+            ->assertDontSee('drive.google.com')
+            ->assertDontSee('Open in Drive')
+            ->assertDontSee('data-preview-src', false);
+
+        $this->travelTo('2026-11-16 09:00:00');
+
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder(['id="session-panel-resources"', 'Week two notes', '>Google Drive<', '>Open in Drive<'], false)
+            ->assertSee('href="'.e(self::WEEK_TWO_URL).'"', false)
+            ->assertSee('data-preview-src="'.self::WEEK_TWO_PREVIEW_URL.'"', false)
+            ->assertDontSee('data-resource-locked', false);
+    }
+
+    public function test_a_completed_previous_week_opens_the_week_resources_early_for_that_participant_only_and_not_the_weeks_activities(): void
+    {
+        ['participant' => $participant, 'session' => $session, 'weekOne' => $weekOne] = $this->twoWeekSession();
+        $otherParticipant = User::factory()->create();
+        $session->participants()->attach($otherParticipant, ['joined_at' => now()]);
+        $this->addWeekTwoResource($session);
+        GateEvaluation::factory()->for($weekOne->gates()->sole(), 'gate')->for($session)->for($participant, 'participant')->create([
+            'status' => GateEvaluationStatus::Passed,
+            'evaluated_at' => '2026-11-13 08:00:00',
+        ]);
+        $this->travelTo('2026-11-13 09:00:00');
+
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="session-panel-week-2"',
+                '<span class="sr-only">Locked: </span>Opens on Mon 16 Nov</span>',
+                'id="session-panel-resources"',
+                'Week two notes',
+                '>Open in Drive<',
+            ], false)
+            ->assertSee('href="'.e(self::WEEK_TWO_URL).'"', false)
+            ->assertSee('data-preview-src="'.self::WEEK_TWO_PREVIEW_URL.'"', false)
+            ->assertDontSee('data-resource-locked', false)
+            ->assertDontSee('Week two work');
+
+        $this->actingAs($otherParticipant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder(['id="session-panel-resources"', 'Week two notes', 'Opens on Mon 16 Nov'], false)
+            ->assertDontSee(e(self::WEEK_TWO_URL), false)
+            ->assertDontSee(self::WEEK_TWO_PREVIEW_URL, false);
+    }
+
+    public function test_session_wide_resources_are_always_open_and_week_one_resources_follow_their_date_only(): void
+    {
+        ['participant' => $participant, 'session' => $session] = $this->twoWeekSession();
+        TrainingSessionResource::factory()->for($session)->create(['title' => 'Kick-off recording', 'url' => self::YOUTUBE_URL]);
+        TrainingSessionResource::factory()->for($session)->forWeek(1)->create(['title' => 'Week one notes', 'url' => self::DRIVE_URL]);
+        $this->travelTo('2026-11-05 09:00:00');
+
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="session-panel-resources"',
+                'Whole session',
+                'Kick-off recording',
+                '>Open<',
+                'Week 1',
+                'Week one notes',
+                '<span class="sr-only">Locked: </span>Opens on Mon 9 Nov</span>',
+            ], false)
+            ->assertSee('href="'.e(self::YOUTUBE_URL).'"', false)
+            ->assertDontSee(e(self::DRIVE_URL), false)
+            ->assertDontSee('data-preview-src', false);
+    }
+
+    public function test_an_incomplete_earlier_review_does_not_hide_the_resources_of_a_week_whose_date_has_come(): void
+    {
+        ['participant' => $participant, 'session' => $session, 'weekOne' => $weekOne] = $this->twoWeekSession();
+        $this->addWeekTwoResource($session);
+        GateEvaluation::factory()->for($weekOne->gates()->sole(), 'gate')->for($session)->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
+        $this->travelTo('2026-11-16 09:00:00');
+
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="session-panel-week-2"',
+                'Complete your Week 1 deliverables to unlock',
+                'id="session-panel-resources"',
+                'Week two notes',
+                '>Open in Drive<',
+            ], false)
+            ->assertSee('data-preview-src="'.self::WEEK_TWO_PREVIEW_URL.'"', false)
+            ->assertDontSee('Week two work');
+    }
+
+    public function test_every_resource_opens_once_the_session_has_ended(): void
+    {
+        ['participant' => $participant, 'session' => $session] = $this->twoWeekSession();
+        TrainingSessionResource::factory()->for($session)->forWeek(4)->create(['title' => 'Week four notes', 'url' => self::WEEK_TWO_URL]);
+        $this->travelTo('2026-11-23 09:00:00');
+
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder(['id="session-panel-resources"', 'Week 4', 'Week four notes', '>Open in Drive<'], false)
+            ->assertSee('data-preview-src="'.self::WEEK_TWO_PREVIEW_URL.'"', false)
+            ->assertDontSee('data-resource-locked', false);
+    }
+
+    public function test_admins_see_every_resource_link_before_its_week_opens(): void
+    {
+        ['session' => $session] = $this->twoWeekSession();
+        $this->addWeekTwoResource($session);
+        $this->travelTo('2026-11-12 09:00:00');
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('admin.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder(['Week 2', 'Week two notes', '>Open in Drive<'], false)
+            ->assertSee('href="'.e(self::WEEK_TWO_URL).'"', false)
+            ->assertSee('data-preview-src="'.self::WEEK_TWO_PREVIEW_URL.'"', false)
+            ->assertDontSee('Opens on Mon 16 Nov');
     }
 
     public function test_session_page_query_count_does_not_grow_with_weeks_activities_gates_and_resources(): void
@@ -716,6 +850,14 @@ class ParticipantTrainingSessionPageTest extends TestCase
         return SubmissionVersion::factory()
             ->for(ActivitySubmission::factory()->for($session)->for($activity)->for($participant, 'participant')->create(['status' => $status]), 'submission')
             ->create(['status' => $status, 'submitted_at' => $submittedAt]);
+    }
+
+    /**
+     * A Week 2 Google Drive resource of the session, titled "Week two notes".
+     */
+    private function addWeekTwoResource(TrainingSession $session): TrainingSessionResource
+    {
+        return TrainingSessionResource::factory()->for($session)->forWeek(2)->create(['title' => 'Week two notes', 'url' => self::WEEK_TWO_URL]);
     }
 
     /**

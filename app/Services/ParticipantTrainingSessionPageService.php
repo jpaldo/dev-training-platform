@@ -7,8 +7,10 @@ use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
 use App\Models\TrainingSession;
 use App\Models\TrainingSessionParticipant;
+use App\Models\TrainingSessionResource;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -59,12 +61,12 @@ class ParticipantTrainingSessionPageService
      * ended, every week is viewable and the video buttons go; `TrainingSession::acceptsWork()`), and one tab per
      * session week (activities with their progress in the session, the week's Gates and its Weekly Video Recording; a
      * week locked by an incomplete review links its missing checklist items to the locking week's tab), then the
-     * Overview tab and the
-     * read-only Resources tab, whose label carries the number of resources. Every resource of the session is listed,
-     * grouped like the admin tab (one query); 11.6 holds back the week resources that have not opened yet. The selected
-     * tab is the current week, else the last available week, else the first week.
+     * Overview tab and the read-only Resources tab, whose label carries the number of resources. Every resource of the
+     * session is listed, grouped like the admin tab (one query); a week resource that has not opened for the participant
+     * (resourceOpensOn()) shows only its title and the date it opens on, without its link or preview. The selected tab is
+     * the current week, else the last available week, else the first week.
      *
-     * @return array{trainingSession: TrainingSession, title: string, program: string, dateRange: string, statusLabel: string, statusTone: string, repositoryUrl: ?string, repositoryFormUrl: string, isTrainingComplete: bool, acceptsWork: bool, weeks: Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_message: ?string, locked_by_week_number: ?int, missing_items: list<string>, shows_weekly_video: bool, is_current: bool, attendance_required: bool, tab_key: string, missing_items_url: ?string, gates: Collection<int, array{week: TrainingWeek, gate: TrainingGate, evaluation: ?GateEvaluation, readiness: ?array<string, string>, status_label: string}>}>, tabs: list<array{key: string, label: string, state: ?string}>, selectedTab: string, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string}>}>, googleDriveReady: bool, googleDriveReadinessEnforced: bool}
+     * @return array{trainingSession: TrainingSession, title: string, program: string, dateRange: string, statusLabel: string, statusTone: string, repositoryUrl: ?string, repositoryFormUrl: string, isTrainingComplete: bool, acceptsWork: bool, weeks: Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_message: ?string, locked_by_week_number: ?int, missing_items: list<string>, shows_weekly_video: bool, is_current: bool, attendance_required: bool, tab_key: string, missing_items_url: ?string, gates: Collection<int, array{week: TrainingWeek, gate: TrainingGate, evaluation: ?GateEvaluation, readiness: ?array<string, string>, status_label: string}>}>, tabs: list<array{key: string, label: string, state: ?string}>, selectedTab: string, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, locked_message: ?string, kind_label: ?string, host: ?string, open_url: ?string, open_label: ?string, preview_url: ?string}>}>, googleDriveReady: bool, googleDriveReadinessEnforced: bool}
      */
     public function showData(TrainingSession $trainingSession, User $participant): array
     {
@@ -91,7 +93,14 @@ class ParticipantTrainingSessionPageService
             ]);
         $selectedWeek = $weeks->firstWhere('is_current', true) ?? $weeks->last(fn (array $item): bool => $item['available']) ?? $weeks->first();
         $status = $trainingSession->status();
-        $resources = $this->resources->tabData($trainingSession);
+        $passedWeekNumbers = $weekRows
+            ->filter(fn (array $item): bool => $item['passed'])
+            ->map(fn (array $item): int => $item['week']->week_number)
+            ->values();
+        $resources = $this->resources->tabData(
+            $trainingSession,
+            opensOn: fn (TrainingSessionResource $resource): ?CarbonInterface => $this->resourceOpensOn($trainingSession, $resource, $passedWeekNumbers),
+        );
 
         return [
             'trainingSession' => $trainingSession,
@@ -132,6 +141,30 @@ class ParticipantTrainingSessionPageService
     public function weekTabUrl(TrainingSession $trainingSession, TrainingWeek $week): string
     {
         return route('training.sessions.show', $trainingSession).'#'.$this->weekTabKey($week);
+    }
+
+    /**
+     * The date a resource opens on for the participant, or null once it is open (Q3). A session-wide resource is always
+     * open, and every resource is open once the session has ended. Until then, a week N resource opens on the week's
+     * open date (`weekOpensOn(N)`), or earlier once the participant completed week N − 1 in the session (the week
+     * state's `passed`), so week 1 follows its date only. An incomplete review of an earlier week, which locks the
+     * week's activities, does not hold back resources whose date has come.
+     *
+     * @param  Collection<int, int>  $passedWeekNumbers  the session weeks the participant completed
+     */
+    private function resourceOpensOn(TrainingSession $trainingSession, TrainingSessionResource $resource, Collection $passedWeekNumbers): ?CarbonInterface
+    {
+        if ($resource->week_number === null || $trainingSession->isCompleted()) {
+            return null;
+        }
+
+        $opensOn = $trainingSession->weekOpensOn($resource->week_number);
+
+        if ($opensOn->lte(today()) || $passedWeekNumbers->contains($resource->week_number - 1)) {
+            return null;
+        }
+
+        return $opensOn;
     }
 
     /**

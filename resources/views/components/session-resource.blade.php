@@ -1,9 +1,10 @@
 {{--
     One training session resource: its title, kind badge and host, and a link that opens the URL as entered in a new
-    tab. A Google Drive file also gets the lazily loaded `x-drive-preview`, so collapsed rows load nothing. The slot holds
-    the row's actions (the admin's Rename and Remove).
+    tab. A Google Drive file also gets the lazily loaded `x-drive-preview`, so collapsed rows load nothing. A resource
+    that has not opened for the participant yet shows only its title and its `locked_message` ("Opens on Mon 16 Nov");
+    its row data carries no URL. The slot holds the row's actions (the admin's Rename and Remove).
 
-    $resource: array{title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string}
+    $resource: array{title: string, locked_message: ?string, kind_label: ?string, host: ?string, open_url: ?string, open_label: ?string, preview_url: ?string}
 --}}
 @props(['resource'])
 
@@ -12,15 +13,28 @@
         <div class="grid min-w-0 gap-1">
             <div class="flex flex-wrap items-center gap-2">
                 <p class="font-bold wrap-break-word">{{ $resource['title'] }}</p>
-                <x-ui.badge>{{ $resource['kind_label'] }}</x-ui.badge>
+                @if($resource['kind_label'])
+                    <x-ui.badge>{{ $resource['kind_label'] }}</x-ui.badge>
+                @endif
             </div>
-            <p class="text-sm wrap-break-word text-muted">{{ $resource['host'] }}</p>
+            @if($resource['locked_message'])
+                <p class="flex items-start gap-2 text-sm text-muted" data-resource-locked>
+                    <span aria-hidden="true">🔒</span>
+                    <span><span class="sr-only">Locked: </span>{{ $resource['locked_message'] }}</span>
+                </p>
+            @else
+                <p class="text-sm wrap-break-word text-muted">{{ $resource['host'] }}</p>
+            @endif
         </div>
 
-        <div class="flex flex-wrap items-start gap-2">
-            <x-ui.button variant="secondary" :href="$resource['open_url']" target="_blank" rel="noopener noreferrer">{{ $resource['open_label'] }}<span class="sr-only">: {{ $resource['title'] }} (opens in a new tab)</span></x-ui.button>
-            {{ $slot }}
-        </div>
+        @if($resource['open_url'] || $slot->isNotEmpty())
+            <div class="flex flex-wrap items-start gap-2">
+                @if($resource['open_url'])
+                    <x-ui.button variant="secondary" :href="$resource['open_url']" target="_blank" rel="noopener noreferrer">{{ $resource['open_label'] }}<span class="sr-only">: {{ $resource['title'] }} (opens in a new tab)</span></x-ui.button>
+                @endif
+                {{ $slot }}
+            </div>
+        @endif
     </div>
 
     @if($resource['preview_url'])

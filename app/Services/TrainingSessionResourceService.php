@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\TrainingSession;
 use App\Models\TrainingSessionResource;
 use App\Models\User;
+use App\Support\SessionWeekState;
+use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -76,13 +78,16 @@ class TrainingSessionResourceService
      * "Whole session" first and then "Week 1", "Week 2", … (weeks without resources are left out), each group in the
      * order the resources were added. Each row shows the link's host and kind ("Google Drive", "Google Docs", "Google
      * Slides", "Google Sheets" or "Link"), opens the URL as entered ("Open in Drive" or "Open") and carries the embedded
-     * preview address of a Drive file (null for any other link). `$rowActions` adds a page's own keys to each row, such
-     * as the admin tab's Rename and Remove URLs.
+     * preview address of a Drive file (null for any other link). `$opensOn` gives the date a resource that has not opened
+     * for the viewer yet opens on (null once it is open; every resource is open without it): such a row keeps only its
+     * title and "Opens on Mon 16 Nov", and its link, host, kind and preview are null, so the page never holds its URL.
+     * `$rowActions` adds a page's own keys to each row, such as the admin tab's Rename and Remove URLs.
      *
      * @param  (Closure(TrainingSessionResource): array<string, mixed>)|null  $rowActions
-     * @return array{count: int, groups: list<array{key: string, label: string, resources: list<array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, ...}>}>}
+     * @param  (Closure(TrainingSessionResource): ?CarbonInterface)|null  $opensOn
+     * @return array{count: int, groups: list<array{key: string, label: string, resources: list<array{id: int, title: string, locked_message: ?string, kind_label: ?string, host: ?string, open_url: ?string, open_label: ?string, preview_url: ?string, ...}>}>}
      */
-    public function tabData(TrainingSession $trainingSession, ?Closure $rowActions = null): array
+    public function tabData(TrainingSession $trainingSession, ?Closure $rowActions = null, ?Closure $opensOn = null): array
     {
         $resources = $trainingSession->resources()
             ->select(['id', 'training_session_id', 'week_number', 'title', 'url'])
@@ -99,7 +104,7 @@ class TrainingSessionResourceService
                     'label' => $group->first()->week_number === null ? 'Whole session' : "Week {$group->first()->week_number}",
                     'resources' => $group
                         ->map(fn (TrainingSessionResource $resource): array => [
-                            ...$this->row($resource),
+                            ...$this->row($resource, $opensOn ? $opensOn($resource) : null),
                             ...($rowActions ? $rowActions($resource) : []),
                         ])
                         ->values()
@@ -111,17 +116,32 @@ class TrainingSessionResourceService
     }
 
     /**
-     * One resource row of a Resources tab.
+     * One resource row of a Resources tab: the open link and preview, or, for a resource that opens on a later date,
+     * only its title and when it opens.
      *
-     * @return array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string}
+     * @return array{id: int, title: string, locked_message: ?string, kind_label: ?string, host: ?string, open_url: ?string, open_label: ?string, preview_url: ?string}
      */
-    private function row(TrainingSessionResource $resource): array
+    private function row(TrainingSessionResource $resource, ?CarbonInterface $opensOn): array
     {
+        if ($opensOn !== null) {
+            return [
+                'id' => $resource->id,
+                'title' => $resource->title,
+                'locked_message' => SessionWeekState::opensOnMessage($opensOn),
+                'kind_label' => null,
+                'host' => null,
+                'open_url' => null,
+                'open_label' => null,
+                'preview_url' => null,
+            ];
+        }
+
         $driveLink = $resource->googleDriveLink();
 
         return [
             'id' => $resource->id,
             'title' => $resource->title,
+            'locked_message' => null,
             'kind_label' => $driveLink?->label ?? 'Link',
             'host' => parse_url($resource->url, PHP_URL_HOST) ?: $resource->url,
             'open_url' => $resource->url,

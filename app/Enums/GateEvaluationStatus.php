@@ -5,9 +5,9 @@ namespace App\Enums;
 /**
  * Where a participant's Gate (the week's checklist) stands (stored in `gate_evaluations.status`). Mentors and admins
  * save a review as `Passed` (the week is completed) or `NeedsRevision` (the week is incomplete); `Failed` is no longer
- * offered but older reviews may still hold it. `NotReady` is the column default. `ReadyForReview` is derived, never stored: a Gate with
- * no saved evaluation and no readiness blockers. No code produces `AwaitingReview`, but the coach Gate board accepts it
- * as a filter and orders it.
+ * offered but older reviews may still hold it, and it locks later weeks like an incomplete review. `NotReady` is the
+ * column default. `ReadyForReview` is derived, never stored: a Gate with no saved evaluation and no readiness blockers.
+ * No code produces `AwaitingReview`, but the coach Gate board accepts it as a filter and orders it.
  */
 enum GateEvaluationStatus: string
 {
@@ -43,6 +43,17 @@ enum GateEvaluationStatus: string
     public static function decisions(): array
     {
         return [self::Passed, self::NeedsRevision];
+    }
+
+    /**
+     * The saved reviews that leave the week incomplete and lock the later weeks of the session until it is completed:
+     * incomplete, and the older failed reviews.
+     *
+     * @return list<self>
+     */
+    public static function incompleteReviews(): array
+    {
+        return [self::NeedsRevision, self::Failed];
     }
 
     /**

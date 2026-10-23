@@ -171,7 +171,7 @@ class TrainingWeekPageTest extends TestCase
         [$weekOne, $weekTwo, $weekThree] = collect([1, 2, 3])
             ->map(fn (int $number): TrainingWeek => TrainingWeek::factory()->for($program)->create(['week_number' => $number, 'position' => $number]))
             ->all();
-        $session = TrainingSession::factory()->forWeek($weekOne)->withParticipants($participant)->create();
+        $session = TrainingSession::factory()->forWeek($weekThree)->withParticipants($participant)->create();
         $weekOneGate = TrainingGate::factory()->for($weekOne, 'week')->create();
         GateCriterion::factory()->for($weekOneGate, 'gate')->create(['criterion_type' => 'deliverable']);
         $weekTwoGate = TrainingGate::factory()->for($weekTwo, 'week')->create();

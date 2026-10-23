@@ -14,6 +14,7 @@ use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
+use App\Support\SessionWeekState;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
@@ -32,7 +33,8 @@ class ParticipantDashboardService
      * Build the rows of the session's weeks, in week order, for the membership's participant, with their activity
      * progress in the session attached: each week's pass and access state, its activity progress and its Weekly Video
      * Recording come from the session. An available week shows its Weekly Video Recording only when it asks for one.
-     * Built with a fixed number of queries.
+     * The current week is the latest open week of an active session (`WeekProgressionService::currentWeekId()`). Built
+     * with a fixed number of queries.
      *
      * @param  TrainingSessionParticipant  $membership  with its training session and participant loaded
      * @return Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_reason: ?string, shows_weekly_video: bool, is_current: bool, attendance_required: bool}>
@@ -59,28 +61,23 @@ class ParticipantDashboardService
             ->keyBy('training_week_id');
         $this->attachActivityProgress($participant, $trainingSession, $sessionWeeks);
 
-        $weeks = $sessionWeeks->map(function (TrainingWeek $week) use ($weekStates, $videoRecordings): array {
+        $currentWeekId = $this->progression->currentWeekId($trainingSession, $weekStates);
+
+        return $sessionWeeks->map(function (TrainingWeek $week) use ($weekStates, $videoRecordings, $currentWeekId, $activeAttendance): array {
             $weekState = $weekStates->get($week->id);
-            $passed = $weekState['passed'];
-            $available = $passed || $weekState['accessible'];
+            $available = $weekState->passed || $weekState->isOpen();
             $week->weekly_video_recording = $videoRecordings->get($week->id);
+            $isCurrent = $week->id === $currentWeekId;
 
             return [
                 'week' => $week,
-                'passed' => $passed,
+                'passed' => $weekState->passed,
                 'available' => $available,
-                'locked_reason' => $available ? null : 'Your mentor must mark the previous week completed before you can continue.',
+                'locked_reason' => $available ? null : $this->lockedReason($week, $weekState),
                 'shows_weekly_video' => $available && $week->asksForWeeklyVideo(),
+                'is_current' => $isCurrent,
+                'attendance_required' => $isCurrent && ! $activeAttendance,
             ];
-        });
-        $currentWeek = $weeks->first(fn (array $item): bool => $item['available'] && ! $item['passed']);
-        $currentWeekId = $currentWeek['week']->id ?? null;
-
-        return $weeks->map(function (array $item) use ($currentWeekId, $activeAttendance): array {
-            $item['is_current'] = $item['week']->id === $currentWeekId;
-            $item['attendance_required'] = $item['is_current'] && ! $activeAttendance;
-
-            return $item;
         });
     }
 
@@ -150,6 +147,17 @@ class ParticipantDashboardService
                 $activity->participant_score_max = $activity->scoringMaximum();
             }
         }
+    }
+
+    /**
+     * Why the participant cannot open the week yet: an earlier week's incomplete review locks it, or its open date is
+     * still to come.
+     */
+    private function lockedReason(TrainingWeek $week, SessionWeekState $weekState): string
+    {
+        return $weekState->isLocked()
+            ? "Your mentor must mark Week {$weekState->lockedByWeekNumber} completed before you can continue."
+            : "Week {$week->week_number} opens on {$weekState->opensOn->format('D j M')}.";
     }
 
     /**

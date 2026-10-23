@@ -347,13 +347,14 @@ class MissingSubmissionReportPageTest extends TestCase
 
     /**
      * Add every participant to the earliest session of the program (the one the factories put training records in),
-     * creating an active one when it has none, and return it: the report lists only weeks a participant can open in a
-     * session.
+     * creating an active one in which every week of the program has opened when it has none, and return it: the report
+     * lists only weeks a participant can open in a session.
      */
     private function enrollParticipants(Program $program): TrainingSession
     {
+        $lastWeek = TrainingWeek::query()->where('program_id', $program->id)->orderByDesc('week_number')->first();
         $session = TrainingSession::query()->where('program_id', $program->id)->orderBy('id')->first()
-            ?? TrainingSession::factory()->for($program)->create();
+            ?? ($lastWeek ? TrainingSession::factory()->forWeek($lastWeek) : TrainingSession::factory()->for($program))->create();
         $session->participants()->syncWithoutDetaching(
             User::query()->where('role', UserRole::Participant)->pluck('id')->mapWithKeys(fn (int $id): array => [$id => ['joined_at' => now()]])->all(),
         );

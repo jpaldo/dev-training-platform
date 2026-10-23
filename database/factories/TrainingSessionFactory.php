@@ -49,15 +49,16 @@ class TrainingSessionFactory extends Factory
     }
 
     /**
-     * An active session of the week's program that includes the week: 4 weeks long, or as many weeks as the week's
-     * number when that is higher.
+     * An active session of the week's program that includes the week and in which the week opened today: 4 weeks long,
+     * or as many weeks as the week's number when that is higher, starting the week's number less one weeks ago (today
+     * for Week 1). Earlier weeks are open too; later weeks open on their dates (`TrainingSession::weekOpensOn()`).
      */
     public function forWeek(TrainingWeek $week): static
     {
         return $this->state([
             'program_id' => $week->program_id,
             'weeks_count' => max(4, $week->week_number),
-        ])->active();
+        ])->startingOn(fn (int $weeksCount): CarbonInterface => today()->subWeeks(max(1, $week->week_number) - 1));
     }
 
     /**

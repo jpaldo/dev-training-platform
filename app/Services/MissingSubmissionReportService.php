@@ -10,6 +10,7 @@ use App\Models\TrainingSession;
 use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Support\SessionWeekState;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Arr;
@@ -53,7 +54,7 @@ class MissingSubmissionReportService
             $videos = $participant->weeklyVideoRecordings->where('training_session_id', $trainingSession->id);
 
             foreach ($programWeeks->where('program_id', $trainingSession->program_id) as $week) {
-                if (! $trainingSession->includesWeek($week) || ! $weekStates->get($membership->id)->get($week->id)['accessible']) {
+                if (! $trainingSession->includesWeek($week) || ! $weekStates->get($membership->id)->get($week->id)->isOpen()) {
                     continue;
                 }
 
@@ -80,8 +81,8 @@ class MissingSubmissionReportService
     }
 
     /**
-     * Every week of the memberships' programs, active or not (the week states need them all), in position order, each
-     * with whether it asks for a Weekly Video Recording and its active activities in position order.
+     * Every week of the memberships' programs, active or not (the week states keep each session's weeks), in position
+     * order, each with whether it asks for a Weekly Video Recording and its active activities in position order.
      *
      * @param  EloquentCollection<int, TrainingSessionParticipant>  $memberships  with their training session loaded
      * @return EloquentCollection<int, TrainingWeek>
@@ -97,12 +98,12 @@ class MissingSubmissionReportService
     }
 
     /**
-     * The pass and access state of each week of its program per membership, keyed by membership id, then by week id:
-     * one week-state query per program.
+     * The state of each week of its session per membership, keyed by membership id, then by week id: one week-state
+     * lookup per program.
      *
      * @param  EloquentCollection<int, TrainingSessionParticipant>  $memberships  with their training session loaded
      * @param  EloquentCollection<int, TrainingWeek>  $programWeeks
-     * @return Collection<int, Collection<int, array{passed: bool, accessible: bool}>>
+     * @return Collection<int, Collection<int, SessionWeekState>>
      */
     private function weekStates(EloquentCollection $memberships, EloquentCollection $programWeeks): Collection
     {

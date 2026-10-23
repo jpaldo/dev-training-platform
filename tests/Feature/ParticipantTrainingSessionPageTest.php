@@ -66,6 +66,7 @@ class ParticipantTrainingSessionPageTest extends TestCase
         $session = TrainingSession::factory()->for($program)->withParticipants($participant)->create(['weeks_count' => 2]);
         GateEvaluation::factory()->for(TrainingGate::factory()->for($weekOne, 'week'), 'gate')->for($session)->for($participant, 'participant')->create(['status' => GateEvaluationStatus::Passed]);
         TrainingGate::factory()->for($weekTwo, 'week')->create();
+        $this->travelTo($session->weekOpensOn(2));
 
         $html = $this->actingAs($participant)->get(route('training.sessions.show', $session))
             ->assertOk()
@@ -319,26 +320,38 @@ class ParticipantTrainingSessionPageTest extends TestCase
             ->assertDontSee('Your Gate is ready for Mentor review.');
     }
 
-    public function test_a_locked_week_shows_why_and_no_links_to_its_week_or_activities(): void
+    public function test_a_week_that_has_not_opened_shows_its_date_and_no_links_to_its_week_or_activities(): void
     {
-        $participant = User::factory()->create();
-        $program = Program::factory()->create();
-        $weekOne = TrainingWeek::factory()->for($program)->create(['week_number' => 1, 'position' => 1]);
-        $weekTwo = TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 2]);
-        TrainingGate::factory()->for($weekOne, 'week')->create();
-        $lockedActivity = Activity::factory()->for($weekTwo, 'week')->create(['title' => 'Week two work']);
-        $session = TrainingSession::factory()->for($program)->withParticipants($participant)->create();
+        $this->travelTo('2026-11-15 09:00:00');
+        ['participant' => $participant, 'session' => $session, 'weekTwo' => $weekTwo, 'lockedActivity' => $lockedActivity] = $this->twoWeekSession();
 
         $this->actingAs($participant)->get(route('training.sessions.show', $session))
             ->assertOk()
             ->assertSeeInOrder([
                 'id="session-tab-week-2"',
                 '<span class="sr-only">(Locked)</span>',
-                'Locked — Your mentor must mark the previous week completed before you can continue.',
+                'Locked — Week 2 opens on Mon 16 Nov.',
                 '<strong>Week two work</strong>',
             ], false)
             ->assertDontSee(route('training.weeks.show', [$session, $weekTwo]), false)
             ->assertDontSee(route('training.activities.show', [$session, $weekTwo, $lockedActivity]), false);
+    }
+
+    public function test_an_open_week_after_an_incomplete_review_shows_which_week_locks_it(): void
+    {
+        $this->travelTo('2026-11-16 09:00:00');
+        ['participant' => $participant, 'session' => $session, 'weekOne' => $weekOne, 'weekTwo' => $weekTwo] = $this->twoWeekSession();
+        GateEvaluation::factory()->for($weekOne->gates()->sole(), 'gate')->for($session)->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
+
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="session-panel-week-1"',
+                route('training.weeks.show', [$session, $weekOne]),
+                'id="session-panel-week-2"',
+                'Locked — Your mentor must mark Week 1 completed before you can continue.',
+            ], false)
+            ->assertDontSee(route('training.weeks.show', [$session, $weekTwo]), false);
     }
 
     public function test_only_the_panel_of_a_week_whose_checklist_has_a_video_item_shows_the_video_row(): void
@@ -468,5 +481,28 @@ class ParticipantTrainingSessionPageTest extends TestCase
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());
+    }
+
+    /**
+     * A participant in a 2-week session that starts on Mon 9 Nov 2026; Week 1 has a Gate and Week 2 an activity titled
+     * "Week two work".
+     *
+     * @return array{participant: User, session: TrainingSession, weekOne: TrainingWeek, weekTwo: TrainingWeek, lockedActivity: Activity}
+     */
+    private function twoWeekSession(): array
+    {
+        $participant = User::factory()->create();
+        $program = Program::factory()->create();
+        $weekOne = TrainingWeek::factory()->for($program)->create(['week_number' => 1, 'position' => 1]);
+        $weekTwo = TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 2]);
+        TrainingGate::factory()->for($weekOne, 'week')->create();
+        $lockedActivity = Activity::factory()->for($weekTwo, 'week')->create(['title' => 'Week two work']);
+        $session = TrainingSession::factory()->for($program)->withParticipants($participant)->create([
+            'weeks_count' => 2,
+            'starts_on' => '2026-11-09',
+            'ends_on' => '2026-11-22',
+        ]);
+
+        return compact('participant', 'session', 'weekOne', 'weekTwo', 'lockedActivity');
     }
 }

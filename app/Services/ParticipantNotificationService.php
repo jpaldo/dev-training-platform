@@ -169,7 +169,7 @@ class ParticipantNotificationService
     /**
      * Per membership (keyed by session id), the session's weeks the participant can open there or has passed there, in
      * week order, with their active activities (and those activities' required evidence), their Gates and whether they
-     * ask for a Weekly Video Recording. One weeks query for every program, and one week-state query per program.
+     * ask for a Weekly Video Recording. One weeks query for every program, and one week-state lookup per program.
      *
      * @param  Collection<int, TrainingSessionParticipant>  $memberships  keyed by session id, with their session loaded
      * @return SupportCollection<int, SupportCollection<int, TrainingWeek>>
@@ -198,7 +198,7 @@ class ParticipantNotificationService
 
         return $memberships->map(fn (TrainingSessionParticipant $membership, int $sessionId): SupportCollection => $programWeeks
             ->filter(fn (TrainingWeek $week): bool => $membership->trainingSession->includesWeek($week)
-                && ($weekStates->get($sessionId)->get($week->id)['accessible'] || $weekStates->get($sessionId)->get($week->id)['passed']))
+                && ($weekStates->get($sessionId)->get($week->id)->isOpen() || $weekStates->get($sessionId)->get($week->id)->passed))
             ->sortBy('position')
             ->values()
             ->toBase());

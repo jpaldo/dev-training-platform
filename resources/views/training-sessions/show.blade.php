@@ -162,7 +162,7 @@
                     </ul>
                     <x-ui.alert class="mt-2 grid gap-2">
                         <strong class="text-cyan-200">Gates &amp; progression</strong>
-                        <p>Each week includes required activities and evidence. A Mentor must review the weekly checklist and mark the week completed before the next week becomes available.</p>
+                        <p>Each week includes required activities and evidence, and opens on its date. If your mentor marks a week incomplete, the later weeks stay locked until they mark it completed.</p>
                         <p>Your progress is based on demonstrated judgment and evidence — not simply completing AI-generated work.</p>
                     </x-ui.alert>
                 </x-ui.card>

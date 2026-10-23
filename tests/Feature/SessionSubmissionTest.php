@@ -151,7 +151,7 @@ class SessionSubmissionTest extends TestCase
     }
 
     /**
-     * A checked-in participant in two sessions of the same program, and a Week 1 activity with a "Finding" field.
+     * A checked-in participant in two active sessions of the same program, and a Week 1 activity with a "Finding" field.
      *
      * @return array{participant: User, week: TrainingWeek, activity: Activity, sessionA: TrainingSession, sessionB: TrainingSession}
      */
@@ -166,7 +166,7 @@ class SessionSubmissionTest extends TestCase
             'configuration' => ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea', 'required' => false],
         ]);
         $sessionA = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        $sessionB = TrainingSession::factory()->forWeek($week)->upcoming()->withParticipants($participant)->create();
+        $sessionB = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         return compact('participant', 'week', 'activity', 'sessionA', 'sessionB');

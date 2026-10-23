@@ -200,6 +200,7 @@ class ParticipantNotificationsTest extends TestCase
         });
         GateEvaluation::factory()->for($weeks[2]->gates()->sole(), 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
         $session = $this->joinSession($participant, $program);
+        $this->travelTo($session->weekOpensOn(3));
 
         app(ParticipantNotificationService::class)->sync($participant);
 
@@ -260,19 +261,19 @@ class ParticipantNotificationsTest extends TestCase
         $openActivity = Activity::factory()->for($week, 'week')->create(['position' => 1]);
         $draftActivity = Activity::factory()->for($week, 'week')->create(['position' => 2]);
         $activeSession = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        $upcomingSession = TrainingSession::factory()->forWeek($week)->upcoming()->withParticipants($participant)->create();
+        $otherSession = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
         ActivitySubmission::factory()->for($activeSession)->for($draftActivity)->for($participant, 'participant')->create(['status' => 'draft']);
 
         app(ParticipantNotificationService::class)->sync($participant);
 
         $activeLinks = $participant->participantNotifications()->active()->pluck('action_url', 'key')->all();
-        foreach ([$activeSession, $upcomingSession] as $session) {
+        foreach ([$activeSession, $otherSession] as $session) {
             $this->assertSame(route('training.activities.show', [$session, $week, $openActivity]), $activeLinks["session:{$session->id}:week:{$week->id}:activity:{$openActivity->id}:incomplete"]);
         }
         $this->assertSame(route('training.submission.edit', [$activeSession, $week, $draftActivity]), $activeLinks["session:{$activeSession->id}:week:{$week->id}:activity:{$draftActivity->id}:draft"]);
         $this->assertArrayNotHasKey("session:{$activeSession->id}:week:{$week->id}:activity:{$draftActivity->id}:incomplete", $activeLinks);
-        $this->assertSame(route('training.activities.show', [$upcomingSession, $week, $draftActivity]), $activeLinks["session:{$upcomingSession->id}:week:{$week->id}:activity:{$draftActivity->id}:incomplete"]);
-        $this->assertArrayNotHasKey("session:{$upcomingSession->id}:week:{$week->id}:activity:{$draftActivity->id}:draft", $activeLinks);
+        $this->assertSame(route('training.activities.show', [$otherSession, $week, $draftActivity]), $activeLinks["session:{$otherSession->id}:week:{$week->id}:activity:{$draftActivity->id}:incomplete"]);
+        $this->assertArrayNotHasKey("session:{$otherSession->id}:week:{$week->id}:activity:{$draftActivity->id}:draft", $activeLinks);
     }
 
     public function test_removing_the_participant_from_a_session_resolves_that_sessions_notifications(): void
@@ -447,12 +448,14 @@ class ParticipantNotificationsTest extends TestCase
 
     /**
      * Add the participant to the program's earliest session, the one the factories put training records in by default
-     * (TrainingSessionFactory::defaultForWeek()), creating an active one when the program has none.
+     * (TrainingSessionFactory::defaultForWeek()), creating an active one in which every week of the program has opened
+     * when the program has none.
      */
     private function joinSession(User $participant, Program $program): TrainingSession
     {
+        $lastWeek = TrainingWeek::query()->where('program_id', $program->id)->orderByDesc('week_number')->first();
         $session = TrainingSession::query()->where('program_id', $program->id)->orderBy('id')->first()
-            ?? TrainingSession::factory()->for($program)->create();
+            ?? ($lastWeek ? TrainingSession::factory()->forWeek($lastWeek) : TrainingSession::factory()->for($program))->create();
         $session->participants()->attach($participant, ['joined_at' => now()]);
 
         return $session;

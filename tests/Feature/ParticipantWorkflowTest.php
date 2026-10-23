@@ -13,6 +13,7 @@ use App\Models\ActivityScore;
 use App\Models\ActivityScoreDimension;
 use App\Models\ActivitySubmission;
 use App\Models\EvidenceRequirement;
+use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\MentorAssignment;
 use App\Models\Program;
@@ -25,8 +26,10 @@ use App\Models\User;
 use App\Services\EvidenceFilePolicy;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -931,21 +934,125 @@ class ParticipantWorkflowTest extends TestCase
         $this->get(route('dashboard'))->assertRedirect(route('login'));
     }
 
-    public function test_week_three_and_four_are_server_locked_until_prior_gate_evaluations_pass(): void
+    public function test_weeks_open_on_their_dates_without_earlier_weeks_being_completed(): void
     {
-        [$participant, $week2, , $session] = $this->trainingFixture();
-        $week3 = TrainingWeek::factory()->for($week2->program)->create(['week_number' => 3, 'position' => 2]);
-        $week4 = TrainingWeek::factory()->for($week2->program)->create(['week_number' => 4, 'position' => 3]);
-        $week3Activity = Activity::factory()->for($week3, 'week')->create();
-        $gate2 = TrainingGate::factory()->for($week2, 'week')->create();
-        $gate3 = TrainingGate::factory()->for($week3, 'week')->create();
-        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $week3]))->assertForbidden();
-        $this->actingAs($participant)->post(route('training.submission.draft', [$session, $week3, $week3Activity]), ['field_values' => []])->assertForbidden();
-        GateEvaluation::factory()->for($gate2, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
-        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $week3]))->assertOk();
-        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $week4]))->assertForbidden();
-        GateEvaluation::factory()->for($gate3, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
-        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $week4]))->assertOk();
+        ['participant' => $participant, 'session' => $session, 'weeks' => $weeks] = $this->scheduleFixture();
+
+        $this->travelTo('2026-11-08 09:00:00');
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[1]]))
+            ->assertForbidden()
+            ->assertSee('Week 1 opens on Mon 9 Nov.');
+
+        $this->travelTo('2026-11-15 23:00:00');
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[1]]))->assertOk();
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[2]]))
+            ->assertForbidden()
+            ->assertSee('Week 2 opens on Mon 16 Nov.');
+        $this->actingAs($participant)->post(route('training.submission.draft', [$session, $weeks[2], $weeks[2]->activities->sole()]), ['field_values' => []])->assertForbidden();
+
+        $this->travelTo('2026-11-16 08:00:00');
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[2]]))->assertOk();
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[3]]))->assertForbidden();
+        $this->assertDatabaseMissing('gate_evaluations', ['user_id' => $participant->id]);
+    }
+
+    public function test_an_incomplete_review_locks_every_later_week_even_once_open_and_leaves_earlier_weeks_open(): void
+    {
+        Queue::fake();
+        ['participant' => $participant, 'mentor' => $mentor, 'session' => $session, 'weeks' => $weeks] = $this->scheduleFixture();
+        $this->travelTo('2026-11-30 09:00:00');
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[4]]))->assertOk();
+
+        $this->reviewWeek($mentor, $participant, $session, $weeks[2], GateEvaluationStatus::NeedsRevision)->assertSessionHasNoErrors();
+
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[1]]))->assertOk();
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[2]]))->assertOk();
+        foreach ([3, 4] as $weekNumber) {
+            $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[$weekNumber]]))
+                ->assertForbidden()
+                ->assertSee("Complete your Week 2 deliverables to unlock Week {$weekNumber}.");
+        }
+        $this->actingAs($participant)->post(route('training.submission.draft', [$session, $weeks[3], $weeks[3]->activities->sole()]), ['field_values' => []])->assertForbidden();
+        $this->actingAs($mentor)->get(route('training.weeks.show', [$session, $weeks[4]]))->assertOk();
+    }
+
+    public function test_submitting_the_missing_work_does_not_unlock_the_later_weeks(): void
+    {
+        Queue::fake();
+        ['participant' => $participant, 'mentor' => $mentor, 'session' => $session, 'weeks' => $weeks] = $this->scheduleFixture();
+        $this->travelTo('2026-11-17 09:00:00');
+        $this->reviewWeek($mentor, $participant, $session, $weeks[1], GateEvaluationStatus::NeedsRevision)->assertSessionHasNoErrors();
+        $activity = $weeks[1]->activities->sole();
+
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+        $this->actingAs($participant)->post(route('training.submission.draft', [$session, $weeks[1], $activity]), ['field_values' => []])->assertRedirect();
+        $version = ActivitySubmission::query()->sole()->versions()->sole();
+        $this->actingAs($participant)->post(route('training.submission.submit', [$session, $weeks[1], $activity, $version]))->assertSessionHasNoErrors();
+
+        $this->assertSame(SubmissionStatus::Submitted, $version->fresh()->status);
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[2]]))
+            ->assertForbidden()
+            ->assertSee('Complete your Week 1 deliverables to unlock Week 2.');
+    }
+
+    #[DataProvider('weekCompleters')]
+    public function test_completing_the_incomplete_week_unlocks_the_weeks_whose_date_has_come_and_later_weeks_keep_their_dates(string $completer): void
+    {
+        Queue::fake();
+        ['participant' => $participant, 'mentor' => $mentor, 'session' => $session, 'weeks' => $weeks] = $this->scheduleFixture();
+        $this->travelTo('2026-11-18 09:00:00');
+        $this->reviewWeek($mentor, $participant, $session, $weeks[1], GateEvaluationStatus::NeedsRevision)->assertSessionHasNoErrors();
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[2]]))->assertForbidden();
+        $reviewer = $completer === 'admin' ? User::factory()->create(['role' => 'admin']) : $mentor;
+
+        $this->reviewWeek($reviewer, $participant, $session, $weeks[1], GateEvaluationStatus::Passed)->assertSessionHasNoErrors();
+
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[2]]))->assertOk();
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[3]]))
+            ->assertForbidden()
+            ->assertSee('Week 3 opens on Mon 23 Nov.');
+        $this->travelTo('2026-11-23 08:00:00');
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[3]]))->assertOk();
+    }
+
+    /**
+     * The roles that can mark a week completed: the participant's mentor and an admin.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function weekCompleters(): array
+    {
+        return [
+            'mentor' => ['mentor'],
+            'admin' => ['admin'],
+        ];
+    }
+
+    public function test_an_older_failed_review_also_locks_the_later_weeks(): void
+    {
+        ['participant' => $participant, 'session' => $session, 'weeks' => $weeks] = $this->scheduleFixture();
+        $this->travelTo('2026-11-16 09:00:00');
+        GateEvaluation::factory()->for($weeks[1]->gates->sole(), 'gate')->for($session)->for($participant, 'participant')->create(['status' => GateEvaluationStatus::Failed]);
+
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[2]]))
+            ->assertForbidden()
+            ->assertSee('Complete your Week 1 deliverables to unlock Week 2.');
+    }
+
+    public function test_the_current_week_is_the_latest_open_unlocked_week_and_only_it_asks_for_a_check_in(): void
+    {
+        Queue::fake();
+        ['participant' => $participant, 'mentor' => $mentor, 'session' => $session, 'weeks' => $weeks] = $this->scheduleFixture();
+        $this->travelTo('2026-11-24 09:00:00');
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $weeks[3], $weeks[3]->activities->sole()]))
+            ->assertRedirect(route('participant.attendance.index'));
+        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $weeks[2], $weeks[2]->activities->sole()]))->assertOk();
+
+        $this->reviewWeek($mentor, $participant, $session, $weeks[1], GateEvaluationStatus::NeedsRevision)->assertSessionHasNoErrors();
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $weeks[1], $weeks[1]->activities->sole()]))
+            ->assertRedirect(route('participant.attendance.index'));
     }
 
     public function test_a_later_week_three_activity_is_submitted_like_any_other_activity(): void
@@ -955,7 +1062,7 @@ class ParticipantWorkflowTest extends TestCase
         Activity::factory()->for($week3, 'week')->create(['position' => 1]);
         $activity = Activity::factory()->for($week3, 'week')->create(['position' => 2]);
         ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea', 'required' => true]]);
-        GateEvaluation::factory()->for(TrainingGate::factory()->for($week2, 'week'), 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+        $this->travelTo($session->weekOpensOn(3));
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         $this->actingAs($participant)->post(route('training.submission.draft', [$session, $week3, $activity]), ['field_values' => ['finding' => '']])->assertRedirect();
@@ -977,7 +1084,7 @@ class ParticipantWorkflowTest extends TestCase
         $week4 = TrainingWeek::factory()->for($week2->program)->create(['week_number' => 4, 'position' => 2]);
         $activity = Activity::factory()->for($week4, 'week')->create(['position' => 2]);
         ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'interview_notes', 'label' => 'Interview notes', 'type' => 'textarea', 'required' => true]]);
-        GateEvaluation::factory()->for(TrainingGate::factory()->for($week2, 'week'), 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+        $this->travelTo($session->weekOpensOn(4));
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         $this->actingAs($participant)->post(route('training.submission.draft', [$session, $week4, $activity]), ['field_values' => ['interview_notes' => 'Explained the regression strategy']])->assertRedirect();
@@ -1048,47 +1155,6 @@ class ParticipantWorkflowTest extends TestCase
         $this->actingAs($participant)->get(route('training.activities.show', [$session, $week2, $week3Activity]))->assertNotFound();
     }
 
-    #[DataProvider('incompleteStatuses')]
-    public function test_incomplete_week_three_statuses_do_not_unlock_week_four(GateEvaluationStatus $status): void
-    {
-        [$participant, $week2, , $session] = $this->trainingFixture();
-        $week3 = TrainingWeek::factory()->for($week2->program)->create(['week_number' => 3, 'position' => 2]);
-        $week4 = TrainingWeek::factory()->for($week2->program)->create(['week_number' => 4, 'position' => 3]);
-        $gate2 = TrainingGate::factory()->for($week2, 'week')->create();
-        $gate3 = TrainingGate::factory()->for($week3, 'week')->create();
-        GateEvaluation::factory()->for($gate2, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
-        GateEvaluation::factory()->for($gate3, 'gate')->for($participant, 'participant')->create(['status' => $status]);
-
-        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $week4]))->assertForbidden();
-    }
-
-    #[DataProvider('incompleteStatuses')]
-    public function test_incomplete_week_two_statuses_do_not_unlock_week_three(GateEvaluationStatus $status): void
-    {
-        [$participant, $week2, , $session] = $this->trainingFixture();
-        $week3 = TrainingWeek::factory()->for($week2->program)->create(['week_number' => 3, 'position' => 2]);
-        $gate = TrainingGate::factory()->for($week2, 'week')->create();
-        GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => $status]);
-
-        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $week3]))->assertForbidden();
-    }
-
-    /**
-     * Every Gate status other than passed.
-     *
-     * @return array<string, array{GateEvaluationStatus}>
-     */
-    public static function incompleteStatuses(): array
-    {
-        return [
-            'not ready' => [GateEvaluationStatus::NotReady],
-            'ready for review' => [GateEvaluationStatus::ReadyForReview],
-            'awaiting review' => [GateEvaluationStatus::AwaitingReview],
-            'needs revision' => [GateEvaluationStatus::NeedsRevision],
-            'failed' => [GateEvaluationStatus::Failed],
-        ];
-    }
-
     /**
      * A participant, a Week 2 with one activity and a 4-week session of its program that the participant is in.
      *
@@ -1103,6 +1169,49 @@ class ParticipantWorkflowTest extends TestCase
         $session = TrainingSession::factory()->forWeek($week2)->withParticipants($participant)->create();
 
         return [$participant, $week2, $activity, $session];
+    }
+
+    /**
+     * A 4-week session that starts on Mon 9 Nov 2026, with a participant mentored there by a coach; each week has one
+     * activity and an active Gate with one required checklist item. Weeks are keyed by number, with their activities
+     * and Gates loaded.
+     *
+     * @return array{participant: User, mentor: User, session: TrainingSession, weeks: Collection<int, TrainingWeek>}
+     */
+    private function scheduleFixture(): array
+    {
+        $participant = User::factory()->create();
+        $mentor = User::factory()->create(['role' => 'coach']);
+        $program = Program::factory()->create();
+        $weeks = collect(range(1, 4))->mapWithKeys(function (int $number) use ($program): array {
+            $week = TrainingWeek::factory()->for($program)->create(['week_number' => $number, 'position' => $number]);
+            Activity::factory()->for($week, 'week')->create(['position' => 1]);
+            GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_DELIVERABLE]);
+
+            return [$number => $week->load(['activities', 'gates.criteria'])];
+        });
+        $session = TrainingSession::factory()->for($program)->withParticipants($participant)->withMentors($mentor)->create([
+            'starts_on' => '2026-11-09',
+            'ends_on' => '2026-12-06',
+        ]);
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $mentor->id]);
+
+        return compact('participant', 'mentor', 'session', 'weeks');
+    }
+
+    /**
+     * Post the reviewer's review of the week's checklist for the participant in the session: completed ticks every
+     * item, incomplete leaves every item unticked.
+     */
+    private function reviewWeek(User $reviewer, User $participant, TrainingSession $session, TrainingWeek $week, GateEvaluationStatus $status): TestResponse
+    {
+        $gate = $week->gates->sole();
+        $criterionStatus = $status === GateEvaluationStatus::Passed ? 'met' : 'not_met';
+
+        return $this->actingAs($reviewer)->post(route('training.coach.gates.update', [$session, $week, $participant, $gate]), [
+            'status' => $status->value,
+            'criteria' => $gate->criteria->mapWithKeys(fn (GateCriterion $criterion): array => [$criterion->id => $criterionStatus])->all(),
+        ]);
     }
 
     private function videoEvidenceFixture(): array

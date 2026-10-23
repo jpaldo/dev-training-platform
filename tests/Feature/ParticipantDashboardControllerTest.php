@@ -223,7 +223,7 @@ class ParticipantDashboardControllerTest extends TestCase
             $gate = TrainingGate::factory()->for($week, 'week')->create();
             GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_video']);
             GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => $position < $rows ? 'passed' : 'not_ready']);
-            WeeklyVideoRecording::create(['user_id' => $participant->id, 'training_week_id' => $week->id, 'disk' => 'local', 'path' => "weekly-video/week-{$position}.mp4", 'original_filename' => "week-{$position}.mp4", 'mime_type' => 'video/mp4', 'size_bytes' => 100, 'uploaded_at' => now()]);
+            WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create();
 
             foreach (range(2, $rows + 1) as $activityPosition) {
                 $activity = Activity::factory()->for($week, 'week')->create(['position' => $activityPosition]);

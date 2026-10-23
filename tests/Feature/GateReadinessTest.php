@@ -227,6 +227,6 @@ class GateReadinessTest extends TestCase
 
     private function uploadWeeklyVideo(User $participant, TrainingWeek $week): WeeklyVideoRecording
     {
-        return WeeklyVideoRecording::create(['user_id' => $participant->id, 'training_week_id' => $week->id, 'path' => "videos/{$participant->id}-{$week->id}.mp4", 'original_filename' => 'week.mp4', 'mime_type' => 'video/mp4', 'size_bytes' => 1048576, 'uploaded_at' => now()]);
+        return WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create();
     }
 }

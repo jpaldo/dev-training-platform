@@ -94,7 +94,7 @@ class ParticipantNotificationTriggersTest extends TestCase
         $participant = User::factory()->create();
         $week = TrainingWeek::factory()->create();
 
-        $this->assertWriteQueuesOneSyncFor($participant, fn (): WeeklyVideoRecording => WeeklyVideoRecording::create(['user_id' => $participant->id, 'training_week_id' => $week->id, 'disk' => 'local', 'path' => 'weekly-video/week.mp4', 'original_filename' => 'week.mp4', 'mime_type' => 'video/mp4', 'size_bytes' => 100, 'uploaded_at' => now()]));
+        $this->assertWriteQueuesOneSyncFor($participant, fn (): WeeklyVideoRecording => WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create());
     }
 
     public function test_coach_review_queues_a_sync_for_the_reviewed_participant(): void

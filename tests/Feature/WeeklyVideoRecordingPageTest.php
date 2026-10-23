@@ -61,13 +61,8 @@ class WeeklyVideoRecordingPageTest extends TestCase
     {
         $participant = User::factory()->create();
         ['week' => $week] = $this->weekFixture();
-        $recording = WeeklyVideoRecording::create([
-            'user_id' => $participant->id,
-            'training_week_id' => $week->id,
-            'disk' => 'local',
-            'path' => 'weekly-video/week-2.mp4',
+        $recording = WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create([
             'original_filename' => 'week-2-walkthrough.mp4',
-            'mime_type' => 'video/mp4',
             'size_bytes' => 1572864,
             'notes' => 'Saved walkthrough notes',
             'uploaded_at' => '2026-10-22 09:30:00',

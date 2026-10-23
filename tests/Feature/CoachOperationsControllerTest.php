@@ -130,7 +130,7 @@ class CoachOperationsControllerTest extends TestCase
                 $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted']);
                 $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
                 SubmissionEvidence::factory()->for($version, 'submissionVersion')->for($deliverable, 'evidenceRequirement')->create();
-                WeeklyVideoRecording::create(['user_id' => $participant->id, 'training_week_id' => $week->id, 'disk' => 'local', 'path' => "weekly-video/{$participant->id}-{$week->id}.mp4", 'original_filename' => 'week.mp4', 'mime_type' => 'video/mp4', 'size_bytes' => 100, 'uploaded_at' => now()]);
+                WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create();
                 $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
                 GateCriterionEvaluation::factory()->for($evaluation, 'gateEvaluation')->for($videoCriterion, 'criterion')->create(['status' => 'met']);
             }

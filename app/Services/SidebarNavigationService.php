@@ -76,7 +76,7 @@ class SidebarNavigationService
 
         $groups = [
             'Overview' => [
-                ['label' => 'Coach Dashboard', 'route' => 'coach.dashboard', 'active' => ['coach.dashboard']],
+                ['label' => 'Mentor Dashboard', 'route' => 'coach.dashboard', 'active' => ['coach.dashboard']],
             ],
             'People' => [
                 ['label' => 'Participants', 'route' => 'coach.participants', 'active' => ['coach.participants', 'coach.participants.*']],

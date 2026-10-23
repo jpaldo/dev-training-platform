@@ -57,7 +57,7 @@ class AttendancePageService
         $participants = User::query()->where('role', UserRole::Participant)->orderBy('name')->get(['id', 'name']);
 
         return [
-            'areaLabel' => $isAdmin ? 'ADMIN' : 'COACH',
+            'areaLabel' => $isAdmin ? 'ADMIN' : 'MENTOR',
             'dateFrom' => (string) ($filters['date_from'] ?? ''),
             'dateTo' => (string) ($filters['date_to'] ?? ''),
             'participantOptions' => $participants

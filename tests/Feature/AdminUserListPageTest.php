@@ -37,7 +37,7 @@ class AdminUserListPageTest extends TestCase
                 'action="'.route('admin.users.enable', $hybrid).'"', 'Enable',
                 '>Ava Automation</th>', '>Participant</td>', '>Active</span>', 'Mar 8, 2026',
                 '>Max Manual</th>', '>Participant</td>', '>Active</span>',
-                '>Cole Coach</th>', '>—</td>', '>Mentor / Coach</td>', '>Active</span>',
+                '>Cole Coach</th>', '>—</td>', '>Mentor</td>', '>Active</span>',
                 '>Ada Admin</th>', '>Admin</td>', '>Active</span>', 'Mar 5, 2026',
                 'action="'.route('admin.users.disable', $admin).'"', 'data-confirm="Disable this account? Historical training records will be preserved."', 'Disable',
             ], false)
@@ -86,7 +86,7 @@ class AdminUserListPageTest extends TestCase
             ->assertSeeInOrder([
                 '<option value="">All</option>',
                 '<option value="admin" >Admin</option>',
-                '<option value="coach" >Mentor / Coach</option>',
+                '<option value="coach" >Mentor</option>',
                 '<option value="participant" selected>Participant</option>',
             ], false)
             ->assertSee('>Max Manual</th>', false)

@@ -162,7 +162,7 @@
                                                 <x-ui.badge :tone="$activity->participant_status_tone">{{ $activity->participant_status_label }}</x-ui.badge>
                                                 @if($activity->participant_score)<span class="text-muted">Score: <strong class="text-slate-100">{{ $activity->participant_score->total_score }} / {{ $activity->participant_score_max }}</strong></span>@endif
                                             </div>
-                                            @if($activity->participant_submission?->isFailed())<span class="text-sm text-muted">Attempt {{ $activity->participant_submission->attempt_number }} is closed. {{ $activity->participant_attempts->count() > 1 ? 'Retry available.' : 'Waiting for coach to create a retry.' }}</span>@endif
+                                            @if($activity->participant_submission?->isFailed())<span class="text-sm text-muted">Attempt {{ $activity->participant_submission->attempt_number }} is closed. {{ $activity->participant_attempts->count() > 1 ? 'Retry available.' : 'Waiting for mentor to create a retry.' }}</span>@endif
                                         </div>
                                         @if($item['available'])
                                             <div class="grid justify-items-start gap-1.5 sm:justify-items-end">
@@ -187,7 +187,7 @@
                                             @if($gateItem['readiness'])
                                                 <ul class="m-0 list-disc pl-5 text-sm/relaxed text-muted">@foreach($gateItem['readiness'] as $reason)<li>{{ $reason }}</li>@endforeach</ul>
                                             @elseif(!$gateItem['evaluation'])
-                                                <p class="m-0 text-sm text-muted">Your Gate is ready for Coach review.</p>
+                                                <p class="m-0 text-sm text-muted">Your Gate is ready for Mentor review.</p>
                                             @endif
                                             <x-ui.button variant="secondary" :href="route('training.gates.show', [$gateItem['week'], $gateItem['gate']])">View Gate</x-ui.button>
                                         </div>
@@ -234,7 +234,7 @@
                     </ul>
                     <x-ui.alert class="mt-2 grid gap-2">
                         <strong class="text-cyan-200">Gates &amp; progression</strong>
-                        <p class="m-0">Each week includes required activities and evidence. A Coach must review and pass the Gate before the next week becomes available.</p>
+                        <p class="m-0">Each week includes required activities and evidence. A Mentor must review and pass the Gate before the next week becomes available.</p>
                         <p class="m-0">Your progress is based on demonstrated judgment and evidence — not simply completing AI-generated work.</p>
                     </x-ui.alert>
                 </x-ui.card>

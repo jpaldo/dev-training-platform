@@ -11,7 +11,7 @@
     <div class="grid grid-cols-1 gap-6">
         <header class="flex flex-wrap items-end justify-between gap-4">
             <div class="grid min-w-0 justify-items-start gap-2">
-                <x-ui.eyebrow>COACH / REPORTS</x-ui.eyebrow>
+                <x-ui.eyebrow>MENTOR / REPORTS</x-ui.eyebrow>
                 <x-ui.button variant="secondary" :href="route('coach.reports')">
                     <svg class="size-4.5 shrink-0" width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12.707 15.293a1 1 0 01-1.414 0L6.586 10l4.707-5.293a1 1 0 011.414 1.414L8.914 10l3.793 3.879a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
                     <span>Back to Reports</span>

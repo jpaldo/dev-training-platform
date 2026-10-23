@@ -11,7 +11,7 @@
 
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
-            <x-ui.eyebrow>COACH · PARTICIPANTS</x-ui.eyebrow>
+            <x-ui.eyebrow>MENTOR · PARTICIPANTS</x-ui.eyebrow>
             <x-ui.page-title>Participants</x-ui.page-title>
         </header>
 
@@ -38,7 +38,7 @@
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Assigned Coach</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Assigned Mentor</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Training Drive</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Google Drive</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Attendance</th>

@@ -15,7 +15,7 @@ class AdminUserPageService
     /** @var array<string, string> The Access Type option texts by role value, in display order. */
     private const ACCESS_TYPES = [
         UserRole::Admin->value => 'Admin',
-        UserRole::Coach->value => 'Mentor / Coach',
+        UserRole::Coach->value => 'Mentor',
         UserRole::Participant->value => 'Participant',
     ];
 

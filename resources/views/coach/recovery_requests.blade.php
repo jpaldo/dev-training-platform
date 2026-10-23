@@ -3,7 +3,7 @@
 @section('content')
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
-            <x-ui.eyebrow>COACH OPERATIONS</x-ui.eyebrow>
+            <x-ui.eyebrow>MENTOR OPERATIONS</x-ui.eyebrow>
             <x-ui.page-title>Recovery requests</x-ui.page-title>
         </header>
 
@@ -26,12 +26,12 @@
                         <p class="m-0 leading-relaxed wrap-anywhere">{{ $item['message'] }}</p>
                         <form method="post" action="{{ $item['decide_url'] }}" class="m-0 grid grid-cols-1 gap-3">
                             @csrf
-                            <label for="coach-response-{{ $loop->index }}" class="sr-only">Coach response</label>
+                            <label for="coach-response-{{ $loop->index }}" class="sr-only">Mentor response</label>
                             <textarea
                                 id="coach-response-{{ $loop->index }}"
                                 name="coach_response"
                                 rows="3"
-                                placeholder="Coach response"
+                                placeholder="Mentor response"
                                 class="w-full min-w-0 resize-y rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm leading-relaxed text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50"
                             ></textarea>
                             <div class="flex flex-wrap items-center gap-3">

@@ -12,7 +12,7 @@
     <div class="grid grid-cols-1 gap-6">
         <header class="flex flex-wrap items-end justify-between gap-4">
             <div class="grid min-w-0 gap-2">
-                <x-ui.eyebrow>COACH · SCORING</x-ui.eyebrow>
+                <x-ui.eyebrow>MENTOR · SCORING</x-ui.eyebrow>
                 <x-ui.page-title>Scoring overview</x-ui.page-title>
                 <p class="m-0 leading-relaxed text-muted">Completion and activity scores are separate measures.</p>
             </div>
@@ -79,7 +79,7 @@
                                 @endforeach
                                 <th scope="col" class="{{ $headerCellClasses }}">Overall</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Completion</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Assigned Coach</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Assigned Mentor</th>
                                 <th scope="col" class="{{ $headerCellClasses }} {{ $actionCellClasses }}"><span class="sr-only">Action</span></th>
                             </tr>
                         </thead>

@@ -19,11 +19,11 @@ class RecoveryRequestController extends Controller
     public function store(StoreRecoveryRequestRequest $request, ActivitySubmission $activitySubmission): RedirectResponse
     {
         if ($request->hasPendingRecoveryRequest()) {
-            return back()->with('status', 'Review requested. Waiting for coach response.');
+            return back()->with('status', 'Review requested. Waiting for mentor response.');
         }
         ActivityRecoveryRequest::create(['user_id' => $request->user()->id, 'activity_submission_id' => $activitySubmission->id, 'message' => $request->validated('message'), 'requested_at' => now()]);
 
-        return back()->with('status', 'Review requested. Waiting for coach response.');
+        return back()->with('status', 'Review requested. Waiting for mentor response.');
     }
 
     public function index(Request $request, CoachRecoveryRequestPageService $page): View

@@ -49,7 +49,7 @@ class CoachGateBoardPageTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.gates'))
             ->assertOk()
             ->assertSeeInOrder([
-                'COACH · GATES',
+                'MENTOR · GATES',
                 'Gate management',
                 'TOTAL GATES', '>3</dd>',
                 'READY FOR REVIEW', '>0</dd>',

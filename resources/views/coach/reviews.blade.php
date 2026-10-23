@@ -8,7 +8,7 @@
 
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
-            <x-ui.eyebrow>COACH · REVIEW QUEUE</x-ui.eyebrow>
+            <x-ui.eyebrow>MENTOR · REVIEW QUEUE</x-ui.eyebrow>
             <x-ui.page-title>Submission reviews</x-ui.page-title>
         </header>
 

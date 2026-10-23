@@ -188,7 +188,7 @@ class ScoringEditPageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 'Second reader',
-                '<option value="'.$reader->id.'" selected>Bob Reader (Coach)</option>',
+                '<option value="'.$reader->id.'" selected>Bob Reader (Mentor)</option>',
                 'name="second_score" value="101" required',
                 'role="alert">The second score field must not be greater than 100.</p>',
                 '>Typed reasoning</textarea>',
@@ -238,8 +238,8 @@ class ScoringEditPageTest extends TestCase
             'action="'.route('coach.scoring.second-reader', $version).'"',
             'id="second_reader_id" name="second_reader_id" required', '<option value="">Select reader</option>',
             '<option value="'.$admin->id.'" >Ada Admin (Admin)</option>',
-            '<option value="'.$reader->id.'" selected>Bob Reader (Coach)</option>',
-            '<option value="'.$coach->id.'" >Zed Coach (Coach)</option>',
+            '<option value="'.$reader->id.'" selected>Bob Reader (Mentor)</option>',
+            '<option value="'.$coach->id.'" >Zed Coach (Mentor)</option>',
             'name="second_score" value="80" required',
             '>Second look</textarea>',
             'name="moderation_outcome" value="Agreed"',

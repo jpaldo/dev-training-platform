@@ -3,7 +3,7 @@
 @section('content')
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
-            <x-ui.eyebrow>COACH OPERATIONS</x-ui.eyebrow>
+            <x-ui.eyebrow>MENTOR OPERATIONS</x-ui.eyebrow>
             <x-ui.page-title>Training overview</x-ui.page-title>
         </header>
 

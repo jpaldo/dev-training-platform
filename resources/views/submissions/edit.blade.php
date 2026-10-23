@@ -48,7 +48,7 @@
 
             @if($coachFeedback !== null)
                 <section class="grid gap-3 rounded-2xl border border-amber-800 bg-surface p-6" aria-labelledby="coach-feedback-title">
-                    <h2 id="coach-feedback-title" class="m-0 text-xl font-extrabold">Coach Feedback</h2>
+                    <h2 id="coach-feedback-title" class="m-0 text-xl font-extrabold">Mentor Feedback</h2>
                     <div class="{{ $feedbackClasses }}">{{ $coachFeedback }}</div>
                     <p class="m-0 text-sm text-muted">Decision: Needs revision</p>
                 </section>
@@ -62,7 +62,7 @@
                     @endif
                 </p>
                 @if($mainAction === 'revise')
-                    <x-ui.alert tone="error">Your coach requested changes. Create a new editable revision; the previous submitted version remains immutable.</x-ui.alert>
+                    <x-ui.alert tone="error">Your mentor requested changes. Create a new editable revision; the previous submitted version remains immutable.</x-ui.alert>
                 @endif
 
                 @if($isEditable)
@@ -184,7 +184,7 @@
                             <details class="{{ $guidanceClasses }}">
                                 <summary class="{{ $guidanceSummaryClasses }}">Field guidance</summary>
                                 <div class="{{ $guidanceBodyClasses }}">
-                                    <p><strong>What to enter</strong><br>Add context that will help your coach understand a limitation, assumption, follow-up, or decision not captured in the activity fields.</p>
+                                    <p><strong>What to enter</strong><br>Add context that will help your mentor understand a limitation, assumption, follow-up, or decision not captured in the activity fields.</p>
                                     <p><strong>Why it matters</strong><br>Clear notes make your reasoning and next steps traceable without changing the submitted answers.</p>
                                     <p><strong>Good example</strong><br>I could not run the production-like check, so I documented the staging result and the follow-up needed.</p>
                                     <p><strong>Avoid</strong><br>Do not use this as a replacement for required fields or claim work that you did not perform.</p>
@@ -195,14 +195,14 @@
                     </form>
 
                 @else
-                    <p class="m-0 leading-relaxed">This submitted version is immutable. If a coach requests revision, a new version will be created.</p>
+                    <p class="m-0 leading-relaxed">This submitted version is immutable. If a mentor requests revision, a new version will be created.</p>
                 @endif
             </x-ui.card>
 
             @if($version?->isDraft())
                 <x-ui.card as="section" class="grid gap-4" aria-labelledby="submission-evidence-title">
                     <h2 id="submission-evidence-title" class="m-0 text-xl font-extrabold">Evidence</h2>
-                    <p class="m-0 leading-relaxed text-muted">Upload the evidence that lets your coach verify the work described in this activity. Files attach automatically after upload.</p>
+                    <p class="m-0 leading-relaxed text-muted">Upload the evidence that lets your mentor verify the work described in this activity. Files attach automatically after upload.</p>
                     @if($evidenceRows->isNotEmpty())
                         <ul class="m-0 grid list-none gap-3 p-0">
                             @foreach($evidenceRows as $evidenceRow)

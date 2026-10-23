@@ -11,7 +11,7 @@
 
     <div class="grid grid-cols-1 gap-6">
         <header class="grid min-w-0 gap-2">
-            <x-ui.eyebrow>COACH · GATES</x-ui.eyebrow>
+            <x-ui.eyebrow>MENTOR · GATES</x-ui.eyebrow>
             <x-ui.page-title>Gate management</x-ui.page-title>
         </header>
 

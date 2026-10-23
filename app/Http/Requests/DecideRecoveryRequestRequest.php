@@ -33,4 +33,16 @@ class DecideRecoveryRequestRequest extends FormRequest
             'coach_response' => ['nullable', 'string', 'max:2000'],
         ];
     }
+
+    /**
+     * Get the readable names of the fields.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'coach_response' => 'mentor response',
+        ];
+    }
 }

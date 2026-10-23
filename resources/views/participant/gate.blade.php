@@ -37,7 +37,7 @@
                         @endforeach
                     </ul>
                 @elseif($showsReadyNotice)
-                    <p class="m-0 leading-relaxed text-muted">Your Gate is ready for Coach review. A Coach/Admin must record the official result.</p>
+                    <p class="m-0 leading-relaxed text-muted">Your Gate is ready for Mentor review. A Mentor/Admin must record the official result.</p>
                 @endif
             </x-ui.card>
 
@@ -77,7 +77,7 @@
 
             @if($coachFeedback)
                 <x-ui.card as="section" class="grid grid-cols-1 gap-3" aria-labelledby="gate-feedback-title">
-                    <h2 id="gate-feedback-title" class="{{ $sectionTitleClasses }}">Coach feedback</h2>
+                    <h2 id="gate-feedback-title" class="{{ $sectionTitleClasses }}">Mentor feedback</h2>
                     <p class="m-0 leading-relaxed wrap-anywhere">{{ $coachFeedback }}</p>
                 </x-ui.card>
             @endif

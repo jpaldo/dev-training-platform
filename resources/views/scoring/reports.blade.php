@@ -10,7 +10,7 @@
     <div class="grid grid-cols-1 gap-6">
         <header class="flex flex-wrap items-end justify-between gap-4">
             <div class="grid min-w-0 gap-2">
-                <x-ui.eyebrow>COACH · SCORING REPORTS</x-ui.eyebrow>
+                <x-ui.eyebrow>MENTOR · SCORING REPORTS</x-ui.eyebrow>
                 <x-ui.page-title>Scoring reports</x-ui.page-title>
                 <p class="m-0 leading-relaxed text-muted">Scoring completion is separate from activity completion. Filters apply to the dashboard and CSV exports.</p>
             </div>

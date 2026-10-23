@@ -23,7 +23,7 @@ class ScoringReportsPageTest extends TestCase
         $response = $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.scoring.reports'))->assertOk();
 
         $response->assertSeeInOrder([
-            'COACH · SCORING REPORTS',
+            'MENTOR · SCORING REPORTS',
             '>Scoring reports</h1>',
             'Scoring completion is separate from activity completion. Filters apply to the dashboard and CSV exports.',
             'href="'.route('coach.reports.scores').'"', '>Activity Scores CSV</a>',

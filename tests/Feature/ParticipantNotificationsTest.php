@@ -228,12 +228,12 @@ class ParticipantNotificationsTest extends TestCase
         $participant = User::factory()->create(['role' => 'participant']);
         $participant->participantNotifications()->delete();
         ParticipantNotification::factory()->for($participant, 'participant')->create(['title' => 'Activity incomplete', 'body' => 'Complete your activity.', 'created_at' => now()->subHour()]);
-        ParticipantNotification::factory()->for($participant, 'participant')->create(['type' => ParticipantNotificationType::AwaitingReview, 'title' => 'Awaiting coach review', 'body' => 'Your submission is awaiting review.']);
+        ParticipantNotification::factory()->for($participant, 'participant')->create(['type' => ParticipantNotificationType::AwaitingReview, 'title' => 'Awaiting mentor review', 'body' => 'Your submission is awaiting review.']);
 
         $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
             ->assertSeeInOrder(['NEXT ACTION', 'Activity incomplete — Complete your activity.'])
-            ->assertDontSee('Awaiting coach review — ')
+            ->assertDontSee('Awaiting mentor review — ')
             ->assertSee('Your submission is awaiting review.');
     }
 

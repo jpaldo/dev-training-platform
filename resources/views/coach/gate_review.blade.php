@@ -72,7 +72,7 @@
             @if($canManage)
                 <x-ui.card as="form" method="POST" action="{{ route('training.coach.gates.update', [$trainingWeek, $participant, $gate]) }}" id="gate-review-form" class="grid gap-6" aria-labelledby="gate-decision-title">
                     @csrf
-                    <h2 id="gate-decision-title" class="m-0 text-xl font-extrabold">Coach decision</h2>
+                    <h2 id="gate-decision-title" class="m-0 text-xl font-extrabold">Mentor decision</h2>
 
                     <div class="grid gap-2">
                         <label for="gate-status" class="{{ $labelClasses }}">Decision</label>
@@ -98,13 +98,13 @@
                     </section>
 
                     <div class="grid gap-2 border-t border-line pt-5">
-                        <label for="gate-comments" class="{{ $labelClasses }}">Coach comments</label>
+                        <label for="gate-comments" class="{{ $labelClasses }}">Mentor comments</label>
                         <textarea id="gate-comments" name="comments" rows="5" class="{{ $controlClasses }} min-h-28 resize-y">{{ old('comments', $evaluation?->comments) }}</textarea>
                     </div>
                 </x-ui.card>
             @else
                 <x-ui.card as="section" class="grid gap-4" aria-labelledby="gate-decision-title">
-                    <h2 id="gate-decision-title" class="m-0 text-xl font-extrabold">Coach decision</h2>
+                    <h2 id="gate-decision-title" class="m-0 text-xl font-extrabold">Mentor decision</h2>
                     <x-ui.alert tone="error" role="status">Read only — this participant is not assigned to you.</x-ui.alert>
                 </x-ui.card>
             @endif

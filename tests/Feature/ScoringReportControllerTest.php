@@ -55,7 +55,7 @@ class ScoringReportControllerTest extends TestCase
         $lines = explode("\n", trim($csv));
         $rows = collect($lines)->skip(1)->map(fn (string $line): array => str_getcsv($line))->keyBy(0);
 
-        $this->assertSame(['Participant', 'Employee ID', 'Email', 'Assigned Coach(es)', 'Completed Activities', 'Scored Activities', 'Unscored Activities', 'Week 2 Average', 'Week 3 Average', 'Week 4 Average', 'Overall Average', 'Current Performance Band', 'Latest Score Date'], str_getcsv($lines[0]));
+        $this->assertSame(['Participant', 'Employee ID', 'Email', 'Assigned Mentor(s)', 'Completed Activities', 'Scored Activities', 'Unscored Activities', 'Week 2 Average', 'Week 3 Average', 'Week 4 Average', 'Overall Average', 'Current Performance Band', 'Latest Score Date'], str_getcsv($lines[0]));
         $this->assertCount(2, $rows);
         $this->assertSame(['Ada', 'EMP-1001', 'ada@example.com', 'Casey Coach', '2', '2', '0', '85', '', '', '85', 'Proficient', '2026-10-01 09:00:00'], $rows['Ada']);
         $this->assertSame(['Ben', '', 'ben@example.com', '', '2', '2', '0', '60', '70', '', '65', 'Developing', '2026-10-01 10:00:00'], $rows['Ben']);
@@ -116,7 +116,7 @@ class ScoringReportControllerTest extends TestCase
         $rows = collect($lines)->skip(1)->map(fn (string $line): array => str_getcsv($line));
         $statuses = $rows->mapWithKeys(fn (array $row): array => [$row[4] => [$row[7], $row[13], $row[14], $row[15]]]);
 
-        $this->assertSame(['Participant', 'Employee ID', 'Email', 'Week', 'Activity', 'Attempt/Version', 'Submission Status', 'Scoring Status', 'D1', 'D2', 'D3', 'D4', 'D5', 'Total Score', 'Performance Band', 'Scorer', 'Scored At', 'Second Reader', 'Second Reader Status', 'Assigned Coach'], str_getcsv($lines[0]));
+        $this->assertSame(['Participant', 'Employee ID', 'Email', 'Week', 'Activity', 'Attempt/Version', 'Submission Status', 'Scoring Status', 'D1', 'D2', 'D3', 'D4', 'D5', 'Total Score', 'Performance Band', 'Scorer', 'Scored At', 'Second Reader', 'Second Reader Status', 'Assigned Mentor'], str_getcsv($lines[0]));
         $this->assertSame(['EMP-2001'], $rows->pluck(1)->unique()->values()->all());
 
         $this->assertSame(['Published activity' => ['published', '83', 'Proficient', 'Casey Coach'], 'Draft activity' => ['unscored', '', '', ''], 'Unscored activity' => ['unscored', '', '', '']], $statuses->all());

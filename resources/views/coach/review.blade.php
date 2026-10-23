@@ -123,7 +123,7 @@
 
             <x-ui.card as="section" class="grid grid-cols-1 gap-5" aria-labelledby="coach-review-title">
                 <div class="grid gap-1.5">
-                    <h2 id="coach-review-title" class="{{ $sectionTitleClasses }}">Coach Review</h2>
+                    <h2 id="coach-review-title" class="{{ $sectionTitleClasses }}">Mentor Review</h2>
                     <p class="{{ $hintClasses }}">Review this submission, choose a decision, and provide feedback for the participant.</p>
                 </div>
 
@@ -157,7 +157,7 @@
                             <div id="decision-help" class="grid gap-2 pt-1 text-sm/relaxed text-muted">
                                 <p class="m-0"><strong class="text-slate-100">Passed:</strong> The submission meets the activity requirements and is accepted.</p>
                                 <p class="m-0"><strong class="text-slate-100">Revise:</strong> The participant needs to correct or improve the submission and can submit a revision.</p>
-                                <p class="m-0"><strong class="text-slate-100">Failed:</strong> The attempt is not accepted and is closed. A coach may create a retry when appropriate.</p>
+                                <p class="m-0"><strong class="text-slate-100">Failed:</strong> The attempt is not accepted and is closed. A mentor may create a retry when appropriate.</p>
                             </div>
                         </div>
 

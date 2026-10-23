@@ -483,7 +483,7 @@ class ParticipantWorkflowTest extends TestCase
 
         $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week2, $activity]))->assertOk()->getContent();
 
-        $this->assertLessThan(strpos($html, 'Current status:'), strpos($html, 'Coach Feedback'));
+        $this->assertLessThan(strpos($html, 'Current status:'), strpos($html, 'Mentor Feedback'));
         $this->assertStringContainsString('<h3>Issues Found</h3>', $html);
         $this->assertStringContainsString('&lt;script&gt;alert', $html);
         $this->assertStringNotContainsString('<script>alert', $html);
@@ -504,8 +504,8 @@ class ParticipantWorkflowTest extends TestCase
 
         $html = $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))->assertOk()->getContent();
 
-        $this->assertStringContainsString('Your coach requested changes. Create a new revision; the previous submitted version remains unchanged.', $html);
-        $this->assertStringContainsString('<strong>Coach feedback:</strong>', $html);
+        $this->assertStringContainsString('Your mentor requested changes. Create a new revision; the previous submitted version remains unchanged.', $html);
+        $this->assertStringContainsString('<strong>Mentor feedback:</strong>', $html);
         $this->assertSame(2, substr_count($html, '<h3>Issues Found</h3>'));
         $this->assertStringContainsString('<li>Correct the expected result</li>', $html);
         $this->assertStringContainsString('<strong>Do this now</strong>', $html);
@@ -571,7 +571,7 @@ class ParticipantWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('Attempt 1')
             ->assertSee('>FAILED</span>', false)
-            ->assertSee('This attempt was not accepted by your coach and is now closed.')
+            ->assertSee('This attempt was not accepted by your mentor and is now closed.')
             ->assertSee('Please correct the expected result.')
             ->assertSee('Attempt 2')
             ->assertSee('>DRAFT</span>', false)
@@ -590,7 +590,7 @@ class ParticipantWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('>FAILED</span>', false)
             ->assertSee('Request Review')
-            ->assertDontSee('Coach feedback')
+            ->assertDontSee('Mentor feedback')
             ->assertDontSee('No coach feedback was provided.');
     }
 
@@ -602,7 +602,7 @@ class ParticipantWorkflowTest extends TestCase
 
         $this->actingAs($participant)->get(route('training.activities.show', [$week2, $activity]))
             ->assertOk()
-            ->assertSee('Review requested. Waiting for coach response.')
+            ->assertSee('Review requested. Waiting for mentor response.')
             ->assertDontSee('Request Review')
             ->assertDontSee('Review request declined');
     }
@@ -617,7 +617,7 @@ class ParticipantWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('Review request declined: The evidence does not cover the failed step.')
             ->assertDontSee('Request Review')
-            ->assertDontSee('Waiting for coach response.');
+            ->assertDontSee('Waiting for mentor response.');
     }
 
     public function test_attempt_history_shows_the_published_score_of_an_attempt_but_not_a_draft_score(): void

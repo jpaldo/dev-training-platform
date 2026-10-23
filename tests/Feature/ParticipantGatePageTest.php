@@ -61,8 +61,8 @@ class ParticipantGatePageTest extends TestCase
             ->assertDontSee('Optional stretch goal')
             ->assertDontSee('Daily logs')
             ->assertDontSee('View Video')
-            ->assertDontSee('Your Gate is ready for Coach review')
-            ->assertDontSee('Coach feedback');
+            ->assertDontSee('Your Gate is ready for Mentor review')
+            ->assertDontSee('Mentor feedback');
 
         $this->assertSame(1, substr_count($response->getContent(), 'Upload Video Recording'));
     }
@@ -105,7 +105,7 @@ class ParticipantGatePageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 'READY FOR REVIEW',
-                'Your Gate is ready for Coach review. A Coach/Admin must record the official result.',
+                'Your Gate is ready for Mentor review. A Mentor/Admin must record the official result.',
                 'Status:',
                 'AWAITING REVIEW',
                 'href="'.route('training.video-recording.view', [$week, $recording]).'"',
@@ -127,7 +127,7 @@ class ParticipantGatePageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 'READY FOR REVIEW',
-                'Your Gate is ready for Coach review. A Coach/Admin must record the official result.',
+                'Your Gate is ready for Mentor review. A Mentor/Admin must record the official result.',
                 'Criteria',
             ])
             ->assertDontSee('gate-main-action')
@@ -158,10 +158,10 @@ class ParticipantGatePageTest extends TestCase
                 'Missing',
                 'Required Weekly Video Recording',
                 'Met',
-                'Coach feedback',
+                'Mentor feedback',
                 'Re-record the walkthrough.',
             ])
-            ->assertDontSee('Your Gate is ready for Coach review');
+            ->assertDontSee('Your Gate is ready for Mentor review');
     }
 
     #[DataProvider('savedGateStatuses')]

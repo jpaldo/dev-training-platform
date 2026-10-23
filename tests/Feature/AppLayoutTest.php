@@ -92,7 +92,7 @@ class AppLayoutTest extends TestCase
 
         $this->assertSame(['Overview', 'People', 'Review'], $this->groupLabels($sidebar));
         $this->assertSame([
-            ['Coach Dashboard', route('coach.dashboard'), false, 0],
+            ['Mentor Dashboard', route('coach.dashboard'), false, 0],
             ['Participants', route('coach.participants'), false, 0],
             ['Attendance', route('coach.attendance.index'), false, 0],
             ['Reviews', route('coach.reviews'), true, 0],
@@ -102,7 +102,7 @@ class AppLayoutTest extends TestCase
             ['Reports', route('coach.reports'), false, 0],
             ['Profile', route('profile.show'), false, 0],
         ], $this->sidebarLinks($sidebar));
-        $this->assertStringContainsString('>Coach</span>', $sidebar);
+        $this->assertStringContainsString('>Mentor</span>', $sidebar);
     }
 
     public function test_admin_sidebar_adds_the_admin_group_and_marks_only_the_matching_settings_link(): void

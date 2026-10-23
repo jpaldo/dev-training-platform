@@ -44,7 +44,7 @@ class TrainingWeekPageTest extends TestCase
                 'Awaiting Review',
                 e($criteria[1]->title),
                 'Awaiting Review',
-                'Coach approval is required before the next week unlocks.',
+                'Mentor approval is required before the next week unlocks.',
                 'href="'.route('training.gates.show', [$week, $gate]).'"',
                 'View Gate',
                 'ACTIVITY 1',
@@ -175,7 +175,7 @@ class TrainingWeekPageTest extends TestCase
 
         $this->actingAs($coach)->get(route('training.weeks.show', $week))
             ->assertOk()
-            ->assertSeeInOrder([e($gate->title), 'Gate status:', 'NOT READY', 'Coach approval is required before the next week unlocks.'], false)
+            ->assertSeeInOrder([e($gate->title), 'Gate status:', 'NOT READY', 'Mentor approval is required before the next week unlocks.'], false)
             ->assertDontSee('View Gate')
             ->assertDontSee(route('training.gates.show', [$week, $gate]), false);
     }

@@ -48,7 +48,7 @@ class CoachSubmissionReviewPageTest extends TestCase
             '>Notes</strong>', 'Type: Text', 'Text evidence', 'Plain text evidence',
             '>Empty</strong>', 'No evidence content provided.',
             'Participant Note', 'Checked against staging.',
-            'Coach Review',
+            'Mentor Review',
             'id="submission-review-form"', 'data-markdown-flush-on-submit',
             'for="decision"', 'id="decision" name="decision" aria-describedby="decision-help" required',
             '<option value="">Select a decision...</option>',

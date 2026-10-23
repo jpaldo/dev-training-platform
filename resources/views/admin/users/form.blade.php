@@ -70,7 +70,7 @@
                             <option value="{{ $option['value'] }}" @selected(old('access_type', $accessType) === $option['value'])>{{ $option['label'] }}</option>
                         @endforeach
                     </select>
-                    <p id="access-type-hint" class="{{ $hintClasses }}">Admin, Mentor / Coach and Participant map to the platform's existing authorization model.</p>
+                    <p id="access-type-hint" class="{{ $hintClasses }}">Admin, Mentor and Participant map to the platform's existing authorization model.</p>
                 </div>
 
                 @if($isEditing)
@@ -111,8 +111,8 @@
             @if($coachAssignment)
                 <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="user-coaches-title">
                     <div class="grid gap-2">
-                        <h2 id="user-coaches-title" class="{{ $sectionTitleClasses }}">Assigned Coaches</h2>
-                        <p id="user-coaches-hint" class="m-0 leading-relaxed text-muted">Assign one or more active Mentor / Coach users. Assignments control which Coaches can change this participant's training outcomes.</p>
+                        <h2 id="user-coaches-title" class="{{ $sectionTitleClasses }}">Assigned Mentors</h2>
+                        <p id="user-coaches-hint" class="m-0 leading-relaxed text-muted">Assign one or more active Mentor users. Assignments control which Mentors can change this participant's training outcomes.</p>
                     </div>
                     <form method="POST" action="{{ $coachAssignment['url'] }}" class="m-0 grid grid-cols-1 justify-items-start gap-4">
                         @csrf

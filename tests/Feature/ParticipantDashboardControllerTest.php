@@ -88,7 +88,7 @@ class ParticipantDashboardControllerTest extends TestCase
             ], false);
 
         if ($isClosed) {
-            $response->assertSee('Attempt 1 is closed. Waiting for coach to create a retry.');
+            $response->assertSee('Attempt 1 is closed. Waiting for mentor to create a retry.');
         } else {
             $response->assertDontSee('is closed.');
         }

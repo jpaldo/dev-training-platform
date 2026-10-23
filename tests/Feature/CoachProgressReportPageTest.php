@@ -38,7 +38,7 @@ class CoachProgressReportPageTest extends TestCase
         $response = $this->actingAs($coach)->get(route('coach.reports'))
             ->assertOk()
             ->assertSeeInOrder([
-                'COACH / REPORTS',
+                'MENTOR / REPORTS',
                 'Progress report',
                 'href="'.e(route('coach.reports.export', ['type' => 'progress'])).'"', '>Export Progress CSV</a>',
                 'aria-label="Reports"',

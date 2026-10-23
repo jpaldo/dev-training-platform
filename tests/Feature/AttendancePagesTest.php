@@ -109,7 +109,7 @@ class AttendancePagesTest extends TestCase
         $response = $this->actingAs($coach)->get(route('coach.attendance.index', $query))
             ->assertOk()
             ->assertSeeInOrder([
-                'COACH · ATTENDANCE',
+                'MENTOR · ATTENDANCE',
                 'Participant Attendance',
                 'id="attendance-manage-main-action"',
                 'href="'.e(route('coach.attendance.export', $query)).'"',

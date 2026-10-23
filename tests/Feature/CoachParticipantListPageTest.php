@@ -37,7 +37,7 @@ class CoachParticipantListPageTest extends TestCase
         $this->actingAs($coach)->get(route('coach.participants'))
             ->assertOk()
             ->assertSeeInOrder([
-                'COACH · PARTICIPANTS',
+                'MENTOR · PARTICIPANTS',
                 'aria-label="Filter participants"',
                 'Participant training overview',
                 '>Ada Assigned</strong>', 'Assigned to me', 'Coach Carter',

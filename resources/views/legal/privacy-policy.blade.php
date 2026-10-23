@@ -21,14 +21,14 @@
         <section class="{{ $sectionClasses }}">
             <h2 class="{{ $headingClasses }}">Information used by the platform</h2>
             <p class="{{ $paragraphClasses }}">The platform uses account details such as your name, email address, employee ID, job role, role, and profile information you provide. It also stores the training information you submit, including activity responses, artifacts, evidence, participant notes, reviews, scores, and related feedback.</p>
-            <p class="{{ $paragraphClasses }}">When you use attendance features, the platform records check-in and check-out timestamps and the resulting session duration. Coaches/Mentors and Admins may access training records needed to operate, review, and administer the program.</p>
+            <p class="{{ $paragraphClasses }}">When you use attendance features, the platform records check-in and check-out timestamps and the resulting session duration. Mentors and Admins may access training records needed to operate, review, and administer the program.</p>
         </section>
 
         <section class="{{ $sectionClasses }}">
             <h2 class="{{ $headingClasses }}">Google Drive connection</h2>
             <p class="{{ $paragraphClasses }}">Connecting Google Drive is optional and is separate from the manually entered Training Drive link. If you connect Google Drive, Google provides account identity information such as your Google account ID and email address. The platform requests the narrow <code class="{{ $codeClasses }}">drive.file</code> permission, which is used to work with files created by the platform or files you explicitly make available to it.</p>
             <p class="{{ $paragraphClasses }}">The connection is intended to support participant-owned training files and future supported exports. Automatic training exports and Google Sheets synchronization are not currently active features of this platform. The platform does not request Gmail, Calendar, or Contacts access.</p>
-            <p class="{{ $paragraphClasses }}">OAuth access and refresh tokens are stored using application encryption and are not shown to participants, Coaches/Mentors, or other users. You can disconnect Google Drive from your profile; this removes the stored connection information and the application can no longer use that authorization. You may also revoke access through your Google Account settings.</p>
+            <p class="{{ $paragraphClasses }}">OAuth access and refresh tokens are stored using application encryption and are not shown to participants, Mentors, or other users. You can disconnect Google Drive from your profile; this removes the stored connection information and the application can no longer use that authorization. You may also revoke access through your Google Account settings.</p>
         </section>
 
         <section class="{{ $sectionClasses }}">
@@ -38,7 +38,7 @@
 
         <section class="{{ $sectionClasses }}">
             <h2 class="{{ $headingClasses }}">Access and retention</h2>
-            <p class="{{ $paragraphClasses }}">Access is limited by role. Participants can access their own training information. Assigned Coaches/Mentors can perform authorized reviews for assigned participants, while Admins administer the platform. Historical submissions, evidence, reviews, scores, and Gate records may be retained to preserve training history and reporting. Information is retained for as long as reasonably needed for the training and administration purposes described here, subject to the platform owner’s retention requirements.</p>
+            <p class="{{ $paragraphClasses }}">Access is limited by role. Participants can access their own training information. Assigned Mentors can perform authorized reviews for assigned participants, while Admins administer the platform. Historical submissions, evidence, reviews, scores, and Gate records may be retained to preserve training history and reporting. Information is retained for as long as reasonably needed for the training and administration purposes described here, subject to the platform owner’s retention requirements.</p>
         </section>
 
         <section class="{{ $sectionClasses }}">

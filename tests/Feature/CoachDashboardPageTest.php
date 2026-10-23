@@ -23,7 +23,7 @@ class CoachDashboardPageTest extends TestCase
             ->get(route('coach.dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                'COACH OPERATIONS',
+                'MENTOR OPERATIONS',
                 'Training overview',
                 '<dt', 'href="'.route('coach.participants').'" class="outline-hidden after:absolute after:inset-0">PARTICIPANTS<span class="sr-only">, open the participants list</span></a>', '<dd', '3',
                 '<dt class="text-xs font-black tracking-[0.12em] wrap-break-word text-muted uppercase">COMPLETED</dt>', '<dd', '0',

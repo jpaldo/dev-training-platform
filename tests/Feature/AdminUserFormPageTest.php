@@ -35,9 +35,9 @@ class AdminUserFormPageTest extends TestCase
                 '<option value="developer" >Developer</option>',
                 'id="access_type" name="access_type"',
                 '<option value="admin" >Admin</option>',
-                '<option value="coach" >Mentor / Coach</option>',
+                '<option value="coach" >Mentor</option>',
                 '<option value="participant" >Participant</option>',
-                'Admin, Mentor / Coach and Participant map to the platform\'s existing authorization model.',
+                'Admin, Mentor and Participant map to the platform\'s existing authorization model.',
                 'Secure password setup',
                 'name="is_active" value="0"', 'name="is_active" value="1" checked',
                 'Active account',
@@ -46,7 +46,7 @@ class AdminUserFormPageTest extends TestCase
             ->assertDontSee('qa_manual', false)
             ->assertDontSee('name="password"', false)
             ->assertDontSee('Training Drive')
-            ->assertDontSee('Assigned Coaches')
+            ->assertDontSee('Assigned Mentors')
             ->assertDontSee('Attendance summary');
     }
 
@@ -80,7 +80,7 @@ class AdminUserFormPageTest extends TestCase
                 'id="password_confirmation" name="password_confirmation" type="password"',
                 'Training Drive',
                 'href="https://drive.google.com/drive/folders/hal" target="_blank" rel="noopener noreferrer"', 'Open Training Drive ↗',
-                'Assigned Coaches',
+                'Assigned Mentors',
                 'action="'.route('admin.users.assignments', $participant).'"',
                 'name="coach_ids[]" multiple size="3"',
                 '<option value="', '>Abe Coach · abe@example.test</option>',
@@ -124,9 +124,9 @@ class AdminUserFormPageTest extends TestCase
 
         $this->actingAs($this->admin())->get(route('admin.users.edit', $coach))
             ->assertOk()
-            ->assertSee('<option value="coach" selected>Mentor / Coach</option>', false)
+            ->assertSee('<option value="coach" selected>Mentor</option>', false)
             ->assertSeeInOrder(['Training Drive', 'Not provided', 'Attendance summary', '0 completed session(s) · 0.00 total hours.'])
-            ->assertDontSee('Assigned Coaches');
+            ->assertDontSee('Assigned Mentors');
     }
 
     public function test_editing_a_user_with_an_employee_id_marks_it_required(): void
@@ -168,7 +168,7 @@ class AdminUserFormPageTest extends TestCase
                 'value="Person"',
                 'value="not-an-email"',
                 '<option value="project_manager" selected>Project Manager (PM)</option>',
-                '<option value="coach" selected>Mentor / Coach</option>',
+                '<option value="coach" selected>Mentor</option>',
             ], false)
             ->assertDontSee('name="is_active" value="1" checked', false);
     }
@@ -201,7 +201,7 @@ class AdminUserFormPageTest extends TestCase
 
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $this->actingAs($admin)->get(route('admin.users.edit', $participant))->assertOk()->assertSee('Assigned Coaches');
+        $this->actingAs($admin)->get(route('admin.users.edit', $participant))->assertOk()->assertSee('Assigned Mentors');
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());

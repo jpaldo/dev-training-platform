@@ -18,7 +18,7 @@ class ParticipantNotificationsPageTest extends TestCase
         $revision = $this->notification($participant, [
             'type' => 'needs_revision',
             'title' => 'Revision required',
-            'body' => 'Coach feedback is available.',
+            'body' => 'Mentor feedback is available.',
             'action_url' => '/training/revise',
             'created_at' => now()->subMinutes(5),
         ]);
@@ -52,7 +52,7 @@ class ParticipantNotificationsPageTest extends TestCase
                 'Revision required',
                 'Unread',
                 '5 minutes ago',
-                'Coach feedback is available.',
+                'Mentor feedback is available.',
                 'href="/training/revise"',
                 'View Feedback &amp; Revise',
                 'action="'.route('participant.notifications.read', $revision).'"',

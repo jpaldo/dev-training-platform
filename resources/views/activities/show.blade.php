@@ -63,12 +63,12 @@
                     <x-ui.card as="section" class="grid justify-items-start gap-3" aria-labelledby="activity-submission-title">
                         <h2 id="activity-submission-title" class="m-0 text-xl font-extrabold">Training-platform submission</h2>
                         <p class="m-0 text-muted">Status: <strong class="text-slate-100">{{ $submission?->status->label() ?? 'Not started' }}</strong></p>
-                        <p class="m-0 leading-relaxed text-muted">Add required evidence and submit for coach review. The existing Gate rules determine completion.</p>
+                        <p class="m-0 leading-relaxed text-muted">Add required evidence and submit for mentor review. The existing Gate rules determine completion.</p>
                         @if($submission?->needsRevision())
-                            <x-ui.alert tone="error">Your coach requested changes. Create a new revision; the previous submitted version remains unchanged.</x-ui.alert>
+                            <x-ui.alert tone="error">Your mentor requested changes. Create a new revision; the previous submitted version remains unchanged.</x-ui.alert>
                             @if($revisionFeedback !== null)
                                 <div class="grid w-full gap-2 rounded-xl bg-surface-sunken p-4">
-                                    <strong>Coach feedback:</strong>
+                                    <strong>Mentor feedback:</strong>
                                     <div class="{{ $feedbackClasses }}">{{ $revisionFeedback }}</div>
                                 </div>
                             @endif
@@ -126,25 +126,25 @@
                                         </p>
 
                                         @if($attemptSubmission->isFailed())
-                                            <p class="m-0 leading-relaxed">This attempt was not accepted by your coach and is now closed. Your submitted work remains available as part of your training history.</p>
+                                            <p class="m-0 leading-relaxed">This attempt was not accepted by your mentor and is now closed. Your submitted work remains available as part of your training history.</p>
                                             @if($attempt['feedback'])
                                                 <div class="grid w-full gap-2 rounded-xl bg-surface-sunken p-4">
-                                                    <strong>Coach feedback</strong>
+                                                    <strong>Mentor feedback</strong>
                                                     <div class="{{ $feedbackClasses }}">{{ $attempt['feedback'] }}</div>
                                                 </div>
                                             @endif
                                             @if($attempt['has_later_attempt'])
                                                 <p class="m-0 text-muted">A newer attempt is available below. Continue that attempt to move forward.</p>
                                             @elseif($attempt['recovery_request']?->isPending())
-                                                <p class="m-0 text-muted">Review requested. Waiting for coach response.</p>
+                                                <p class="m-0 text-muted">Review requested. Waiting for mentor response.</p>
                                             @elseif($attempt['recovery_request']?->isDeclined())
                                                 <x-ui.alert tone="error" class="w-full">Review request declined{{ $attempt['recovery_request']->coach_response ? ': '.$attempt['recovery_request']->coach_response : '.' }}</x-ui.alert>
                                             @else
-                                                <p class="m-0 text-muted">If you believe this attempt should be reconsidered, you may ask your coach to review it again.</p>
+                                                <p class="m-0 text-muted">If you believe this attempt should be reconsidered, you may ask your mentor to review it again.</p>
                                                 <form method="post" action="{{ route('training.recovery.store', $attemptSubmission) }}" class="m-0 grid w-full justify-items-start gap-3">
                                                     @csrf
                                                     <div class="grid w-full gap-2">
-                                                        <label for="recovery-message-{{ $attemptSubmission->id }}" class="text-sm font-extrabold">Optional message to your coach</label>
+                                                        <label for="recovery-message-{{ $attemptSubmission->id }}" class="text-sm font-extrabold">Optional message to your mentor</label>
                                                         <textarea id="recovery-message-{{ $attemptSubmission->id }}" name="message" placeholder="Optional reason for requesting review" rows="2" class="w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50"></textarea>
                                                     </div>
                                                     <x-ui.button variant="secondary" type="submit">Request Review</x-ui.button>
@@ -156,10 +156,10 @@
                                                 <x-ui.button variant="secondary" :href="route('training.submission.edit', [$trainingWeek, $activity])">Continue Attempt {{ $attemptSubmission->attempt_number }} →</x-ui.button>
                                             @endif
                                         @elseif($attemptSubmission->needsRevision())
-                                            <p class="m-0 leading-relaxed">Your coach requested changes to this submission.</p>
+                                            <p class="m-0 leading-relaxed">Your mentor requested changes to this submission.</p>
                                             @if($attempt['feedback'])
                                                 <div class="grid w-full gap-2 rounded-xl bg-surface-sunken p-4">
-                                                    <strong>Coach feedback</strong>
+                                                    <strong>Mentor feedback</strong>
                                                     <div class="{{ $feedbackClasses }}">{{ $attempt['feedback'] }}</div>
                                                 </div>
                                             @endif
@@ -168,15 +168,15 @@
                                                 <x-ui.button variant="secondary" type="submit">Revise Submission →</x-ui.button>
                                             </form>
                                         @elseif($attemptSubmission->isAccepted())
-                                            <p class="m-0 leading-relaxed">This activity has been accepted by your coach.</p>
+                                            <p class="m-0 leading-relaxed">This activity has been accepted by your mentor.</p>
                                         @elseif($attemptSubmission->isAwaitingReview())
-                                            <p class="m-0 leading-relaxed">Your submission is in the review process. You will see the coach's decision here.</p>
+                                            <p class="m-0 leading-relaxed">Your submission is in the review process. You will see the mentor's decision here.</p>
                                         @endif
 
                                         @if($attempt['published_score'])
                                             <div class="grid w-full gap-1 rounded-xl bg-surface-sunken p-4 text-sm">
                                                 <span><strong>Published score:</strong> {{ $attempt['published_score']->total_score }} / 100 · {{ $attempt['published_score']->performance_band }}</span>
-                                                <span class="text-muted">Coach feedback and rubric reasoning are available through your reviewed submission.</span>
+                                                <span class="text-muted">Mentor feedback and rubric reasoning are available through your reviewed submission.</span>
                                             </div>
                                         @endif
                                     </article>

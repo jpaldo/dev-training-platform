@@ -79,7 +79,7 @@ class CoachSubmissionReviewPageService
 
         return [
             'decision_label' => $this->decisionLabel($review->decision),
-            'reviewer_name' => $review->reviewer?->name ?: 'Coach',
+            'reviewer_name' => $review->reviewer?->name ?: 'Mentor',
             'reviewed_at' => $review->reviewed_at?->format('F j, Y H:i') ?: 'Date not available',
             'comments' => $review->comments,
         ];

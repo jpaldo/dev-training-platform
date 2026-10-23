@@ -38,7 +38,7 @@ class CoachReviewQueuePageTest extends TestCase
         $this->actingAs($coach)->get(route('coach.reviews'))
             ->assertOk()
             ->assertSeeInOrder([
-                'COACH · REVIEW QUEUE',
+                'MENTOR · REVIEW QUEUE',
                 'Submission reviews',
                 '>Nora Noversion</h2>', 'Week 3 · Exploratory charter', 'Status:', 'border-accent text-cyan-200">Submitted</span>',
                 '>Rita Revised</h2>', 'Week 3 · Exploratory charter', 'Status:', 'border-amber-500 text-amber-200">Needs revision</span>',

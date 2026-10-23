@@ -34,4 +34,17 @@ class UpdateParticipantAssignmentsRequest extends FormRequest
             'coach_ids.*' => ['integer', Rule::exists('users', 'id')->where(fn (Builder $query): Builder => $query->where('role', UserRole::Coach)->where('is_active', true))],
         ];
     }
+
+    /**
+     * Get the readable names of the fields.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'coach_ids' => 'mentors',
+            'coach_ids.*' => 'mentor',
+        ];
+    }
 }

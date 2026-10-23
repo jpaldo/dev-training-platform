@@ -162,7 +162,7 @@ class CoachGateReviewPageTest extends TestCase
 
         $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
             ->assertOk()
-            ->assertSeeInOrder(['Gate criteria', 'Coach decision', 'Read only — this participant is not assigned to you.'])
+            ->assertSeeInOrder(['Gate criteria', 'Mentor decision', 'Read only — this participant is not assigned to you.'])
             ->assertDontSee('id="gate-review-main-action"', false)
             ->assertDontSee('Save Gate Evaluation')
             ->assertDontSee('action="'.route('training.coach.gates.update', [$week, $participant, $gate]).'"', false)

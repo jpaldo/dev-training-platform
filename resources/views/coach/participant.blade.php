@@ -10,11 +10,11 @@
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <x-ui.card as="section" class="grid content-start gap-3" aria-labelledby="participant-coaches-title">
-                <h2 id="participant-coaches-title" class="m-0 text-xl font-extrabold">Assigned Coaches</h2>
+                <h2 id="participant-coaches-title" class="m-0 text-xl font-extrabold">Assigned Mentors</h2>
                 @if($participant->assignedCoaches->isNotEmpty())
                     <p class="m-0 leading-relaxed text-muted">{{ $participant->assignedCoaches->pluck('name')->join(', ') }}</p>
                 @else
-                    <p class="m-0 leading-relaxed text-muted">No Coaches assigned.</p>
+                    <p class="m-0 leading-relaxed text-muted">No Mentors assigned.</p>
                 @endif
                 @if($access === 'admin')
                     <x-ui.alert tone="success">Admins have full access.</x-ui.alert>

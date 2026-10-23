@@ -107,7 +107,7 @@
 
         @if($reviewRows !== [] || $finalScore)
             <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="coach-review-title">
-                <h2 id="coach-review-title" class="{{ $sectionTitleClasses }}">Coach review</h2>
+                <h2 id="coach-review-title" class="{{ $sectionTitleClasses }}">Mentor review</h2>
                 <p class="m-0"><strong>Review status:</strong> {{ $finalScore ? 'Finalized' : 'Awaiting Review' }}</p>
                 @if($reviewRows !== [])
                     <ul class="m-0 grid list-none gap-3 p-0">
@@ -146,7 +146,7 @@
                         </section>
                     @endif
                 @elseif($isAwaitingRevision)
-                    <p class="{{ $hintClasses }}">Needs revision. See the coach feedback above for the next steps.</p>
+                    <p class="{{ $hintClasses }}">Needs revision. See the mentor feedback above for the next steps.</p>
                 @else
                     <p class="{{ $hintClasses }}">Awaiting Review. Finalized scores and feedback will appear here after review.</p>
                 @endif

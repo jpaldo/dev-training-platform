@@ -31,14 +31,14 @@ class ScoringOverviewPageTest extends TestCase
         $response = $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk();
 
         $response->assertSeeInOrder([
-            'COACH · SCORING',
+            'MENTOR · SCORING',
             '>Scoring overview</h1>',
             'Completion and activity scores are separate measures.',
             'href="'.route('coach.scoring.criteria').'"', '>View Scoring Criteria</a>',
             'href="'.route('coach.scoring.reports').'"', '>Scoring Reports</a>',
             'aria-label="Filter participants"',
             '>W2</th>', '>W2 Completion</th>', '>W3</th>', '>W3 Completion</th>', '>W4</th>', '>W4 Completion</th>',
-            '>Overall</th>', '>Completion</th>', '>Assigned Coach</th>',
+            '>Overall</th>', '>Completion</th>', '>Assigned Mentor</th>',
             '>Ada Automation</strong>', 'ada@example.com',
             '>83</strong>', 'Proficient', '1 / 2 (50%)',
             '—', '0 / 1 (0%)',

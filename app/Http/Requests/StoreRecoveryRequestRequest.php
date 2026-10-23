@@ -35,7 +35,7 @@ class StoreRecoveryRequestRequest extends FormRequest
      * Get the validation rules that apply to the request.
      *
      * A submission that already has a pending recovery request skips validation,
-     * so the controller answers it with the "waiting for coach" redirect.
+     * so the controller answers it with the "waiting for mentor" redirect.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */

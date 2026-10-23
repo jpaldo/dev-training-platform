@@ -345,7 +345,7 @@ class CoachOperationsTest extends TestCase
         $this->actingAs($coach)->get(route('coach.reviews.show', $version))
             ->assertOk()
             ->assertSee('Start Review')
-            ->assertSee('Coach Review')
+            ->assertSee('Mentor Review')
             ->assertSee('Review this submission, choose a decision, and provide feedback for the participant.')
             ->assertSee('Passed')
             ->assertSee('Revise')
@@ -521,7 +521,7 @@ class CoachOperationsTest extends TestCase
         $this->actingAs($participant)->post(route('training.recovery.store', $failed), ['message' => str_repeat('a', 2001)])
             ->assertRedirect()
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('status', 'Review requested. Waiting for coach response.');
+            ->assertSessionHas('status', 'Review requested. Waiting for mentor response.');
         $this->assertDatabaseCount('activity_recovery_requests', 1);
     }
 

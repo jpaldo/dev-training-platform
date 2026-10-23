@@ -31,7 +31,7 @@ class MissingSubmissionReportPageTest extends TestCase
         $response = $this->actingAs($coach)->get(route('coach.reports.missing-submissions'))
             ->assertOk()
             ->assertSeeInOrder([
-                'COACH / REPORTS',
+                'MENTOR / REPORTS',
                 'href="'.e(route('coach.reports')).'"', 'Back to Reports',
                 'Missing submissions',
                 'href="'.e(route('coach.reports.missing-submissions.export')).'"', '>Export Missing Submissions CSV</a>',

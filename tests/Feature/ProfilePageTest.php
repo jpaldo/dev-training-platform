@@ -86,7 +86,7 @@ class ProfilePageTest extends TestCase
 
         $this->actingAs($coach)->get(route('profile.show'))
             ->assertOk()
-            ->assertSeeInOrder(['Save profile', 'Sign out', '>Your profile</h2>', 'Role: Coach', 'name="first_name" value="Casey"', 'name="last_name" value="Coach"'], false)
+            ->assertSeeInOrder(['Save profile', 'Sign out', '>Your profile</h2>', 'Role: Mentor', 'name="first_name" value="Casey"', 'name="last_name" value="Coach"'], false)
             ->assertDontSee('Google Drive Settings')
             ->assertDontSee('name="drive_link"', false);
     }

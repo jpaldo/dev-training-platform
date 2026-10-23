@@ -235,7 +235,7 @@ class AdminUserManagementTest extends TestCase
         $participant = User::factory()->create(['role' => 'participant']);
         $coach = User::factory()->create(['role' => 'coach', 'is_active' => true]);
 
-        $this->actingAs($admin)->get(route('admin.users.edit', $participant))->assertOk()->assertSee('Assigned Coaches');
+        $this->actingAs($admin)->get(route('admin.users.edit', $participant))->assertOk()->assertSee('Assigned Mentors');
         $this->actingAs($admin)->post(route('admin.users.assignments', $participant), ['coach_ids' => [$coach->id]])->assertRedirect();
         $this->assertTrue($participant->fresh()->assignedCoaches->contains($coach));
         $this->actingAs($admin)->post(route('admin.users.assignments', $participant), ['coach_ids' => []])->assertRedirect();
@@ -249,7 +249,9 @@ class AdminUserManagementTest extends TestCase
         $inactiveCoach = User::factory()->create(['role' => 'coach', 'is_active' => false]);
         $otherParticipant = User::factory()->create(['role' => 'participant']);
 
-        $this->actingAs($admin)->post(route('admin.users.assignments', $participant), ['coach_ids' => [$inactiveCoach->id, $otherParticipant->id]])->assertRedirect();
+        $this->actingAs($admin)->post(route('admin.users.assignments', $participant), ['coach_ids' => [$inactiveCoach->id, $otherParticipant->id]])
+            ->assertRedirect()
+            ->assertSessionHasErrors(['coach_ids.0' => 'The selected mentor is invalid.', 'coach_ids.1' => 'The selected mentor is invalid.']);
         $this->assertCount(0, $participant->fresh()->assignedCoaches);
     }
 
@@ -266,7 +268,7 @@ class AdminUserManagementTest extends TestCase
     }
 
     /**
-     * A valid add / edit user form submission for an active Mentor / Coach named Cora Coach, with the given overrides.
+     * A valid add / edit user form submission for an active Mentor named Cora Coach, with the given overrides.
      *
      * @param  array<string, mixed>  $overrides
      * @return array<string, mixed>

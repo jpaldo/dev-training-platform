@@ -30,7 +30,7 @@ class AdminDashboardPageService
         return [
             'systemStats' => [
                 ['label' => 'PARTICIPANTS', 'value' => $participantCount],
-                ['label' => 'COACHES', 'value' => User::query()->where('role', UserRole::Coach)->count()],
+                ['label' => 'MENTORS', 'value' => User::query()->where('role', UserRole::Coach)->count()],
                 ['label' => 'ADMINS', 'value' => User::query()->where('role', UserRole::Admin)->count()],
             ],
             'hasActiveProgram' => $program !== null,
@@ -52,10 +52,10 @@ class AdminDashboardPageService
             ],
             'toolLinks' => [
                 ['label' => 'Manage Participants', 'url' => route('admin.users.index')],
-                ['label' => 'Coach Reviews', 'url' => route('coach.reviews')],
+                ['label' => 'Mentor Reviews', 'url' => route('coach.reviews')],
                 ['label' => 'Manage Gates', 'url' => route('coach.gates')],
                 ['label' => 'Reports', 'url' => route('coach.reports')],
-                ['label' => 'Coach Tools', 'url' => route('coach.dashboard')],
+                ['label' => 'Mentor Tools', 'url' => route('coach.dashboard')],
                 ['label' => 'Settings', 'url' => route('admin.settings.index')],
             ],
         ];

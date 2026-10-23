@@ -33,7 +33,7 @@ class CoachParticipantPageTest extends TestCase
             ->assertSeeInOrder([
                 'PARTICIPANT DETAIL',
                 e($participant->name),
-                'Assigned Coaches',
+                'Assigned Mentors',
                 'role="tablist" aria-label="Participant sections"',
                 'id="participant-tab-submissions"',
                 'id="participant-tab-gates"',

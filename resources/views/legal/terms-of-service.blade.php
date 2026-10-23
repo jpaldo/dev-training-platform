@@ -35,7 +35,7 @@
 
         <section class="{{ $sectionClasses }}">
             <h2 class="{{ $headingClasses }}">Roles and reviews</h2>
-            <p class="{{ $paragraphClasses }}">Participants use the platform for training. Coaches/Mentors review assigned participants’ work and provide feedback. Admins manage users, assignments, configuration, and program operations. Scores, reviews, and Gate decisions are subject to the platform’s configured workflows and authorization controls.</p>
+            <p class="{{ $paragraphClasses }}">Participants use the platform for training. Mentors review assigned participants’ work and provide feedback. Admins manage users, assignments, configuration, and program operations. Scores, reviews, and Gate decisions are subject to the platform’s configured workflows and authorization controls.</p>
         </section>
 
         <section class="{{ $sectionClasses }}">

@@ -40,7 +40,7 @@
                             @endforeach
                         </ul>
                     @endif
-                    <p class="m-0 text-sm/relaxed text-muted">Coach approval is required before the next week unlocks.</p>
+                    <p class="m-0 text-sm/relaxed text-muted">Mentor approval is required before the next week unlocks.</p>
                     @if($gate['url'])
                         <div>
                             <x-ui.button variant="secondary" :href="$gate['url']">View Gate</x-ui.button>

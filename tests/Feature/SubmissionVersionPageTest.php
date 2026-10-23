@@ -107,7 +107,7 @@ class SubmissionVersionPageTest extends TestCase
     public static function unscoredReviewStates(): array
     {
         return [
-            'needs revision' => ['needs_revision', 'Needs revision. See the coach feedback above for the next steps.'],
+            'needs revision' => ['needs_revision', 'Needs revision. See the mentor feedback above for the next steps.'],
             'submitted' => ['submitted', 'Awaiting Review. Finalized scores and feedback will appear here after review.'],
         ];
     }

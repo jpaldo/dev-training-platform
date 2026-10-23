@@ -209,17 +209,17 @@ class TrainingActivityPageTest extends TestCase
     public static function attemptStatuses(): array
     {
         $awaitingReview = 'Your submission is in the review process.';
-        $accepted = 'This activity has been accepted by your coach.';
+        $accepted = 'This activity has been accepted by your mentor.';
 
         return [
             'draft' => ['draft', 'DRAFT', 'border-brand text-violet-200', 'Your work is saved as a draft.'],
             'submitted' => ['submitted', 'SUBMITTED', 'border-accent text-cyan-200', $awaitingReview],
             'resubmitted' => ['resubmitted', 'RESUBMITTED', 'border-accent text-cyan-200', $awaitingReview],
             'under review' => ['under_review', 'UNDER REVIEW', 'border-accent text-cyan-200', $awaitingReview],
-            'needs revision' => ['needs_revision', 'NEEDS REVISION', 'border-amber-500 text-amber-200', 'Your coach requested changes to this submission.'],
+            'needs revision' => ['needs_revision', 'NEEDS REVISION', 'border-amber-500 text-amber-200', 'Your mentor requested changes to this submission.'],
             'approved' => ['approved', 'APPROVED', 'border-emerald-400 text-emerald-200', $accepted],
             'completed' => ['completed', 'COMPLETED', 'border-emerald-400 text-emerald-200', $accepted],
-            'failed' => ['failed', 'FAILED', 'border-danger text-rose-200', 'This attempt was not accepted by your coach and is now closed.'],
+            'failed' => ['failed', 'FAILED', 'border-danger text-rose-200', 'This attempt was not accepted by your mentor and is now closed.'],
         ];
     }
 

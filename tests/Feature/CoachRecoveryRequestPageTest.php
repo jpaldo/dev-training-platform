@@ -27,11 +27,11 @@ class CoachRecoveryRequestPageTest extends TestCase
         $this->actingAs($coach)->get(route('coach.recovery.index'))
             ->assertOk()
             ->assertSeeInOrder([
-                'COACH OPERATIONS',
+                'MENTOR OPERATIONS',
                 '>Recovery requests</h1>',
                 'aria-label="Pending recovery requests"',
                 '>Week 2 · Risk charter</h2>', 'Nina Newer · Attempt 2 ·', '>FAILED</span>', 'No reason provided.',
-                'action="'.route('coach.recovery.decide', $newer).'"', 'name="coach_response"', 'placeholder="Coach response"',
+                'action="'.route('coach.recovery.decide', $newer).'"', 'name="coach_response"', 'placeholder="Mentor response"',
                 'name="decision" value="approved"', '>Approve Retry</button>',
                 'name="decision" value="declined"', '>Keep Failed</button>',
                 '>Week 2 · Risk charter</h2>', 'Olga Older · Attempt 1 ·', '>FAILED</span>', 'Please reconsider this attempt.',
@@ -114,7 +114,7 @@ class CoachRecoveryRequestPageTest extends TestCase
             ->followingRedirects()
             ->post(route('coach.recovery.decide', $recoveryRequest), ['decision' => 'approved', 'coach_response' => str_repeat('a', 2001)])
             ->assertOk()
-            ->assertSeeInOrder(['>Recovery requests</h1>', 'role="alert"', 'The coach response field must not be greater than 2000 characters.', 'Rita Rejected · Attempt 1'], false);
+            ->assertSeeInOrder(['>Recovery requests</h1>', 'role="alert"', 'The mentor response field must not be greater than 2000 characters.', 'Rita Rejected · Attempt 1'], false);
 
         $this->assertTrue($recoveryRequest->fresh()->isPending());
     }

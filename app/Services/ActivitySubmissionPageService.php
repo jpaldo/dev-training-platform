@@ -105,7 +105,7 @@ class ActivitySubmissionPageService
 
     /**
      * The form fields grouped under their section headings: the AI / artifact context section opens before its first
-     * field and the QA work section before the first other field, each with the control to render and its length limit.
+     * field and the activity work section before the first other field, each with the control to render and its length limit.
      *
      * @param  array<string, array<string, mixed>>  $fields
      * @return list<array{title: string, description: string, fields: list<array<string, mixed>>}>
@@ -120,10 +120,10 @@ class ActivitySubmissionPageService
             $key = (string) $key;
             $isArtifactContext = ($field['section'] ?? null) === 'artifact_context';
             if ($isArtifactContext && ! $artifactContextShown) {
-                $sections[] = ['title' => '1. AI / ARTIFACT CONTEXT', 'description' => 'Document the AI artifact you are working with before recording your activity-specific QA work.', 'fields' => []];
+                $sections[] = ['title' => '1. AI / ARTIFACT CONTEXT', 'description' => 'Document the AI artifact you are working with before recording your activity-specific work.', 'fields' => []];
                 $artifactContextShown = true;
             } elseif (! $isArtifactContext && ! $activityWorkShown) {
-                $sections[] = ['title' => ($artifactContextShown ? '2.' : '1.').' YOUR QA WORK', 'description' => 'Complete the activity-specific questions in the configured workflow order.', 'fields' => []];
+                $sections[] = ['title' => ($artifactContextShown ? '2.' : '1.').' YOUR WORK', 'description' => 'Complete the activity-specific questions in the configured workflow order.', 'fields' => []];
                 $activityWorkShown = true;
             }
 

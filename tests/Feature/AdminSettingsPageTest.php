@@ -211,14 +211,14 @@ class AdminSettingsPageTest extends TestCase
                 'Training settings',
                 'APPLICATION TIMEZONE', 'Asia/Manila',
                 'PHP UPLOAD LIMIT', (string) ini_get('upload_max_filesize'),
-                'Reusable AI Asset application limit:', '1 MB',
                 'Weekly Video application limit:', '2 MB',
                 'General evidence application limit:', '1 MB',
                 'Current PHP post limit:', (string) ini_get('post_max_size'),
-                'Effective Reusable Asset limit:', '1 MB',
+                'Effective evidence limit:', '1 MB',
                 'Effective Weekly Video limit:', '2 MB',
                 'Application settings do not edit php.ini or server runtime configuration.',
-            ]);
+            ])
+            ->assertDontSee('Reusable');
     }
 
     public function test_ai_page_shows_the_saved_provider_settings_without_the_api_key(): void

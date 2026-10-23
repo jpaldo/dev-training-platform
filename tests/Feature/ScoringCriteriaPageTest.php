@@ -48,9 +48,14 @@ class ScoringCriteriaPageTest extends TestCase
                 '>Week 1 · Write the README</h2>', 'This activity has no scoring dimensions, so it cannot be scored.',
                 '>Week 2 · Small task</h2>', 'D1 · MAX 2', '<strong>Exemplary:</strong> 2', '<strong>Proficient:</strong> —', '<strong>Beginning:</strong> 1', '<strong>Minimal:</strong> —',
                 '>Scoring process</h2>',
+                'Score only what is demonstrated; AI may assist, but the participant owns validation and judgment.',
                 'Totals from 76–84 or differences greater than 15 points from the running average require a second reader.',
                 '>Bias watch</h2>',
+                '>Evidence interpretation</h2>',
+                'Work should be reproducible, its reasoning and decisions explicit, its risks covered, and open issues called out.',
             ], false)
+            ->assertDontSee('tester')
+            ->assertDontSee('QA interpretation')
             ->assertDontSee('Retired activity')
             ->assertDontSee('Other program activity');
     }

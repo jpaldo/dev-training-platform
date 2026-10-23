@@ -48,7 +48,7 @@
                 <ol class="m-0 grid list-decimal gap-1.5 pl-5 leading-relaxed">
                     <li>Read the activity submission and evidence.</li>
                     <li>Write evidence/reasoning for each dimension before entering points.</li>
-                    <li>Score only what is demonstrated; AI may assist, but the tester owns validation and judgment.</li>
+                    <li>Score only what is demonstrated; AI may assist, but the participant owns validation and judgment.</li>
                     <li>Use the configured point maximums and let the server calculate the total and band.</li>
                     <li>Totals from 76–84 or differences greater than 15 points from the running average require a second reader.</li>
                     <li>Preserve moderation decisions and score history; do not overwrite the first reader silently.</li>
@@ -59,8 +59,8 @@
                 <p class="m-0 leading-relaxed text-muted">Watch for halo/horns, affinity, recency, contrast, leniency/severity, central tendency, confirmation, idiosyncratic-rater, and identity/stereotype bias.</p>
             </div>
             <div class="grid gap-2">
-                <h2 class="m-0 text-xl font-extrabold">QA interpretation</h2>
-                <p class="m-0 leading-relaxed text-muted">Cases should be reproducible, expected versus actual explicit, risk areas covered, and defects triaged. Timeliness and conduct are separate from this activity score.</p>
+                <h2 class="m-0 text-xl font-extrabold">Evidence interpretation</h2>
+                <p class="m-0 leading-relaxed text-muted">Work should be reproducible, its reasoning and decisions explicit, its risks covered, and open issues called out. Timeliness and conduct are separate from this activity score.</p>
             </div>
         </x-ui.card>
     </div>

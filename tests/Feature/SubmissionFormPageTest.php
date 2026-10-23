@@ -73,7 +73,7 @@ class SubmissionFormPageTest extends TestCase
 
         $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
             ->assertOk()
-            ->assertSeeInOrder(['1. AI / ARTIFACT CONTEXT', 'Tool name', '2. YOUR QA WORK', 'Finding summary *', 'Decision', 'Participant note (optional)'])
+            ->assertSeeInOrder(['1. AI / ARTIFACT CONTEXT', 'Tool name', '2. YOUR WORK', 'Finding summary *', 'Decision', 'Participant note (optional)'])
             ->assertSee('id="tool_name" type="text" name="field_values[tool_name]" value="" maxlength="'.FieldLimits::TEXT.'"', false)
             ->assertSee('name="field_values[finding]" rows="8" maxlength="'.FieldLimits::TEXTAREA.'" required', false)
             ->assertSee('<option value="Reject"', false);

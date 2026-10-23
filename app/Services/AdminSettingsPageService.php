@@ -240,11 +240,10 @@ class AdminSettingsPageService
                 ['label' => 'PHP UPLOAD LIMIT', 'value' => (string) $training['php_upload_display']],
             ],
             'limits' => [
-                ['label' => 'Reusable AI Asset application limit:', 'value' => $this->megabytes($training['asset_limit'])],
                 ['label' => 'Weekly Video application limit:', 'value' => $this->megabytes($training['video_limit'])],
                 ['label' => 'General evidence application limit:', 'value' => $this->megabytes($training['evidence_limit'])],
                 ['label' => 'Current PHP post limit:', 'value' => (string) $training['php_post_display']],
-                ['label' => 'Effective Reusable Asset limit:', 'value' => $this->megabytes($training['effective_asset_limit'])],
+                ['label' => 'Effective evidence limit:', 'value' => $this->megabytes($training['effective_evidence_limit'])],
                 ['label' => 'Effective Weekly Video limit:', 'value' => $this->megabytes($training['effective_video_limit'])],
             ],
         ];

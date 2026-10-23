@@ -74,7 +74,7 @@ class ParticipantFieldGuidanceTest extends TestCase
         $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
             ->assertOk()
             ->assertDontSee('AI / ARTIFACT CONTEXT')
-            ->assertSee('1. YOUR QA WORK');
+            ->assertSee('1. YOUR WORK');
     }
 
     public function test_new_and_revision_forms_show_only_the_configured_fields_and_keep_historical_answers(): void

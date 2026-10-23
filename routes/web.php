@@ -100,6 +100,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::get('/sessions', [AdminTrainingSessionController::class, 'index'])->name('sessions.index');
         Route::get('/sessions/create', [AdminTrainingSessionController::class, 'create'])->name('sessions.create');
         Route::post('/sessions', [AdminTrainingSessionController::class, 'store'])->name('sessions.store');
+        Route::get('/sessions/{trainingSession}', [AdminTrainingSessionController::class, 'show'])->name('sessions.show');
         Route::get('/sessions/{trainingSession}/edit', [AdminTrainingSessionController::class, 'edit'])->name('sessions.edit');
         Route::put('/sessions/{trainingSession}', [AdminTrainingSessionController::class, 'update'])->name('sessions.update');
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');

@@ -127,6 +127,7 @@ class AdminTrainingSessionTest extends TestCase
             $this->actingAs($user)->get(route('admin.sessions.index'))->assertForbidden();
             $this->actingAs($user)->get(route('admin.sessions.create'))->assertForbidden();
             $this->actingAs($user)->post(route('admin.sessions.store'), $this->sessionPayload($program))->assertForbidden();
+            $this->actingAs($user)->get(route('admin.sessions.show', $session))->assertForbidden();
             $this->actingAs($user)->get(route('admin.sessions.edit', $session))->assertForbidden();
             $this->actingAs($user)->put(route('admin.sessions.update', $session), $this->sessionPayload($program, ['title' => 'Renamed']))->assertForbidden();
         }
@@ -143,6 +144,7 @@ class AdminTrainingSessionTest extends TestCase
         $this->get(route('admin.sessions.index'))->assertRedirect(route('login'));
         $this->get(route('admin.sessions.create'))->assertRedirect(route('login'));
         $this->post(route('admin.sessions.store'), $this->sessionPayload($program))->assertRedirect(route('login'));
+        $this->get(route('admin.sessions.show', $session))->assertRedirect(route('login'));
         $this->get(route('admin.sessions.edit', $session))->assertRedirect(route('login'));
         $this->put(route('admin.sessions.update', $session), $this->sessionPayload($program, ['title' => 'Renamed']))->assertRedirect(route('login'));
 
@@ -178,7 +180,7 @@ class AdminTrainingSessionTest extends TestCase
             ->assertDontSee('Session 02');
     }
 
-    public function test_each_row_shows_the_program_date_range_status_and_participant_count(): void
+    public function test_each_row_shows_the_program_date_range_status_and_participant_count_and_links_to_the_session(): void
     {
         $this->travelTo('2027-01-10 09:00:00');
         $admin = User::factory()->create(['role' => 'admin']);
@@ -190,7 +192,8 @@ class AdminTrainingSessionTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.sessions.index'))
             ->assertOk()
-            ->assertSeeInOrder([$session->title, 'Backend Basics', '28 Dec 2026 – 24 Jan 2027', 'Active', '>3<', route('admin.sessions.edit', $session)], false);
+            ->assertSeeInOrder([$session->title, 'Backend Basics', '28 Dec 2026 – 24 Jan 2027', 'Active', '>3<', route('admin.sessions.edit', $session)], false)
+            ->assertSee('<a href="'.route('admin.sessions.show', $session).'"', false);
     }
 
     public function test_admin_updates_a_sessions_title_weeks_and_dates_and_the_changed_fields_are_audited(): void
@@ -213,7 +216,7 @@ class AdminTrainingSessionTest extends TestCase
                 'starts_on' => '2026-11-16',
             ]))
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('admin.sessions.index'));
+            ->assertRedirect(route('admin.sessions.show', $session));
 
         $session->refresh();
         $this->assertSame('L4 Accelerator Training — Late November 2026', $session->title);
@@ -239,7 +242,7 @@ class AdminTrainingSessionTest extends TestCase
         $this->actingAs($admin)
             ->put(route('admin.sessions.update', $session), $this->sessionPayload($program))
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('admin.sessions.index'));
+            ->assertRedirect(route('admin.sessions.show', $session));
 
         $this->assertDatabaseCount('admin_audit_logs', 0);
     }
@@ -290,7 +293,7 @@ class AdminTrainingSessionTest extends TestCase
         $this->actingAs($admin)
             ->put(route('admin.sessions.update', $session), $this->sessionPayload($otherProgram))
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('admin.sessions.index'));
+            ->assertRedirect(route('admin.sessions.show', $session));
 
         $this->assertSame($otherProgram->id, $session->fresh()->program_id);
         $this->assertSame(['training_session_id' => $session->id, 'changed_fields' => ['program_id']], AdminAuditLog::query()->sole()->metadata);
@@ -308,12 +311,13 @@ class AdminTrainingSessionTest extends TestCase
             ->assertOk()
             ->assertSee('<input type="hidden" name="program_id" value="'.$program->id.'">', false)
             ->assertSee('<select id="program_id" disabled', false)
-            ->assertSee('The program cannot change after participants have joined.');
+            ->assertSee('The program cannot change after participants have joined.')
+            ->assertSee('<a href="'.route('admin.sessions.show', $session).'"', false);
 
         $this->actingAs($admin)
             ->put(route('admin.sessions.update', $session), $this->sessionPayload($program, ['title' => 'Renamed']))
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('admin.sessions.index'));
+            ->assertRedirect(route('admin.sessions.show', $session));
 
         $this->assertSame('Renamed', $session->fresh()->title);
     }

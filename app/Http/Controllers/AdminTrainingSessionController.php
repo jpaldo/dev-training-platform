@@ -34,6 +34,13 @@ class AdminTrainingSessionController extends Controller
         return redirect()->route('admin.sessions.index')->with('status', "Training session \"{$session->title}\" created.");
     }
 
+    public function show(TrainingSession $trainingSession, AdminTrainingSessionPageService $page): View
+    {
+        Gate::authorize('manage', $trainingSession);
+
+        return view('admin.sessions.show', $page->showData($trainingSession));
+    }
+
     public function edit(TrainingSession $trainingSession, AdminTrainingSessionPageService $page): View
     {
         Gate::authorize('update', $trainingSession);
@@ -45,6 +52,6 @@ class AdminTrainingSessionController extends Controller
     {
         $sessions->update($trainingSession, $request->validated(), $request->user());
 
-        return redirect()->route('admin.sessions.index')->with('status', "Training session \"{$trainingSession->title}\" updated.");
+        return redirect()->route('admin.sessions.show', $trainingSession)->with('status', "Training session \"{$trainingSession->title}\" updated.");
     }
 }

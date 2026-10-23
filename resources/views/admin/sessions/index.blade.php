@@ -40,7 +40,9 @@
                             <tbody>
                                 @foreach($sessions as $session)
                                     <tr data-session-row>
-                                        <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">{{ $session['title'] }}</th>
+                                        <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">
+                                            <a href="{{ $session['show_url'] }}" class="text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">{{ $session['title'] }}</a>
+                                        </th>
                                         <td class="{{ $cellClasses }} wrap-break-word text-muted">{{ $session['program'] }}</td>
                                         <td class="{{ $cellClasses }} whitespace-nowrap">{{ $session['date_range'] }}</td>
                                         <td class="{{ $cellClasses }}">

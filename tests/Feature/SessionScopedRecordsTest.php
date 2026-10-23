@@ -10,11 +10,8 @@ use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
-use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
-use Illuminate\Support\Facades\Schema;
-use RuntimeException;
 use Tests\TestCase;
 
 class SessionScopedRecordsTest extends TestCase
@@ -98,36 +95,6 @@ class SessionScopedRecordsTest extends TestCase
         $this->assertTrue($video->trainingSession->is($session));
     }
 
-    public function test_the_migration_refuses_to_run_while_the_tables_hold_rows(): void
-    {
-        WeeklyVideoRecording::factory()->create();
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('weekly_video_recordings must be empty');
-
-        $this->migration()->up();
-    }
-
-    public function test_the_migration_rolls_back_to_the_per_user_keys(): void
-    {
-        $this->migration()->down();
-
-        foreach (['activity_submissions', 'gate_evaluations', 'weekly_video_recordings'] as $table) {
-            $this->assertFalse(Schema::hasColumn($table, 'training_session_id'));
-        }
-        $this->assertTrue(Schema::hasIndex('activity_submissions', 'activity_submissions_attempt_idx'));
-        $this->assertTrue(Schema::hasIndex('gate_evaluations', ['training_gate_id', 'user_id'], 'unique'));
-        $this->assertTrue(Schema::hasIndex('weekly_video_recordings', ['user_id', 'training_week_id'], 'unique'));
-
-        $this->migration()->up();
-
-        $this->assertTrue(Schema::hasIndex('activity_submissions', 'activity_submissions_session_attempt_idx'));
-        $this->assertTrue(Schema::hasIndex('gate_evaluations', ['training_session_id', 'training_gate_id', 'user_id'], 'unique'));
-        $this->assertTrue(Schema::hasIndex('weekly_video_recordings', ['training_session_id', 'user_id', 'training_week_id'], 'unique'));
-        $this->assertFalse(Schema::hasIndex('gate_evaluations', ['training_gate_id', 'user_id'], 'unique'));
-        $this->assertFalse(Schema::hasIndex('weekly_video_recordings', ['user_id', 'training_week_id'], 'unique'));
-    }
-
     /**
      * Two sessions of the week's program.
      *
@@ -139,10 +106,5 @@ class SessionScopedRecordsTest extends TestCase
             TrainingSession::factory()->forWeek($week)->create(),
             TrainingSession::factory()->forWeek($week)->create(),
         ];
-    }
-
-    private function migration(): Migration
-    {
-        return require database_path('migrations/2026_10_23_202323_add_training_session_to_training_records.php');
     }
 }

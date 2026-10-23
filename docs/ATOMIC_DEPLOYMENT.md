@@ -173,6 +173,12 @@ held QA training data, skip steps 2 and 3.
      columns (`users.training_path`, `activity_requirements.participant_path`)
      and their indexes.
 
+   Since the migration squash (see "One-time: adopting the squashed
+   migrations" below), these files exist only in Git history. A release from
+   after the squash creates the final schema from the squashed files and runs
+   none of these deletions, so deploy the pre-squash release first on a
+   database that still holds QA training data.
+
    The new release starts with fresh framework directories, so it is not in
    maintenance mode once activated.
 
@@ -193,3 +199,46 @@ held QA training data, skip steps 2 and 3.
    `app:ensure-development-baseline` (local and testing) both refuse to run
    there.
 8. Reload the queue/cron mechanism and run the usual post-switch checks.
+
+## One-time: adopting the squashed migrations
+
+The migration squash release replaces the 102 migration files that existed on
+24 Oct 2026 with 43 hand-written files, one per table
+(`2026_10_24_000001_create_users_table` to
+`2026_10_24_000043_create_google_drive_syncs_table`). The new files create the
+same schema, so a database that ran the old files must not run them: it
+records them instead with `php artisan app:adopt-squashed-migrations`. The
+command only rewrites rows in the `migrations` table and never runs a
+migration. A database that has never been migrated skips this section:
+`php artisan migrate --force` creates the schema from the new files. As of
+24 Oct 2026 no production or staging database exists.
+
+On each environment whose database ran the old files:
+
+1. **Confirm the precondition.** From the live (pre-squash) release,
+   `php artisan migrate:status --no-ansi` shows no `Pending` line, and its
+   "Ran" list has the same names and count as
+   `AdoptSquashedMigrationsCommand::REPLACED_MIGRATIONS` (102 names).
+2. Run `scripts/atomic-release.sh prepare` for the squash release. It extracts
+   and installs the release, then stops at "unexpected pending migrations".
+   That is expected: the new files are not recorded yet.
+3. From that release directory, run
+   `php artisan app:adopt-squashed-migrations --pretend` and check that it
+   lists 102 rows to delete and 43 to insert, then run
+   `php artisan app:adopt-squashed-migrations --force`. It changes everything
+   in one transaction, or nothing: it refuses (exit 1) when a replaced
+   migration is not recorded or a recorded migration is in neither list. A
+   second run prints "Already adopted."
+4. Re-run `prepare`. It extracts the release again and now passes the
+   pending-migration check.
+5. `activate` as usual.
+6. Never run `php artisan migrate` from a pre-squash release afterwards: it
+   would see its old files as pending and try to create tables that already
+   exist. Activating a pre-squash release with `atomic-release.sh rollback`
+   still works, because rollback runs no migration check.
+
+**Developers' local databases** that ran the old files: after pulling the
+squash, either run `php artisan app:adopt-squashed-migrations --pretend`,
+then `php artisan app:adopt-squashed-migrations` (no `--force` is needed in
+the local environment), or rebuild with `php artisan migrate:fresh --seed`,
+which deletes all local data.

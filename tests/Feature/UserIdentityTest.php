@@ -4,10 +4,8 @@ namespace Tests\Feature;
 
 use App\Enums\JobRole;
 use App\Models\User;
-use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class UserIdentityTest extends TestCase
@@ -92,24 +90,6 @@ class UserIdentityTest extends TestCase
         $this->assertDatabaseCount('users', 2);
     }
 
-    public function test_the_migration_splits_existing_names_at_the_first_space_and_rolls_back(): void
-    {
-        $migration = $this->identityMigration();
-        $migration->down();
-        $this->assertFalse(DB::getSchemaBuilder()->hasColumns('users', ['employee_id', 'first_name', 'last_name', 'job_role']));
-
-        DB::table('users')->insert([
-            ['name' => 'Ana Maria Cruz', 'email' => 'ana@example.test', 'password' => 'secret'],
-            ['name' => 'Prince', 'email' => 'prince@example.test', 'password' => 'secret'],
-        ]);
-
-        $migration->up();
-
-        $this->assertDatabaseHas('users', ['email' => 'ana@example.test', 'first_name' => 'Ana', 'last_name' => 'Maria Cruz', 'name' => 'Ana Maria Cruz']);
-        $this->assertDatabaseHas('users', ['email' => 'prince@example.test', 'first_name' => 'Prince', 'last_name' => '', 'name' => 'Prince']);
-        $this->assertDatabaseHas('users', ['email' => 'prince@example.test', 'employee_id' => null, 'job_role' => null]);
-    }
-
     public function test_job_role_options_list_every_role_in_order_with_its_label(): void
     {
         $this->assertSame([
@@ -117,10 +97,5 @@ class UserIdentityTest extends TestCase
             'qa_tester' => 'QA Tester',
             'developer' => 'Developer',
         ], JobRole::options());
-    }
-
-    private function identityMigration(): Migration
-    {
-        return require database_path('migrations/2026_10_23_051317_add_identity_fields_to_users_table.php');
     }
 }

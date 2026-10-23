@@ -122,6 +122,15 @@ class TrainingSession extends Model
     }
 
     /**
+     * The session's title followed by its dates ("L4 Accelerator Training (9 Nov – 6 Dec 2026)"), which tells apart
+     * sessions with the same title.
+     */
+    public function titleWithDates(): string
+    {
+        return "{$this->title} ({$this->dateRangeLabel()})";
+    }
+
+    /**
      * Whether anyone has joined the session. Once someone has, its program can no longer change.
      */
     public function hasParticipants(): bool

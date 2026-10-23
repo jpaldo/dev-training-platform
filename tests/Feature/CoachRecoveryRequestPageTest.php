@@ -6,6 +6,7 @@ use App\Models\Activity;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivitySubmission;
 use App\Models\MentorAssignment;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -30,8 +31,12 @@ class CoachRecoveryRequestPageTest extends TestCase
             ->assertSeeInOrder([
                 'MENTOR OPERATIONS',
                 '>Recovery requests</h1>',
+                'action="'.route('coach.recovery.index').'"', 'aria-label="Filter recovery requests"',
+                'for="recovery-session"', '<option value="">All training sessions</option>', '>Filter</button>',
                 'aria-label="Pending recovery requests"',
-                '>Week 2 · Risk charter</h2>', 'Nina Newer · Attempt 2 ·', '>FAILED</span>', 'No reason provided.',
+                '>Week 2 · Risk charter</h2>', 'Nina Newer · Attempt 2 ·', '>FAILED</span>',
+                'Training session:', e($newer->submission->trainingSession->titleWithDates()),
+                'No reason provided.',
                 'action="'.route('coach.recovery.decide', $newer).'"', 'name="coach_response"', 'placeholder="Mentor response"',
                 'name="decision" value="approved"', '>Approve Retry</button>',
                 'name="decision" value="declined"', '>Keep Failed</button>',
@@ -39,7 +44,8 @@ class CoachRecoveryRequestPageTest extends TestCase
                 'action="'.route('coach.recovery.decide', $older).'"',
             ], false)
             ->assertDontSee('Dina Declined')
-            ->assertDontSee('No pending recovery requests.');
+            ->assertDontSee('No pending recovery requests.')
+            ->assertDontSee('>Clear</a>', false);
     }
 
     public function test_page_shows_25_requests_per_page(): void
@@ -82,6 +88,79 @@ class CoachRecoveryRequestPageTest extends TestCase
             ->assertOk()
             ->assertSee('action="'.route('coach.recovery.decide', $managed).'"', false)
             ->assertSee('action="'.route('coach.recovery.decide', $unmanaged).'"', false);
+    }
+
+    public function test_a_mentor_sees_only_the_requests_of_their_current_participants_in_the_sessions_they_mentor(): void
+    {
+        $ana = User::factory()->create(['role' => 'coach']);
+        $ben = User::factory()->create(['role' => 'coach']);
+        $cy = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create(['name' => 'Pat Participant']);
+        $activity = Activity::factory()->create();
+        $sessionX = TrainingSession::factory()->forWeek($activity->week)->withMentors($ana, $ben)->create(['title' => 'Session X']);
+        $sessionY = TrainingSession::factory()->forWeek($activity->week)->withMentors($cy)->create(['title' => 'Session Y']);
+        MentorAssignment::factory()->ended()->create(['training_session_id' => $sessionX->id, 'participant_id' => $participant->id, 'mentor_id' => $ana->id]);
+        MentorAssignment::factory()->create(['training_session_id' => $sessionX->id, 'participant_id' => $participant->id, 'mentor_id' => $ben->id]);
+        MentorAssignment::factory()->create(['training_session_id' => $sessionY->id, 'participant_id' => $participant->id, 'mentor_id' => $cy->id]);
+        $inX = $this->pendingRequestInSession($participant, $activity, $sessionX);
+        $inY = $this->pendingRequestInSession($participant, $activity, $sessionY);
+
+        $this->actingAs($ben)->get(route('coach.recovery.index'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '<option value="'.$sessionX->id.'" >'.e($sessionX->titleWithDates()).'</option>',
+                'Pat Participant · Attempt 1', 'Training session:', e($sessionX->titleWithDates()),
+                'action="'.route('coach.recovery.decide', $inX).'"',
+            ], false)
+            ->assertDontSee(route('coach.recovery.decide', $inY), false)
+            ->assertDontSee(e($sessionY->titleWithDates()), false);
+
+        $this->actingAs($cy)->get(route('coach.recovery.index'))
+            ->assertOk()
+            ->assertSee('action="'.route('coach.recovery.decide', $inY).'"', false)
+            ->assertDontSee(route('coach.recovery.decide', $inX), false);
+
+        $this->actingAs($ana)->get(route('coach.recovery.index'))
+            ->assertOk()
+            ->assertSee('No pending recovery requests.')
+            ->assertDontSee('Pat Participant');
+    }
+
+    public function test_the_session_filter_narrows_the_requests(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $participant = User::factory()->create(['name' => 'Pat Participant']);
+        $activity = Activity::factory()->create();
+        $sessionX = TrainingSession::factory()->forWeek($activity->week)->create(['title' => 'Session X']);
+        $sessionY = TrainingSession::factory()->forWeek($activity->week)->create(['title' => 'Session Y']);
+        $inX = $this->pendingRequestInSession($participant, $activity, $sessionX);
+        $inY = $this->pendingRequestInSession($participant, $activity, $sessionY);
+
+        $this->actingAs($admin)->get(route('coach.recovery.index'))
+            ->assertOk()
+            ->assertSee(route('coach.recovery.decide', $inX), false)
+            ->assertSee(route('coach.recovery.decide', $inY), false);
+
+        $this->actingAs($admin)->get(route('coach.recovery.index', ['session' => $sessionY->id]))
+            ->assertOk()
+            ->assertSee('<option value="'.$sessionY->id.'" selected>'.e($sessionY->titleWithDates()).'</option>', false)
+            ->assertSee('<option value="'.$sessionX->id.'" >'.e($sessionX->titleWithDates()).'</option>', false)
+            ->assertSee('action="'.route('coach.recovery.decide', $inY).'"', false)
+            ->assertDontSee(route('coach.recovery.decide', $inX), false)
+            ->assertSee('href="'.route('coach.recovery.index').'"', false);
+
+        $inY->update(['status' => 'declined']);
+
+        $this->actingAs($admin)->get(route('coach.recovery.index', ['session' => $sessionY->id]))
+            ->assertOk()
+            ->assertSee('No pending recovery requests in this training session.');
+    }
+
+    public function test_an_unknown_session_filter_fails_validation(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->get(route('coach.recovery.index', ['session' => 999]))
+            ->assertSessionHasErrors(['session']);
     }
 
     public function test_page_without_pending_requests_shows_a_notice_instead_of_the_list(): void
@@ -146,6 +225,19 @@ class CoachRecoveryRequestPageTest extends TestCase
             'requested_at' => $createdAt,
             'created_at' => $createdAt,
         ]);
+    }
+
+    /**
+     * Create a pending recovery request for the participant's failed first attempt at the activity in the session.
+     */
+    private function pendingRequestInSession(User $participant, Activity $activity, TrainingSession $trainingSession): ActivityRecoveryRequest
+    {
+        $submission = ActivitySubmission::factory()
+            ->for($activity)
+            ->for($participant, 'participant')
+            ->create(['training_session_id' => $trainingSession->id, 'status' => 'failed', 'attempt_number' => 1]);
+
+        return ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $submission->id, 'requested_at' => now()]);
     }
 
     /**

@@ -281,6 +281,7 @@ class CoachOperationsTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create(['employee_id' => 'EMP-3001']);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->create(['status' => 'needs_revision', 'submitted_at' => now()]);
+        MentorAssignment::factory()->create(['training_session_id' => $submission->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
         SubmissionReview::factory()->for($version, 'submissionVersion')->create(['decision' => ReviewDecision::Approved, 'reviewed_at' => now()->subDay()]);
         SubmissionReview::factory()->for($version, 'submissionVersion')->create(['decision' => ReviewDecision::NeedsRevision, 'reviewed_at' => now()]);
@@ -291,8 +292,8 @@ class CoachOperationsTest extends TestCase
         $this->assertCount(2, $rows);
         $this->assertSame(['Participant', 'Employee ID'], array_slice($rows[0], 0, 2));
         $this->assertSame([$participant->name, 'EMP-3001'], array_slice($rows[1], 0, 2));
-        $this->assertSame(['Participant', 'Employee ID', 'Week', 'Activity', 'Status', 'Version', 'Submitted', 'Decision', 'Reviewed'], $rows[0]);
-        $this->assertSame('needs_revision', $rows[1][7]);
+        $this->assertSame(['Participant', 'Employee ID', 'Training session', 'Week', 'Activity', 'Status', 'Version', 'Submitted', 'Decision', 'Reviewed'], $rows[0]);
+        $this->assertSame('needs_revision', $rows[1][8]);
     }
 
     public function test_progress_export_prints_each_participants_employee_id_after_the_name(): void
@@ -361,7 +362,7 @@ class CoachOperationsTest extends TestCase
             ->assertSee('min-h-40 resize-y', false);
     }
 
-    public function test_unassigned_coach_can_view_submission_but_cannot_change_review(): void
+    public function test_unassigned_coach_can_neither_view_nor_change_the_review(): void
     {
         $this->seedProgram();
         $participant = User::factory()->create();
@@ -370,7 +371,7 @@ class CoachOperationsTest extends TestCase
         $submission = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'submitted']);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => []]);
 
-        $this->actingAs($coach)->get(route('coach.reviews.show', $version))->assertOk()->assertSee('Read only');
+        $this->actingAs($coach)->get(route('coach.reviews.show', $version))->assertForbidden();
         $this->actingAs($coach)->post(route('coach.reviews.store', $version), ['decision' => 'approved'])->assertForbidden();
         $this->assertDatabaseCount('submission_reviews', 0);
     }

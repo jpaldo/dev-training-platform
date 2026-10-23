@@ -10,7 +10,6 @@ use App\Services\CoachReviewQueuePageService;
 use App\Services\CoachSubmissionReviewPageService;
 use App\Services\SubmissionReviewService;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
@@ -18,14 +17,14 @@ class CoachReviewController extends Controller
 {
     public function index(FilterReviewQueueRequest $request, CoachReviewQueuePageService $page): View
     {
-        return view('coach.reviews', $page->indexData($request->validated()));
+        return view('coach.reviews', $page->indexData($request->user(), $request->validated()));
     }
 
-    public function show(Request $request, SubmissionVersion $submissionVersion, CoachSubmissionReviewPageService $page): View
+    public function show(SubmissionVersion $submissionVersion, CoachSubmissionReviewPageService $page): View
     {
         Gate::authorize('view', $submissionVersion);
 
-        return view('coach.review', $page->showData($submissionVersion, $request->user()));
+        return view('coach.review', $page->showData($submissionVersion));
     }
 
     public function claim(SubmissionVersion $submissionVersion, SubmissionReviewService $reviews): RedirectResponse

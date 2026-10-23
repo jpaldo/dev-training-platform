@@ -14,6 +14,15 @@
 
         <x-ui.card as="form" method="GET" action="{{ route('coach.reviews') }}" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:items-end" aria-label="Filter submissions">
             <div class="grid min-w-0 gap-2">
+                <label for="review-session" class="{{ $labelClasses }}">Training session</label>
+                <select id="review-session" name="session" class="{{ $controlClasses }}">
+                    <option value="">All training sessions</option>
+                    @foreach($sessionOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="grid min-w-0 gap-2">
                 <label for="review-participant" class="{{ $labelClasses }}">Participant</label>
                 <select id="review-participant" name="participant" class="{{ $controlClasses }}">
                     <option value="">All participants</option>
@@ -62,6 +71,10 @@
                 @foreach($items as $item)
                     <x-ui.card as="li" class="grid min-w-0 content-start justify-items-start gap-3">
                         <h2 class="m-0 text-xl font-extrabold wrap-break-word">{{ $item['participant_name'] }}</h2>
+                        <p class="m-0 text-sm/relaxed wrap-break-word">
+                            <span class="text-muted">Training session:</span>
+                            {{ $item['session_title'] }} ({{ $item['session_dates'] }})
+                        </p>
                         <p class="m-0 leading-relaxed wrap-break-word text-muted">Week {{ $item['week_number'] }} · {{ $item['activity_title'] }}</p>
                         <p class="m-0 flex flex-wrap items-center gap-2 text-sm">
                             <span class="text-muted">Status:</span>

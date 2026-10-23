@@ -4,13 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Enums\RecoveryRequestStatus;
 use App\Http\Requests\DecideRecoveryRequestRequest;
+use App\Http\Requests\FilterRecoveryRequestsRequest;
 use App\Http\Requests\StoreRecoveryRequestRequest;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivitySubmission;
 use App\Services\CoachRecoveryRequestPageService;
 use App\Services\SubmissionReviewService;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -26,9 +26,9 @@ class RecoveryRequestController extends Controller
         return back()->with('status', 'Review requested. Waiting for mentor response.');
     }
 
-    public function index(Request $request, CoachRecoveryRequestPageService $page): View
+    public function index(FilterRecoveryRequestsRequest $request, CoachRecoveryRequestPageService $page): View
     {
-        return view('coach.recovery_requests', $page->indexData($request->user()));
+        return view('coach.recovery_requests', $page->indexData($request->user(), $request->validated()));
     }
 
     /**

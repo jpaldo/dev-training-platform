@@ -20,11 +20,9 @@
             <x-session-repository :url="$repositoryUrl" />
         </header>
 
-        @if($canManage)
-            <x-ui.main-action id="submission-review-main-action">
-                <x-ui.button type="submit" form="submission-review-form">Save Review</x-ui.button>
-            </x-ui.main-action>
-        @endif
+        <x-ui.main-action id="submission-review-main-action">
+            <x-ui.button type="submit" form="submission-review-form">Save Review</x-ui.button>
+        </x-ui.main-action>
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
             @if(session('status'))
@@ -146,39 +144,35 @@
                     </div>
                 @endif
 
-                @if($canManage)
-                    <form method="POST" action="{{ route('coach.reviews.store', $submissionVersion) }}" id="submission-review-form" class="m-0 grid grid-cols-1 gap-6 border-t border-line pt-5" data-markdown-flush-on-submit>
-                        @csrf
-                        <div class="grid gap-2">
-                            <label for="decision" class="{{ $labelClasses }}">Decision</label>
-                            <select id="decision" name="decision" aria-describedby="decision-help" required class="{{ $controlClasses }} min-h-12">
-                                <option value="">Select a decision...</option>
-                                @foreach($decisionOptions as $option)
-                                    <option value="{{ $option['value'] }}" @selected(old('decision') === $option['value'])>{{ $option['label'] }}</option>
-                                @endforeach
-                            </select>
-                            @error('decision')
-                                <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
-                            @enderror
-                            <div id="decision-help" class="grid gap-2 pt-1 text-sm/relaxed text-muted">
-                                <p class="m-0"><strong class="text-slate-100">Passed:</strong> The submission meets the activity requirements and is accepted.</p>
-                                <p class="m-0"><strong class="text-slate-100">Revise:</strong> The participant needs to correct or improve the submission and can submit a revision.</p>
-                                <p class="m-0"><strong class="text-slate-100">Failed:</strong> The attempt is not accepted and is closed. A mentor may create a retry when appropriate.</p>
-                            </div>
+                <form method="POST" action="{{ route('coach.reviews.store', $submissionVersion) }}" id="submission-review-form" class="m-0 grid grid-cols-1 gap-6 border-t border-line pt-5" data-markdown-flush-on-submit>
+                    @csrf
+                    <div class="grid gap-2">
+                        <label for="decision" class="{{ $labelClasses }}">Decision</label>
+                        <select id="decision" name="decision" aria-describedby="decision-help" required class="{{ $controlClasses }} min-h-12">
+                            <option value="">Select a decision...</option>
+                            @foreach($decisionOptions as $option)
+                                <option value="{{ $option['value'] }}" @selected(old('decision') === $option['value'])>{{ $option['label'] }}</option>
+                            @endforeach
+                        </select>
+                        @error('decision')
+                            <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                        @enderror
+                        <div id="decision-help" class="grid gap-2 pt-1 text-sm/relaxed text-muted">
+                            <p class="m-0"><strong class="text-slate-100">Passed:</strong> The submission meets the activity requirements and is accepted.</p>
+                            <p class="m-0"><strong class="text-slate-100">Revise:</strong> The participant needs to correct or improve the submission and can submit a revision.</p>
+                            <p class="m-0"><strong class="text-slate-100">Failed:</strong> The attempt is not accepted and is closed. A mentor may create a retry when appropriate.</p>
                         </div>
+                    </div>
 
-                        <div class="grid gap-2">
-                            <label for="comments" class="{{ $labelClasses }}">Feedback / Comments <span class="font-normal text-muted">(optional)</span></label>
-                            <x-markdown-field id="comments" name="comments" :value="old('comments')" rows="7" placeholder="Provide clear feedback explaining your decision and any next steps for the participant." :maxlength="\App\Support\FieldLimits::REVIEW_COMMENTS" aria-describedby="comments-help" class="{{ $controlClasses }} min-h-40 resize-y leading-relaxed" />
-                            <p id="comments-help" class="{{ $hintClasses }}">Specific, actionable feedback helps the participant understand what to do next.</p>
-                            @error('comments')
-                                <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
-                            @enderror
-                        </div>
-                    </form>
-                @else
-                    <x-ui.alert tone="error" role="status">Read only — this participant is not assigned to you.</x-ui.alert>
-                @endif
+                    <div class="grid gap-2">
+                        <label for="comments" class="{{ $labelClasses }}">Feedback / Comments <span class="font-normal text-muted">(optional)</span></label>
+                        <x-markdown-field id="comments" name="comments" :value="old('comments')" rows="7" placeholder="Provide clear feedback explaining your decision and any next steps for the participant." :maxlength="\App\Support\FieldLimits::REVIEW_COMMENTS" aria-describedby="comments-help" class="{{ $controlClasses }} min-h-40 resize-y leading-relaxed" />
+                        <p id="comments-help" class="{{ $hintClasses }}">Specific, actionable feedback helps the participant understand what to do next.</p>
+                        @error('comments')
+                            <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                        @enderror
+                    </div>
+                </form>
             </x-ui.card>
         </div>
     </div>

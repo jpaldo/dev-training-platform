@@ -6,6 +6,7 @@ use App\Enums\SubmissionStatus;
 use App\Observers\ParticipantProgressObserver;
 use Database\Factories\ActivitySubmissionFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -83,6 +84,19 @@ class ActivitySubmission extends Model
     public function isForActivityInSession(Activity $activity, TrainingSession $trainingSession): bool
     {
         return $this->activity_id === $activity->id && $this->training_session_id === $trainingSession->id;
+    }
+
+    /**
+     * Limit the query to attempts whose participant the given coach currently mentors in the attempt's session (a
+     * `mentor_assignments` row for that participant and session naming them, not ended).
+     */
+    public function scopeCurrentlyMentoredBy(Builder $query, User $mentor): Builder
+    {
+        return $query->whereExists(MentorAssignment::query()
+            ->current()
+            ->whereColumn('mentor_assignments.participant_id', $query->qualifyColumn('user_id'))
+            ->whereColumn('mentor_assignments.training_session_id', $query->qualifyColumn('training_session_id'))
+            ->where('mentor_assignments.mentor_id', $mentor->id));
     }
 
     public function trainingSession(): BelongsTo

@@ -8,6 +8,8 @@ use App\Enums\UserRole;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\Program;
+use App\Models\SubmissionReview;
+use App\Models\SubmissionVersion;
 use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
@@ -37,8 +39,8 @@ class CoachReportService
         return [
             'participants' => $participants->count(),
             'completed' => $activeProgram ? $this->completedParticipantCount($participants, $activeProgram) : 0,
-            'needs_review' => $this->reviewQueue()->whereIn('status', SubmissionStatus::awaitingReview())->count(),
-            'needs_revision' => $this->reviewQueue()->where('status', SubmissionStatus::NeedsRevision)->count(),
+            'needs_review' => $this->reviewableSubmissions()->whereIn('status', SubmissionStatus::awaitingReview())->count(),
+            'needs_revision' => $this->reviewableSubmissions()->where('status', SubmissionStatus::NeedsRevision)->count(),
             'at_risk' => $this->atRiskParticipants()->count(),
         ];
     }
@@ -67,14 +69,24 @@ class CoachReportService
             ->withCount(['activitySubmissions', 'gateEvaluations as passed_gate_evaluations_count' => fn (Builder $query): Builder => $query->where('status', GateEvaluationStatus::Passed)]);
     }
 
-    public function reviewQueue(?array $filters = null): Builder
+    /**
+     * The submissions awaiting review or needing revision that the viewer may review (every one for an admin,
+     * otherwise those whose participant the viewer currently mentors in the submission's session) and that match the
+     * filters, newest submission first, with the participant, activity and week, training session and latest version.
+     *
+     * @param  array{status?: ?string, participant?: int|string|null, week?: int|string|null, activity?: int|string|null, session?: int|string|null}  $filters
+     * @return Builder<ActivitySubmission>
+     */
+    public function reviewQueue(User $viewer, array $filters = []): Builder
     {
-        return ActivitySubmission::query()->whereIn('status', [...SubmissionStatus::awaitingReview(), SubmissionStatus::NeedsRevision])
+        return $this->reviewableSubmissions()
+            ->unless($viewer->hasAnyRole(UserRole::Admin), fn (Builder $query): Builder => $query->currentlyMentoredBy($viewer))
+            ->when($filters['session'] ?? null, fn (Builder $q, int|string $v): Builder => $q->where('training_session_id', $v))
             ->when($filters['status'] ?? null, fn (Builder $q, string $v): Builder => $q->where('status', $v))
             ->when($filters['participant'] ?? null, fn (Builder $q, int|string $v): Builder => $q->where('user_id', $v))
             ->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('activity.week', fn (Builder $w): Builder => $w->where('week_number', $v)))
             ->when($filters['activity'] ?? null, fn (Builder $q, int|string $v): Builder => $q->where('activity_id', $v))
-            ->with(['participant', 'activity.week', 'latestVersion'])->latest('submitted_at');
+            ->with(['participant', 'activity.week', 'latestVersion', 'trainingSession:id,title,starts_on,ends_on'])->latest('submitted_at');
     }
 
     /**
@@ -136,9 +148,16 @@ class CoachReportService
         return $this->gateResults()->when($filters['participant'] ?? null, fn (Builder $q, int|string $v): Builder => $q->where('user_id', $v))->when($filters['status'] ?? null, fn (Builder $q, string $v): Builder => $q->where('status', $v))->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('gate.week', fn (Builder $w): Builder => $w->where('week_number', $v)));
     }
 
-    public function reviewRows(?array $filters = null): Collection
+    /**
+     * The viewer's review queue matching the filters (see reviewQueue()), each submission with its latest version and
+     * that version's latest review.
+     *
+     * @param  array{status?: ?string, participant?: int|string|null, week?: int|string|null, activity?: int|string|null, session?: int|string|null}  $filters
+     * @return Collection<int, array{submission: ActivitySubmission, version: ?SubmissionVersion, review: ?SubmissionReview}>
+     */
+    public function reviewRows(User $viewer, array $filters = []): Collection
     {
-        return $this->reviewQueue($filters)->with('latestVersion.reviews')->get()->map(function (ActivitySubmission $submission): array {
+        return $this->reviewQueue($viewer, $filters)->with('latestVersion.reviews')->get()->map(function (ActivitySubmission $submission): array {
             $version = $submission->latestVersion;
             $review = $version?->reviews->sortByDesc('reviewed_at')->first();
 
@@ -183,20 +202,21 @@ class CoachReportService
     }
 
     /**
-     * Build a coach report CSV: participant progress by default, or the review queue, Gate results or at-risk list.
+     * Build a coach report CSV: participant progress by default, or the review queue (the viewer's, see reviewQueue()),
+     * Gate results or at-risk list.
      *
      * @param  array<string, mixed>  $input  the request's report filters
      * @return array{filename: string, header: list<string>, rows: Collection<int, list<mixed>>}
      */
-    public function csvExport(string $type, array $input): array
+    public function csvExport(User $viewer, string $type, array $input): array
     {
-        $filters = Arr::only($input, ['week', 'activity', 'status', 'participant']);
+        $filters = Arr::only($input, ['week', 'activity', 'status', 'participant', 'session']);
 
         return match ($type) {
             'reviews' => [
                 'filename' => 'review-queue.csv',
-                'header' => ['Participant', 'Employee ID', 'Week', 'Activity', 'Status', 'Version', 'Submitted', 'Decision', 'Reviewed'],
-                'rows' => $this->reviewRows($filters)->map(fn (array $r): array => [$r['submission']->participant->name, $r['submission']->participant->employee_id, $r['submission']->activity->week->week_number, $r['submission']->activity->title, $r['submission']->status->value, $r['version']?->version_number, $r['submission']->submitted_at, $r['review']?->decision->value, $r['review']?->reviewed_at]),
+                'header' => ['Participant', 'Employee ID', 'Training session', 'Week', 'Activity', 'Status', 'Version', 'Submitted', 'Decision', 'Reviewed'],
+                'rows' => $this->reviewRows($viewer, $filters)->map(fn (array $r): array => [$r['submission']->participant->name, $r['submission']->participant->employee_id, $r['submission']->trainingSession->titleWithDates(), $r['submission']->activity->week->week_number, $r['submission']->activity->title, $r['submission']->status->value, $r['version']?->version_number, $r['submission']->submitted_at, $r['review']?->decision->value, $r['review']?->reviewed_at]),
             ],
             'gates' => [
                 'filename' => 'gate-results.csv',
@@ -216,6 +236,16 @@ class CoachReportService
                     ->map(fn (User $item): array => [$item->name, $item->employee_id, $item->email, $item->activity_submissions_count, $item->gate_evaluations_count]),
             ],
         };
+    }
+
+    /**
+     * Every submission awaiting review or needing revision.
+     *
+     * @return Builder<ActivitySubmission>
+     */
+    private function reviewableSubmissions(): Builder
+    {
+        return ActivitySubmission::query()->whereIn('status', [...SubmissionStatus::awaitingReview(), SubmissionStatus::NeedsRevision]);
     }
 
     /**

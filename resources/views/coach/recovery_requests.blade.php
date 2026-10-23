@@ -14,6 +14,24 @@
             <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
         @endif
 
+        <x-ui.card as="form" method="GET" action="{{ route('coach.recovery.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end" aria-label="Filter recovery requests">
+            <div class="grid min-w-0 gap-2">
+                <label for="recovery-session" class="text-sm font-extrabold">Training session</label>
+                <select id="recovery-session" name="session" class="w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50">
+                    <option value="">All training sessions</option>
+                    @foreach($sessionOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <x-ui.button variant="secondary" type="submit">Filter</x-ui.button>
+                @if($isFiltered)
+                    <x-ui.button variant="secondary" :href="route('coach.recovery.index')">Clear</x-ui.button>
+                @endif
+            </div>
+        </x-ui.card>
+
         @if($items->isNotEmpty())
             <ul class="m-0 grid list-none grid-cols-1 gap-4 p-0 lg:grid-cols-2" aria-label="Pending recovery requests">
                 @foreach($items as $item)
@@ -22,6 +40,10 @@
                         <p class="m-0 flex flex-wrap items-center gap-2 leading-relaxed wrap-anywhere text-muted">
                             <span>{{ $item['participant_name'] }} · Attempt {{ $item['attempt_number'] }} ·</span>
                             <x-ui.badge tone="danger">FAILED</x-ui.badge>
+                        </p>
+                        <p class="m-0 text-sm/relaxed wrap-break-word">
+                            <span class="text-muted">Training session:</span>
+                            {{ $item['session_title'] }} ({{ $item['session_dates'] }})
                         </p>
                         <p class="m-0 leading-relaxed wrap-anywhere">{{ $item['message'] }}</p>
                         <form method="post" action="{{ $item['decide_url'] }}" class="m-0 grid grid-cols-1 gap-3">
@@ -45,7 +67,7 @@
             </ul>
         @else
             <x-ui.card>
-                <p class="m-0 text-muted">No pending recovery requests.</p>
+                <p class="m-0 text-muted">{{ $emptyMessage }}</p>
             </x-ui.card>
         @endif
 

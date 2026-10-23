@@ -18,6 +18,8 @@ class CoachParticipantListPageService
 {
     private const PARTICIPANTS_PER_PAGE = 25;
 
+    public function __construct(private readonly CoachSessionFilterService $sessionFilter) {}
+
     /**
      * Everything the coach participants page renders: the filter values, the session options and one row per
      * participant and training session. An admin sees every session membership; a coach sees only those where they
@@ -30,7 +32,7 @@ class CoachParticipantListPageService
     {
         return [
             'search' => (string) ($filters['search'] ?? ''),
-            'sessionOptions' => $this->sessionOptions($viewer, $filters['session'] ?? null),
+            'sessionOptions' => $this->sessionFilter->options($viewer, $filters['session'] ?? null),
             'participants' => $this->memberships($viewer, $filters)
                 ->paginate(self::PARTICIPANTS_PER_PAGE)
                 ->withQueryString()
@@ -106,28 +108,6 @@ class CoachParticipantListPageService
         return $query
             ->whereColumn("{$table}.user_id", 'training_session_participants.user_id')
             ->whereColumn("{$table}.training_session_id", 'training_session_participants.training_session_id');
-    }
-
-    /**
-     * The sessions the filter offers, the latest start first: every session for an admin, otherwise the sessions the
-     * viewer mentors.
-     *
-     * @return list<array{value: string, label: string, is_selected: bool}>
-     */
-    private function sessionOptions(User $viewer, int|string|null $selectedSessionId): array
-    {
-        $trainingSessions = $viewer->hasAnyRole(UserRole::Admin) ? TrainingSession::query() : $viewer->mentoredSessions();
-
-        return $trainingSessions
-            ->orderByDesc('training_sessions.starts_on')
-            ->orderBy('training_sessions.id')
-            ->get(['training_sessions.id', 'training_sessions.title', 'training_sessions.starts_on', 'training_sessions.ends_on'])
-            ->map(fn (TrainingSession $trainingSession): array => [
-                'value' => (string) $trainingSession->id,
-                'label' => "{$trainingSession->title} ({$trainingSession->dateRangeLabel()})",
-                'is_selected' => (string) $selectedSessionId === (string) $trainingSession->id,
-            ])
-            ->all();
     }
 
     /**

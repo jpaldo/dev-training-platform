@@ -120,12 +120,14 @@ class MentorScopeAuthorizationTest extends TestCase
     }
 
     /**
-     * Send each mentor action on the work as the user and assert that every one is forbidden and changed nothing.
+     * Open the work's review page and send each mentor action on the work as the user, and assert that every one is
+     * forbidden and the actions changed nothing.
      *
      * @param  array{session: TrainingSession, week: TrainingWeek, gate: TrainingGate, criteria: Collection<int, GateCriterion>, version: SubmissionVersion, earlierVersion: SubmissionVersion, evidence: SubmissionEvidence, recoveryRequest: ActivityRecoveryRequest, recording: WeeklyVideoRecording}  $work
      */
     private function assertForbiddenOnWork(User $user, array $work, User $participant): void
     {
+        $this->actingAs($user)->get(route('coach.reviews.show', $work['version']))->assertForbidden();
         $this->actingAs($user)->post(route('coach.reviews.store', $work['version']), self::REVIEW)->assertForbidden();
         $this->actingAs($user)->post(route('coach.scoring.second-reader', $work['version']), $this->secondReading($user))->assertForbidden();
         $this->actingAs($user)->post(route('coach.scoring.store', $work['version']), self::SCORE)->assertForbidden();

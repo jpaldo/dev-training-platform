@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Enums\GateEvaluationStatus;
 use App\Enums\SubmissionStatus;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -32,6 +33,7 @@ class ExportCoachReportRequest extends FormRequest
             'activity' => ['nullable', 'integer'],
             'status' => ['nullable', Rule::in([...SubmissionStatus::awaitingReview(), SubmissionStatus::NeedsRevision, GateEvaluationStatus::NotReady, GateEvaluationStatus::Failed, GateEvaluationStatus::Passed])],
             'participant' => ['nullable', 'integer'],
+            'session' => ['nullable', 'integer', Rule::exists(TrainingSession::class, 'id')],
             'search' => ['nullable', 'string', 'max:100'],
             'mentor' => ['nullable', 'integer'],
         ];

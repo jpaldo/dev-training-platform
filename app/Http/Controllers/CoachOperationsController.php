@@ -34,7 +34,7 @@ class CoachOperationsController extends Controller
 
     public function export(ExportCoachReportRequest $request, CoachReportService $reports): StreamedResponse
     {
-        $export = $reports->csvExport($request->validated('type') ?? 'progress', $request->only('week', 'activity', 'status', 'participant', 'search', 'mentor'));
+        $export = $reports->csvExport($request->user(), $request->validated('type') ?? 'progress', $request->only('week', 'activity', 'status', 'participant', 'search', 'mentor', 'session'));
 
         return response()->streamDownload(function () use ($export): void {
             $out = fopen('php://output', 'w');

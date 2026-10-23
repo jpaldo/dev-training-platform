@@ -123,18 +123,25 @@ class CoachSubmissionReviewPageTest extends TestCase
             ->assertSee('>Save Review</button>', false);
     }
 
-    public function test_unassigned_coach_sees_a_read_only_notice_without_review_actions(): void
+    public function test_a_coach_who_does_not_mentor_the_participant_in_the_submissions_session_is_forbidden(): void
     {
-        $coach = User::factory()->create(['role' => 'coach']);
+        $version = $this->version('submitted');
+        $sessionMentor = User::factory()->create(['role' => 'coach']);
+        $version->submission->trainingSession->mentors()->attach($sessionMentor);
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.reviews.show', $version))->assertForbidden();
+        $this->actingAs($sessionMentor)->get(route('coach.reviews.show', $version))->assertForbidden();
+    }
+
+    public function test_an_admin_who_mentors_no_one_sees_the_review_form(): void
+    {
         $version = $this->version('submitted');
 
-        $this->actingAs($coach)->get(route('coach.reviews.show', $version))
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.reviews.show', $version))
             ->assertOk()
-            ->assertSee('Read only — this participant is not assigned to you.')
-            ->assertDontSee('Save Review')
-            ->assertDontSee('submission-review-form')
-            ->assertDontSee('Start Review')
-            ->assertDontSee('name="decision"', false);
+            ->assertSee('>Save Review</button>', false)
+            ->assertSee('id="submission-review-form"', false)
+            ->assertSee('>Start Review</button>', false);
     }
 
     public function test_a_rejected_review_returns_to_the_page_with_the_errors_and_the_old_comments(): void

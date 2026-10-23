@@ -17,11 +17,12 @@ class SubmissionVersionPolicy
     }
 
     /**
-     * Determine whether the user can view the model.
+     * Determine whether the user can view the model: the participant who submitted it, an admin, or the participant's
+     * current mentor in the submission's session (the same people who can update it).
      */
     public function view(User $user, SubmissionVersion $submissionVersion): bool
     {
-        return $user->isCoachOrAdmin() || $user->id === $submissionVersion->submission->user_id;
+        return $this->update($user, $submissionVersion);
     }
 
     /**

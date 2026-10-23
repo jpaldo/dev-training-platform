@@ -7,7 +7,6 @@ use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingSessionParticipant;
-use App\Models\User;
 use Illuminate\Support\Collection;
 
 class CoachSubmissionReviewPageService
@@ -19,16 +18,17 @@ class CoachSubmissionReviewPageService
     /**
      * Everything the coach review page of a submission version renders: the header (with the participant's GitHub
      * repository for the submission's session, null when they have none), the submitted fields and evidence,
-     * the latest review and which review actions the viewer may take. The single main action is Save Review.
+     * the latest review and which of the claim and retry actions apply. Only an admin or the participant's current
+     * mentor in the submission's session opens the page (SubmissionVersionPolicy::view), so the review form is always
+     * shown. The single main action is Save Review.
      *
-     * @return array{submissionVersion: SubmissionVersion, activityTitle: string, participantName: string, repositoryUrl: ?string, versionStatusLabel: string, canManage: bool, canClaim: bool, canRetry: bool, submittedFields: list<array{label: string, text: mixed, link: ?string}>, evidenceItems: list<array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, currentReview: ?array{decision_label: string, reviewer_name: string, reviewed_at: string, comments: ?string}, decisionOptions: list<array{value: string, label: string}>}
+     * @return array{submissionVersion: SubmissionVersion, activityTitle: string, participantName: string, repositoryUrl: ?string, versionStatusLabel: string, canClaim: bool, canRetry: bool, submittedFields: list<array{label: string, text: mixed, link: ?string}>, evidenceItems: list<array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, currentReview: ?array{decision_label: string, reviewer_name: string, reviewed_at: string, comments: ?string}, decisionOptions: list<array{value: string, label: string}>}
      */
-    public function showData(SubmissionVersion $submissionVersion, User $viewer): array
+    public function showData(SubmissionVersion $submissionVersion): array
     {
         $submissionVersion->load(['submission.participant', 'submission.trainingSession', 'submission.activity.week', 'evidence', 'reviews.reviewer', 'interactions']);
         $submission = $submissionVersion->submission;
         $activity = $submission->activity;
-        $canManage = $viewer->mentorsParticipantInSession($submission->participant, $submission->trainingSession);
 
         return [
             'submissionVersion' => $submissionVersion,
@@ -36,9 +36,8 @@ class CoachSubmissionReviewPageService
             'participantName' => $submission->participant->name,
             'repositoryUrl' => TrainingSessionParticipant::query()->forParticipantInSession($submission->training_session_id, $submission->user_id)->value('repository_url'),
             'versionStatusLabel' => $submissionVersion->status->label(),
-            'canManage' => $canManage,
-            'canClaim' => $canManage && $submission->isClaimable(),
-            'canRetry' => $canManage && $submission->isFailed(),
+            'canClaim' => $submission->isClaimable(),
+            'canRetry' => $submission->isFailed(),
             'submittedFields' => $this->submittedFields($submissionVersion),
             'evidenceItems' => $this->answers->evidenceItems($submissionVersion->evidence)->all(),
             'currentReview' => $this->currentReview($submissionVersion->reviews),

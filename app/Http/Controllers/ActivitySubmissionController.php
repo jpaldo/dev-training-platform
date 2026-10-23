@@ -25,9 +25,10 @@ class ActivitySubmissionController extends Controller
 {
     /**
      * A handed-in version of the participant's attempt at the activity within the session; a draft, or a version of
-     * someone else's attempt or of an attempt in another session, is a 404.
+     * someone else's attempt or of an attempt in another session, is a 404, and a version of a week that is not open for
+     * the participant is a 403 with the week's locked message.
      */
-    public function show(Request $request, TrainingSession $trainingSession, TrainingWeek $trainingWeek, Activity $activity, SubmissionVersion $submissionVersion, ActivitySubmissionPageService $pages): View
+    public function show(Request $request, TrainingSession $trainingSession, TrainingWeek $trainingWeek, Activity $activity, SubmissionVersion $submissionVersion, WeekProgressionService $progression, ActivitySubmissionPageService $pages): View
     {
         /** @var User $user */
         $user = $request->user();
@@ -35,6 +36,7 @@ class ActivitySubmissionController extends Controller
         $submission = $submissionVersion->submission;
         abort_unless($submission->user_id === $user->id && $submission->isForActivityInSession($activity, $trainingSession) && $submission->activity->training_week_id === $trainingWeek->id, 404);
         abort_unless(! $submissionVersion->isDraft(), 404);
+        $progression->ensureCanAccessWeek($user, $trainingSession, $trainingWeek);
 
         return view('submissions.show', [
             'trainingSession' => $trainingSession,

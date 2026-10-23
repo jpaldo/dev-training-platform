@@ -941,13 +941,13 @@ class ParticipantWorkflowTest extends TestCase
         $this->travelTo('2026-11-08 09:00:00');
         $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[1]]))
             ->assertForbidden()
-            ->assertSee('Week 1 opens on Mon 9 Nov.');
+            ->assertSee('Opens on Mon 9 Nov');
 
         $this->travelTo('2026-11-15 23:00:00');
         $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[1]]))->assertOk();
         $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[2]]))
             ->assertForbidden()
-            ->assertSee('Week 2 opens on Mon 16 Nov.');
+            ->assertSee('Opens on Mon 16 Nov');
         $this->actingAs($participant)->post(route('training.submission.draft', [$session, $weeks[2], $weeks[2]->activities->sole()]), ['field_values' => []])->assertForbidden();
 
         $this->travelTo('2026-11-16 08:00:00');
@@ -970,7 +970,7 @@ class ParticipantWorkflowTest extends TestCase
         foreach ([3, 4] as $weekNumber) {
             $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[$weekNumber]]))
                 ->assertForbidden()
-                ->assertSee("Complete your Week 2 deliverables to unlock Week {$weekNumber}.");
+                ->assertSee('Complete your Week 2 deliverables to unlock');
         }
         $this->actingAs($participant)->post(route('training.submission.draft', [$session, $weeks[3], $weeks[3]->activities->sole()]), ['field_values' => []])->assertForbidden();
         $this->actingAs($mentor)->get(route('training.weeks.show', [$session, $weeks[4]]))->assertOk();
@@ -992,7 +992,7 @@ class ParticipantWorkflowTest extends TestCase
         $this->assertSame(SubmissionStatus::Submitted, $version->fresh()->status);
         $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[2]]))
             ->assertForbidden()
-            ->assertSee('Complete your Week 1 deliverables to unlock Week 2.');
+            ->assertSee('Complete your Week 1 deliverables to unlock');
     }
 
     #[DataProvider('weekCompleters')]
@@ -1010,7 +1010,7 @@ class ParticipantWorkflowTest extends TestCase
         $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[2]]))->assertOk();
         $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[3]]))
             ->assertForbidden()
-            ->assertSee('Week 3 opens on Mon 23 Nov.');
+            ->assertSee('Opens on Mon 23 Nov');
         $this->travelTo('2026-11-23 08:00:00');
         $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[3]]))->assertOk();
     }
@@ -1036,7 +1036,7 @@ class ParticipantWorkflowTest extends TestCase
 
         $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weeks[2]]))
             ->assertForbidden()
-            ->assertSee('Complete your Week 1 deliverables to unlock Week 2.');
+            ->assertSee('Complete your Week 1 deliverables to unlock');
     }
 
     public function test_the_current_week_is_the_latest_open_unlocked_week_and_only_it_asks_for_a_check_in(): void

@@ -168,8 +168,8 @@ class WeekProgressionService
     }
 
     /**
-     * Refuse a participant a week of the session that is not open for them, saying when it opens or which week locks
-     * it.
+     * Refuse a participant a week of the session that is not open for them, with the message its tab shows (when it
+     * opens, or which week locks it).
      *
      * @throws AuthorizationException
      */
@@ -184,11 +184,7 @@ class WeekProgressionService
             return;
         }
 
-        throw new AuthorizationException(match ($state?->access) {
-            WeekAccessState::Locked => "Complete your Week {$state->lockedByWeekNumber} deliverables to unlock Week {$week->week_number}.",
-            WeekAccessState::NotOpen => "Week {$week->week_number} opens on {$state->opensOn->format('D j M')}.",
-            default => 'This training week is not available to your account.',
-        });
+        throw new AuthorizationException($state?->lockedMessage() ?? 'This training week is not available to your account.');
     }
 
     public function ensureCanAccessActivity(User $user, TrainingSession $trainingSession, TrainingWeek $week, Activity $activity): void

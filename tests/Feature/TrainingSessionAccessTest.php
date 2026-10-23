@@ -2,13 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GateEvaluationStatus;
+use App\Enums\SubmissionStatus;
 use App\Models\Activity;
+use App\Models\ActivitySubmission;
+use App\Models\GateEvaluation;
 use App\Models\Program;
+use App\Models\SubmissionVersion;
+use App\Models\TrainingGate;
 use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\TrainingSessionService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class TrainingSessionAccessTest extends TestCase
@@ -96,6 +103,55 @@ class TrainingSessionAccessTest extends TestCase
 
         $this->actingAs($otherSessionMentor)->get(route('training.weeks.show', [$session, $week]))->assertForbidden();
         $this->actingAs($otherSessionMentor)->get(route('training.activities.show', [$session, $week, $activity]))->assertForbidden();
+    }
+
+    #[DataProvider('closedWeekCases')]
+    public function test_a_participant_is_forbidden_from_the_week_activity_and_submission_pages_of_a_closed_week_with_its_message(string $today, ?GateEvaluationStatus $weekOneReview, string $message): void
+    {
+        $this->travelTo($today);
+        $participant = $this->checkedInParticipant();
+        $program = Program::factory()->create();
+        $weekOne = TrainingWeek::factory()->for($program)->create(['week_number' => 1, 'position' => 1]);
+        $weekTwo = TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 2]);
+        $weekOneActivity = Activity::factory()->for($weekOne, 'week')->create();
+        $weekTwoActivity = Activity::factory()->for($weekTwo, 'week')->create();
+        $session = TrainingSession::factory()->for($program)->withParticipants($participant)->create([
+            'weeks_count' => 2,
+            'starts_on' => '2026-11-09',
+            'ends_on' => '2026-11-22',
+        ]);
+        $gate = TrainingGate::factory()->for($weekOne, 'week')->create();
+        if ($weekOneReview) {
+            GateEvaluation::factory()->for($gate, 'gate')->for($session)->for($participant, 'participant')->create(['status' => $weekOneReview]);
+        }
+        $handedIn = SubmissionVersion::factory()
+            ->for(ActivitySubmission::factory()->for($session)->for($weekTwoActivity)->for($participant, 'participant')->create(['status' => SubmissionStatus::Submitted]), 'submission')
+            ->create(['status' => SubmissionStatus::Submitted, 'submitted_at' => now()]);
+
+        foreach ([
+            route('training.weeks.show', [$session, $weekTwo]),
+            route('training.activities.show', [$session, $weekTwo, $weekTwoActivity]),
+            route('training.submission.edit', [$session, $weekTwo, $weekTwoActivity]),
+            route('training.submission.show', [$session, $weekTwo, $weekTwoActivity, $handedIn]),
+        ] as $url) {
+            $this->actingAs($participant)->get($url)->assertForbidden()->assertSee($message);
+        }
+        $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weekOne]))->assertOk();
+        $this->actingAs($participant)->get(route('training.activities.show', [$session, $weekOne, $weekOneActivity]))->assertOk();
+    }
+
+    /**
+     * The two reasons a week of a session starting on Mon 9 Nov 2026 is closed: Week 2 before its date, and Week 2
+     * after its date while Week 1 has an incomplete review.
+     *
+     * @return array<string, array{string, ?GateEvaluationStatus, string}>
+     */
+    public static function closedWeekCases(): array
+    {
+        return [
+            'not opened yet' => ['2026-11-15 09:00:00', null, 'Opens on Mon 16 Nov'],
+            'locked by an incomplete review' => ['2026-11-16 09:00:00', GateEvaluationStatus::NeedsRevision, 'Complete your Week 1 deliverables to unlock'],
+        ];
     }
 
     public function test_only_a_participant_in_the_session_opens_its_session_page(): void

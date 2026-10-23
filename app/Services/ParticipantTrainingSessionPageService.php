@@ -61,7 +61,7 @@ class ParticipantTrainingSessionPageService
      * grouped like the admin tab (one query); 11.6 holds back the week resources that have not opened yet. The selected
      * tab is the current week, else the last available week, else the first week.
      *
-     * @return array{trainingSession: TrainingSession, title: string, program: string, dateRange: string, statusLabel: string, statusTone: string, repositoryUrl: ?string, repositoryFormUrl: string, isTrainingComplete: bool, weeks: Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_reason: ?string, shows_weekly_video: bool, is_current: bool, attendance_required: bool, tab_key: string, gates: Collection<int, array{week: TrainingWeek, gate: TrainingGate, evaluation: ?GateEvaluation, readiness: ?array<string, string>, status_label: string}>}>, tabs: list<array{key: string, label: string, state: ?string}>, selectedTab: string, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string}>}>, googleDriveReady: bool, googleDriveReadinessEnforced: bool}
+     * @return array{trainingSession: TrainingSession, title: string, program: string, dateRange: string, statusLabel: string, statusTone: string, repositoryUrl: ?string, repositoryFormUrl: string, isTrainingComplete: bool, weeks: Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_message: ?string, shows_weekly_video: bool, is_current: bool, attendance_required: bool, tab_key: string, gates: Collection<int, array{week: TrainingWeek, gate: TrainingGate, evaluation: ?GateEvaluation, readiness: ?array<string, string>, status_label: string}>}>, tabs: list<array{key: string, label: string, state: ?string}>, selectedTab: string, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string}>}>, googleDriveReady: bool, googleDriveReadinessEnforced: bool}
      */
     public function showData(TrainingSession $trainingSession, User $participant): array
     {
@@ -101,10 +101,10 @@ class ParticipantTrainingSessionPageService
                     'key' => $item['tab_key'],
                     'label' => 'Week '.$item['week']->week_number,
                     'state' => match (true) {
+                        ! $item['available'] => 'locked',
                         $item['passed'] => 'passed',
                         $item['is_current'] => 'current',
-                        $item['available'] => null,
-                        default => 'locked',
+                        default => null,
                     },
                 ])
                 ->push(['key' => 'overview', 'label' => 'Overview', 'state' => null])

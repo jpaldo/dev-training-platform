@@ -48,43 +48,44 @@
                             <h2 class="text-2xl font-extrabold wrap-break-word">{{ $item['week']->title }}</h2>
                             <p class="leading-relaxed text-muted">{{ $item['week']->description }}</p>
                         </div>
-                        @if($item['passed'])
+                        @if($item['available'] && $item['passed'])
                             <x-ui.alert tone="success">Completed</x-ui.alert>
                         @elseif($item['available'])
                             <x-ui.button :href="route('training.weeks.show', [$trainingSession, $item['week']])">Open week →</x-ui.button>
-                        @else
-                            <x-ui.alert tone="error">Locked — {{ $item['locked_reason'] }}</x-ui.alert>
                         @endif
                     </div>
-                    @if($item['attendance_required'])
-                        <x-ui.alert class="mb-6" role="status">
-                            Please check in to access this week's activities.
-                            <a class="text-accent underline underline-offset-3" href="{{ route('dashboard') }}">Check in on your dashboard</a>
-                        </x-ui.alert>
-                    @endif
 
-                    <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-                        <x-ui.card class="min-w-0">
-                            <h3 class="mb-4 text-base font-extrabold">Activities</h3>
-                            <ol class="grid grid-cols-1 gap-3">
-                                @foreach($item['week']->activities as $activity)
-                                    @php
-                                        $activityUrl = route('training.activities.show', [$trainingSession, $item['week'], $activity]);
-                                    @endphp
-                                    <li class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-field px-4 py-3.5">
-                                        <div class="grid min-w-0 flex-[1_1_260px] gap-1.5">
-                                            <strong>{{ $activity->title }}</strong>
-                                            <div class="flex flex-wrap items-center gap-2.5 text-sm">
-                                                <x-ui.badge :tone="$activity->participant_status_tone">{{ $activity->participant_status_label }}</x-ui.badge>
-                                                @if($activity->participant_score)
-                                                    <span class="text-muted">Score: <strong class="text-slate-100">{{ $activity->participant_score->total_score }} / {{ $activity->participant_score_max }}</strong></span>
+                    @if(! $item['available'])
+                        @include('training-sessions.locked-week', ['message' => $item['locked_message']])
+                    @else
+                        @if($item['attendance_required'])
+                            <x-ui.alert class="mb-6" role="status">
+                                Please check in to access this week's activities.
+                                <a class="text-accent underline underline-offset-3" href="{{ route('dashboard') }}">Check in on your dashboard</a>
+                            </x-ui.alert>
+                        @endif
+
+                        <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+                            <x-ui.card class="min-w-0">
+                                <h3 class="mb-4 text-base font-extrabold">Activities</h3>
+                                <ol class="grid grid-cols-1 gap-3">
+                                    @foreach($item['week']->activities as $activity)
+                                        @php
+                                            $activityUrl = route('training.activities.show', [$trainingSession, $item['week'], $activity]);
+                                        @endphp
+                                        <li class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-field px-4 py-3.5">
+                                            <div class="grid min-w-0 flex-[1_1_260px] gap-1.5">
+                                                <strong>{{ $activity->title }}</strong>
+                                                <div class="flex flex-wrap items-center gap-2.5 text-sm">
+                                                    <x-ui.badge :tone="$activity->participant_status_tone">{{ $activity->participant_status_label }}</x-ui.badge>
+                                                    @if($activity->participant_score)
+                                                        <span class="text-muted">Score: <strong class="text-slate-100">{{ $activity->participant_score->total_score }} / {{ $activity->participant_score_max }}</strong></span>
+                                                    @endif
+                                                </div>
+                                                @if($activity->participant_submission?->isFailed())
+                                                    <span class="text-sm text-muted">Attempt {{ $activity->participant_submission->attempt_number }} is closed. {{ $activity->participant_attempts->count() > 1 ? 'Retry available.' : 'Waiting for mentor to create a retry.' }}</span>
                                                 @endif
                                             </div>
-                                            @if($activity->participant_submission?->isFailed())
-                                                <span class="text-sm text-muted">Attempt {{ $activity->participant_submission->attempt_number }} is closed. {{ $activity->participant_attempts->count() > 1 ? 'Retry available.' : 'Waiting for mentor to create a retry.' }}</span>
-                                            @endif
-                                        </div>
-                                        @if($item['available'])
                                             <div class="grid justify-items-start gap-1.5 sm:justify-items-end">
                                                 @if($item['attendance_required'] && ! $activity->participant_submission)
                                                     <x-ui.button variant="secondary" :href="$activityUrl" disabled>{{ $activity->participant_action }}</x-ui.button>
@@ -94,54 +95,54 @@
                                                     <x-ui.button variant="secondary" :href="$activityUrl">{{ $activity->participant_action }}</x-ui.button>
                                                 @endif
                                             </div>
-                                        @endif
-                                    </li>
-                                @endforeach
-                            </ol>
-                        </x-ui.card>
-
-                        <aside class="grid grid-cols-1 gap-6" aria-label="Week {{ $item['week']->week_number }} progress">
-                            <x-ui.card padding="p-5">
-                                <h3 class="mb-3 text-base font-extrabold">Gate</h3>
-                                <div class="grid grid-cols-1 divide-y divide-line">
-                                    @forelse($item['gates'] as $gateItem)
-                                        <div class="grid justify-items-start gap-2 py-4 first:pt-0 last:pb-0">
-                                            <strong class="text-sm">Week {{ $gateItem['week']->week_number }} Gate · {{ $gateItem['gate']->title }}</strong>
-                                            <p class="text-sm">Status: <strong>{{ $gateItem['status_label'] }}</strong></p>
-                                            @if($gateItem['readiness'])
-                                                <ul class="list-disc pl-5 text-sm/relaxed text-muted">
-                                                    @foreach($gateItem['readiness'] as $reason)
-                                                        <li>{{ $reason }}</li>
-                                                    @endforeach
-                                                </ul>
-                                            @elseif($gateItem['readiness'] === [] && ! $gateItem['evaluation'])
-                                                <p class="text-sm text-muted">Your Gate is ready for Mentor review.</p>
-                                            @endif
-                                            <x-ui.button variant="secondary" :href="route('training.gates.show', [$trainingSession, $gateItem['week'], $gateItem['gate']])">View Gate</x-ui.button>
-                                        </div>
-                                    @empty
-                                        <p class="text-sm text-muted">No active Gates are configured.</p>
-                                    @endforelse
-                                </div>
+                                        </li>
+                                    @endforeach
+                                </ol>
                             </x-ui.card>
 
-                            @if($item['shows_weekly_video'])
-                                <x-ui.card padding="p-5" class="grid grid-cols-1 gap-2.5">
-                                    <h3 class="text-base font-extrabold">Video Recording</h3>
-                                    <span class="text-sm text-muted">{{ $item['week']->weekly_video_recording ? 'Chosen' : 'Not chosen' }}</span>
-                                    @if($item['week']->weekly_video_recording)
-                                        <x-weekly-video-actions :recording="$item['week']->weekly_video_recording">
-                                            <x-ui.button variant="secondary" :href="route('training.video-recording.edit', [$trainingSession, $item['week']])">Change Video</x-ui.button>
-                                        </x-weekly-video-actions>
-                                    @else
-                                        <div class="flex flex-wrap items-center gap-2.5">
-                                            <x-ui.button variant="secondary" :href="route('training.video-recording.edit', [$trainingSession, $item['week']])">Choose Video</x-ui.button>
-                                        </div>
-                                    @endif
+                            <aside class="grid grid-cols-1 gap-6" aria-label="Week {{ $item['week']->week_number }} progress">
+                                <x-ui.card padding="p-5">
+                                    <h3 class="mb-3 text-base font-extrabold">Gate</h3>
+                                    <div class="grid grid-cols-1 divide-y divide-line">
+                                        @forelse($item['gates'] as $gateItem)
+                                            <div class="grid justify-items-start gap-2 py-4 first:pt-0 last:pb-0">
+                                                <strong class="text-sm">Week {{ $gateItem['week']->week_number }} Gate · {{ $gateItem['gate']->title }}</strong>
+                                                <p class="text-sm">Status: <strong>{{ $gateItem['status_label'] }}</strong></p>
+                                                @if($gateItem['readiness'])
+                                                    <ul class="list-disc pl-5 text-sm/relaxed text-muted">
+                                                        @foreach($gateItem['readiness'] as $reason)
+                                                            <li>{{ $reason }}</li>
+                                                        @endforeach
+                                                    </ul>
+                                                @elseif($gateItem['readiness'] === [] && ! $gateItem['evaluation'])
+                                                    <p class="text-sm text-muted">Your Gate is ready for Mentor review.</p>
+                                                @endif
+                                                <x-ui.button variant="secondary" :href="route('training.gates.show', [$trainingSession, $gateItem['week'], $gateItem['gate']])">View Gate</x-ui.button>
+                                            </div>
+                                        @empty
+                                            <p class="text-sm text-muted">No active Gates are configured.</p>
+                                        @endforelse
+                                    </div>
                                 </x-ui.card>
-                            @endif
-                        </aside>
-                    </div>
+
+                                @if($item['shows_weekly_video'])
+                                    <x-ui.card padding="p-5" class="grid grid-cols-1 gap-2.5">
+                                        <h3 class="text-base font-extrabold">Video Recording</h3>
+                                        <span class="text-sm text-muted">{{ $item['week']->weekly_video_recording ? 'Chosen' : 'Not chosen' }}</span>
+                                        @if($item['week']->weekly_video_recording)
+                                            <x-weekly-video-actions :recording="$item['week']->weekly_video_recording">
+                                                <x-ui.button variant="secondary" :href="route('training.video-recording.edit', [$trainingSession, $item['week']])">Change Video</x-ui.button>
+                                            </x-weekly-video-actions>
+                                        @else
+                                            <div class="flex flex-wrap items-center gap-2.5">
+                                                <x-ui.button variant="secondary" :href="route('training.video-recording.edit', [$trainingSession, $item['week']])">Choose Video</x-ui.button>
+                                            </div>
+                                        @endif
+                                    </x-ui.card>
+                                @endif
+                            </aside>
+                        </div>
+                    @endif
                 </x-ui.tab-panel>
             @endforeach
 

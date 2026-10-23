@@ -43,4 +43,18 @@ class SessionWeekState
     {
         return $this->access === WeekAccessState::Locked;
     }
+
+    /**
+     * Why the participant cannot open the week, shown on its tab and as the 403 message of its pages: "Opens on Mon 16
+     * Nov" before its date, "Complete your Week 1 deliverables to unlock" while an earlier week's review locks it, and
+     * null while it is open.
+     */
+    public function lockedMessage(): ?string
+    {
+        return match ($this->access) {
+            WeekAccessState::Locked => "Complete your Week {$this->lockedByWeekNumber} deliverables to unlock",
+            WeekAccessState::NotOpen => "Opens on {$this->opensOn->format('D j M')}",
+            WeekAccessState::Open => null,
+        };
+    }
 }

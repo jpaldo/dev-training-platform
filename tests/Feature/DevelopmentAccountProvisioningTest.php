@@ -8,9 +8,11 @@ use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\Program;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\DevelopmentAccountProvisioner;
+use Database\Seeders\L4FirstSessionSeeder;
 use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -43,12 +45,13 @@ class DevelopmentAccountProvisioningTest extends TestCase
         }
     }
 
-    public function test_database_seeder_seeds_the_l4_program_as_the_only_program(): void
+    public function test_database_seeder_seeds_the_l4_program_as_the_only_program_with_its_first_session(): void
     {
         $this->seed();
 
         $this->assertSame([L4TrainingProgramSeeder::PROGRAM_NAME], Program::query()->pluck('name')->all());
         $this->assertTrue(Program::query()->sole()->is_active);
+        $this->assertSame([L4FirstSessionSeeder::SESSION_TITLE], TrainingSession::query()->whereBelongsTo(Program::query()->sole())->pluck('title')->all());
     }
 
     public function test_development_account_command_creates_nothing_and_changes_nothing_on_a_second_run(): void
@@ -67,7 +70,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
         }
     }
 
-    public function test_baseline_command_restores_the_l4_program_idempotently_without_deleting_users(): void
+    public function test_baseline_command_restores_the_l4_program_and_its_first_session_idempotently_without_deleting_users(): void
     {
         $participant = User::factory()->create(['role' => 'participant']);
 
@@ -92,6 +95,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
         $this->assertDatabaseHas('activity_submissions', ['id' => $submission->id, 'user_id' => $participant->id]);
         $this->assertDatabaseHas('programs', ['name' => L4TrainingProgramSeeder::PROGRAM_NAME, 'is_active' => true]);
         $this->assertDatabaseCount('training_weeks', 4);
+        $this->assertSame(L4FirstSessionSeeder::SESSION_TITLE, TrainingSession::query()->sole()->title);
     }
 
     public function test_baseline_command_refuses_production(): void

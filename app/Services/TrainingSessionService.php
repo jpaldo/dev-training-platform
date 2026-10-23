@@ -24,19 +24,22 @@ class TrainingSessionService
 
     /**
      * Create a session of the program with its end date computed from the start date and weeks, and record
-     * `training_session_created` for the admin who created it.
+     * `training_session_created` for the admin who created it. A session without a creator (seeded, not an admin
+     * action) has no `created_by` and no audit row.
      *
      * @param  array{program_id: int|string, title: string, weeks_count: int|string, starts_on: string}  $details
      */
-    public function create(array $details, User $creator): TrainingSession
+    public function create(array $details, ?User $creator): TrainingSession
     {
         return DB::transaction(function () use ($details, $creator): TrainingSession {
             $session = TrainingSession::query()->create([
                 ...$this->detailAttributes($details),
-                'created_by' => $creator->id,
+                'created_by' => $creator?->id,
             ]);
 
-            $this->audit->record($creator, 'training_session_created', metadata: ['training_session_id' => $session->id]);
+            if ($creator !== null) {
+                $this->audit->record($creator, 'training_session_created', metadata: ['training_session_id' => $session->id]);
+            }
 
             return $session;
         });

@@ -137,10 +137,16 @@ held QA training data, skip steps 1 and 2.
 
 ### After deploying
 
-5. Seed the L4 program from the active release:
-   `php artisan db:seed --class=L4TrainingProgramSeeder --force`. Re-running
-   it is safe. Never run a bare `php artisan db:seed` here: it also runs the
-   demo account provisioner.
+5. Seed the L4 program, then its first session, from the active release:
+   - `php artisan db:seed --class=L4TrainingProgramSeeder --force`
+   - `php artisan db:seed --class=L4FirstSessionSeeder --force` creates
+     *L4 Accelerator Training — November 2026* (4 weeks, Mon 9 Nov to Sun
+     6 Dec 2026). It stops with an error if the L4 program is missing, and
+     leaves the session as it is if it already exists, so an admin's edits
+     stay.
+
+   Re-running either is safe. Never run a bare `php artisan db:seed` here: it
+   also runs the demo account provisioner.
 6. Never run the demo account provisioner in production:
    `app:ensure-development-accounts` (local, staging and testing) and
    `app:ensure-development-baseline` (local and testing) both refuse to run

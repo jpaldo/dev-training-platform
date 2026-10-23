@@ -17,13 +17,10 @@ class CoachReviewQueuePageService
 {
     private const SUBMISSIONS_PER_PAGE = 25;
 
-    /** The weeks whose activities are reviewed, in filter order. */
-    private const REVIEWED_WEEKS = [2, 3, 4];
-
     public function __construct(private readonly CoachReportService $reports) {}
 
     /**
-     * Everything the coach review queue renders: the filter values and options (the active program's reviewed weeks
+     * Everything the coach review queue renders: the filter values and options (the active program's weeks
      * and their activities, the paths, the queue statuses and the participants), whether a filter is applied with the
      * matching empty-state text, and the matching submissions, newest first, with a link to review their latest
      * version. The page has no single main action, so every button is secondary.
@@ -33,7 +30,7 @@ class CoachReviewQueuePageService
      */
     public function indexData(array $filters): array
     {
-        $weeks = $this->reports->activeProgramWeeks()->whereIn('week_number', self::REVIEWED_WEEKS)->values();
+        $weeks = $this->reports->activeProgramWeeks();
         $isFiltered = collect($filters)->filter(fn (mixed $value): bool => filled($value))->isNotEmpty();
 
         return [

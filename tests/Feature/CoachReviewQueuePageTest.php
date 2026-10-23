@@ -95,19 +95,41 @@ class CoachReviewQueuePageTest extends TestCase
             ->assertSeeInOrder([
                 'action="'.route('coach.reviews').'"', 'aria-label="Filter submissions"',
                 'for="review-participant"', '<option value="">All participants</option>', '>Amy Participant</option>', '<option value="'.$participant->id.'" selected>Zed Participant</option>',
-                'for="review-week"', '<option value="">All weeks</option>', '<option value="2" >Week 2</option>', '<option value="3" selected>Week 3</option>',
+                'for="review-week"', '<option value="">All weeks</option>', '<option value="1" >Week 1</option>', '<option value="2" >Week 2</option>', '<option value="3" selected>Week 3</option>',
                 'for="review-activity"', '<option value="'.$checklist->id.'" >Week 2 · Validation checklist</option>', '<option value="'.$charter->id.'" selected>Week 3 · Exploratory charter</option>',
                 'for="review-path"', '<option value="manual" >Manual</option>', '<option value="automation" selected>Automation</option>', '<option value="automation_manual" >Automation / Manual</option>',
                 'for="review-status"', '<option value="submitted" >Submitted</option>', '<option value="resubmitted" >Resubmitted</option>', '<option value="under_review" selected>Under review</option>', '<option value="needs_revision" >Needs revision</option>',
                 '>Filter</button>', 'href="'.route('coach.reviews').'"', '>Clear</a>',
                 'No submissions match the selected filters.',
             ], false)
-            ->assertDontSee('Week 1</option>', false)
+            ->assertDontSee('Week 4</option>', false)
             ->assertDontSee('Retired activity')
             ->assertDontSee('Later program activity')
             ->assertDontSee('No submissions to review.');
 
         $this->assertSame(1, substr_count($response->getContent(), '>Amy Participant</option>'));
+    }
+
+    public function test_week_one_submissions_are_listed_and_the_week_filter_offers_week_one(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $program = Program::factory()->create();
+        $weeks = collect(range(1, 4))->mapWithKeys(fn (int $weekNumber): array => [
+            $weekNumber => TrainingWeek::factory()->for($program)->create(['week_number' => $weekNumber, 'position' => $weekNumber]),
+        ]);
+        $weekOneActivity = Activity::factory()->for($weeks[1], 'week')->create(['title' => 'Kickoff deliverable']);
+        $this->submission($weekOneActivity, 'Wendy WeekOne', 'submitted', now());
+        $this->submission(Activity::factory()->for($weeks[2], 'week')->create(), 'Tom WeekTwo', 'submitted', now());
+
+        $this->actingAs($coach)->get(route('coach.reviews', ['week' => 1]))
+            ->assertOk()
+            ->assertSessionHasNoErrors()
+            ->assertSeeInOrder([
+                '<option value="1" selected>Week 1</option>', '<option value="2" >Week 2</option>', '<option value="3" >Week 3</option>', '<option value="4" >Week 4</option>',
+                '<option value="'.$weekOneActivity->id.'" >Week 1 · Kickoff deliverable</option>',
+                '>Wendy WeekOne</h2>', 'Week 1 · Kickoff deliverable',
+            ], false)
+            ->assertDontSee('>Tom WeekTwo</h2>', false);
     }
 
     public function test_week_activity_path_and_participant_filters_narrow_the_queue(): void

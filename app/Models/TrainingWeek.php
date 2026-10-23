@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\TrainingWeekFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -38,5 +39,15 @@ class TrainingWeek extends Model
     public function weeklyVideoRecordings(): HasMany
     {
         return $this->hasMany(WeeklyVideoRecording::class);
+    }
+
+    /**
+     * Limit the query to the active weeks of the active program (the first active program by id).
+     */
+    public function scopeInActiveProgram(Builder $query): Builder
+    {
+        return $query
+            ->where('is_active', true)
+            ->where('program_id', Program::query()->select('id')->where('is_active', true)->orderBy('id')->limit(1));
     }
 }

@@ -194,6 +194,34 @@ class ParticipantNotificationsTest extends TestCase
         $this->assertFalse($participant->participantNotifications()->active()->where('key', "week:{$weeks[3]->id}:video")->exists());
     }
 
+    public function test_week_one_work_raises_the_activity_video_and_gate_reminders(): void
+    {
+        $participant = User::factory()->create();
+        $program = Program::factory()->create();
+        $weeks = collect(range(1, 4))->mapWithKeys(function (int $weekNumber) use ($program): array {
+            $week = TrainingWeek::factory()->for($program)->create(['week_number' => $weekNumber, 'position' => $weekNumber]);
+            GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
+
+            return [$weekNumber => $week];
+        });
+        $submittedActivity = Activity::factory()->for($weeks[1], 'week')->create(['position' => 1]);
+        $openActivity = Activity::factory()->for($weeks[1], 'week')->create(['position' => 2]);
+        ActivitySubmission::factory()->for($participant, 'participant')->for($submittedActivity)->create(['status' => 'submitted']);
+
+        app(ParticipantNotificationService::class)->sync($participant);
+
+        $activeKeys = $participant->participantNotifications()->active()->pluck('key');
+        $this->assertContains("week:{$weeks[1]->id}:activity:{$openActivity->id}:incomplete", $activeKeys);
+        $this->assertContains("week:{$weeks[1]->id}:activity:{$submittedActivity->id}:review", $activeKeys);
+        $this->assertContains("week:{$weeks[1]->id}:gate", $activeKeys);
+        $this->assertNotContains("week:{$weeks[1]->id}:video", $activeKeys);
+
+        ActivitySubmission::factory()->for($participant, 'participant')->for($openActivity)->create(['status' => 'submitted']);
+        app(ParticipantNotificationService::class)->sync($participant);
+
+        $this->assertTrue($participant->participantNotifications()->active()->where('key', "week:{$weeks[1]->id}:video")->exists());
+    }
+
     public function test_dashboard_next_action_skips_notifications_awaiting_review(): void
     {
         $this->seed(QaTrainingProgramSeeder::class);

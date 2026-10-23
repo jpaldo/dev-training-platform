@@ -53,6 +53,26 @@ class ScoringOverviewPageTest extends TestCase
         $response->assertDontSee('from-brand to-brand-deep', false)->assertDontSee('No participants match these filters.');
     }
 
+    public function test_week_one_scores_appear_in_the_overview_and_the_week_filter_offers_week_one(): void
+    {
+        $activities = $this->program([1 => 1, 2 => 1, 3 => 1, 4 => 1]);
+        $wendy = User::factory()->create(['name' => 'Wendy WeekOne']);
+        User::factory()->create(['name' => 'Tom NoWork']);
+        $this->score($wendy, $activities[1][0], 92, 'Exemplary');
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.scoring.index', ['week' => 1]))
+            ->assertOk()
+            ->assertSessionHasNoErrors()
+            ->assertSeeInOrder([
+                '<option value="1" selected>Week 1</option>', '<option value="2" >Week 2</option>', '<option value="3" >Week 3</option>', '<option value="4" >Week 4</option>',
+                '>W1</th>', '>W1 Completion</th>', '>W2</th>', '>W3</th>', '>W4</th>',
+                '>Wendy WeekOne</strong>', '>92</strong>', 'Exemplary', '1 / 1 (100%)',
+                '—', '0 / 1 (0%)', '—', '0 / 1 (0%)', '—', '0 / 1 (0%)',
+                '>92</td>', '1 / 4 (25%)',
+            ], false)
+            ->assertDontSee('>Tom NoWork</strong>', false);
+    }
+
     public function test_filters_keep_their_values_and_assigned_to_me_only_narrows_the_list_for_a_coach(): void
     {
         $activities = $this->program();
@@ -166,15 +186,17 @@ class ScoringOverviewPageTest extends TestCase
     }
 
     /**
-     * An active program with two active activities in Week 2 and one each in Weeks 3 and 4.
+     * An active program with the given number of active activities per week (by default two in Week 2 and one each in
+     * Weeks 3 and 4).
      *
+     * @param  array<int, int>  $activityCounts  keyed by week number
      * @return array<int, list<Activity>> keyed by week number
      */
-    private function program(): array
+    private function program(array $activityCounts = [2 => 2, 3 => 1, 4 => 1]): array
     {
         $program = Program::factory()->create();
 
-        return collect([2 => 2, 3 => 1, 4 => 1])
+        return collect($activityCounts)
             ->map(function (int $activityCount, int $weekNumber) use ($program): array {
                 $week = TrainingWeek::factory()->for($program)->create(['week_number' => $weekNumber, 'position' => $weekNumber]);
 

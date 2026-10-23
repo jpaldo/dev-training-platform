@@ -127,15 +127,13 @@ class SubmissionWorkflowService
     }
 
     /**
-     * Throw the first unmet submission requirement: the Week 4 rules, then the required and select fields, then the
-     * required evidence.
+     * Throw the first unmet submission requirement: the required and select fields, then the required evidence.
      *
      * @throws ValidationException
      */
     private function validateSubmissionRequirements(Activity $activity, User $user, SubmissionVersion $version): void
     {
         $values = $version->field_values ?? [];
-        $this->validateWeekFourSubmission($activity, $values);
         foreach ($this->fieldDefinitions($activity, $user) as $field) {
             if (($field['required'] ?? false) && blank($values[$field['key']] ?? null)) {
                 throw ValidationException::withMessages(['field_values.'.$field['key'] => $field['label'].' is required before submission.']);
@@ -166,13 +164,5 @@ class SubmissionWorkflowService
 
             return $requirement->is_required && $evidence->count() < $requirement->minimum_count;
         });
-    }
-
-    /** @param array<string, mixed> $values */
-    private function validateWeekFourSubmission(Activity $activity, array $values): void
-    {
-        if ($activity->week?->week_number === 4 && $activity->position === 1 && ($values['reuse_modified'] ?? null) === 'Yes — I made adjustments' && blank($values['reuse_changes'] ?? null)) {
-            throw ValidationException::withMessages(['field_values.reuse_changes' => 'Describe what you changed and why after modifying the reusable asset.']);
-        }
     }
 }

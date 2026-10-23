@@ -177,11 +177,7 @@ class CoachReportService
      */
     public function activeProgramWeeks(): Collection
     {
-        return TrainingWeek::query()
-            ->where('is_active', true)
-            ->where('program_id', Program::query()->select('id')->where('is_active', true)->orderBy('id')->limit(1))
-            ->orderBy('week_number')
-            ->get();
+        return TrainingWeek::query()->inActiveProgram()->orderBy('week_number')->get();
     }
 
     /**

@@ -110,6 +110,29 @@ class MissingSubmissionReportPageTest extends TestCase
         $this->assertSame(1, substr_count($secondPage->getContent(), 'data-missing-row'));
     }
 
+    public function test_week_one_requirements_are_listed_and_the_week_filter_offers_every_week_of_the_program(): void
+    {
+        $program = Program::factory()->create();
+        foreach (range(1, 4) as $weekNumber) {
+            $week = TrainingWeek::factory()->for($program)->create(['week_number' => $weekNumber, 'position' => $weekNumber]);
+            Activity::factory()->for($week, 'week')->create(['title' => "Week {$weekNumber} deliverable"]);
+            GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
+        }
+        User::factory()->create(['name' => 'Wendy WeekOne']);
+
+        $response = $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.reports.missing-submissions', ['week' => 1]))
+            ->assertOk()
+            ->assertSessionHasNoErrors()
+            ->assertSeeInOrder([
+                '<option value="1" selected>Week 1</option>', '<option value="2" >Week 2</option>', '<option value="3" >Week 3</option>', '<option value="4" >Week 4</option>',
+                'Missing Activities', '>1</dd>', 'Missing Video Recordings', '>1</dd>', '2 row(s)',
+                '>Wendy WeekOne</a>', '>Video Recording</td>', '>Week 1</td>', '<strong>Weekly Video Recording</strong>',
+                '>Wendy WeekOne</a>', '>Activities</td>', '>Week 1</td>', '<strong>Week 1 deliverable</strong>',
+            ], false);
+
+        $this->assertSame(2, substr_count($response->getContent(), 'data-missing-row'));
+    }
+
     public function test_a_week_without_an_active_weekly_video_criterion_has_no_missing_video_row(): void
     {
         $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);

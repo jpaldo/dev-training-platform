@@ -171,12 +171,13 @@ class CoachParticipantPageTest extends TestCase
     }
 
     /**
-     * Give a new participant the given number of weeks, each with a Gate, a submission with two versions, a weekly
-     * video recording and a completed attendance session, plus an open session, and count the queries of the assigned
-     * coach's page request after a warm-up request.
+     * Give a new participant the given number of weeks of a new active program (earlier programs are deactivated),
+     * each with a Gate, a submission with two versions, a weekly video recording and a completed attendance session,
+     * plus an open session, and count the queries of the assigned coach's page request after a warm-up request.
      */
     private function participantPageQueryCount(int $rows): int
     {
+        Program::query()->update(['is_active' => false]);
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         $program = Program::factory()->create();
 

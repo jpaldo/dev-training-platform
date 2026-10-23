@@ -7,6 +7,7 @@ use App\Enums\TrainingPath;
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -24,8 +25,6 @@ class CoachGateBoardPageService
         'not_ready' => 'NOT READY',
     ];
 
-    private const WEEK_OPTIONS = [2, 3, 4];
-
     /** @var array<string, string> The status filter's option texts by status value, in display order. */
     private const STATUS_OPTIONS = [
         GateEvaluationStatus::NotReady->value => 'Not Ready',
@@ -41,8 +40,8 @@ class CoachGateBoardPageService
     ) {}
 
     /**
-     * Everything the coach Gate board renders: the summary counts with their labels, the filter values and options,
-     * and the Gate x participant rows of the requested page (25 per page, query string kept). The page has no single
+     * Everything the coach Gate board renders: the summary counts with their labels, the filter values and options
+     * (the weeks of the active program), and the Gate x participant rows of the requested page (25 per page, query string kept). The page has no single
      * main action, so every button is secondary.
      *
      * @param  array{week?: int|string|null, path?: string|null, search?: string|null, status?: GateEvaluationStatus|null}  $filters
@@ -66,7 +65,10 @@ class CoachGateBoardPageService
                 ->values()
                 ->all(),
             'search' => (string) ($filters['search'] ?? ''),
-            'weekOptions' => collect(self::WEEK_OPTIONS)
+            'weekOptions' => TrainingWeek::query()
+                ->inActiveProgram()
+                ->orderBy('week_number')
+                ->pluck('week_number')
                 ->map(fn (int $week): array => [
                     'value' => (string) $week,
                     'label' => "Week {$week}",

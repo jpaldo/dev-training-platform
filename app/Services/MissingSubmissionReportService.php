@@ -33,7 +33,7 @@ class MissingSubmissionReportService
             ->orderBy('name')
             ->get();
 
-        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $query): Relation => $query->whereIn('week_number', [2, 3, 4])->where('is_active', true)->with(['activities' => fn (Relation $activities): Relation => $activities->where('is_active', true)->with('requirements')->orderBy('position'), 'gates' => fn (Relation $gates): Relation => $gates->where('is_active', true)->whereHas('criteria', fn (Builder $criteria): Builder => $criteria->weeklyVideo())])])->first();
+        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $query): Relation => $query->where('is_active', true)->with(['activities' => fn (Relation $activities): Relation => $activities->where('is_active', true)->with('requirements')->orderBy('position'), 'gates' => fn (Relation $gates): Relation => $gates->where('is_active', true)->whereHas('criteria', fn (Builder $criteria): Builder => $criteria->weeklyVideo())])])->first();
         if (! $program) {
             return collect();
         }

@@ -86,6 +86,9 @@ class CoachOperationsControllerTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
 
         $singleRowQueryCount = $this->queryCount($coach, route('coach.participants.show', $this->createGateProgress(1)->first()));
+
+        Program::query()->update(['is_active' => false]);
+
         $threeRowQueryCount = $this->queryCount($coach, route('coach.participants.show', $this->createGateProgress(3)->first()));
 
         $this->assertSame($singleRowQueryCount, $threeRowQueryCount);

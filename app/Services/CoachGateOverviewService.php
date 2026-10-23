@@ -76,13 +76,13 @@ class CoachGateOverviewService
     }
 
     /**
-     * Build a participant's Week 2–4 Gate rows.
+     * Build a participant's Gate rows: the Gates of every active week of the active program.
      *
      * @return array{gateRows: Collection<int, array{gate: TrainingGate, evaluation: ?GateEvaluation, readiness: ?array<string, string>}>}
      */
     public function participantOverview(User $participant): array
     {
-        $gates = TrainingGate::query()->whereHas('week', fn (Builder $q): Builder => $q->whereIn('week_number', [2, 3, 4]))->with(['week', 'criteria', 'evaluations' => fn (Relation $q): Relation => $q->where('user_id', $participant->id)])->get();
+        $gates = TrainingGate::query()->whereHas('week', fn (Builder $q): Builder => $q->inActiveProgram())->with(['week', 'criteria', 'evaluations' => fn (Relation $q): Relation => $q->where('user_id', $participant->id)])->get();
         $readinessByGate = $this->readiness->readinessForGates($participant, $gates);
 
         return [

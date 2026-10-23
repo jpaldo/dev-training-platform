@@ -123,15 +123,16 @@ class ScoringReportsPageTest extends TestCase
     }
 
     /**
-     * Three submitted versions and one draft: an Automation QA participant with a published Proficient score in
-     * Week 2 and a draft Developing score in Week 3, and a Manual QA participant with an unscored Week 2 version and
-     * a draft version (never counted).
+     * A program of Weeks 2 to 4 (Week 4 without activities) with three submitted versions and one draft: an
+     * Automation QA participant with a published Proficient score in Week 2 and a draft Developing score in Week 3,
+     * and a Manual QA participant with an unscored Week 2 version and a draft version (never counted).
      */
     private function submittedVersions(): void
     {
         $program = Program::factory()->create();
         $weekTwoActivity = Activity::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 2]), 'week')->create();
         $weekThreeActivity = Activity::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 3, 'position' => 3]), 'week')->create();
+        TrainingWeek::factory()->for($program)->create(['week_number' => 4, 'position' => 4]);
         $ada = User::factory()->create(['training_path' => 'automation']);
         $ben = User::factory()->create(['training_path' => 'manual']);
 

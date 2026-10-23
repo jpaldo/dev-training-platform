@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\TrainingPath;
+use App\Models\TrainingWeek;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -27,7 +28,7 @@ class FilterScoringReportRequest extends FormRequest
         return [
             'participant' => ['nullable', 'integer'],
             'path' => ['nullable', Rule::enum(TrainingPath::class)],
-            'week' => ['nullable', 'integer', 'in:2,3,4'],
+            'week' => ['nullable', 'integer', Rule::exists(TrainingWeek::class, 'week_number')],
             'activity' => ['nullable', 'integer'],
             'assigned_coach' => ['nullable', 'integer'],
             'score_status' => ['nullable', 'in:scored,unscored'],

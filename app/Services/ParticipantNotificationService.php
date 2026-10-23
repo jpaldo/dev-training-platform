@@ -33,7 +33,7 @@ class ParticipantNotificationService
             return;
         }
 
-        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $q): Relation => $q->whereIn('week_number', [2, 3, 4])->where('is_active', true)->with(['activities' => fn (Relation $a): Relation => $a->where('is_active', true)->orderBy('position'), 'gates' => fn (Relation $g): Relation => $g->with(['criteria' => fn (Relation $c): Relation => $c->weeklyVideo()])])])->first();
+        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $q): Relation => $q->where('is_active', true)->with(['activities' => fn (Relation $a): Relation => $a->where('is_active', true)->orderBy('position'), 'gates' => fn (Relation $g): Relation => $g->with(['criteria' => fn (Relation $c): Relation => $c->weeklyVideo()])])])->first();
         if (! $program) {
             return;
         }

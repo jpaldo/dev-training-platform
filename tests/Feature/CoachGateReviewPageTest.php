@@ -236,6 +236,27 @@ class CoachGateReviewPageTest extends TestCase
         $this->assertSame(GateEvaluationStatus::Passed, GateEvaluation::query()->where('user_id', $participant->id)->sole()->status);
     }
 
+    public function test_a_week_one_gate_can_be_reviewed(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1, weekNumber: 1);
+        [$activityCriterion, $videoCriterion] = $criteria;
+
+        $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
+            ->assertOk()
+            ->assertSee('WEEK 1 · GATE REVIEW')
+            ->assertSee('action="'.route('training.coach.gates.update', [$week, $participant, $gate]).'" id="gate-review-form"', false);
+
+        $this->actingAs($coach)
+            ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
+                'status' => 'needs_revision',
+                'criteria' => [$activityCriterion->id => 'met', $videoCriterion->id => 'not_met'],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(GateEvaluationStatus::NeedsRevision, GateEvaluation::query()->where('user_id', $participant->id)->sole()->status);
+    }
+
     #[DataProvider('statusesThatAreNotDecisions')]
     public function test_a_gate_decision_must_be_passed_needs_revision_or_failed(string $status): void
     {
@@ -311,14 +332,14 @@ class CoachGateReviewPageTest extends TestCase
     }
 
     /**
-     * A Week 2 Gate with a required weekly video criterion, the given number of other required criteria, one optional
-     * criterion and the given number of active activities.
+     * A Gate of the given week (Week 2 by default) with a required weekly video criterion, the given number of other
+     * required criteria, one optional criterion and the given number of active activities.
      *
      * @return array{week: TrainingWeek, gate: TrainingGate, criteria: Collection<int, GateCriterion>, activities: Collection<int, Activity>}
      */
-    private function gateFixture(int $activityCount, int $extraCriteriaCount): array
+    private function gateFixture(int $activityCount, int $extraCriteriaCount, int $weekNumber = 2): array
     {
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 2]);
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => $weekNumber, 'position' => $weekNumber]);
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         $criteria = collect(range(1, $extraCriteriaCount))
             ->map(fn (int $position): GateCriterion => GateCriterion::factory()->for($gate, 'gate')->create(['position' => $position]))

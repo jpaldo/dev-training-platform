@@ -9,6 +9,7 @@ use App\Models\ActivityScoreSuggestion;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -20,9 +21,6 @@ class ScoringPageService
     private const AI_CONFIGURED = 'Configured';
 
     private const PARTICIPANTS_PER_PAGE = 25;
-
-    /** The scored weeks, in column order on the scoring overview. */
-    private const SCORED_WEEKS = [2, 3, 4];
 
     private const SCORE_STATUS_OPTIONS = ['scored' => 'Scored', 'unscored' => 'Unscored'];
 
@@ -95,8 +93,8 @@ class ScoringPageService
 
     /**
      * Everything the scoring overview renders: the filter values and options and the matching participants with
-     * their Weeks 2–4 and overall score and completion. The page has no single main action, so every button is
-     * secondary.
+     * the score and completion of every active week of the program and overall. The page has no single main action,
+     * so every button is secondary.
      *
      * @param  array{search?: ?string, path?: ?string, week?: int|string|null, activity?: int|string|null, score_status?: ?string, band?: ?string, assigned_to_me?: bool|int|string|null}  $filters
      * @return array{criteriaUrl: string, reportsUrl: string, search: string, pathOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, scoreStatusOptions: list<array{value: string, label: string, is_selected: bool}>, bandOptions: list<array{value: string, label: string, is_selected: bool}>, isAssignedToMe: bool, weekNumbers: list<int>, participants: LengthAwarePaginator<int, array{name: string, email: string, path: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, coach_names: string, scoring_url: string}>}
@@ -116,7 +114,7 @@ class ScoringPageService
             'scoreStatusOptions' => $this->options(self::SCORE_STATUS_OPTIONS, $filters['score_status'] ?? null),
             'bandOptions' => $this->options(self::BAND_OPTIONS, $filters['band'] ?? null),
             'isAssignedToMe' => (bool) ($filters['assigned_to_me'] ?? false),
-            'weekNumbers' => self::SCORED_WEEKS,
+            'weekNumbers' => $this->scoring->scoredWeeks($program)->pluck('week_number')->all(),
             'participants' => $participants->through(fn (User $participant): array => $this->overviewRow($participant, $summaries[$participant->id])),
         ];
     }
@@ -281,16 +279,13 @@ class ScoringPageService
             'name' => $participant->name,
             'email' => $participant->email,
             'path' => $participant->trainingPathLabel(),
-            'weeks' => collect(self::SCORED_WEEKS)
-                ->map(function (int $weekNumber) use ($summary): array {
-                    $week = $summary['weeks'][$weekNumber];
-
-                    return [
-                        'average' => $week['average'],
-                        'band' => $week['average'] !== null ? $this->scoring->band($week['average']) : null,
-                        'completion' => $this->completion($week['completed'], $week['total']),
-                    ];
-                })
+            'weeks' => $summary['weeks']
+                ->map(fn (array $week): array => [
+                    'average' => $week['average'],
+                    'band' => $week['average'] !== null ? $this->scoring->band($week['average']) : null,
+                    'completion' => $this->completion($week['completed'], $week['total']),
+                ])
+                ->values()
                 ->all(),
             'average' => (string) ($summary['average'] ?? '—'),
             'completion' => $this->completion($summary['completed'], $summary['total']),
@@ -332,13 +327,16 @@ class ScoringPageService
     }
 
     /**
-     * The scored weeks as select options, marking the week that matches the current filter value.
+     * The weeks of the active program as select options, marking the week that matches the current filter value.
      *
      * @return list<array{value: string, label: string, is_selected: bool}>
      */
     private function weekOptions(int|string|null $selectedWeek): array
     {
-        return collect(self::SCORED_WEEKS)
+        return TrainingWeek::query()
+            ->inActiveProgram()
+            ->orderBy('week_number')
+            ->pluck('week_number')
             ->map(fn (int $weekNumber): array => [
                 'value' => (string) $weekNumber,
                 'label' => "Week {$weekNumber}",

@@ -74,6 +74,6 @@ class GateReviewController extends Controller
 
     private function guard(TrainingWeek $week, User $participant, TrainingGate $gate): void
     {
-        abort_unless($week->id === $gate->training_week_id && in_array($week->week_number, [2, 3, 4], true) && $participant->role === UserRole::Participant, 404);
+        abort_unless($week->id === $gate->training_week_id && $participant->role === UserRole::Participant, 404);
     }
 }

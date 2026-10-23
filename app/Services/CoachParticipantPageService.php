@@ -73,7 +73,7 @@ class CoachParticipantPageService
     }
 
     /**
-     * The participant's Week 2–4 Gates with their evaluation or readiness status and blocker count.
+     * The participant's Gates of the active program's weeks, with their evaluation or readiness status and blocker count.
      *
      * @return Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int}>
      */

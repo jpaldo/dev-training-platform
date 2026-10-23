@@ -8,6 +8,7 @@ use App\Models\ActivitySubmission;
 use App\Models\GateCriterion;
 use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
+use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
@@ -125,6 +126,27 @@ class CoachGateBoardPageTest extends TestCase
         $secondPage = $this->actingAs($coach)->get(route('coach.gates', [...$filters, 'page' => 2]))->assertOk();
 
         $this->assertSame(1, substr_count($secondPage->getContent(), 'data-gate-row'));
+    }
+
+    public function test_week_one_gates_are_listed_and_the_week_filter_offers_every_week_of_the_program(): void
+    {
+        $program = Program::factory()->create();
+        $weeks = collect(range(1, 4))->mapWithKeys(fn (int $weekNumber): array => [
+            $weekNumber => TrainingWeek::factory()->for($program)->create(['week_number' => $weekNumber, 'position' => $weekNumber]),
+        ]);
+        $weekOneGate = TrainingGate::factory()->for($weeks[1], 'week')->create(['title' => 'Week one gate']);
+        TrainingGate::factory()->for($weeks[2], 'week')->create(['title' => 'Week two gate']);
+        $participant = User::factory()->create(['name' => 'Wendy WeekOne']);
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.gates', ['week' => 1]))
+            ->assertOk()
+            ->assertSessionHasNoErrors()
+            ->assertSeeInOrder([
+                '<option value="1" selected>Week 1</option>', '<option value="2" >Week 2</option>', '<option value="3" >Week 3</option>', '<option value="4" >Week 4</option>',
+                '>Week 1</strong>', '>Week one gate</span>', '>Wendy WeekOne</a>',
+                'href="'.route('training.coach.gates.show', [$weeks[1], $participant, $weekOneGate]).'"', '>Review Gate</a>',
+            ], false)
+            ->assertDontSee('Week two gate');
     }
 
     public function test_rows_are_sorted_from_ready_for_review_to_passed(): void

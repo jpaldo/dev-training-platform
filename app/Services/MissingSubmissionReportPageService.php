@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\TrainingPath;
 use App\Enums\UserRole;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
@@ -16,12 +17,6 @@ class MissingSubmissionReportPageService
     private const CATEGORY_OPTIONS = [
         'activities' => 'Activities',
         'video_recording' => 'Video Recording',
-    ];
-
-    private const WEEK_OPTIONS = [
-        '2' => 'Week 2',
-        '3' => 'Week 3',
-        '4' => 'Week 4',
     ];
 
     private const STATUS_OPTIONS = [
@@ -77,7 +72,15 @@ class MissingSubmissionReportPageService
                 $filters['mentor'] ?? null,
             ),
             'categoryOptions' => $this->options(self::CATEGORY_OPTIONS, $filters['category'] ?? null),
-            'weekOptions' => $this->options(self::WEEK_OPTIONS, $filters['week'] ?? null),
+            'weekOptions' => $this->options(
+                TrainingWeek::query()
+                    ->inActiveProgram()
+                    ->orderBy('week_number')
+                    ->pluck('week_number')
+                    ->mapWithKeys(fn (int $week): array => [$week => "Week {$week}"])
+                    ->all(),
+                $filters['week'] ?? null,
+            ),
             'statusOptions' => $this->options(self::STATUS_OPTIONS, $filters['status'] ?? null),
             'requirement' => (string) ($filters['requirement'] ?? ''),
             'stats' => collect(self::STAT_LABELS)

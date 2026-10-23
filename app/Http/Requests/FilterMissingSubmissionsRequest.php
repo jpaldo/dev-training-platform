@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\TrainingPath;
+use App\Models\TrainingWeek;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -29,7 +30,7 @@ class FilterMissingSubmissionsRequest extends FormRequest
             'path' => ['nullable', Rule::enum(TrainingPath::class)],
             'mentor' => ['nullable', 'integer'],
             'category' => ['nullable', 'in:activities,video_recording'],
-            'week' => ['nullable', 'in:2,3,4'],
+            'week' => ['nullable', 'integer', Rule::exists(TrainingWeek::class, 'week_number')],
             'requirement' => ['nullable', 'string', 'max:100'],
             'status' => ['nullable', 'in:not_submitted'],
         ];

@@ -212,13 +212,13 @@ class DevelopmentAccountProvisioningTest extends TestCase
     public static function seededAccounts(): array
     {
         return [
-            'test participant' => ['test@example.com', 'password', 'DEV-0001', 'Test', 'User', UserRole::Participant, JobRole::Developer],
-            'coach' => ['coach.dev@example.test', 'CoachDev!2026', 'DEV-0002', 'Development', 'Coach', UserRole::Coach, JobRole::Developer],
-            'admin' => ['admin.dev@example.test', 'AdminDev!2026', 'DEV-0003', 'Development', 'Admin', UserRole::Admin, JobRole::ProjectManager],
-            'first demo participant' => ['participant1.dev@example.test', 'ParticipantDev1!2026', 'DEV-0004', 'Avery', 'Santos', UserRole::Participant, JobRole::Developer],
-            'second demo participant' => ['participant2.dev@example.test', 'ParticipantDev2!2026', 'DEV-0005', 'Jordan', 'Reyes', UserRole::Participant, JobRole::Developer],
-            'first demo mentor' => ['mentor1.dev@example.test', 'MentorDev1!2026', 'DEV-0006', 'Casey', 'Lim', UserRole::Coach, JobRole::Developer],
-            'second demo mentor' => ['mentor2.dev@example.test', 'MentorDev2!2026', 'DEV-0007', 'Riley', 'Tan', UserRole::Coach, JobRole::Developer],
+            'test participant' => ['test@example.com', 'password', 'FS-0001', 'Test', 'User', UserRole::Participant, JobRole::Developer],
+            'coach' => ['coach.dev@example.test', 'CoachDev!2026', 'FS-0002', 'Development', 'Coach', UserRole::Coach, JobRole::Developer],
+            'admin' => ['admin.dev@example.test', 'AdminDev!2026', 'FS-0003', 'Development', 'Admin', UserRole::Admin, JobRole::ProjectManager],
+            'first demo participant' => ['participant1.dev@example.test', 'ParticipantDev1!2026', 'FS-0004', 'Avery', 'Santos', UserRole::Participant, JobRole::Developer],
+            'second demo participant' => ['participant2.dev@example.test', 'ParticipantDev2!2026', 'FS-0005', 'Jordan', 'Reyes', UserRole::Participant, JobRole::Developer],
+            'first demo mentor' => ['mentor1.dev@example.test', 'MentorDev1!2026', 'FS-0006', 'Casey', 'Lim', UserRole::Coach, JobRole::Developer],
+            'second demo mentor' => ['mentor2.dev@example.test', 'MentorDev2!2026', 'FS-0007', 'Riley', 'Tan', UserRole::Coach, JobRole::Developer],
         ];
     }
 

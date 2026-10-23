@@ -5,13 +5,13 @@ use App\Enums\UserRole;
 
 /**
  * Demo accounts that `DevelopmentAccountProvisioner` keeps in place in local, staging and testing environments, with
- * employee IDs in the `DEV-` sequence: three participants and three mentors (`coach` role), all job role Developer,
+ * employee IDs in the `FS-` sequence: three participants and three mentors (`coach` role), all job role Developer,
  * plus one admin.
  */
 return [
     'accounts' => [
         [
-            'employee_id' => 'DEV-0001',
+            'employee_id' => 'FS-0001',
             'first_name' => 'Test',
             'last_name' => 'User',
             'email' => 'test@example.com',
@@ -20,7 +20,7 @@ return [
             'job_role' => JobRole::Developer->value,
         ],
         [
-            'employee_id' => 'DEV-0002',
+            'employee_id' => 'FS-0002',
             'first_name' => 'Development',
             'last_name' => 'Coach',
             'email' => 'coach.dev@example.test',
@@ -29,7 +29,7 @@ return [
             'job_role' => JobRole::Developer->value,
         ],
         [
-            'employee_id' => 'DEV-0003',
+            'employee_id' => 'FS-0003',
             'first_name' => 'Development',
             'last_name' => 'Admin',
             'email' => 'admin.dev@example.test',
@@ -38,7 +38,7 @@ return [
             'job_role' => JobRole::ProjectManager->value,
         ],
         [
-            'employee_id' => 'DEV-0004',
+            'employee_id' => 'FS-0004',
             'first_name' => 'Avery',
             'last_name' => 'Santos',
             'email' => 'participant1.dev@example.test',
@@ -47,7 +47,7 @@ return [
             'job_role' => JobRole::Developer->value,
         ],
         [
-            'employee_id' => 'DEV-0005',
+            'employee_id' => 'FS-0005',
             'first_name' => 'Jordan',
             'last_name' => 'Reyes',
             'email' => 'participant2.dev@example.test',
@@ -56,7 +56,7 @@ return [
             'job_role' => JobRole::Developer->value,
         ],
         [
-            'employee_id' => 'DEV-0006',
+            'employee_id' => 'FS-0006',
             'first_name' => 'Casey',
             'last_name' => 'Lim',
             'email' => 'mentor1.dev@example.test',
@@ -65,7 +65,7 @@ return [
             'job_role' => JobRole::Developer->value,
         ],
         [
-            'employee_id' => 'DEV-0007',
+            'employee_id' => 'FS-0007',
             'first_name' => 'Riley',
             'last_name' => 'Tan',
             'email' => 'mentor2.dev@example.test',

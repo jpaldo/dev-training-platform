@@ -206,6 +206,26 @@ class SubmissionFormPageTest extends TestCase
         $this->assertStringContainsString('href="https://example.com/evidence" target="_blank" rel="noopener noreferrer">Open evidence link</a>', $html);
     }
 
+    public function test_a_video_evidence_requirement_renders_a_required_recording_link_and_no_file_input(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
+        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
+        $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity))->create(['evidence_type' => 'video']);
+
+        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))->assertOk()->getContent();
+
+        $this->assertSame(1, substr_count($html, 'data-evidence-form>'));
+        $this->assertStringContainsString('<label for="evidence-url-'.$requirement->id.'" class="text-sm font-extrabold">Recording link</label>', $html);
+        $this->assertStringContainsString('name="url" type="url" required aria-describedby="evidence-url-hint-'.$requirement->id.'"', $html);
+        $this->assertStringContainsString('id="evidence-url-hint-'.$requirement->id.'" class="m-0 text-sm/relaxed text-muted">Paste a link to your recording, for example from Google Drive, Loom or YouTube. Make sure your mentor can open it.</p>', $html);
+        $this->assertStringContainsString('Save evidence link', $html);
+        $this->assertStringNotContainsString('name="files[]"', $html);
+        $this->assertStringNotContainsString('video/*', $html);
+        $this->assertStringNotContainsString('Maximum file size', $html);
+        $this->assertStringNotContainsString('Common video formats are supported.', $html);
+    }
+
     public function test_a_week_four_activity_two_opens_the_standard_form_without_the_peer_or_mentor_interview(): void
     {
         [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: 2);

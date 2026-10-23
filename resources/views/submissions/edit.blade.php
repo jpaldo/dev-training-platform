@@ -252,19 +252,21 @@
                                             </div>
                                         @elseif($evidenceRow['input'] === 'link')
                                             <div class="grid gap-2">
-                                                <label for="evidence-url-{{ $requirement->id }}" class="{{ $labelClasses }}">URL or recording link</label>
-                                                <input id="evidence-url-{{ $requirement->id }}" name="url" type="url" class="{{ $controlClasses }}">
+                                                <label for="evidence-url-{{ $requirement->id }}" class="{{ $labelClasses }}">{{ $evidenceRow['link_label'] }}</label>
+                                                <input id="evidence-url-{{ $requirement->id }}" name="url" type="url" @required(! $evidenceRow['accepts_files']) @if($evidenceRow['link_hint'])aria-describedby="evidence-url-hint-{{ $requirement->id }}" @endif class="{{ $controlClasses }}">
+                                                @if($evidenceRow['link_hint'])
+                                                    <p id="evidence-url-hint-{{ $requirement->id }}" class="{{ $hintClasses }}">{{ $evidenceRow['link_hint'] }}</p>
+                                                @endif
                                             </div>
                                         @endif
-                                        <div class="grid gap-2">
-                                            <label for="evidence-files-{{ $requirement->id }}" class="{{ $labelClasses }}">{{ $evidenceRow['file_label'] }}</label>
-                                            <input id="evidence-files-{{ $requirement->id }}" name="files[]" type="file" @required($evidenceRow['input'] === 'file') multiple data-evidence-file accept="{{ $evidenceRow['accept'] }}" class="{{ $fileClasses }}">
-                                            <p class="{{ $hintClasses }}">{{ $evidenceRow['size_hint'] }}</p>
-                                            @if($evidenceRow['is_video'])
-                                                <p class="{{ $hintClasses }}">Common video formats are supported.</p>
-                                            @endif
-                                            <p class="m-0 text-sm text-muted data-error:text-rose-300" data-evidence-status role="status" aria-live="polite">Choose one or more files to attach them automatically.</p>
-                                        </div>
+                                        @if($evidenceRow['accepts_files'])
+                                            <div class="grid gap-2">
+                                                <label for="evidence-files-{{ $requirement->id }}" class="{{ $labelClasses }}">{{ $evidenceRow['file_label'] }}</label>
+                                                <input id="evidence-files-{{ $requirement->id }}" name="files[]" type="file" @required($evidenceRow['input'] === 'file') multiple data-evidence-file accept="{{ $evidenceRow['accept'] }}" class="{{ $fileClasses }}">
+                                                <p class="{{ $hintClasses }}">{{ $evidenceRow['size_hint'] }}</p>
+                                                <p class="m-0 text-sm text-muted data-error:text-rose-300" data-evidence-status role="status" aria-live="polite">Choose one or more files to attach them automatically.</p>
+                                            </div>
+                                        @endif
                                         @if($evidenceRow['input'] === 'text')
                                             <x-ui.button variant="secondary" type="submit" class="justify-self-start">Save evidence text</x-ui.button>
                                         @elseif($evidenceRow['input'] === 'link')

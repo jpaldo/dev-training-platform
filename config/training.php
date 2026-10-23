@@ -21,10 +21,6 @@ return [
         'video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v',
         'application/zip', 'application/x-tar',
     ],
-    'weekly_video_max_kb' => 358400,
-    'weekly_video_extensions' => ['mp4', 'mov', 'webm', 'm4v', 'avi', 'mkv', 'mpg', 'mpeg', 'm2v', '3gp', '3g2', 'ogv', 'ogg', 'mts', 'm2ts', 'ts', 'vob', 'wmv', 'flv', 'f4v'],
-    'weekly_video_mimes' => ['mp4', 'mov', 'webm', 'm4v', 'avi', 'mkv', 'mpg', 'mpeg', 'm2v', '3gp', '3g2', 'ogv', 'ogg', 'mts', 'm2ts', 'ts', 'vob', 'wmv', 'flv', 'f4v'],
-    'weekly_video_mime_types' => ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v', 'video/x-msvideo', 'video/avi', 'video/x-matroska', 'video/mpeg', 'video/mp2t', 'video/3gpp', 'video/3gpp2', 'video/ogg', 'video/x-ms-wmv', 'video/x-flv', 'video/x-f4v'],
     // A lost local/production worker must not leave the participant UI polling forever.
     'google_drive_sync_stale_after_seconds' => 600,
     // Options of the artifact type select on activity forms.

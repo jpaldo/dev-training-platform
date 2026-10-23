@@ -53,25 +53,22 @@ class AdminSettingsStatusService
     /**
      * The read-only training upload settings: the application limits, the PHP limits and the effective limits in bytes.
      *
-     * @return array{timezone: mixed, evidence_limit: int, video_limit: int, php_upload_limit: int, php_upload_display: string, php_post_display: string, effective_evidence_limit: int, effective_video_limit: int}
+     * @return array{timezone: mixed, evidence_limit: int, php_upload_limit: int, php_upload_display: string, php_post_display: string, effective_evidence_limit: int}
      */
     public function training(): array
     {
         $applicationEvidence = (int) config('training.evidence_max_kb', 307200) * 1024;
-        $applicationVideo = (int) config('training.weekly_video_max_kb', 358400) * 1024;
         $phpUpload = $this->parseIniBytes((string) ini_get('upload_max_filesize'));
         $phpPost = $this->parseIniBytes((string) ini_get('post_max_size'));
-        $phpLimit = min(array_filter([$phpUpload, $phpPost], fn (?int $value): bool => $value > 0) ?: [$applicationVideo]);
+        $phpLimit = min(array_filter([$phpUpload, $phpPost], fn (?int $value): bool => $value > 0) ?: [$applicationEvidence]);
 
         return [
             'timezone' => config('app.timezone'),
             'evidence_limit' => $applicationEvidence,
-            'video_limit' => $applicationVideo,
             'php_upload_limit' => $phpLimit,
             'php_upload_display' => ini_get('upload_max_filesize') ?: 'Unavailable',
             'php_post_display' => ini_get('post_max_size') ?: 'Unavailable',
             'effective_evidence_limit' => min($applicationEvidence, $phpLimit),
-            'effective_video_limit' => min($applicationVideo, $phpLimit),
         ];
     }
 

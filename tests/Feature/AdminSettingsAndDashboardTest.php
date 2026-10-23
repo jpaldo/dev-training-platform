@@ -59,7 +59,7 @@ class AdminSettingsAndDashboardTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin)->get(route('admin.settings.email'))->assertOk()->assertSee(config('mail.default'))->assertSee('Development Only');
-        $this->actingAs($admin)->get(route('admin.settings.training'))->assertOk()->assertSee('Asia/Manila')->assertDontSee('MENTOR INTERVIEW')->assertSee('300 MB')->assertSee('350 MB');
+        $this->actingAs($admin)->get(route('admin.settings.training'))->assertOk()->assertSee('Asia/Manila')->assertDontSee('MENTOR INTERVIEW')->assertSee('300 MB')->assertDontSee('350 MB');
     }
 
     public function test_admin_can_save_smtp_configuration_without_rendering_password(): void

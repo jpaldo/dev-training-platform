@@ -173,18 +173,18 @@ class ActivitySubmissionPageService
     }
 
     /**
-     * One row per evidence requirement: the version's evidence for it, the upload input (text, link or file) and its
-     * file upload label, the accepted file types and the size hint.
+     * One row per evidence requirement: the version's evidence for it, the input (text, link or file), the link's label
+     * and hint, whether it takes files (every type but `video`, which is a link only) and the file upload label,
+     * accepted file types and size hint.
      *
      * @param  Collection<int, EvidenceRequirement>  $requirements
-     * @return Collection<int, array{requirement: EvidenceRequirement, evidence: Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, input: string, file_label: string, accept: string, size_hint: string, is_video: bool, is_reusable_asset: bool}>
+     * @return Collection<int, array{requirement: EvidenceRequirement, evidence: Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, input: string, link_label: string, link_hint: ?string, accepts_files: bool, file_label: string, accept: string, size_hint: string, is_reusable_asset: bool}>
      */
     private function evidenceRows(Collection $requirements, ?SubmissionVersion $version): Collection
     {
         $evidence = $version?->evidence ?? collect();
-        $videoSizeHint = 'Upload a video file · maximum '.round(config('training.weekly_video_max_kb', 358400) / 1024, 1).' MB';
 
-        return $requirements->map(function (EvidenceRequirement $requirement) use ($evidence, $videoSizeHint): array {
+        return $requirements->map(function (EvidenceRequirement $requirement) use ($evidence): array {
             $isVideo = $requirement->evidence_type === 'video';
             $isReusableAsset = $requirement->evidence_type === 'asset';
             $input = match (true) {
@@ -197,17 +197,16 @@ class ActivitySubmissionPageService
                 'requirement' => $requirement,
                 'evidence' => $this->answers->evidenceItems($evidence->where('evidence_requirement_id', $requirement->id)),
                 'input' => $input,
+                'link_label' => $isVideo ? 'Recording link' : 'URL or recording link',
+                'link_hint' => $isVideo ? 'Paste a link to your recording, for example from Google Drive, Loom or YouTube. Make sure your mentor can open it.' : null,
+                'accepts_files' => ! $isVideo,
                 'file_label' => match ($input) {
                     'text' => 'Or upload artifact',
                     'link' => 'Or upload file',
                     default => 'File',
                 },
-                'accept' => match (true) {
-                    $isVideo => 'video/*',
-                    default => $this->evidenceFiles->acceptAttribute(),
-                },
-                'size_hint' => $isVideo ? $videoSizeHint : 'You can select and upload multiple files. Maximum file size: 300 MB per file.',
-                'is_video' => $isVideo,
+                'accept' => $this->evidenceFiles->acceptAttribute(),
+                'size_hint' => 'You can select and upload multiple files. Maximum file size: 300 MB per file.',
                 'is_reusable_asset' => $isReusableAsset,
             ];
         })->values();

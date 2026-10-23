@@ -201,7 +201,6 @@ class AdminSettingsPageTest extends TestCase
         config([
             'app.timezone' => 'Asia/Manila',
             'training.evidence_max_kb' => 1024,
-            'training.weekly_video_max_kb' => 2048,
         ]);
 
         $this->actingAs($this->admin())->get(route('admin.settings.training'))
@@ -211,14 +210,13 @@ class AdminSettingsPageTest extends TestCase
                 'Training settings',
                 'APPLICATION TIMEZONE', 'Asia/Manila',
                 'PHP UPLOAD LIMIT', (string) ini_get('upload_max_filesize'),
-                'Weekly Video application limit:', '2 MB',
                 'General evidence application limit:', '1 MB',
                 'Current PHP post limit:', (string) ini_get('post_max_size'),
                 'Effective evidence limit:', '1 MB',
-                'Effective Weekly Video limit:', '2 MB',
                 'Application settings do not edit php.ini or server runtime configuration.',
             ])
-            ->assertDontSee('Reusable');
+            ->assertDontSee('Reusable')
+            ->assertDontSee('Video');
     }
 
     public function test_ai_page_shows_the_saved_provider_settings_without_the_api_key(): void

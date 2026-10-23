@@ -234,75 +234,146 @@ class ParticipantWorkflowTest extends TestCase
         $this->assertDatabaseHas('submission_evidence', ['original_filename' => 'second.png']);
     }
 
-    public function test_embedded_weekly_video_picker_uses_broad_video_guidance(): void
-    {
-        [$participant, $week2, $activity] = $this->videoEvidenceFixture();
-
-        $html = $this->actingAs($participant)
-            ->get(route('training.submission.edit', [$week2, $activity]))
-            ->assertOk()
-            ->getContent();
-
-        $this->assertStringContainsString('accept="video/*"', $html);
-        $this->assertStringContainsString('Upload a video file · maximum 350 MB', $html);
-        $this->assertStringContainsString('Common video formats are supported.', $html);
-        $this->assertStringNotContainsString('video/mp4,video/quicktime,video/webm,video/x-m4v', $html);
-    }
-
-    #[DataProvider('embeddedVideoProvider')]
-    public function test_embedded_weekly_video_accepts_common_and_broader_formats(string $extension, string $mime): void
+    #[DataProvider('recordingLinkProvider')]
+    public function test_video_evidence_saves_the_recording_link_and_the_mentor_review_opens_it(string $url): void
     {
         Storage::fake('local');
         [$participant, $week2, $activity, $requirement, $version] = $this->videoEvidenceFixture();
 
-        $this->actingAs($participant)->postJson(route('training.evidence.store', [$week2, $activity, $version]), [
+        $this->actingAs($participant)->post(route('training.evidence.store', [$week2, $activity, $version]), [
             'evidence_requirement_id' => $requirement->id,
-            'file' => UploadedFile::fake()->create('recording.'.$extension, 20, $mime),
-        ])->assertOk()->assertJson(['uploaded' => true]);
+            'title' => 'Walkthrough',
+            'url' => $url,
+        ])->assertSessionHasNoErrors()->assertRedirect(route('training.submission.edit', [$week2, $activity]));
 
-        $this->assertDatabaseHas('submission_evidence', ['submission_version_id' => $version->id, 'original_filename' => 'recording.'.$extension]);
+        $evidence = SubmissionEvidence::query()->sole();
+        $this->assertSame('video', $evidence->evidence_type);
+        $this->assertSame($url, $evidence->url);
+        $this->assertNull($evidence->path);
+        $this->assertSame([], Storage::disk('local')->allFiles());
+
+        $coach = User::factory()->create(['role' => 'coach']);
+        $coach->assignedParticipants()->attach($participant);
+        $version->update(['status' => 'submitted', 'submitted_at' => now()]);
+        $version->submission->update(['status' => 'submitted', 'submitted_at' => now()]);
+
+        $this->actingAs($coach)->get(route('coach.reviews.show', $version))
+            ->assertOk()
+            ->assertSeeInOrder(['>Walkthrough</strong>', 'href="'.e($url).'" target="_blank" rel="noopener noreferrer"', '>Open evidence</a>'], false);
     }
 
-    public static function embeddedVideoProvider(): array
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function recordingLinkProvider(): array
     {
         return [
-            'mp4' => ['mp4', 'video/mp4'],
-            'webm' => ['webm', 'video/webm'],
-            'avi' => ['avi', 'video/x-msvideo'],
+            'Google Drive' => ['https://drive.google.com/file/d/abc/view'],
+            'Loom' => ['https://www.loom.com/share/x'],
         ];
     }
 
-    public function test_embedded_weekly_video_rejects_renamed_non_video_and_unsupported_extensions(): void
+    /**
+     * @param  array<string, mixed>  $upload
+     */
+    #[DataProvider('videoEvidenceUploadProvider')]
+    public function test_video_evidence_refuses_an_uploaded_file_and_stores_nothing(array $upload, string $errorKey): void
     {
         Storage::fake('local');
         [$participant, $week2, $activity, $requirement, $version] = $this->videoEvidenceFixture();
 
         $this->actingAs($participant)->postJson(route('training.evidence.store', [$week2, $activity, $version]), [
             'evidence_requirement_id' => $requirement->id,
-            'file' => UploadedFile::fake()->create('renamed.mp4', 20, 'image/png'),
-        ])->assertUnprocessable()->assertJsonValidationErrors('file');
+            ...$upload,
+        ])->assertUnprocessable()->assertJsonValidationErrors([
+            $errorKey => 'Video evidence is a link. Paste the link to your recording instead of uploading a file.',
+        ]);
 
-        $this->actingAs($participant)->postJson(route('training.evidence.store', [$week2, $activity, $version]), [
-            'evidence_requirement_id' => $requirement->id,
-            'file' => UploadedFile::fake()->create('recording.exe', 20, 'video/mp4'),
-        ])->assertUnprocessable()->assertJsonValidationErrors('file');
+        $this->assertDatabaseCount('submission_evidence', 0);
+        $this->assertSame([], Storage::disk('local')->allFiles());
     }
 
-    public function test_embedded_weekly_video_enforces_350_mb_limit_and_authorization(): void
+    /**
+     * @return array<string, array{array<string, mixed>, string}>
+     */
+    public static function videoEvidenceUploadProvider(): array
     {
-        Storage::fake('local');
+        return [
+            'a file without a link' => [['file' => UploadedFile::fake()->create('recording.mp4', 20, 'video/mp4')], 'file'],
+            'a file with a link' => [['file' => UploadedFile::fake()->create('recording.mp4', 20, 'video/mp4'), 'url' => 'https://www.loom.com/share/x'], 'file'],
+            'several files with a link' => [['files' => [UploadedFile::fake()->create('recording.mp4', 20, 'video/mp4')], 'url' => 'https://www.loom.com/share/x'], 'files'],
+        ];
+    }
+
+    #[DataProvider('invalidRecordingLinkProvider')]
+    public function test_video_evidence_refuses_a_link_that_is_not_an_http_or_https_web_address(string $url): void
+    {
         [$participant, $week2, $activity, $requirement, $version] = $this->videoEvidenceFixture();
 
         $this->actingAs($participant)->postJson(route('training.evidence.store', [$week2, $activity, $version]), [
             'evidence_requirement_id' => $requirement->id,
-            'file' => UploadedFile::fake()->create('too-large.mp4', 358401, 'video/mp4'),
-        ])->assertUnprocessable()->assertJsonValidationErrors('file');
+            'url' => $url,
+        ])->assertUnprocessable()->assertJsonValidationErrors([
+            'url' => 'The link must be a full web address starting with http:// or https://.',
+        ]);
+
+        $this->assertDatabaseCount('submission_evidence', 0);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function invalidRecordingLinkProvider(): array
+    {
+        return [
+            'ftp' => ['ftp://x'],
+            'javascript' => ['javascript:alert(1)'],
+        ];
+    }
+
+    public function test_video_evidence_requires_a_link(): void
+    {
+        [$participant, $week2, $activity, $requirement, $version] = $this->videoEvidenceFixture();
+
+        $this->actingAs($participant)->postJson(route('training.evidence.store', [$week2, $activity, $version]), [
+            'evidence_requirement_id' => $requirement->id,
+            'url' => '',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['url' => 'Paste the link to your recording.']);
+
+        $this->assertDatabaseCount('submission_evidence', 0);
+    }
+
+    public function test_a_coach_cannot_save_video_evidence(): void
+    {
+        [, $week2, $activity, $requirement, $version] = $this->videoEvidenceFixture();
 
         $this->actingAs(User::factory()->create(['role' => 'coach']))
             ->postJson(route('training.evidence.store', [$week2, $activity, $version]), [
                 'evidence_requirement_id' => $requirement->id,
-                'file' => UploadedFile::fake()->create('blocked.mp4', 20, 'video/mp4'),
+                'url' => 'https://www.loom.com/share/x',
             ])->assertForbidden();
+
+        $this->assertDatabaseCount('submission_evidence', 0);
+    }
+
+    public function test_a_link_evidence_requirement_still_accepts_an_uploaded_file(): void
+    {
+        Storage::fake('local');
+        [$participant, $week2, $activity] = $this->trainingFixture();
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+        $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'link', 'is_required' => true]);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
+
+        $this->actingAs($participant)->postJson(route('training.evidence.store', [$week2, $activity, $version]), [
+            'evidence_requirement_id' => $requirement->id,
+            'file' => UploadedFile::fake()->create('recording.mp4', 20, 'video/mp4'),
+        ])->assertOk()->assertJson(['uploaded' => true]);
+
+        $evidence = SubmissionEvidence::query()->sole();
+        $this->assertSame('file', $evidence->evidence_type);
+        $this->assertSame('recording.mp4', $evidence->original_filename);
+        $this->assertTrue(Storage::disk('local')->exists($evidence->path));
     }
 
     public function test_evidence_file_size_boundary_is_300_mb_per_file(): void

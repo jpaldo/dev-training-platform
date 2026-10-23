@@ -114,10 +114,10 @@ held QA training data, skip steps 2 and 3.
      shared" warning, and in Google Drive the video's sharing must list the
      company domain as Viewer.
 
-   Weekly videos are no longer uploaded, so they need no PHP upload limit.
-   Evidence files still do: PHP's `upload_max_filesize` and `post_max_size`
-   and the web server's body limit must stay above `training.evidence_max_kb`
-   (300 MB) and, for video evidence, `training.weekly_video_max_kb` (350 MB).
+   Weekly videos and video evidence are links, not uploads, so they need no
+   PHP upload limit. Other evidence files still do: PHP's
+   `upload_max_filesize` and `post_max_size` and the web server's body limit
+   must stay above `training.evidence_max_kb` (300 MB).
 
 2. **Participants sync to Google Drive.** Ask every participant who has
    connected Google Drive to press **SYNC TO GOOGLE DRIVE** in the sidebar

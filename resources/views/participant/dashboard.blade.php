@@ -139,9 +139,9 @@
                         </div>
                         @if ($item['passed'])
                             <x-ui.alert tone="success">Completed</x-ui.alert>
-                        @elseif ($item['available'])
-                            <x-ui.button :href="route('training.weeks.show', $item['week'])">Open week →</x-ui.button>
-                        @else
+                        @elseif ($item['available'] && $item['session'])
+                            <x-ui.button :href="route('training.weeks.show', [$item['session'], $item['week']])">Open week →</x-ui.button>
+                        @elseif (! $item['available'])
                             <x-ui.alert tone="error">Locked — {{ $item['locked_reason'] }}</x-ui.alert>
                         @endif
                     </div>
@@ -153,7 +153,7 @@
                             <ol class="m-0 grid list-none gap-3 p-0">
                                 @foreach ($item['week']->activities as $activity)
                                     @php
-                                        $activityUrl = route('training.activities.show', [$item['week'], $activity]);
+                                        $activityUrl = $item['session'] ? route('training.activities.show', [$item['session'], $item['week'], $activity]) : null;
                                     @endphp
                                     <li class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-field px-4 py-3.5">
                                         <div class="grid min-w-0 flex-[1_1_260px] gap-1.5">
@@ -164,7 +164,7 @@
                                             </div>
                                             @if($activity->participant_submission?->isFailed())<span class="text-sm text-muted">Attempt {{ $activity->participant_submission->attempt_number }} is closed. {{ $activity->participant_attempts->count() > 1 ? 'Retry available.' : 'Waiting for mentor to create a retry.' }}</span>@endif
                                         </div>
-                                        @if($item['available'])
+                                        @if($item['available'] && $activityUrl)
                                             <div class="grid justify-items-start gap-1.5 sm:justify-items-end">
                                                 @if($item['attendance_required'] && ! $activity->participant_submission)<x-ui.button variant="secondary" :href="$activityUrl" disabled>{{ $activity->participant_action }}</x-ui.button>
                                                 @elseif($googleDriveReadinessEnforced && ! $googleDriveReady && ! $activity->participant_submission)<x-ui.button variant="secondary" :href="$activityUrl" disabled>Google Drive setup required</x-ui.button>

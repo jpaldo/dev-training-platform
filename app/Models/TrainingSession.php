@@ -102,6 +102,14 @@ class TrainingSession extends Model
     }
 
     /**
+     * Whether the user is a participant in the session.
+     */
+    public function includesParticipant(User $user): bool
+    {
+        return $this->participants()->whereKey($user->id)->exists();
+    }
+
+    /**
      * Limit the query to sessions that are upcoming or active: they end today or later.
      */
     public function scopeNotCompleted(Builder $query): Builder

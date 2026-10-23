@@ -15,6 +15,7 @@ use App\Models\Program;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -218,6 +219,25 @@ class ParticipantNotificationsTest extends TestCase
         $this->assertSame('Week 2 completed', $completed->title);
         $this->assertSame('Your mentor marked Week 2 completed.', $completed->body);
         $this->assertFalse($participant->participantNotifications()->active()->where('key', "week:{$week->id}:gate")->exists());
+    }
+
+    public function test_activity_and_week_notifications_link_through_the_participants_session_and_have_no_link_without_one(): void
+    {
+        $member = User::factory()->create();
+        $outsider = User::factory()->create();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 2]);
+        $gate = TrainingGate::factory()->for($week, 'week')->create();
+        $activity = Activity::factory()->for($week, 'week')->create();
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($member)->create();
+        $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($member, 'participant')->create(['status' => 'passed']);
+
+        app(ParticipantNotificationService::class)->sync($member);
+        app(ParticipantNotificationService::class)->sync($outsider);
+
+        $incompleteKey = "week:{$week->id}:activity:{$activity->id}:incomplete";
+        $this->assertSame(route('training.activities.show', [$session, $week, $activity]), $member->participantNotifications()->where('key', $incompleteKey)->sole()->action_url);
+        $this->assertSame(route('training.weeks.show', [$session, $week]), $member->participantNotifications()->where('key', "event:gate:{$evaluation->id}")->sole()->action_url);
+        $this->assertNull($outsider->participantNotifications()->where('key', $incompleteKey)->sole()->action_url);
     }
 
     public function test_week_one_work_raises_the_activity_video_and_gate_reminders(): void

@@ -14,6 +14,7 @@ use App\Models\GoogleDriveEvidenceExport;
 use App\Models\GoogleDriveSync;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -43,19 +44,20 @@ class TrainingActivityPageService
     }
 
     /**
-     * Everything the activity page renders: the requirements, the latest attempt and version, the Google Drive sync
+     * Everything the activity page renders: the session the page is opened in, the requirements, the latest attempt and version, the Google Drive sync
      * summary, the attempt history and the page tabs.
      *
      * @param  EloquentCollection<int, ActivitySubmission>  $attempts
-     * @return array{activity: Activity, trainingWeek: TrainingWeek, user: User, requirements: Collection<int, ActivityRequirement>, submission: ?ActivitySubmission, latestVersion: ?SubmissionVersion, revisionFeedback: ?HtmlString, googleDrive: array{connected: bool, status_label: string, evidence_total: int, evidence_synced: int, evidence_failed: int, last_synced_at: ?CarbonInterface, error: ?string}, attempts: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, has_later_attempt: bool, feedback: ?HtmlString, recovery_request: ?ActivityRecoveryRequest, published_score: ?ActivityScore}>, tabs: list<array{key: string, label: string}>, selectedTab: string}
+     * @return array{activity: Activity, trainingSession: TrainingSession, trainingWeek: TrainingWeek, user: User, requirements: Collection<int, ActivityRequirement>, submission: ?ActivitySubmission, latestVersion: ?SubmissionVersion, revisionFeedback: ?HtmlString, googleDrive: array{connected: bool, status_label: string, evidence_total: int, evidence_synced: int, evidence_failed: int, last_synced_at: ?CarbonInterface, error: ?string}, attempts: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, has_later_attempt: bool, feedback: ?HtmlString, recovery_request: ?ActivityRecoveryRequest, published_score: ?ActivityScore}>, tabs: list<array{key: string, label: string}>, selectedTab: string}
      */
-    public function showData(User $user, TrainingWeek $trainingWeek, Activity $activity, EloquentCollection $attempts): array
+    public function showData(User $user, TrainingSession $trainingSession, TrainingWeek $trainingWeek, Activity $activity, EloquentCollection $attempts): array
     {
         $submission = $attempts->last();
         $latestVersion = $submission?->versions->first();
 
         return [
             'activity' => $activity,
+            'trainingSession' => $trainingSession,
             'trainingWeek' => $trainingWeek,
             'user' => $user,
             'requirements' => $this->requirements($user, $activity),

@@ -19,13 +19,22 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 
 class ParticipantNotificationService
 {
-    public function __construct(private readonly WeekProgressionService $progression, private readonly GateReadinessService $gates) {}
+    public function __construct(
+        private readonly WeekProgressionService $progression,
+        private readonly GateReadinessService $gates,
+        private readonly ParticipantWeekSessionService $weekSessions,
+    ) {}
 
     public function unreadCount(User $participant): int
     {
         return $participant->participantNotifications()->unread()->count();
     }
 
+    /**
+     * Raise and resolve the participant's notifications for the active program's weeks. Links to a week or activity
+     * page go through the participant's session that includes the week (ParticipantWeekSessionService); without one
+     * those notifications have no link.
+     */
     public function sync(User $participant): void
     {
         if ($participant->role !== UserRole::Participant) {
@@ -37,14 +46,16 @@ class ParticipantNotificationService
             return;
         }
 
+        $trainingSessions = $this->weekSessions->sessionsOfProgram($participant, $program->id);
         foreach ($program->weeks->sortBy('position') as $week) {
+            $trainingSession = $this->weekSessions->firstIncludingWeek($trainingSessions, $week);
             $available = $this->progression->canAccessWeek($participant, $week) || $this->progression->isWeekPassed($participant, $week);
             if (! $available) {
                 continue;
             }
             foreach ($week->activities as $activity) {
                 $submission = $participant->activitySubmissions()->where('activity_id', $activity->id)->latest('attempt_number')->with(['versions' => fn (Relation $q): Relation => $q->latest('version_number')])->first();
-                $url = route('training.activities.show', [$week, $activity]);
+                $url = $trainingSession ? route('training.activities.show', [$trainingSession, $week, $activity]) : null;
                 $this->state($participant, "week:{$week->id}:activity:{$activity->id}:incomplete", ParticipantNotificationType::ActivityIncomplete, 'Activity incomplete', "{$activity->title} has not been completed for Week {$week->week_number}.", $url, ! $submission || $submission->isFailed());
                 $this->state($participant, "week:{$week->id}:activity:{$activity->id}:draft", ParticipantNotificationType::ActivityDraft, 'Continue your activity', "You have an unfinished draft for {$activity->title}.", route('training.submission.edit', [$week, $activity]), $submission?->isDraft() === true);
                 $version = $submission?->versions->first();
@@ -75,7 +86,7 @@ class ParticipantNotificationService
                 $passed = $gate->evaluations()->where('user_id', $participant->id)->where('status', GateEvaluationStatus::Passed)->latest('evaluated_at')->first();
                 $this->state($participant, "week:{$week->id}:gate", ParticipantNotificationType::GateIncomplete, "Week {$week->week_number} requirements incomplete", "You still have requirements to complete before your mentor can mark Week {$week->week_number} completed.", route('training.gates.show', [$week, $gate]), ! $passed && $reasons !== []);
                 if ($passed) {
-                    $this->event($participant, "event:gate:{$passed->id}", ParticipantNotificationType::GatePassed, "Week {$week->week_number} completed", "Your mentor marked Week {$week->week_number} completed.", route('training.weeks.show', $week));
+                    $this->event($participant, "event:gate:{$passed->id}", ParticipantNotificationType::GatePassed, "Week {$week->week_number} completed", "Your mentor marked Week {$week->week_number} completed.", $trainingSession ? route('training.weeks.show', [$trainingSession, $week]) : null);
                 }
             }
         }

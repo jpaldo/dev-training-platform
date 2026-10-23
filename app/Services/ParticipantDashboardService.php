@@ -9,6 +9,7 @@ use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -18,14 +19,20 @@ use Illuminate\Support\Collection;
 
 class ParticipantDashboardService
 {
-    public function __construct(private readonly WeekProgressionService $progression, private readonly GateReadinessService $gateService) {}
+    public function __construct(
+        private readonly WeekProgressionService $progression,
+        private readonly GateReadinessService $gateService,
+        private readonly ParticipantWeekSessionService $weekSessions,
+    ) {}
 
     /**
      * Build the dashboard rows for every week of the program, with the participant's activity progress attached. An
      * available week shows its Weekly Video Recording only when it asks for one; the program's weeks are expected to
-     * be loaded with TrainingWeek::withAsksForWeeklyVideo().
+     * be loaded with TrainingWeek::withAsksForWeeklyVideo(). Each row carries the participant's session that includes
+     * the week (ParticipantWeekSessionService), which its week and activity links go through; without one the row has
+     * no links.
      *
-     * @return Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_reason: ?string, shows_weekly_video: bool, is_current: bool, attendance_required: bool}>
+     * @return Collection<int, array{week: TrainingWeek, session: ?TrainingSession, passed: bool, available: bool, locked_reason: ?string, shows_weekly_video: bool, is_current: bool, attendance_required: bool}>
      */
     public function weeks(User $user, Program $program, ?AttendanceSession $activeAttendance): Collection
     {
@@ -33,14 +40,16 @@ class ParticipantDashboardService
         $weekStates = $this->progression->weekStates($user, $programWeeks);
         $videoRecordings = WeeklyVideoRecording::query()->where('user_id', $user->id)->whereIn('training_week_id', $programWeeks->modelKeys())->get()->keyBy('training_week_id');
         $this->attachActivityProgress($user, $programWeeks);
+        $trainingSessions = $this->weekSessions->sessionsOfProgram($user, $program->id);
 
-        $weeks = $programWeeks->sortBy('position')->values()->map(function (TrainingWeek $week) use ($weekStates, $videoRecordings): array {
+        $weeks = $programWeeks->sortBy('position')->values()->map(function (TrainingWeek $week) use ($weekStates, $videoRecordings, $trainingSessions): array {
             $passed = $weekStates[$week->id]['passed'];
             $available = $passed || $weekStates[$week->id]['accessible'];
             $week->weekly_video_recording = $videoRecordings->get($week->id);
 
             return [
                 'week' => $week,
+                'session' => $this->weekSessions->firstIncludingWeek($trainingSessions, $week),
                 'passed' => $passed,
                 'available' => $available,
                 'locked_reason' => $passed ? null : ($available ? null : 'Your mentor must mark the previous week completed before you can continue.'),

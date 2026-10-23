@@ -11,6 +11,7 @@ class WeeklyVideoRecordingPageService
     public function __construct(
         private readonly WeekProgressionService $progression,
         private readonly GoogleDriveConfigurationService $googleDrive,
+        private readonly ParticipantWeekSessionService $weekSessions,
     ) {}
 
     /**
@@ -18,7 +19,8 @@ class WeeklyVideoRecordingPageService
      * participant's Google Drive state (`unavailable` while Drive cannot connect, `not_connected` or `connected`) with
      * the connect link, which brings the participant back to this page, and the Picker settings and label. The Picker form is replaced by a locked message once the participant has
      * passed one of the week's active Gates. `shareHint` says who a chosen video is shared with (null without a share
-     * domain, when nothing is shared). The page never reads Google Drive.
+     * domain, when nothing is shared). Back goes to the week in the participant's session that includes it, or to the
+     * dashboard when they are in none. The page never reads Google Drive.
      *
      * @return array{trainingWeek: TrainingWeek, recording: ?WeeklyVideoRecording, isLocked: bool, storeUrl: string, backUrl: string, driveState: string, connectUrl: string, picker: array{api_key: ?string, app_id: ?string, token_url: string, unavailable_message: ?string}, pickerLabel: string, shareHint: ?string}
      */
@@ -26,13 +28,14 @@ class WeeklyVideoRecordingPageService
     {
         $recording = WeeklyVideoRecording::query()->where('user_id', $user->id)->where('training_week_id', $week->id)->first();
         $shareDomain = $this->googleDrive->getShareDomain();
+        $trainingSession = $this->weekSessions->sessionForWeek($user, $week);
 
         return [
             'trainingWeek' => $week,
             'recording' => $recording,
             'isLocked' => $this->progression->hasPassedActiveGate($user, $week),
             'storeUrl' => route('training.video-recording.store', $week),
-            'backUrl' => route('training.weeks.show', $week),
+            'backUrl' => $trainingSession ? route('training.weeks.show', [$trainingSession, $week]) : route('dashboard'),
             'driveState' => match (true) {
                 ! $this->googleDrive->canConnect() => 'unavailable',
                 $user->googleDriveConnection()->doesntExist() => 'not_connected',

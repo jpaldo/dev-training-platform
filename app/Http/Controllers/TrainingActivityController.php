@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\UserRole;
 use App\Models\Activity;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\ExportLifecycleService;
@@ -16,7 +17,11 @@ use Illuminate\View\View;
 
 class TrainingActivityController extends Controller
 {
-    public function show(Request $request, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, ExportLifecycleService $lifecycle, GoogleDriveReadinessService $readiness, TrainingActivityPageService $page): View|RedirectResponse
+    /**
+     * The activity page within a session. The route has already checked that the user can view the session and that
+     * the week is one of its weeks.
+     */
+    public function show(Request $request, TrainingSession $trainingSession, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, ExportLifecycleService $lifecycle, GoogleDriveReadinessService $readiness, TrainingActivityPageService $page): View|RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -30,6 +35,6 @@ class TrainingActivityController extends Controller
             return redirect()->route('dashboard')->withErrors(['google_drive_setup' => $readiness->message($user)]);
         }
 
-        return view('activities.show', $page->showData($user, $trainingWeek, $activity, $attempts));
+        return view('activities.show', $page->showData($user, $trainingSession, $trainingWeek, $activity, $attempts));
     }
 }

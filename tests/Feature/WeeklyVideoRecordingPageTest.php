@@ -7,6 +7,7 @@ use App\Models\GateEvaluation;
 use App\Models\GoogleDriveConnection;
 use App\Models\Program;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -34,13 +35,14 @@ class WeeklyVideoRecordingPageTest extends TestCase
     {
         $participant = User::factory()->create();
         ['week' => $week] = $this->weekFixture();
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
 
         $response = $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
             ->assertOk()
             ->assertSeeInOrder([
                 'WEEK 2',
                 'Week 2 Video Recording',
-                'href="'.route('training.weeks.show', $week).'"',
+                'href="'.route('training.weeks.show', [$session, $week]).'"',
                 'Back to Week',
                 'Video Recording',
                 'Record your actual work for this week.',
@@ -55,6 +57,18 @@ class WeeklyVideoRecordingPageTest extends TestCase
             ->assertDontSee('style="', false);
 
         $this->assertSame(1, substr_count($response->getContent(), 'from-brand to-brand-deep'));
+    }
+
+    public function test_back_goes_to_the_dashboard_for_a_participant_in_no_session_with_the_week(): void
+    {
+        $participant = User::factory()->create();
+        ['week' => $week] = $this->weekFixture();
+        TrainingSession::factory()->forWeek($week)->create();
+
+        $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
+            ->assertOk()
+            ->assertSeeInOrder(['href="'.route('dashboard').'"', 'Back to Week'], false)
+            ->assertDontSee('/training/sessions/', false);
     }
 
     public function test_participant_with_a_chosen_video_but_no_connection_sees_it_and_is_asked_to_connect_to_change_it(): void

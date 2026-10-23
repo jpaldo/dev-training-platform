@@ -158,8 +158,10 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
     Route::post('/markdown/preview', MarkdownPreviewController::class)->name('markdown.preview');
 
     Route::prefix('training')->name('training.')->group(function () {
-        Route::get('/weeks/{trainingWeek}', [TrainingWeekController::class, 'show'])->name('weeks.show');
-        Route::get('/weeks/{trainingWeek}/activities/{activity}', [TrainingActivityController::class, 'show'])->name('activities.show');
+        Route::prefix('sessions/{trainingSession}/weeks/{trainingWeek}')->middleware(['can:view,trainingSession', 'session.week'])->group(function (): void {
+            Route::get('/', [TrainingWeekController::class, 'show'])->name('weeks.show');
+            Route::get('/activities/{activity}', [TrainingActivityController::class, 'show'])->name('activities.show');
+        });
         Route::middleware('role:participant')->group(function () {
             Route::get('/weeks/{trainingWeek}/gates/{trainingGate}', [GateReviewController::class, 'participant'])->name('gates.show');
             Route::get('/weeks/{trainingWeek}/video-recording', [WeeklyVideoRecordingController::class, 'edit'])->name('video-recording.edit');

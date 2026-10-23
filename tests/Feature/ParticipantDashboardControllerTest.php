@@ -15,6 +15,7 @@ use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -74,6 +75,7 @@ class ParticipantDashboardControllerTest extends TestCase
         $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
         $activity = Activity::factory()->for($week, 'week')->create(['title' => 'Exploratory charter', 'position' => 1]);
+        TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
         if ($status !== null) {
             $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => $status]);
             SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => $status === 'draft' ? 'draft' : 'submitted']);
@@ -113,6 +115,41 @@ class ParticipantDashboardControllerTest extends TestCase
             'completed' => ['completed', 'Completed', 'border-emerald-400 text-emerald-200', 'View', false],
             'failed' => ['failed', 'Failed', 'border-danger text-rose-200', 'View attempts', true],
         ];
+    }
+
+    public function test_week_and_activity_links_open_the_week_in_the_participants_session(): void
+    {
+        $participant = User::factory()->create();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
+        $activity = Activity::factory()->for($week, 'week')->create(['title' => 'Set up the repository']);
+        TrainingSession::factory()->forWeek($week)->create();
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+
+        $this->actingAs($participant)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'href="'.route('training.weeks.show', [$session, $week]).'"',
+                'Open week →',
+                '<strong>Set up the repository</strong>',
+                'href="'.route('training.activities.show', [$session, $week, $activity]).'"',
+                '>Start</',
+            ], false);
+    }
+
+    public function test_a_participant_in_no_session_with_the_week_sees_the_week_without_links_to_it(): void
+    {
+        $participant = User::factory()->create();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
+        Activity::factory()->for($week, 'week')->create(['title' => 'Set up the repository']);
+        TrainingSession::factory()->forWeek($week)->create();
+
+        $this->actingAs($participant)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('<strong>Set up the repository</strong>', false)
+            ->assertDontSee('Open week →')
+            ->assertDontSee('>Start</', false)
+            ->assertDontSee('/training/sessions/', false);
     }
 
     public function test_gate_card_shows_the_saved_evaluation_status_or_the_readiness_status(): void
@@ -219,6 +256,7 @@ class ParticipantDashboardControllerTest extends TestCase
         $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 4, 'position' => 1]);
         Activity::factory()->for($week, 'week')->create(['title' => 'Mock Level 3 Interview', 'position' => 2]);
+        TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
 
         $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
@@ -241,6 +279,7 @@ class ParticipantDashboardControllerTest extends TestCase
     {
         $participant = User::factory()->create();
         $program = Program::factory()->create();
+        TrainingSession::factory()->for($program)->withParticipants($participant)->create(['weeks_count' => 4]);
 
         foreach (range(1, $rows) as $position) {
             $week = TrainingWeek::factory()->for($program)->create(['week_number' => $position + 4 - $rows, 'position' => $position]);

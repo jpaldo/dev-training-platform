@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ActivitySubmission;
 use App\Models\ParticipantNotification;
 use App\Models\Program;
+use App\Models\TrainingSession;
 use App\Models\User;
 use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -97,6 +98,7 @@ class HomeNavigationTest extends TestCase
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $week1 = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first();
         $activity = $week1->activities()->where('position', 2)->first();
+        TrainingSession::factory()->forWeek($week1)->withParticipants($participant)->create();
         $submission = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'needs_revision']);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => [], 'submitted_at' => now()]);
         $version->reviews()->create(['reviewer_id' => User::factory()->create(['role' => 'coach'])->id, 'decision' => 'needs_revision', 'comments' => 'Please revise this activity.', 'reviewed_at' => now()]);

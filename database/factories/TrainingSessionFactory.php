@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Models\Program;
 use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
+use App\Models\User;
 use App\Services\TrainingSessionService;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -57,6 +58,14 @@ class TrainingSessionFactory extends Factory
             'program_id' => $week->program_id,
             'weeks_count' => max(4, $week->week_number),
         ])->active();
+    }
+
+    /**
+     * Add the users to the session as participants who joined now.
+     */
+    public function withParticipants(User ...$participants): static
+    {
+        return $this->hasAttached($participants, ['joined_at' => now()], 'participants');
     }
 
     /**

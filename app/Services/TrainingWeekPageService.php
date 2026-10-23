@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\GateEvaluation;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -18,15 +19,15 @@ class TrainingWeekPageService
     ) {}
 
     /**
-     * Everything the week page renders: the week's active activities, a summary of its first Gate (the user's Gate
-     * status, its checklist read only with each required item's review status and, for participants, the link to the
-     * Gate page) and, for participants in a week that asks for it, the Weekly Video Recording state. A participant's
+     * Everything the week page renders within the session: the week's active activities, each linked within the
+     * session, a summary of its first Gate (the user's Gate status, its checklist read only with each required item's
+     * review status and, for participants, the link to the Gate page) and, for participants in a week that asks for it, the Weekly Video Recording state. A participant's
      * main action is Choose Weekly Video while such a week has no video chosen yet; in a week that does not ask for the
      * video it is the link to the Gate page (then not repeated on the Gate card), or none without a Gate.
      *
      * @return array{trainingWeek: TrainingWeek, activities: list<array{position: int, title: string, description: ?string, url: string}>, gate: ?array{title: string, status_label: string, status_tone: string, criteria: list<array{title: string, description: ?string, is_met: bool, status_label: string, status_tone: string}>, url: ?string}, showsWeeklyVideo: bool, videoRecording: ?WeeklyVideoRecording, mainAction: ?array{label: string, url: string}, changeVideoUrl: string, backUrl: string}
      */
-    public function showData(TrainingWeek $week, User $user): array
+    public function showData(TrainingSession $trainingSession, TrainingWeek $week, User $user): array
     {
         $week->load([
             'program',
@@ -55,7 +56,7 @@ class TrainingWeekPageService
                     'position' => $activity->position,
                     'title' => $activity->title,
                     'description' => $activity->description,
-                    'url' => route('training.activities.show', [$week, $activity]),
+                    'url' => route('training.activities.show', [$trainingSession, $week, $activity]),
                 ])
                 ->values()
                 ->all(),

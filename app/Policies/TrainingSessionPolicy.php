@@ -7,8 +7,9 @@ use App\Models\TrainingSession;
 use App\Models\User;
 
 /**
- * Admins list, create, edit and manage (participants, mentors, resources) training sessions. Viewing a session and
- * joining one are added with the participant and mentor screens.
+ * Admins list, create, edit and manage (participants, mentors, resources) training sessions. Admins, the session's
+ * participants and coaches view a session (its weeks and activities). Joining one is added with the participant
+ * screens.
  */
 class TrainingSessionPolicy
 {
@@ -18,6 +19,19 @@ class TrainingSessionPolicy
     public function viewAny(User $user): bool
     {
         return $user->hasAnyRole(UserRole::Admin);
+    }
+
+    /**
+     * Determine whether the user can view the session and its weeks and activities: an admin, a participant in the
+     * session (a removed participant no longer can) or any coach, as before sessions.
+     */
+    public function view(User $user, TrainingSession $trainingSession): bool
+    {
+        if ($user->isCoachOrAdmin()) {
+            return true;
+        }
+
+        return $user->hasAnyRole(UserRole::Participant) && $trainingSession->includesParticipant($user);
     }
 
     /**

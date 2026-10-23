@@ -15,6 +15,7 @@ use App\Models\GoogleDriveSync;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -630,8 +631,9 @@ class GoogleDriveSyncTest extends TestCase
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()]);
         $week = TrainingWeek::query()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 2)->where('is_active', true)->firstOrFail();
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
 
-        $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))
+        $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))
             ->assertRedirect(route('dashboard'))
             ->assertSessionHasErrors('google_drive_setup');
     }
@@ -643,8 +645,9 @@ class GoogleDriveSyncTest extends TestCase
         $participant = User::factory()->create(['role' => 'participant', 'drive_link' => 'https://drive.google.com/drive/folders/legacy']);
         $week = TrainingWeek::query()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 2)->where('is_active', true)->firstOrFail();
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
 
-        $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))
+        $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))
             ->assertRedirect(route('dashboard'));
     }
 }

@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Enums\TrainingSessionResourceType;
 use App\Models\TrainingSession;
 use App\Models\TrainingSessionResource;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -23,31 +22,18 @@ class TrainingSessionResourceFactory extends Factory
             'training_session_id' => TrainingSession::factory(),
             'week_number' => null,
             'title' => fake()->sentence(3),
-            'type' => TrainingSessionResourceType::Link,
             'url' => fake()->url(),
-            'disk' => null,
-            'path' => null,
-            'original_filename' => null,
-            'mime_type' => null,
-            'size_bytes' => null,
-            'uploaded_by' => null,
+            'added_by' => null,
         ];
     }
 
     /**
-     * A 2 MB PDF on the private `local` disk. The factory does not write the file; tests that open or remove it put it
-     * on the faked disk at `path`.
+     * A Google Drive file shared by link.
      */
-    public function file(): static
+    public function googleDrive(): static
     {
         return $this->state(fn (): array => [
-            'type' => TrainingSessionResourceType::File,
-            'url' => null,
-            'disk' => 'local',
-            'path' => 'training-sessions/resources/'.fake()->uuid().'.pdf',
-            'original_filename' => fake()->slug(2).'.pdf',
-            'mime_type' => 'application/pdf',
-            'size_bytes' => 2 * 1024 * 1024,
+            'url' => 'https://drive.google.com/file/d/'.fake()->regexify('[A-Za-z0-9_-]{33}').'/view?usp=sharing',
         ]);
     }
 

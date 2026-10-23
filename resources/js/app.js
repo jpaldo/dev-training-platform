@@ -925,6 +925,29 @@ const initializeSessionEndDate = () => {
     });
 };
 
+/**
+ * Load each `details[data-resource-preview]` session resource preview only when it is first expanded: copy its iframe's
+ * `data-preview-src` into `src` on the first `toggle` to open, so collapsed rows load nothing from Google Drive.
+ */
+const initializeResourcePreviews = () => {
+    document.querySelectorAll('details[data-resource-preview]').forEach((details) => {
+        const frame = details.querySelector('iframe[data-preview-src]');
+
+        if (!frame) {
+            return;
+        }
+
+        const loadPreview = () => {
+            if (details.open && !frame.hasAttribute('src')) {
+                frame.src = frame.dataset.previewSrc;
+            }
+        };
+
+        details.addEventListener('toggle', loadPreview);
+        loadPreview();
+    });
+};
+
 const initializePage = () => {
     initializeSidebarDrawer();
     initializeSidebarCurrentLink();
@@ -942,6 +965,7 @@ const initializePage = () => {
     initializeWeeklyVideoPreviews();
     initializeWeeklyVideoSizeLimit();
     initializeSessionEndDate();
+    initializeResourcePreviews();
 };
 
 if (document.readyState === 'loading') {

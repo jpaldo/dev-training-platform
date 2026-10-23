@@ -6,7 +6,6 @@
         $cellClasses = 'border-b border-line px-3.5 py-3.5 text-left align-middle max-sm:px-2.5 max-sm:py-3';
         $tableRegionClasses = 'relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50';
         $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
-        $fileClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-raised file:px-3 file:py-1.5 file:font-sans file:font-bold file:text-white focus-visible:outline-3 focus-visible:outline-accent/50';
         $participantErrors = $errors->getBag('participants');
         $resourceErrors = $errors->getBag('resources');
     @endphp
@@ -161,58 +160,43 @@
                     <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="session-resources-title">
                         <h2 id="session-resources-title" class="text-xl font-extrabold">Resources</h2>
 
-                        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                            @foreach($addResource['forms'] as $form)
-                                @php
-                                    $isFailedForm = old('type') === $form['type'];
-                                @endphp
-                                <form method="POST" action="{{ $addResource['url'] }}" @if($form['isFile']) enctype="multipart/form-data" @endif class="grid min-w-0 grid-cols-1 content-start gap-3 rounded-xl border border-line bg-surface-sunken p-4" aria-labelledby="{{ $form['idPrefix'] }}-title">
-                                    @csrf
-                                    <input type="hidden" name="type" value="{{ $form['type'] }}">
-                                    <h3 id="{{ $form['idPrefix'] }}-title" class="text-base font-extrabold">{{ $form['heading'] }}</h3>
+                        <form method="POST" action="{{ $addResource['url'] }}" class="grid min-w-0 grid-cols-1 content-start gap-3 rounded-xl border border-line bg-surface-sunken p-4 lg:max-w-2xl" aria-labelledby="session-resource-add-title">
+                            @csrf
+                            <h3 id="session-resource-add-title" class="text-base font-extrabold">Add a resource</h3>
 
-                                    @if($isFailedForm && $resourceErrors->any())
-                                        <ul class="grid list-disc gap-1 pl-5 text-sm text-rose-200" role="alert">
-                                            @foreach($resourceErrors->all() as $message)
-                                                <li>{{ $message }}</li>
-                                            @endforeach
-                                        </ul>
-                                    @endif
+                            @if($resourceErrors->any())
+                                <ul class="grid list-disc gap-1 pl-5 text-sm text-rose-200" role="alert">
+                                    @foreach($resourceErrors->all() as $message)
+                                        <li>{{ $message }}</li>
+                                    @endforeach
+                                </ul>
+                            @endif
 
-                                    <div class="grid min-w-0 grid-cols-1 gap-2">
-                                        <label for="{{ $form['idPrefix'] }}-name" class="text-sm font-extrabold">Title</label>
-                                        <input id="{{ $form['idPrefix'] }}-name" name="title" type="text" required maxlength="255" value="{{ $isFailedForm ? old('title') : '' }}" @if($isFailedForm && $resourceErrors->has('title')) aria-invalid="true" @endif class="{{ $controlClasses }}">
-                                    </div>
+                            <div class="grid min-w-0 grid-cols-1 gap-2">
+                                <label for="session-resource-add-name" class="text-sm font-extrabold">Title</label>
+                                <input id="session-resource-add-name" name="title" type="text" required maxlength="255" value="{{ $resourceErrors->any() ? old('title') : '' }}" @if($resourceErrors->has('title')) aria-invalid="true" @endif class="{{ $controlClasses }}">
+                            </div>
 
-                                    @if($form['isFile'])
-                                        <div class="grid min-w-0 grid-cols-1 gap-2">
-                                            <label for="{{ $form['idPrefix'] }}-input" class="text-sm font-extrabold">File</label>
-                                            <p id="{{ $form['idPrefix'] }}-hint" class="text-sm/relaxed text-muted">PDF, Word, Excel, PowerPoint, an image or an MP4 video · maximum {{ $addResource['maxSizeLabel'] }}</p>
-                                            <input id="{{ $form['idPrefix'] }}-input" name="file" type="file" required accept="{{ $addResource['accept'] }}" aria-describedby="{{ $form['idPrefix'] }}-hint" @if($isFailedForm && $resourceErrors->has('file')) aria-invalid="true" @endif class="{{ $fileClasses }}">
-                                        </div>
-                                    @else
-                                        <div class="grid min-w-0 grid-cols-1 gap-2">
-                                            <label for="{{ $form['idPrefix'] }}-input" class="text-sm font-extrabold">Link</label>
-                                            <p id="{{ $form['idPrefix'] }}-hint" class="text-sm/relaxed text-muted">A full web address, e.g. a YouTube video or a shared document.</p>
-                                            <input id="{{ $form['idPrefix'] }}-input" name="url" type="url" required maxlength="2048" placeholder="https://" value="{{ $isFailedForm ? old('url') : '' }}" aria-describedby="{{ $form['idPrefix'] }}-hint" @if($isFailedForm && $resourceErrors->has('url')) aria-invalid="true" @endif class="{{ $controlClasses }}">
-                                        </div>
-                                    @endif
+                            <div class="grid min-w-0 grid-cols-1 gap-2">
+                                <label for="session-resource-add-url" class="text-sm font-extrabold">Link</label>
+                                <p id="session-resource-add-url-hint" class="text-sm/relaxed text-muted">Google Drive, Docs, Slides and Sheets links show a preview here. Other links, such as YouTube, open in a new tab.</p>
+                                <input id="session-resource-add-url" name="url" type="url" required maxlength="2048" placeholder="https://" value="{{ $resourceErrors->any() ? old('url') : '' }}" aria-describedby="session-resource-add-url-hint session-resource-add-sharing-hint" @if($resourceErrors->has('url')) aria-invalid="true" @endif class="{{ $controlClasses }}">
+                                <p id="session-resource-add-sharing-hint" class="text-sm/relaxed text-muted">Share Google Drive files with ‘Anyone with the link’ or with everyone at Full Scale. The app cannot check sharing, and people without access cannot see the file.</p>
+                            </div>
 
-                                    <div class="grid min-w-0 grid-cols-1 gap-2">
-                                        <label for="{{ $form['idPrefix'] }}-week" class="text-sm font-extrabold">For</label>
-                                        <select id="{{ $form['idPrefix'] }}-week" name="week_number" @if($isFailedForm && $resourceErrors->has('week_number')) aria-invalid="true" @endif class="{{ $controlClasses }}">
-                                            @foreach($addResource['weekOptions'] as $option)
-                                                <option value="{{ $option['value'] }}" @selected($isFailedForm && (string) old('week_number') === $option['value'])>{{ $option['label'] }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
+                            <div class="grid min-w-0 grid-cols-1 gap-2">
+                                <label for="session-resource-add-week" class="text-sm font-extrabold">For</label>
+                                <select id="session-resource-add-week" name="week_number" @if($resourceErrors->has('week_number')) aria-invalid="true" @endif class="{{ $controlClasses }}">
+                                    @foreach($addResource['weekOptions'] as $option)
+                                        <option value="{{ $option['value'] }}" @selected($resourceErrors->any() && (string) old('week_number') === $option['value'])>{{ $option['label'] }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
 
-                                    <div>
-                                        <x-ui.button variant="secondary" type="submit">{{ $form['submitLabel'] }}</x-ui.button>
-                                    </div>
-                                </form>
-                            @endforeach
-                        </div>
+                            <div>
+                                <x-ui.button variant="secondary" type="submit">Add Resource</x-ui.button>
+                            </div>
+                        </form>
 
                         @forelse($resourceGroups as $group)
                             <section class="grid min-w-0 grid-cols-1 gap-3" aria-labelledby="session-resources-{{ $group['key'] }}-title" data-resource-group>
@@ -222,16 +206,8 @@
                                         @php
                                             $renameErrors = $errors->getBag($resource['rename_error_bag']);
                                         @endphp
-                                        <li class="grid min-w-0 grid-cols-1 gap-3 rounded-xl border border-line bg-surface-sunken p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start" data-resource-row>
-                                            <div class="grid min-w-0 gap-1">
-                                                <div class="flex flex-wrap items-center gap-2">
-                                                    <a href="{{ $resource['open_url'] }}" target="_blank" rel="noopener" class="font-bold wrap-break-word text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">{{ $resource['title'] }}</a>
-                                                    <x-ui.badge>{{ $resource['type_label'] }}</x-ui.badge>
-                                                </div>
-                                                <p class="text-sm wrap-break-word text-muted">{{ $resource['detail'] }}</p>
-                                            </div>
-
-                                            <div class="flex flex-wrap items-start gap-2">
+                                        <li class="min-w-0">
+                                            <x-session-resource :resource="$resource">
                                                 <details class="group min-w-0" @if($renameErrors->any()) open @endif>
                                                     <summary class="inline-flex cursor-pointer list-none items-center rounded-xl border border-line bg-raised px-4 py-2.5 text-sm font-extrabold text-white hover:border-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent/50 [&::-webkit-details-marker]:hidden" aria-label="Rename {{ $resource['title'] }}">Rename</summary>
                                                     <form method="POST" action="{{ $resource['rename_url'] }}" class="mt-2 grid min-w-0 grid-cols-1 gap-2 sm:w-72">
@@ -253,7 +229,7 @@
                                                     @method('DELETE')
                                                     <x-ui.button variant="secondary" type="submit" aria-label="Remove {{ $resource['title'] }}">Remove</x-ui.button>
                                                 </form>
-                                            </div>
+                                            </x-session-resource>
                                         </li>
                                     @endforeach
                                 </ul>

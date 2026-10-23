@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\TrainingSessionResourceType;
 use App\Enums\UserRole;
 use App\Http\Requests\UpdateTrainingSessionResourceRequest;
 use App\Models\Activity;
@@ -58,10 +57,9 @@ class AdminTrainingSessionPageService
      * Edit link, and one tab each for the overview, participants, mentors, activities and resources, whose labels carry
      * live counts. Participants are read in one query with their membership, each with a Remove link; the add form
      * offers the active participants not in the session (one more query). Activities are the active activities of the
-     * session's weeks. Resources are grouped "Whole session", "Week 1", … (one query), with the forms that add a file or
-     * a link. Mentors (10.2) have no table yet, so their tab counts 0 and shows its empty state.
+     * session's weeks. Resources are grouped "Whole session", "Week 1", … (one query), with the form that adds a link. Mentors (10.2) have no table yet, so their tab counts 0 and shows its empty state.
      *
-     * @return array{title: string, program: string, dateRange: string, weeksLabel: string, statusLabel: string, statusTone: string, editUrl: string, indexUrl: string, tabs: list<array{key: string, label: string}>, selectedTab: string, participants: list<array{name: string, employee_id: string, job_role: string, joined_on: string, remove_url: string}>, addParticipants: array{url: string, size: int, options: list<array{value: string, label: string}>}, activities: list<array{week: string, title: string}>, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, type_label: string, detail: string, open_url: string, rename_url: string, rename_error_bag: string, remove_url: string}>}>, addResource: array{url: string, weekOptions: list<array{value: string, label: string}>, accept: string, maxSizeLabel: string, forms: list<array{type: string, isFile: bool, heading: string, idPrefix: string, submitLabel: string}>}}
+     * @return array{title: string, program: string, dateRange: string, weeksLabel: string, statusLabel: string, statusTone: string, editUrl: string, indexUrl: string, tabs: list<array{key: string, label: string}>, selectedTab: string, participants: list<array{name: string, employee_id: string, job_role: string, joined_on: string, remove_url: string}>, addParticipants: array{url: string, size: int, options: list<array{value: string, label: string}>}, activities: list<array{week: string, title: string}>, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, rename_url: string, rename_error_bag: string, remove_url: string}>}>, addResource: array{url: string, weekOptions: list<array{value: string, label: string}>}}
      */
     public function showData(TrainingSession $trainingSession): array
     {
@@ -92,7 +90,7 @@ class AdminTrainingSessionPageService
             'addParticipants' => $this->addParticipantsForm($trainingSession),
             'activities' => $activities,
             'resourceGroups' => $this->resourceGroups($resources),
-            'addResource' => $this->addResourceForms($trainingSession),
+            'addResource' => $this->addResourceForm($trainingSession),
         ];
     }
 
@@ -268,7 +266,7 @@ class AdminTrainingSessionPageService
     private function resourceRows(TrainingSession $trainingSession): Collection
     {
         return $trainingSession->resources()
-            ->select(['id', 'training_session_id', 'week_number', 'title', 'type', 'url', 'original_filename', 'size_bytes'])
+            ->select(['id', 'training_session_id', 'week_number', 'title', 'url'])
             ->orderBy('week_number')
             ->orderBy('id')
             ->get();
@@ -276,11 +274,12 @@ class AdminTrainingSessionPageService
 
     /**
      * The Resources tab's groups, "Whole session" first and then "Week 1", "Week 2", …; weeks without resources are
-     * left out. Each row links to the resource and to its Rename and Remove actions; a file shows its name and size,
-     * a link its host.
+     * left out. Each row shows the link's host and kind ("Google Drive", "Google Docs", "Google Slides", "Google Sheets"
+     * or "Link"), opens the URL as entered ("Open in Drive" or "Open"), carries the embedded preview address of a Drive
+     * file (null for any other link) and links to its Rename and Remove actions.
      *
      * @param  Collection<int, TrainingSessionResource>  $resources
-     * @return list<array{key: string, label: string, resources: list<array{id: int, title: string, type_label: string, detail: string, open_url: string, rename_url: string, rename_error_bag: string, remove_url: string}>}>
+     * @return list<array{key: string, label: string, resources: list<array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, rename_url: string, rename_error_bag: string, remove_url: string}>}>
      */
     private function resourceGroups(Collection $resources): array
     {
@@ -290,18 +289,7 @@ class AdminTrainingSessionPageService
                 'key' => $key,
                 'label' => $group->first()->week_number === null ? 'Whole session' : "Week {$group->first()->week_number}",
                 'resources' => $group
-                    ->map(fn (TrainingSessionResource $resource): array => [
-                        'id' => $resource->id,
-                        'title' => $resource->title,
-                        'type_label' => $resource->type->label(),
-                        'detail' => $resource->isFile()
-                            ? $resource->original_filename.' · '.$this->fileSize((int) $resource->size_bytes)
-                            : (parse_url((string) $resource->url, PHP_URL_HOST) ?: (string) $resource->url),
-                        'open_url' => route('training.sessions.resources.show', [$resource->training_session_id, $resource]),
-                        'rename_url' => route('admin.sessions.resources.update', [$resource->training_session_id, $resource]),
-                        'rename_error_bag' => UpdateTrainingSessionResourceRequest::errorBagFor($resource),
-                        'remove_url' => route('admin.sessions.resources.destroy', [$resource->training_session_id, $resource]),
-                    ])
+                    ->map(fn (TrainingSessionResource $resource): array => $this->resourceRow($resource))
                     ->values()
                     ->all(),
             ])
@@ -310,11 +298,34 @@ class AdminTrainingSessionPageService
     }
 
     /**
-     * The forms that add a file or a link, for the whole session or one of its weeks.
+     * One resource row.
      *
-     * @return array{url: string, weekOptions: list<array{value: string, label: string}>, accept: string, maxSizeLabel: string, forms: list<array{type: string, isFile: bool, heading: string, idPrefix: string, submitLabel: string}>}
+     * @return array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, rename_url: string, rename_error_bag: string, remove_url: string}
      */
-    private function addResourceForms(TrainingSession $trainingSession): array
+    private function resourceRow(TrainingSessionResource $resource): array
+    {
+        $driveLink = $resource->googleDriveLink();
+
+        return [
+            'id' => $resource->id,
+            'title' => $resource->title,
+            'kind_label' => $driveLink?->label ?? 'Link',
+            'host' => parse_url($resource->url, PHP_URL_HOST) ?: $resource->url,
+            'open_url' => $resource->url,
+            'open_label' => $driveLink ? 'Open in Drive' : 'Open',
+            'preview_url' => $driveLink?->previewUrl,
+            'rename_url' => route('admin.sessions.resources.update', [$resource->training_session_id, $resource]),
+            'rename_error_bag' => UpdateTrainingSessionResourceRequest::errorBagFor($resource),
+            'remove_url' => route('admin.sessions.resources.destroy', [$resource->training_session_id, $resource]),
+        ];
+    }
+
+    /**
+     * The form that adds a link, for the whole session or one of its weeks.
+     *
+     * @return array{url: string, weekOptions: list<array{value: string, label: string}>}
+     */
+    private function addResourceForm(TrainingSession $trainingSession): array
     {
         return [
             'url' => route('admin.sessions.resources.store', $trainingSession),
@@ -325,36 +336,6 @@ class AdminTrainingSessionPageService
                     range(1, $trainingSession->weeks_count),
                 ),
             ],
-            'accept' => implode(',', array_map(fn (string $extension): string => ".{$extension}", config('training.session_resource_extensions'))),
-            'maxSizeLabel' => $this->fileSize((int) config('training.session_resource_max_kb') * 1024),
-            'forms' => [
-                [
-                    'type' => TrainingSessionResourceType::File->value,
-                    'isFile' => true,
-                    'heading' => 'Upload a file',
-                    'idPrefix' => 'session-resource-file',
-                    'submitLabel' => 'Upload File',
-                ],
-                [
-                    'type' => TrainingSessionResourceType::Link->value,
-                    'isFile' => false,
-                    'heading' => 'Add a link',
-                    'idPrefix' => 'session-resource-link',
-                    'submitLabel' => 'Add Link',
-                ],
-            ],
         ];
-    }
-
-    /**
-     * A file size in KB below 1 MB and in MB from there, e.g. "512 KB", "2 MB", "1.5 MB".
-     */
-    private function fileSize(int $bytes): string
-    {
-        if ($bytes < 1024 * 1024) {
-            return max(1, (int) round($bytes / 1024)).' KB';
-        }
-
-        return round($bytes / (1024 * 1024), 1).' MB';
     }
 }

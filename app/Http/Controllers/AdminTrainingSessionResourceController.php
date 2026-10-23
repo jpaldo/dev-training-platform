@@ -19,7 +19,7 @@ class AdminTrainingSessionResourceController extends Controller
 {
     public function store(StoreTrainingSessionResourceRequest $request, TrainingSession $trainingSession, TrainingSessionResourceService $resources): RedirectResponse
     {
-        $resource = $resources->add($trainingSession, $request->resourceType(), $request->safe()->only(['title', 'week_number', 'url']), $request->file('file'), $request->user());
+        $resource = $resources->add($trainingSession, $request->safe()->only(['title', 'week_number', 'url']), $request->user());
 
         return $this->toResourcesTab($trainingSession)->with('status', "Added \"{$resource->title}\".");
     }

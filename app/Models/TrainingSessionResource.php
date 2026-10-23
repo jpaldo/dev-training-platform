@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Enums\TrainingSessionResourceType;
+use App\Support\GoogleDriveLink;
 use Database\Factories\TrainingSessionResourceFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -10,10 +10,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * A file or link an admin shares with a training session, for the whole session (`week_number` null) or one week. A
- * file is kept on a private disk (`disk`, `path`, `original_filename`, `mime_type`, `size_bytes`); a link has a `url`.
+ * A link an admin shares with a training session, for the whole session (`week_number` null) or one week. Whether it
+ * is a Google Drive file with an in-app preview is derived from its `url` (`googleDriveLink()`), never stored.
  */
-#[Fillable(['training_session_id', 'week_number', 'title', 'type', 'url', 'disk', 'path', 'original_filename', 'mime_type', 'size_bytes', 'uploaded_by'])]
+#[Fillable(['training_session_id', 'week_number', 'title', 'url', 'added_by'])]
 class TrainingSessionResource extends Model
 {
     /** @use HasFactory<TrainingSessionResourceFactory> */
@@ -25,9 +25,7 @@ class TrainingSessionResource extends Model
     protected function casts(): array
     {
         return [
-            'type' => TrainingSessionResourceType::class,
             'week_number' => 'integer',
-            'size_bytes' => 'integer',
         ];
     }
 
@@ -36,13 +34,16 @@ class TrainingSessionResource extends Model
         return $this->belongsTo(TrainingSession::class);
     }
 
-    public function uploader(): BelongsTo
+    public function addedBy(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'uploaded_by');
+        return $this->belongsTo(User::class, 'added_by');
     }
 
-    public function isFile(): bool
+    /**
+     * The Google Drive file the link points at, or null for any other link.
+     */
+    public function googleDriveLink(): ?GoogleDriveLink
     {
-        return $this->type === TrainingSessionResourceType::File;
+        return GoogleDriveLink::fromUrl($this->url);
     }
 }

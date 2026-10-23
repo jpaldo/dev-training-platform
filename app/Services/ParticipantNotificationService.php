@@ -31,9 +31,10 @@ class ParticipantNotificationService
     }
 
     /**
-     * Raise and resolve the participant's notifications for the active program's weeks. Links to a week, activity or
-     * submission page go through the participant's session that includes the week (ParticipantWeekSessionService);
-     * without one those notifications have no link.
+     * Raise and resolve the participant's notifications for the active program's weeks, each week within the
+     * participant's session that includes it (ParticipantWeekSessionService): its access, Gate readiness, Gate
+     * evaluation and Weekly Video Recording come from that session, and its links go through it. A week in none of
+     * their sessions is skipped, like a week they cannot open yet.
      */
     public function sync(User $participant): void
     {
@@ -49,14 +50,15 @@ class ParticipantNotificationService
         $trainingSessions = $this->weekSessions->sessionsOfProgram($participant, $program->id);
         foreach ($program->weeks->sortBy('position') as $week) {
             $trainingSession = $this->weekSessions->firstIncludingWeek($trainingSessions, $week);
-            $available = $this->progression->canAccessWeek($participant, $week) || $this->progression->isWeekPassed($participant, $week);
+            $available = $trainingSession !== null
+                && ($this->progression->canAccessWeek($participant, $trainingSession, $week) || $this->progression->isWeekPassed($participant, $trainingSession, $week));
             if (! $available) {
                 continue;
             }
             foreach ($week->activities as $activity) {
                 $submission = $participant->activitySubmissions()->where('activity_id', $activity->id)->latest('attempt_number')->with(['versions' => fn (Relation $q): Relation => $q->latest('version_number')])->first();
-                $url = $trainingSession ? route('training.activities.show', [$trainingSession, $week, $activity]) : null;
-                $submissionUrl = $trainingSession ? route('training.submission.edit', [$trainingSession, $week, $activity]) : null;
+                $url = route('training.activities.show', [$trainingSession, $week, $activity]);
+                $submissionUrl = route('training.submission.edit', [$trainingSession, $week, $activity]);
                 $this->state($participant, "week:{$week->id}:activity:{$activity->id}:incomplete", ParticipantNotificationType::ActivityIncomplete, 'Activity incomplete', "{$activity->title} has not been completed for Week {$week->week_number}.", $url, ! $submission || $submission->isFailed());
                 $this->state($participant, "week:{$week->id}:activity:{$activity->id}:draft", ParticipantNotificationType::ActivityDraft, 'Continue your activity', "You have an unfinished draft for {$activity->title}.", $submissionUrl, $submission?->isDraft() === true);
                 $version = $submission?->versions->first();
@@ -78,16 +80,16 @@ class ParticipantNotificationService
                 return in_array($status, [...SubmissionStatus::handedIn(), SubmissionStatus::UnderReview], true);
             });
             $requiresVideo = $week->asksForWeeklyVideo();
-            $videoMissing = $requiresVideo && $allSubmitted && ! WeeklyVideoRecording::query()->where('user_id', $participant->id)->where('training_week_id', $week->id)->exists();
-            $this->state($participant, "week:{$week->id}:video", ParticipantNotificationType::MissingVideo, 'Weekly Video Recording missing', "Choose your Week {$week->week_number} video from Google Drive.", route('training.video-recording.edit', $week), $videoMissing);
+            $videoMissing = $requiresVideo && $allSubmitted && ! WeeklyVideoRecording::query()->where('training_session_id', $trainingSession->id)->where('user_id', $participant->id)->where('training_week_id', $week->id)->exists();
+            $this->state($participant, "week:{$week->id}:video", ParticipantNotificationType::MissingVideo, 'Weekly Video Recording missing', "Choose your Week {$week->week_number} video from Google Drive.", route('training.video-recording.edit', [$trainingSession, $week]), $videoMissing);
 
             $gate = $week->gates->first();
             if ($gate) {
-                $reasons = $this->gates->readiness($participant, $gate);
-                $passed = $gate->evaluations()->where('user_id', $participant->id)->where('status', GateEvaluationStatus::Passed)->latest('evaluated_at')->first();
-                $this->state($participant, "week:{$week->id}:gate", ParticipantNotificationType::GateIncomplete, "Week {$week->week_number} requirements incomplete", "You still have requirements to complete before your mentor can mark Week {$week->week_number} completed.", route('training.gates.show', [$week, $gate]), ! $passed && $reasons !== []);
+                $reasons = $this->gates->readiness($trainingSession, $participant, $gate);
+                $passed = $gate->evaluations()->where('training_session_id', $trainingSession->id)->where('user_id', $participant->id)->where('status', GateEvaluationStatus::Passed)->latest('evaluated_at')->first();
+                $this->state($participant, "week:{$week->id}:gate", ParticipantNotificationType::GateIncomplete, "Week {$week->week_number} requirements incomplete", "You still have requirements to complete before your mentor can mark Week {$week->week_number} completed.", route('training.gates.show', [$trainingSession, $week, $gate]), ! $passed && $reasons !== []);
                 if ($passed) {
-                    $this->event($participant, "event:gate:{$passed->id}", ParticipantNotificationType::GatePassed, "Week {$week->week_number} completed", "Your mentor marked Week {$week->week_number} completed.", $trainingSession ? route('training.weeks.show', [$trainingSession, $week]) : null);
+                    $this->event($participant, "event:gate:{$passed->id}", ParticipantNotificationType::GatePassed, "Week {$week->week_number} completed", "Your mentor marked Week {$week->week_number} completed.", route('training.weeks.show', [$trainingSession, $week]));
                 }
             }
         }

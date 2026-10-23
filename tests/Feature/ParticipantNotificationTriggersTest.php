@@ -8,6 +8,7 @@ use App\Models\GateCriterion;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -119,11 +120,12 @@ class ParticipantNotificationTriggersTest extends TestCase
         $week = TrainingWeek::factory()->create(['week_number' => 2]);
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         $criterion = GateCriterion::factory()->for($gate, 'gate')->create();
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
 
         $this->assertWriteQueuesOneSyncFor($participant, fn (): mixed => $this->actingAs($coach)
-            ->post(route('training.coach.gates.update', [$week, $participant, $gate]), ['status' => 'needs_revision', 'criteria' => [$criterion->id => 'not_met']])
+            ->post(route('training.coach.gates.update', [$session, $week, $participant, $gate]), ['status' => 'needs_revision', 'criteria' => [$criterion->id => 'not_met']])
             ->assertRedirect());
-        $this->assertDatabaseHas('gate_evaluations', ['training_gate_id' => $gate->id, 'user_id' => $participant->id, 'status' => 'needs_revision']);
+        $this->assertDatabaseHas('gate_evaluations', ['training_session_id' => $session->id, 'training_gate_id' => $gate->id, 'user_id' => $participant->id, 'status' => 'needs_revision']);
     }
 
     public function test_several_writes_for_one_participant_queue_one_sync_until_it_runs(): void

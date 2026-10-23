@@ -25,7 +25,7 @@ class CoachParticipantPageService
      * the Gate rows, the attendance summary and the page tabs. `shareDomain` is the Google Workspace domain the
      * weekly videos are shared with (null when none is configured).
      *
-     * @return array{participant: User, access: string, canManage: bool, submissions: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion}>, videoRecordings: Collection<int, WeeklyVideoRecording>, shareDomain: ?string, gates: Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int}>, attendance: array{completed_sessions: int, total_hours: float, active_session: ?AttendanceSession}, tabs: list<array{key: string, label: string}>, selectedTab: string}
+     * @return array{participant: User, access: string, canManage: bool, submissions: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion}>, videoRecordings: Collection<int, WeeklyVideoRecording>, shareDomain: ?string, gates: Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int, review_url: ?string}>, attendance: array{completed_sessions: int, total_hours: float, active_session: ?AttendanceSession}, tabs: list<array{key: string, label: string}>, selectedTab: string}
      */
     public function showData(User $viewer, User $participant): array
     {
@@ -76,15 +76,17 @@ class CoachParticipantPageService
     }
 
     /**
-     * The participant's Gates of the active program's weeks, with their evaluation or readiness status and blocker count.
+     * The participant's Gates of the active program's weeks, with their evaluation or readiness status and blocker count
+     * in the participant's session that includes the week, and the link to review the Gate there (null without such a
+     * session).
      *
-     * @return Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int}>
+     * @return Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int, review_url: ?string}>
      */
     private function gateRows(User $participant): Collection
     {
         ['gateRows' => $gateRows] = $this->gateOverview->participantOverview($participant);
 
-        return $gateRows->map(function (array $row): array {
+        return $gateRows->map(function (array $row) use ($participant): array {
             $status = $row['evaluation']?->status ?? GateEvaluationStatus::fromReadiness($row['readiness']);
 
             return [
@@ -98,6 +100,7 @@ class CoachParticipantPageService
                     GateEvaluationStatus::NotReady => 'neutral',
                 },
                 'blocker_count' => count($row['readiness'] ?? []),
+                'review_url' => $row['trainingSession'] ? route('training.coach.gates.show', [$row['trainingSession'], $row['gate']->week, $participant, $row['gate']]) : null,
             ];
         });
     }

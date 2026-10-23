@@ -15,6 +15,7 @@ use App\Models\Program;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -154,6 +155,7 @@ class CoachOperationsTest extends TestCase
         $program = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail();
         $week1 = $program->weeks()->where('week_number', 1)->firstOrFail();
         $gate = $week1->gates()->firstOrFail();
+        TrainingSession::factory()->forWeek($week1)->withParticipants($manual, $automation)->create();
         GateEvaluation::factory()->create(['training_gate_id' => $gate->id, 'user_id' => $manual->id, 'status' => 'passed', 'evaluated_at' => now()]);
 
         $response = $this->actingAs($coach)->get(route('coach.gates'));

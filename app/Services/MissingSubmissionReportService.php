@@ -9,8 +9,11 @@ use App\Models\ActivitySubmission;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSessionParticipant;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
 
@@ -36,13 +39,13 @@ class MissingSubmissionReportService
             return collect();
         }
 
-        $weekStates = app(WeekProgressionService::class)->weekStatesForParticipants($participants, $program->weeks()->get());
+        $accessibleWeekIds = $this->accessibleWeekIds($participants, $program);
         $rows = collect();
         foreach ($participants as $participant) {
             $mentor = $participant->assignedCoaches->pluck('name')->filter()->implode(', ') ?: 'Not assigned';
 
             foreach ($program->weeks as $week) {
-                if (! $weekStates[$participant->id][$week->id]['accessible']) {
+                if (! $accessibleWeekIds->get($participant->id, collect())->contains($week->id)) {
                     continue;
                 }
 
@@ -66,6 +69,33 @@ class MissingSubmissionReportService
             ->filter(fn (array $row): bool => $this->matches($row, $filters))
             ->sortBy([['participant_name', 'asc'], ['week_sort', 'asc'], ['category_sort', 'asc'], ['requirement', 'asc']])
             ->values();
+    }
+
+    /**
+     * Per participant, the ids of the program's weeks they can open in one of their sessions of the program that
+     * includes the week. A participant in none of its sessions can open none.
+     *
+     * @param  EloquentCollection<int, User>  $participants
+     * @return Collection<int, Collection<int, int>> keyed by participant id
+     */
+    private function accessibleWeekIds(EloquentCollection $participants, Program $program): Collection
+    {
+        $programWeeks = $program->weeks()->get();
+        $memberships = TrainingSessionParticipant::query()
+            ->whereIn('user_id', $participants->modelKeys())
+            ->whereHas('trainingSession', fn (Builder $query): Builder => $query->where('program_id', $program->id))
+            ->with('trainingSession')
+            ->get();
+        $weekStates = app(WeekProgressionService::class)->weekStatesForMemberships($memberships, $programWeeks);
+
+        return $memberships
+            ->groupBy('user_id', preserveKeys: true)
+            ->map(fn (Collection $participantMemberships): Collection => $participantMemberships
+                ->flatMap(fn (TrainingSessionParticipant $membership, int $key): array => $programWeeks
+                    ->filter(fn (TrainingWeek $week): bool => $membership->trainingSession->includesWeek($week) && $weekStates->get($key)->get($week->id)['accessible'])
+                    ->modelKeys())
+                ->unique()
+                ->values());
     }
 
     private function row(User $participant, string $mentor, string $category, int $week, string $requirement, int $expected, int $submitted, string $status, int $evidences): array

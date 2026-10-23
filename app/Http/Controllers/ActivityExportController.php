@@ -20,7 +20,7 @@ class ActivityExportController extends Controller
     public function export(Request $request, TrainingSession $trainingSession, TrainingWeek $trainingWeek, Activity $activity, GoogleDriveConnectionService $google, WeekProgressionService $progression, TrainingExportCoordinator $exports): RedirectResponse
     {
         $user = $request->user();
-        $progression->ensureCanAccessActivity($user, $trainingWeek, $activity);
+        $progression->ensureCanAccessActivity($user, $trainingSession, $trainingWeek, $activity);
         $submission = $user->activitySubmissions()->where('training_session_id', $trainingSession->id)->where('activity_id', $activity->id)->with(['versions' => fn (Relation $query): Relation => $query->latest('version_number')])->first();
 
         if (! $google->enabled() || ! $user->googleDriveConnection) {

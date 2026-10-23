@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\User;
 use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -45,6 +47,7 @@ class CoachReportsTest extends TestCase
         $this->seed(L4TrainingProgramSeeder::class);
         $admin = User::factory()->create(['role' => 'admin']);
         User::factory()->count(9)->create(['role' => 'participant']);
+        $this->enrollParticipantsInL4Session();
 
         $response = $this->actingAs($admin)->get(route('coach.reports.missing-submissions'));
 
@@ -72,6 +75,7 @@ class CoachReportsTest extends TestCase
         SubmissionVersion::factory()->for($failed, 'submission')->create(['status' => 'failed', 'submitted_at' => now()]);
         $retry = ActivitySubmission::factory()->for($participant, 'participant')->for($failedActivity)->create(['attempt_number' => 2, 'status' => 'draft']);
         SubmissionVersion::factory()->for($retry, 'submission')->create(['status' => 'draft']);
+        $this->enrollParticipantsInL4Session();
 
         $response = $this->actingAs($admin)->get(route('coach.reports.missing-submissions', [
             'participant' => $participant->id,
@@ -92,6 +96,7 @@ class CoachReportsTest extends TestCase
         $submittedActivity = $week->activities()->where('position', 2)->firstOrFail();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($submittedActivity)->create(['status' => 'submitted']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => null]);
+        $this->enrollParticipantsInL4Session();
 
         $this->actingAs($admin)->get(route('coach.reports.missing-submissions', [
             'participant' => $participant->id,
@@ -106,6 +111,7 @@ class CoachReportsTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'name' => 'Mentor Ely']);
         $participant = User::factory()->create(['name' => 'Combined QA', 'employee_id' => 'EMP-6001']);
         $participant->assignedCoaches()->attach($admin->id);
+        $this->enrollParticipantsInL4Session();
 
         $response = $this->actingAs($admin)->get(route('coach.reports.missing-submissions', [
             'mentor' => $admin->id,
@@ -125,5 +131,19 @@ class CoachReportsTest extends TestCase
         $rows = array_map(str_getcsv(...), array_slice(explode("\n", trim($csv)), 1));
         $this->assertNotEmpty($rows);
         $this->assertSame([['Combined QA', 'EMP-6001']], array_values(array_unique(array_map(fn (array $row): array => array_slice($row, 0, 2), $rows), SORT_REGULAR)));
+    }
+
+    /**
+     * Add every participant to an active session of the seeded L4 program: the missing submissions report lists only
+     * weeks a participant can open in a session.
+     */
+    private function enrollParticipantsInL4Session(): void
+    {
+        $program = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail();
+        $session = TrainingSession::query()->where('program_id', $program->id)->orderBy('id')->first()
+            ?? TrainingSession::factory()->for($program)->create();
+        $session->participants()->syncWithoutDetaching(
+            User::query()->where('role', UserRole::Participant)->pluck('id')->mapWithKeys(fn (int $id): array => [$id => ['joined_at' => now()]])->all(),
+        );
     }
 }

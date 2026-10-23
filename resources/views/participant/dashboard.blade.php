@@ -186,10 +186,12 @@
                                             <p class="m-0 text-sm">Status: <strong>{{ $gateItem['status_label'] }}</strong></p>
                                             @if($gateItem['readiness'])
                                                 <ul class="m-0 list-disc pl-5 text-sm/relaxed text-muted">@foreach($gateItem['readiness'] as $reason)<li>{{ $reason }}</li>@endforeach</ul>
-                                            @elseif(!$gateItem['evaluation'])
+                                            @elseif($gateItem['session'] && ! $gateItem['evaluation'])
                                                 <p class="m-0 text-sm text-muted">Your Gate is ready for Mentor review.</p>
                                             @endif
-                                            <x-ui.button variant="secondary" :href="route('training.gates.show', [$gateItem['week'], $gateItem['gate']])">View Gate</x-ui.button>
+                                            @if($gateItem['session'])
+                                                <x-ui.button variant="secondary" :href="route('training.gates.show', [$gateItem['session'], $gateItem['week'], $gateItem['gate']])">View Gate</x-ui.button>
+                                            @endif
                                         </div>
                                     @empty
                                         <p class="m-0 text-sm text-muted">No active Gates are configured.</p>
@@ -203,11 +205,11 @@
                                     <span class="text-sm text-muted">{{ $item['week']->weekly_video_recording ? 'Chosen' : 'Not chosen' }}</span>
                                     @if($item['week']->weekly_video_recording)
                                         <x-weekly-video-actions :recording="$item['week']->weekly_video_recording">
-                                            <x-ui.button variant="secondary" :href="route('training.video-recording.edit', $item['week'])">Change Video</x-ui.button>
+                                            <x-ui.button variant="secondary" :href="route('training.video-recording.edit', [$item['session'], $item['week']])">Change Video</x-ui.button>
                                         </x-weekly-video-actions>
                                     @else
                                         <div class="flex flex-wrap items-center gap-2.5">
-                                            <x-ui.button variant="secondary" :href="route('training.video-recording.edit', $item['week'])">Choose Video</x-ui.button>
+                                            <x-ui.button variant="secondary" :href="route('training.video-recording.edit', [$item['session'], $item['week']])">Choose Video</x-ui.button>
                                         </div>
                                     @endif
                                 </x-ui.card>

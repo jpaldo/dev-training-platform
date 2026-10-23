@@ -13,6 +13,7 @@ use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -48,6 +49,11 @@ class CoachOperationsControllerTest extends TestCase
         TrainingGate::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 4, 'position' => 3, 'is_active' => false]), 'week')->create();
         $completed = User::factory()->create();
         $partlyCompleted = User::factory()->create();
+        $splitAcrossSessions = User::factory()->create();
+        $session = TrainingSession::factory()->forWeek($weekTwoGate->week)->withParticipants($completed, $partlyCompleted, $splitAcrossSessions)->create();
+        $otherSession = TrainingSession::factory()->forWeek($weekTwoGate->week)->withParticipants($splitAcrossSessions)->create();
+        GateEvaluation::factory()->for($session)->for($weekTwoGate, 'gate')->for($splitAcrossSessions, 'participant')->create(['status' => 'passed']);
+        GateEvaluation::factory()->for($otherSession)->for($weekThreeGate, 'gate')->for($splitAcrossSessions, 'participant')->create(['status' => 'passed']);
         GateEvaluation::factory()->for($weekTwoGate, 'gate')->for($completed, 'participant')->create(['status' => 'passed']);
         GateEvaluation::factory()->for($weekThreeGate, 'gate')->for($completed, 'participant')->create(['status' => 'passed']);
         GateEvaluation::factory()->for($weekTwoGate, 'gate')->for($partlyCompleted, 'participant')->create(['status' => 'passed']);
@@ -56,7 +62,7 @@ class CoachOperationsControllerTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => 'coach']))
             ->get(route('coach.dashboard'))
             ->assertOk()
-            ->assertViewHas('stats', fn (array $stats): bool => $stats['participants']['value'] === 2 && $stats['completed']['value'] === 1);
+            ->assertViewHas('stats', fn (array $stats): bool => $stats['participants']['value'] === 3 && $stats['completed']['value'] === 1);
     }
 
     public function test_dashboard_counts_at_risk_participants_without_loading_their_progress(): void

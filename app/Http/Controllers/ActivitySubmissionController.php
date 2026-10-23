@@ -52,15 +52,15 @@ class ActivitySubmissionController extends Controller
         if ($user->hasAnyRole(UserRole::Participant) && $readiness->enforced() && ! $readiness->isReady($user)) {
             return redirect()->route('dashboard')->withErrors(['google_drive_setup' => $readiness->message($user)]);
         }
-        $progression->ensureCanAccessActivity($user, $trainingWeek, $activity);
-        if ($user->hasAnyRole(UserRole::Participant) && $progression->requiresAttendanceForActivity($user, $trainingWeek, $activity)) {
+        $progression->ensureCanAccessActivity($user, $trainingSession, $trainingWeek, $activity);
+        if ($user->hasAnyRole(UserRole::Participant) && $progression->requiresAttendanceForActivity($user, $trainingSession, $trainingWeek, $activity)) {
             $request->session()->put('attendance_return_to', route('training.submission.edit', [$trainingSession, $trainingWeek, $activity]));
 
             return redirect()->route('participant.attendance.index')->withErrors([
                 'attendance' => 'Please check in before continuing this activity.',
             ]);
         }
-        $progression->ensureCanEditActivity($user, $trainingWeek, $activity);
+        $progression->ensureCanEditActivity($user, $trainingSession, $trainingWeek, $activity);
 
         return response()
             ->view('submissions.edit', $pages->editData($user, $trainingSession, $trainingWeek, $activity))
@@ -71,7 +71,7 @@ class ActivitySubmissionController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $this->ensureCanEdit($user, $trainingWeek, $activity, $progression, $readiness);
+        $this->ensureCanEdit($user, $trainingSession, $trainingWeek, $activity, $progression, $readiness);
         Gate::authorize('create', ActivitySubmission::class);
         $version = $submissions->saveDraft($user, $trainingSession, $activity, $request->validated('field_values', []), $request->validated('participant_note'), $request->validated('interactions'));
 
@@ -86,7 +86,7 @@ class ActivitySubmissionController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $this->ensureCanEdit($user, $trainingWeek, $activity, $progression, $readiness);
+        $this->ensureCanEdit($user, $trainingSession, $trainingWeek, $activity, $progression, $readiness);
         $submission = $submissions->latestAttempt($user, $trainingSession, $activity);
         if ($submissions->hasDraftVersion($submission)) {
             return redirect()->route('training.submission.edit', [$trainingSession, $trainingWeek, $activity])->with('status', 'Revision draft already available.');
@@ -101,7 +101,7 @@ class ActivitySubmissionController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $this->ensureCanEdit($user, $trainingWeek, $activity, $progression, $readiness);
+        $this->ensureCanEdit($user, $trainingSession, $trainingWeek, $activity, $progression, $readiness);
         abort_unless($submissionVersion->submission->isForActivityInSession($activity, $trainingSession), 404);
         Gate::authorize('update', $submissionVersion);
         $submissions->submit($user, $submissionVersion);
@@ -110,12 +110,12 @@ class ActivitySubmissionController extends Controller
     }
 
     /**
-     * Stop the write when Google Drive is not ready (403) or the activity cannot be accessed or edited.
+     * Stop the write when Google Drive is not ready (403) or the activity cannot be accessed or edited in the session.
      */
-    private function ensureCanEdit(User $user, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, GoogleDriveReadinessService $readiness): void
+    private function ensureCanEdit(User $user, TrainingSession $trainingSession, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, GoogleDriveReadinessService $readiness): void
     {
         abort_if($user->hasAnyRole(UserRole::Participant) && $readiness->enforced() && ! $readiness->isReady($user), 403, $readiness->message($user));
-        $progression->ensureCanAccessActivity($user, $trainingWeek, $activity);
-        $progression->ensureCanEditActivity($user, $trainingWeek, $activity);
+        $progression->ensureCanAccessActivity($user, $trainingSession, $trainingWeek, $activity);
+        $progression->ensureCanEditActivity($user, $trainingSession, $trainingWeek, $activity);
     }
 }

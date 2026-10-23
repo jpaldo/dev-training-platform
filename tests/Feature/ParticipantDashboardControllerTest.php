@@ -177,6 +177,7 @@ class ParticipantDashboardControllerTest extends TestCase
     {
         $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
         $evaluatedGate = TrainingGate::factory()->for($week, 'week')->create(['title' => 'Evaluated Gate', 'position' => 1]);
         TrainingGate::factory()->for($week, 'week')->create(['title' => 'Unevaluated Gate', 'position' => 2]);
         Activity::factory()->for($week, 'week')->create();
@@ -185,7 +186,7 @@ class ParticipantDashboardControllerTest extends TestCase
         $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                'Week 2 Gate · Evaluated Gate', 'Status: <strong>Incomplete</strong>',
+                'Week 2 Gate · Evaluated Gate', 'Status: <strong>Incomplete</strong>', 'href="'.route('training.gates.show', [$session, $week, $evaluatedGate]).'"',
                 'Week 2 Gate · Unevaluated Gate', 'Status: <strong>Not ready</strong>',
             ], false);
     }
@@ -197,6 +198,7 @@ class ParticipantDashboardControllerTest extends TestCase
         [$weekOne, $weekTwo, $weekThree] = collect([1, 2, 3])
             ->map(fn (int $number): TrainingWeek => TrainingWeek::factory()->for($program)->create(['week_number' => $number, 'position' => $number]))
             ->all();
+        $session = TrainingSession::factory()->forWeek($weekOne)->withParticipants($participant)->create();
         $weekOneGate = TrainingGate::factory()->for($weekOne, 'week')->create();
         GateCriterion::factory()->for($weekOneGate, 'gate')->create(['criterion_type' => 'deliverable']);
         $weekTwoGate = TrainingGate::factory()->for($weekTwo, 'week')->create();
@@ -211,12 +213,12 @@ class ParticipantDashboardControllerTest extends TestCase
                 'aria-label="Week 2 progress"',
                 '>Video Recording</h3>',
                 'Not chosen',
-                'href="'.route('training.video-recording.edit', $weekTwo).'"',
+                'href="'.route('training.video-recording.edit', [$session, $weekTwo]).'"',
                 '>Choose Video</',
                 'aria-label="Week 3 progress"',
             ], false)
-            ->assertDontSee(route('training.video-recording.edit', $weekOne), false)
-            ->assertDontSee(route('training.video-recording.edit', $weekThree), false)
+            ->assertDontSee(route('training.video-recording.edit', [$session, $weekOne]), false)
+            ->assertDontSee(route('training.video-recording.edit', [$session, $weekThree]), false)
             ->getContent();
 
         $this->assertSame(1, substr_count($html, '>Video Recording</h3>'));
@@ -227,6 +229,7 @@ class ParticipantDashboardControllerTest extends TestCase
         $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
         GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
         $recording = WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create(['name' => 'week-1-walkthrough.mp4']);
 
         $this->actingAs($participant)->get(route('dashboard'))
@@ -237,7 +240,7 @@ class ParticipantDashboardControllerTest extends TestCase
                 'Chosen',
                 '>week-1-walkthrough.mp4</p>',
                 'href="'.$recording->driveViewUrl().'"',
-                'href="'.route('training.video-recording.edit', $week).'"',
+                'href="'.route('training.video-recording.edit', [$session, $week]).'"',
                 '>Change Video</',
                 'data-preview-src="'.$recording->drivePreviewUrl().'"',
                 'unshared in your Google Drive. Choose it again.',

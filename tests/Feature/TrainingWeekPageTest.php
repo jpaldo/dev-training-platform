@@ -37,7 +37,7 @@ class TrainingWeekPageTest extends TestCase
                 e($week->title),
                 e($week->description),
                 'id="week-main-action"',
-                'href="'.route('training.video-recording.edit', $week).'"',
+                'href="'.route('training.video-recording.edit', [$session, $week]).'"',
                 'Choose Weekly Video →',
                 e($gate->title),
                 'Gate status:',
@@ -50,7 +50,7 @@ class TrainingWeekPageTest extends TestCase
                 'Awaiting Review',
                 e($criteria[1]->description),
                 'Mentor approval is required before the next week unlocks.',
-                'href="'.route('training.gates.show', [$week, $gate]).'"',
+                'href="'.route('training.gates.show', [$session, $week, $gate]).'"',
                 'View Gate',
                 'ACTIVITY 1',
                 e($firstActivity->title),
@@ -101,7 +101,7 @@ class TrainingWeekPageTest extends TestCase
                 'Chosen',
                 e($recording->name),
                 $recording->driveViewUrl(),
-                'href="'.route('training.video-recording.edit', $week).'"',
+                'href="'.route('training.video-recording.edit', [$session, $week]).'"',
                 'Change Video',
                 'data-preview-src="'.$recording->drivePreviewUrl().'"',
                 'unshared in your Google Drive. Choose it again.',
@@ -111,6 +111,33 @@ class TrainingWeekPageTest extends TestCase
             ->assertDontSee('Choose Weekly Video');
 
         $this->assertSame(1, substr_count($response->getContent(), '✓'));
+    }
+
+    public function test_the_gate_summary_and_video_come_only_from_the_pages_session(): void
+    {
+        $participant = User::factory()->create();
+        ['session' => $sessionA, 'week' => $week, 'gate' => $gate] = $this->weekFixture(rows: 1, participant: $participant);
+        $sessionB = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $recording = $this->chooseWeeklyVideo($participant, $week);
+        GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+
+        $this->actingAs($participant)->get(route('training.weeks.show', [$sessionA, $week]))
+            ->assertOk()
+            ->assertSeeInOrder(['Gate status:', 'COMPLETED', e($recording->name)], false);
+
+        $this->actingAs($participant)->get(route('training.weeks.show', [$sessionB, $week]))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="week-main-action"',
+                'href="'.route('training.video-recording.edit', [$sessionB, $week]).'"',
+                'Choose Weekly Video →',
+                'Gate status:',
+                'NOT READY',
+                'href="'.route('training.gates.show', [$sessionB, $week, $gate]).'"',
+            ], false)
+            ->assertDontSee('COMPLETED')
+            ->assertDontSee(e($recording->name))
+            ->assertDontSee('/training/sessions/'.$sessionA->id.'/', false);
     }
 
     public function test_ready_participant_without_an_evaluation_sees_the_first_gate_by_position_ready_for_review(): void
@@ -130,7 +157,7 @@ class TrainingWeekPageTest extends TestCase
                 'Gate status:',
                 'READY FOR REVIEW',
                 'Required Weekly Video Recording',
-                'href="'.route('training.gates.show', [$week, $firstGate]).'"',
+                'href="'.route('training.gates.show', [$session, $week, $firstGate]).'"',
                 'View Gate',
             ], false)
             ->assertDontSee('Later Gate')
@@ -157,20 +184,20 @@ class TrainingWeekPageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 'id="week-main-action"',
-                'href="'.route('training.gates.show', [$weekOne, $weekOneGate]).'"',
+                'href="'.route('training.gates.show', [$session, $weekOne, $weekOneGate]).'"',
                 'View Gate →',
                 e($weekOneGate->title),
             ], false)
             ->assertDontSee('WEEKLY REQUIREMENT')
             ->assertDontSee('Choose Weekly Video')
-            ->assertDontSee(route('training.video-recording.edit', $weekOne), false);
-        $this->assertSame(1, substr_count($weekOnePage->getContent(), 'href="'.route('training.gates.show', [$weekOne, $weekOneGate]).'"'));
+            ->assertDontSee(route('training.video-recording.edit', [$session, $weekOne]), false);
+        $this->assertSame(1, substr_count($weekOnePage->getContent(), 'href="'.route('training.gates.show', [$session, $weekOne, $weekOneGate]).'"'));
 
         $this->actingAs($participant)->get(route('training.weeks.show', [$session, $weekTwo]))
             ->assertOk()
             ->assertSeeInOrder([
                 'id="week-main-action"',
-                'href="'.route('training.video-recording.edit', $weekTwo).'"',
+                'href="'.route('training.video-recording.edit', [$session, $weekTwo]).'"',
                 'Choose Weekly Video →',
                 'WEEKLY REQUIREMENT',
                 'Video Recording',
@@ -182,7 +209,7 @@ class TrainingWeekPageTest extends TestCase
             ->assertDontSee('week-main-action')
             ->assertDontSee('WEEKLY REQUIREMENT')
             ->assertDontSee('Choose Weekly Video')
-            ->assertDontSee(route('training.video-recording.edit', $weekThree), false);
+            ->assertDontSee(route('training.video-recording.edit', [$session, $weekThree]), false);
     }
 
     public function test_coach_sees_the_gate_not_ready_without_a_view_gate_link(): void
@@ -194,7 +221,7 @@ class TrainingWeekPageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([e($gate->title), 'Gate status:', 'NOT READY', 'Mentor approval is required before the next week unlocks.'], false)
             ->assertDontSee('View Gate')
-            ->assertDontSee(route('training.gates.show', [$week, $gate]), false);
+            ->assertDontSee(route('training.gates.show', [$session, $week, $gate]), false);
     }
 
     public function test_coach_sees_no_video_card_or_main_action_and_goes_back_to_the_profile(): void

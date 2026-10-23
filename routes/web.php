@@ -169,19 +169,17 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
                 Route::post('/activities/{activity}/submission/versions/{submissionVersion}/submit', [ActivitySubmissionController::class, 'submit'])->name('submission.submit');
                 Route::post('/activities/{activity}/submission/versions/{submissionVersion}/evidence', [SubmissionEvidenceController::class, 'store'])->name('evidence.store');
                 Route::post('/activities/{activity}/export', [ActivityExportController::class, 'export'])->name('activities.export');
+                Route::get('/gates/{trainingGate}', [GateReviewController::class, 'participant'])->name('gates.show');
+                Route::get('/video-recording', [WeeklyVideoRecordingController::class, 'edit'])->name('video-recording.edit');
+                Route::post('/video-recording', [WeeklyVideoRecordingController::class, 'store'])->name('video-recording.store');
             });
-        });
-        Route::middleware('role:participant')->group(function () {
-            Route::get('/weeks/{trainingWeek}/gates/{trainingGate}', [GateReviewController::class, 'participant'])->name('gates.show');
-            Route::get('/weeks/{trainingWeek}/video-recording', [WeeklyVideoRecordingController::class, 'edit'])->name('video-recording.edit');
-            Route::post('/weeks/{trainingWeek}/video-recording', [WeeklyVideoRecordingController::class, 'store'])->name('video-recording.store');
         });
         Route::get('/evidence/{submissionEvidence}/download', [SubmissionEvidenceController::class, 'download'])->name('evidence.download');
         Route::get('/evidence/{submissionEvidence}/view', [SubmissionEvidenceController::class, 'view'])->name('evidence.view');
         Route::get('/evidence/{submissionEvidence}/preview', [SubmissionEvidenceController::class, 'preview'])->name('evidence.preview');
-        Route::middleware('role:coach,admin')->prefix('coach')->name('coach.')->group(function () {
-            Route::get('/weeks/{trainingWeek}/participants/{participant}/gates/{trainingGate}', [GateReviewController::class, 'show'])->name('gates.show');
-            Route::post('/weeks/{trainingWeek}/participants/{participant}/gates/{trainingGate}', [GateReviewController::class, 'update'])->name('gates.update');
+        Route::middleware(['role:coach,admin', 'can:view,trainingSession', 'session.week'])->prefix('coach/sessions/{trainingSession}/weeks/{trainingWeek}')->name('coach.')->group(function (): void {
+            Route::get('/participants/{participant}/gates/{trainingGate}', [GateReviewController::class, 'show'])->name('gates.show');
+            Route::post('/participants/{participant}/gates/{trainingGate}', [GateReviewController::class, 'update'])->name('gates.update');
         });
     });
 

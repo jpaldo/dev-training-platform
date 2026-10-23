@@ -10,6 +10,7 @@ use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -119,12 +120,15 @@ class CoachParticipantPageTest extends TestCase
         $passedGate = TrainingGate::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 1]), 'week')->create(['title' => 'Passed Gate']);
         $blockedGate = TrainingGate::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 3, 'position' => 2]), 'week')->create(['title' => 'Blocked Gate']);
         Activity::factory()->for($blockedGate->week, 'week')->create();
+        $session = TrainingSession::factory()->forWeek($passedGate->week)->withParticipants($participant)->create();
+        $otherSession = TrainingSession::factory()->forWeek($passedGate->week)->create();
         GateEvaluation::factory()->for($passedGate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+        GateEvaluation::factory()->for($otherSession)->for($blockedGate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
 
         $this->actingAs($coach)->get(route('coach.participants.show', $participant))
             ->assertOk()
-            ->assertSeeInOrder(['Week 2 · Passed Gate', 'Completed'])
-            ->assertSeeInOrder(['Week 3 · Blocked Gate', 'Not ready', '(1 blocker(s))'])
+            ->assertSeeInOrder(['Week 2 · Passed Gate', 'Completed', 'href="'.route('training.coach.gates.show', [$session, $passedGate->week, $participant, $passedGate]).'"', 'Review Gate'], false)
+            ->assertSeeInOrder(['Week 3 · Blocked Gate', 'Not ready', '(1 blocker(s))', 'href="'.route('training.coach.gates.show', [$session, $blockedGate->week, $participant, $blockedGate]).'"'], false)
             ->assertDontSee('Daily logs');
     }
 
@@ -133,6 +137,7 @@ class CoachParticipantPageTest extends TestCase
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         $gate = TrainingGate::factory()->for(TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]), 'week')->create(['title' => 'Evaluated Gate']);
+        TrainingSession::factory()->forWeek($gate->week)->withParticipants($participant)->create();
         GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => $status]);
 
         $this->actingAs($coach)->get(route('coach.participants.show', $participant))

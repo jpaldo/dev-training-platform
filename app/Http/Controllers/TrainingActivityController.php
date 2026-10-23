@@ -26,8 +26,8 @@ class TrainingActivityController extends Controller
         /** @var User $user */
         $user = $request->user();
         $lifecycle->reconcileStale($user->id);
-        $progression->ensureCanAccessActivity($user, $trainingWeek, $activity);
-        if ($progression->requiresAttendanceForNewActivity($user, $trainingWeek, $activity)) {
+        $progression->ensureCanAccessActivity($user, $trainingSession, $trainingWeek, $activity);
+        if ($progression->requiresAttendanceForNewActivity($user, $trainingSession, $trainingWeek, $activity)) {
             return redirect()->route('dashboard')->withErrors(['attendance' => 'Please check in to access this week\'s activities.']);
         }
         $attempts = $page->attempts($user, $trainingSession, $activity);

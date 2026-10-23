@@ -20,7 +20,7 @@ class TrainingWeekController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $progression->ensureCanAccessWeek($user, $trainingWeek);
+        $progression->ensureCanAccessWeek($user, $trainingSession, $trainingWeek);
 
         return view('weeks.show', $page->showData($trainingSession, $trainingWeek, $user));
     }

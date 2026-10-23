@@ -33,6 +33,8 @@ class ParticipantNotificationsTest extends TestCase
     {
         $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant']);
+        $this->joinSession($participant, Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail());
+        GenerateParticipantNotificationsJob::dispatchSync($participant->id);
 
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('Activity incomplete')->assertDontSee('Daily Logs incomplete');
         $this->assertDatabaseMissing('participant_notifications', ['user_id' => $participant->id, 'type' => 'daily_logs']);
@@ -61,6 +63,7 @@ class ParticipantNotificationsTest extends TestCase
         $activity = $week->activities()->where('position', 1)->firstOrFail();
         ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'needs_revision']);
 
+        $this->joinSession($participant, $week->program);
         app(ParticipantNotificationService::class)->sync($participant);
 
         $revision = $participant->participantNotifications()->where('key', "week:{$week->id}:activity:{$activity->id}:revision")->firstOrFail();
@@ -84,6 +87,7 @@ class ParticipantNotificationsTest extends TestCase
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
         $review = SubmissionReview::factory()->for($version, 'submissionVersion')->create(['decision' => $decision]);
 
+        $this->joinSession($participant, $week->program);
         app(ParticipantNotificationService::class)->sync($participant);
 
         $revision = $participant->participantNotifications()->where('key', "week:{$week->id}:activity:{$activity->id}:revision")->firstOrFail();
@@ -119,6 +123,7 @@ class ParticipantNotificationsTest extends TestCase
         ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'failed', 'attempt_number' => 1]);
         ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $status, 'attempt_number' => 2]);
 
+        $this->joinSession($participant, $week->program);
         app(ParticipantNotificationService::class)->sync($participant);
 
         $reminderKeys = collect(['incomplete', 'draft', 'revision', 'review'])->mapWithKeys(fn (string $reminder): array => ["week:{$week->id}:activity:{$activity->id}:{$reminder}" => $reminder]);
@@ -157,6 +162,7 @@ class ParticipantNotificationsTest extends TestCase
             ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $statuses[$index % count($statuses)]]);
         }
 
+        $this->joinSession($participant, $week->program);
         app(ParticipantNotificationService::class)->sync($participant);
 
         $this->assertSame($isVideoReminderActive, $participant->participantNotifications()->active()->where('key', "week:{$week->id}:video")->exists());
@@ -188,6 +194,7 @@ class ParticipantNotificationsTest extends TestCase
             return $week;
         });
         GateEvaluation::factory()->for($weeks[2]->gates()->sole(), 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+        $this->joinSession($participant, $program);
 
         app(ParticipantNotificationService::class)->sync($participant);
 
@@ -203,6 +210,7 @@ class ParticipantNotificationsTest extends TestCase
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => GateCriterion::TYPE_DELIVERABLE]);
         Activity::factory()->for($week, 'week')->create();
+        $this->joinSession($participant, $week->program);
 
         app(ParticipantNotificationService::class)->sync($participant);
 
@@ -221,7 +229,7 @@ class ParticipantNotificationsTest extends TestCase
         $this->assertFalse($participant->participantNotifications()->active()->where('key', "week:{$week->id}:gate")->exists());
     }
 
-    public function test_activity_and_week_notifications_link_through_the_participants_session_and_have_no_link_without_one(): void
+    public function test_activity_and_week_notifications_link_through_the_participants_session_and_a_week_without_one_is_skipped(): void
     {
         $member = User::factory()->create();
         $outsider = User::factory()->create();
@@ -237,7 +245,7 @@ class ParticipantNotificationsTest extends TestCase
         $incompleteKey = "week:{$week->id}:activity:{$activity->id}:incomplete";
         $this->assertSame(route('training.activities.show', [$session, $week, $activity]), $member->participantNotifications()->where('key', $incompleteKey)->sole()->action_url);
         $this->assertSame(route('training.weeks.show', [$session, $week]), $member->participantNotifications()->where('key', "event:gate:{$evaluation->id}")->sole()->action_url);
-        $this->assertNull($outsider->participantNotifications()->where('key', $incompleteKey)->sole()->action_url);
+        $this->assertFalse($outsider->participantNotifications()->where('key', 'like', "week:{$week->id}:%")->exists());
     }
 
     public function test_week_one_work_raises_the_activity_video_and_gate_reminders(): void
@@ -253,6 +261,7 @@ class ParticipantNotificationsTest extends TestCase
         $submittedActivity = Activity::factory()->for($weeks[1], 'week')->create(['position' => 1]);
         $openActivity = Activity::factory()->for($weeks[1], 'week')->create(['position' => 2]);
         ActivitySubmission::factory()->for($participant, 'participant')->for($submittedActivity)->create(['status' => 'submitted']);
+        $session = $this->joinSession($participant, $program);
 
         app(ParticipantNotificationService::class)->sync($participant);
 
@@ -269,7 +278,7 @@ class ParticipantNotificationsTest extends TestCase
         $this->assertSame(ParticipantNotificationType::MissingVideo, $videoReminder->type);
         $this->assertSame('Weekly Video Recording missing', $videoReminder->title);
         $this->assertSame('Choose your Week 1 video from Google Drive.', $videoReminder->body);
-        $this->assertSame(route('training.video-recording.edit', $weeks[1]), $videoReminder->action_url);
+        $this->assertSame(route('training.video-recording.edit', [$session, $weeks[1]]), $videoReminder->action_url);
 
         WeeklyVideoRecording::factory()->for($participant, 'participant')->for($weeks[1], 'week')->create();
         app(ParticipantNotificationService::class)->sync($participant);
@@ -300,5 +309,18 @@ class ParticipantNotificationsTest extends TestCase
         $foreign = ParticipantNotification::factory()->create(['user_id' => $other->id]);
         $this->actingAs($participant)->get(route('participant.notifications'))->assertOk()->assertSee('Next');
         $this->actingAs($participant)->post(route('participant.notifications.read', $foreign))->assertNotFound();
+    }
+
+    /**
+     * Add the participant to the program's earliest session, the one the factories put training records in by default
+     * (TrainingSessionFactory::defaultForWeek()), creating an active one when the program has none.
+     */
+    private function joinSession(User $participant, Program $program): TrainingSession
+    {
+        $session = TrainingSession::query()->where('program_id', $program->id)->orderBy('id')->first()
+            ?? TrainingSession::factory()->for($program)->create();
+        $session->participants()->attach($participant, ['joined_at' => now()]);
+
+        return $session;
     }
 }

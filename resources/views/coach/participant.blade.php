@@ -117,7 +117,9 @@
                                             @endif
                                         </div>
                                     </div>
-                                    <x-ui.button variant="secondary" :href="route('training.coach.gates.show', [$row['gate']->week, $participant, $row['gate']])">Review Gate</x-ui.button>
+                                    @if($row['review_url'])
+                                        <x-ui.button variant="secondary" :href="$row['review_url']">Review Gate</x-ui.button>
+                                    @endif
                                 </li>
                             @endforeach
                         </ul>

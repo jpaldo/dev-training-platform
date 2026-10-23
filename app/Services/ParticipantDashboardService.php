@@ -11,6 +11,7 @@ use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingSession;
+use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -27,34 +28,46 @@ class ParticipantDashboardService
     ) {}
 
     /**
-     * Build the dashboard rows for every week of the program, with the participant's activity progress attached. An
-     * available week shows its Weekly Video Recording only when it asks for one; the program's weeks are expected to
-     * be loaded with TrainingWeek::withAsksForWeeklyVideo(). Each row carries the participant's session that includes
-     * the week (ParticipantWeekSessionService): its week and activity links go through it and its activity progress
-     * comes from that session's attempts; without one the row has no links and no progress.
+     * Build the dashboard rows for every week of the program, with the participant's activity progress attached. Each
+     * row carries the participant's session that includes the week (ParticipantWeekSessionService): its pass and
+     * access state, its week and activity links, its activity progress and its Weekly Video Recording come from that
+     * session; a week in none of their sessions is locked, with no links and no progress. An available week shows its
+     * Weekly Video Recording only when it asks for one; the program's weeks are expected to be loaded with
+     * TrainingWeek::withAsksForWeeklyVideo().
      *
      * @return Collection<int, array{week: TrainingWeek, session: ?TrainingSession, passed: bool, available: bool, locked_reason: ?string, shows_weekly_video: bool, is_current: bool, attendance_required: bool}>
      */
     public function weeks(User $user, Program $program, ?AttendanceSession $activeAttendance): Collection
     {
         $programWeeks = $program->weeks;
-        $weekStates = $this->progression->weekStates($user, $programWeeks);
-        $videoRecordings = WeeklyVideoRecording::query()->where('user_id', $user->id)->whereIn('training_week_id', $programWeeks->modelKeys())->get()->keyBy('training_week_id');
         $trainingSessions = $this->weekSessions->sessionsOfProgram($user, $program->id);
         $sessionsByWeek = $programWeeks->mapWithKeys(fn (TrainingWeek $week): array => [$week->id => $this->weekSessions->firstIncludingWeek($trainingSessions, $week)]);
+        $weekStatesBySession = $this->progression->weekStatesForMemberships($this->memberships($trainingSessions), $programWeeks);
+        $videoRecordings = WeeklyVideoRecording::query()
+            ->where('user_id', $user->id)
+            ->whereIn('training_session_id', $trainingSessions->pluck('id'))
+            ->whereIn('training_week_id', $programWeeks->modelKeys())
+            ->get()
+            ->keyBy(fn (WeeklyVideoRecording $recording): string => "{$recording->training_session_id}:{$recording->training_week_id}");
         $this->attachActivityProgress($user, $programWeeks, $sessionsByWeek);
 
-        $weeks = $programWeeks->sortBy('position')->values()->map(function (TrainingWeek $week) use ($weekStates, $videoRecordings, $sessionsByWeek): array {
-            $passed = $weekStates[$week->id]['passed'];
-            $available = $passed || $weekStates[$week->id]['accessible'];
-            $week->weekly_video_recording = $videoRecordings->get($week->id);
+        $weeks = $programWeeks->sortBy('position')->values()->map(function (TrainingWeek $week) use ($weekStatesBySession, $videoRecordings, $sessionsByWeek): array {
+            $trainingSession = $sessionsByWeek->get($week->id);
+            $weekState = $trainingSession ? $weekStatesBySession->get($trainingSession->id)->get($week->id) : ['passed' => false, 'accessible' => false];
+            $passed = $weekState['passed'];
+            $available = $passed || $weekState['accessible'];
+            $week->weekly_video_recording = $trainingSession ? $videoRecordings->get("{$trainingSession->id}:{$week->id}") : null;
 
             return [
                 'week' => $week,
-                'session' => $sessionsByWeek->get($week->id),
+                'session' => $trainingSession,
                 'passed' => $passed,
                 'available' => $available,
-                'locked_reason' => $passed ? null : ($available ? null : 'Your mentor must mark the previous week completed before you can continue.'),
+                'locked_reason' => match (true) {
+                    $available => null,
+                    $trainingSession === null => 'You are not in a training session that includes this week.',
+                    default => 'Your mentor must mark the previous week completed before you can continue.',
+                },
                 'shows_weekly_video' => $available && $week->asksForWeeklyVideo(),
             ];
         });
@@ -70,27 +83,62 @@ class ParticipantDashboardService
     }
 
     /**
-     * Build the Gate rows of the program's active weeks with the participant's evaluation, readiness and status label
-     * (the saved evaluation status, or whether the Gate is ready for Coach review while it has none).
+     * Build the Gate rows of the program's active weeks, each from the participant's session that includes the week
+     * (ParticipantWeekSessionService): its evaluation, readiness and status label (the saved evaluation status, or
+     * whether the Gate is ready for Coach review while it has none). A week in none of their sessions has no session,
+     * evaluation or readiness, so its Gates show as not ready.
      *
-     * @return Collection<int, array{week: TrainingWeek, gate: TrainingGate, evaluation: ?GateEvaluation, readiness: array<string, string>, status_label: string}>
+     * @return Collection<int, array{week: TrainingWeek, gate: TrainingGate, session: ?TrainingSession, evaluation: ?GateEvaluation, readiness: ?array<string, string>, status_label: string}>
      */
     public function gates(User $user, Program $program): Collection
     {
-        $weeks = $program->weeks()->where('is_active', true)->with(['gates' => fn (Relation $query): Relation => $query->where('is_active', true)->with(['criteria', 'evaluations' => fn (Relation $evaluation): Relation => $evaluation->where('user_id', $user->id)])])->get();
-        $readinessByGate = $this->gateService->readinessForGates($user, $weeks->pluck('gates')->collapse());
+        $weeks = $program->weeks()->where('is_active', true)->with(['gates' => fn (Relation $query): Relation => $query->where('is_active', true)->with('criteria')])->get();
+        $gates = $weeks->pluck('gates')->collapse();
+        $trainingSessions = $this->weekSessions->sessionsOfProgram($user, $program->id);
+        $readinessBySession = $this->gateService->readinessForMemberships($this->memberships($trainingSessions), $gates);
+        $evaluations = GateEvaluation::query()
+            ->where('user_id', $user->id)
+            ->whereIn('training_session_id', $trainingSessions->pluck('id'))
+            ->whereIn('training_gate_id', $gates->pluck('id'))
+            ->get()
+            ->keyBy(fn (GateEvaluation $evaluation): string => "{$evaluation->training_session_id}:{$evaluation->training_gate_id}");
 
-        return $weeks->flatMap(function (TrainingWeek $week) use ($readinessByGate): array {
-            return $week->gates->map(function (TrainingGate $gate) use ($week, $readinessByGate): array {
-                $evaluation = $gate->evaluations->first();
-                $readiness = $readinessByGate->get($gate->id);
+        return $weeks->flatMap(function (TrainingWeek $week) use ($trainingSessions, $readinessBySession, $evaluations): array {
+            $trainingSession = $this->weekSessions->firstIncludingWeek($trainingSessions, $week);
+
+            return $week->gates->map(function (TrainingGate $gate) use ($week, $trainingSession, $readinessBySession, $evaluations): array {
+                $evaluation = $trainingSession ? $evaluations->get("{$trainingSession->id}:{$gate->id}") : null;
+                $readiness = $trainingSession ? $readinessBySession->get($trainingSession->id)->get($gate->id) : null;
 
                 return [
                     ...compact('week', 'gate', 'evaluation', 'readiness'),
+                    'session' => $trainingSession,
                     'status_label' => ($evaluation?->status ?? GateEvaluationStatus::fromReadiness($readiness))->label(),
                 ];
             })->all();
         })->values();
+    }
+
+    /**
+     * Whether the participant completed every week of their preferred session of the program
+     * (ParticipantWeekSessionService), false when they are in none.
+     */
+    public function isProgramCompleted(User $user, Program $program): bool
+    {
+        $trainingSession = $this->weekSessions->sessionsOfProgram($user, $program->id)->first();
+
+        return $trainingSession !== null && $this->progression->hasCompletedSession($user, $trainingSession);
+    }
+
+    /**
+     * The participant's memberships of the sessions, keyed by session id.
+     *
+     * @param  Collection<int, TrainingSession>  $trainingSessions  loaded through User::trainingSessions(), with their pivot
+     * @return Collection<int, TrainingSessionParticipant>
+     */
+    private function memberships(Collection $trainingSessions): Collection
+    {
+        return $trainingSessions->mapWithKeys(fn (TrainingSession $trainingSession): array => [$trainingSession->id => $trainingSession->pivot]);
     }
 
     /**

@@ -153,9 +153,10 @@ class HomeNavigationTest extends TestCase
         $participant = User::factory()->create();
         $week1 = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first();
         $gate = $week1->gates()->with('criteria')->firstOrFail();
+        $session = TrainingSession::factory()->forWeek($week1)->withParticipants($participant)->create();
         $response = $this->actingAs($participant)->get(route('dashboard'));
         $response->assertOk()->assertSee($gate->title)->assertSee('Not ready')->assertSee('View Gate');
-        $this->actingAs($participant)->get(route('training.gates.show', [$week1, $gate]))->assertOk()->assertSee($gate->criteria->first()->title)->assertSee('Awaiting Review');
+        $this->actingAs($participant)->get(route('training.gates.show', [$session, $week1, $gate]))->assertOk()->assertSee($gate->criteria->first()->title)->assertSee('Awaiting Review');
     }
 
     public function test_dashboard_shows_assigned_mentors_or_neutral_unassigned_state(): void

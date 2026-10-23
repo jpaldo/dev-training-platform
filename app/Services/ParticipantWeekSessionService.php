@@ -9,8 +9,9 @@ use Illuminate\Support\Collection;
 
 /**
  * Picks the training session a participant opens a week in from the pages that do not carry a session yet: the
- * participant dashboard, the participant notifications and the Weekly Video Recording page. The week and activity
- * pages live under their session, so these pages link to the week through one of the participant's sessions.
+ * participant dashboard (until 9.5), the participant notifications (until 9.9) and the Gates on the coach participant
+ * page (until 10.5). The week, activity, submission, Gate and weekly video pages live under their session, so these
+ * pages read the week's progress from, and link to it through, one of the participant's sessions.
  */
 class ParticipantWeekSessionService
 {

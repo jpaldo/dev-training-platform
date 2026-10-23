@@ -8,6 +8,7 @@ use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveSync;
 use App\Models\Program;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\GoogleDriveConfigurationService;
@@ -148,7 +149,7 @@ class GoogleDriveConnectionTest extends TestCase
     public function test_connecting_from_the_weekly_video_page_returns_there_with_the_outcome(array $callbackQuery, int $tokenStatus, string $message, int $connections): void
     {
         $participant = User::factory()->create(['role' => 'participant']);
-        $videoPage = route('training.video-recording.edit', $this->weekAskingForTheVideo(), absolute: false);
+        $videoPage = route('training.video-recording.edit', $this->weekAskingForTheVideo($participant), absolute: false);
         Http::fake([
             'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'access', 'refresh_token' => 'refresh', 'expires_in' => 3600], $tokenStatus),
             'https://openidconnect.googleapis.com/v1/userinfo' => Http::response(['sub' => 'account', 'email' => 'participant@example.com'], 200),
@@ -336,12 +337,17 @@ class GoogleDriveConnectionTest extends TestCase
         $this->get(route('profile.google-drive.picker-token'))->assertRedirect(route('login'));
     }
 
-    private function weekAskingForTheVideo(): TrainingWeek
+    /**
+     * A week whose checklist asks for the weekly video, in an active session with the participant in it.
+     *
+     * @return array{TrainingSession, TrainingWeek}
+     */
+    private function weekAskingForTheVideo(User $participant): array
     {
         $week = TrainingWeek::factory()->for(Program::factory()->create(['is_active' => true]))->create(['week_number' => 1, 'position' => 1, 'is_active' => true]);
         $gate = TrainingGate::factory()->for($week, 'week')->create(['is_active' => true, 'position' => 1]);
         GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_video']);
 
-        return $week;
+        return [TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create(), $week];
     }
 }

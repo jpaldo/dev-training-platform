@@ -53,7 +53,7 @@
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="gate-board-caption">
             <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="gate-board-caption" tabindex="0">
                 <table class="w-full min-w-240 border-collapse text-sm">
-                    <caption id="gate-board-caption" class="pb-3 text-left text-muted">One row per participant and training Gate</caption>
+                    <caption id="gate-board-caption" class="pb-3 text-left text-muted">One row per participant, training session and Gate</caption>
                     <thead>
                         <tr>
                             <th scope="col" class="{{ $headerCellClasses }}">Gate</th>

@@ -19,11 +19,13 @@ class TrainingWeekPageService
     ) {}
 
     /**
-     * Everything the week page renders within the session: the week's active activities, each linked within the
-     * session, a summary of its first Gate (the user's Gate status, its checklist read only with each required item's
-     * review status and, for participants, the link to the Gate page) and, for participants in a week that asks for it, the Weekly Video Recording state. A participant's
-     * main action is Choose Weekly Video while such a week has no video chosen yet; in a week that does not ask for the
-     * video it is the link to the Gate page (then not repeated on the Gate card), or none without a Gate.
+     * Everything the week page renders within the session, from the user's work in that session: the week's active
+     * activities, each linked within the session, a summary of its first Gate (the user's Gate status, its checklist
+     * read only with each required item's review status and, for participants, the link to the Gate page) and, for
+     * participants in a week that asks for it, the Weekly Video Recording state. A participant's main action is Choose
+     * Weekly Video while such a week has no video chosen yet; in a week that does not ask for the video it is the link
+     * to the Gate page (then not repeated on the Gate card), or none without a Gate. The Gate and video links stay
+     * within the session.
      *
      * @return array{trainingWeek: TrainingWeek, activities: list<array{position: int, title: string, description: ?string, url: string}>, gate: ?array{title: string, status_label: string, status_tone: string, criteria: list<array{title: string, description: ?string, is_met: bool, status_label: string, status_tone: string}>, url: ?string}, showsWeeklyVideo: bool, videoRecording: ?WeeklyVideoRecording, mainAction: ?array{label: string, url: string}, changeVideoUrl: string, backUrl: string}
      */
@@ -37,10 +39,10 @@ class TrainingWeekPageService
         $isParticipant = $user->hasAnyRole(UserRole::Participant);
         $showsWeeklyVideo = $isParticipant && $week->asksForWeeklyVideo();
         $videoRecording = $showsWeeklyVideo
-            ? WeeklyVideoRecording::query()->where('user_id', $user->id)->where('training_week_id', $week->id)->first()
+            ? WeeklyVideoRecording::query()->where('training_session_id', $trainingSession->id)->where('user_id', $user->id)->where('training_week_id', $week->id)->first()
             : null;
-        $videoUrl = route('training.video-recording.edit', $week);
-        $gate = $this->gateSummary($week, $user, $isParticipant);
+        $videoUrl = route('training.video-recording.edit', [$trainingSession, $week]);
+        $gate = $this->gateSummary($trainingSession, $week, $user, $isParticipant);
         $mainAction = null;
         if ($showsWeeklyVideo && ! $videoRecording) {
             $mainAction = ['label' => 'Choose Weekly Video →', 'url' => $videoUrl];
@@ -70,13 +72,13 @@ class TrainingWeekPageService
     }
 
     /**
-     * The week's first Gate by position with the user's status and its checklist (the required items, read only). The
-     * status is the saved evaluation status; without one, a participant sees whether the Gate is ready for Coach review
-     * and anyone else sees NOT READY. Only participants get the link to their Gate page.
+     * The week's first Gate by position with the user's status in the session and its checklist (the required items,
+     * read only). The status is the saved evaluation status; without one, a participant sees whether the Gate is ready
+     * for Coach review and anyone else sees NOT READY. Only participants get the link to their Gate page.
      *
      * @return ?array{title: string, status_label: string, status_tone: string, criteria: list<array{title: string, description: ?string, is_met: bool, status_label: string, status_tone: string}>, url: ?string}
      */
-    private function gateSummary(TrainingWeek $week, User $user, bool $isParticipant): ?array
+    private function gateSummary(TrainingSession $trainingSession, TrainingWeek $week, User $user, bool $isParticipant): ?array
     {
         $gate = $week->gates->first();
         if (! $gate) {
@@ -84,15 +86,15 @@ class TrainingWeekPageService
         }
 
         /** @var ?GateEvaluation $evaluation */
-        $evaluation = $gate->evaluations()->where('user_id', $user->id)->with('criterionEvaluations')->first();
-        $readiness = $isParticipant && ! $evaluation ? $this->gates->readiness($user, $gate) : null;
+        $evaluation = $gate->evaluations()->where('training_session_id', $trainingSession->id)->where('user_id', $user->id)->with('criterionEvaluations')->first();
+        $readiness = $isParticipant && ! $evaluation ? $this->gates->readiness($trainingSession, $user, $gate) : null;
 
         return [
             'title' => $gate->title,
             'status_label' => $this->gatePage->statusLabel($evaluation, $readiness),
             'status_tone' => $this->gatePage->statusTone($evaluation, $readiness),
             'criteria' => $this->gatePage->criterionRows($gate, $evaluation),
-            'url' => $isParticipant ? route('training.gates.show', [$week, $gate]) : null,
+            'url' => $isParticipant ? route('training.gates.show', [$trainingSession, $week, $gate]) : null,
         ];
     }
 }

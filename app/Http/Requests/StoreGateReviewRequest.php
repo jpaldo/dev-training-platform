@@ -6,6 +6,7 @@ use App\Enums\GateCriterionStatus;
 use App\Enums\GateEvaluationStatus;
 use App\Models\GateCriterion;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\GateReadinessService;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -20,13 +21,16 @@ class StoreGateReviewRequest extends FormRequest
     private ?Collection $requiredCriteria = null;
 
     /**
-     * Determine if the user is authorized to make this request.
+     * Determine if the user is authorized to make this request: a coach or admin who manages the participant. A
+     * participant who is not in the route's session is not found, before the review is validated.
      */
     public function authorize(): bool
     {
         $participant = $this->route('participant');
+        $trainingSession = $this->route('trainingSession');
+        abort_unless($participant instanceof User && $trainingSession instanceof TrainingSession && $trainingSession->includesParticipant($participant), 404);
 
-        return $this->user()?->isCoachOrAdmin() === true && $participant instanceof User && $this->user()->canManageParticipant($participant);
+        return $this->user()?->isCoachOrAdmin() === true && $this->user()->canManageParticipant($participant);
     }
 
     /**
@@ -46,8 +50,8 @@ class StoreGateReviewRequest extends FormRequest
 
     /**
      * Once the fields are valid, check the decision against the weekly checklist (readiness does not block it): the
-     * weekly video item can be ticked only once a video is chosen, a completed week needs every required item
-     * ticked, and an incomplete week needs at least one required item left unticked.
+     * weekly video item can be ticked only once a video is chosen in the session, a completed week needs every required
+     * item ticked, and an incomplete week needs at least one required item left unticked.
      *
      * @return list<callable(Validator): void>
      */
@@ -59,7 +63,7 @@ class StoreGateReviewRequest extends FormRequest
             }
             $criteria = $this->requiredCriteria();
             $videoCriterion = $criteria->first(fn (GateCriterion $criterion): bool => $criterion->isWeeklyVideo());
-            if ($videoCriterion && $this->criterionStatus($videoCriterion) === GateCriterionStatus::Met && $gates->weeklyVideo($this->route('participant'), $this->route('trainingGate'))['status'] === 'missing') {
+            if ($videoCriterion && $this->criterionStatus($videoCriterion) === GateCriterionStatus::Met && $gates->weeklyVideo($this->route('trainingSession'), $this->route('participant'), $this->route('trainingGate'))['status'] === 'missing') {
                 $validator->errors()->add('criteria.'.$videoCriterion->id, 'The Weekly Video Recording cannot be marked Met until the participant has chosen a video.');
 
                 return;

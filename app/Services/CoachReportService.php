@@ -8,9 +8,11 @@ use App\Enums\UserRole;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\Program;
+use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -23,7 +25,8 @@ class CoachReportService
     public function __construct(private readonly WeekProgressionService $progression) {}
 
     /**
-     * Headline counts of the coach dashboard; no participant has completed a program while none is active.
+     * Headline counts of the coach dashboard. A participant has completed the active program once they passed every
+     * week of one of their sessions of it; no one has while no program is active.
      *
      * @return array{participants: int, completed: int, needs_review: int, needs_revision: int, at_risk: int}
      */
@@ -33,7 +36,7 @@ class CoachReportService
 
         return [
             'participants' => $participants->count(),
-            'completed' => $activeProgram ? $this->progression->completedParticipantIds($participants, $activeProgram)->count() : 0,
+            'completed' => $activeProgram ? $this->completedParticipantCount($participants, $activeProgram) : 0,
             'needs_review' => $this->reviewQueue()->whereIn('status', SubmissionStatus::awaitingReview())->count(),
             'needs_revision' => $this->reviewQueue()->where('status', SubmissionStatus::NeedsRevision)->count(),
             'at_risk' => $this->atRiskParticipants()->count(),
@@ -213,6 +216,22 @@ class CoachReportService
                     ->map(fn (User $item): array => [$item->name, $item->employee_id, $item->email, $item->activity_submissions_count, $item->gate_evaluations_count]),
             ],
         };
+    }
+
+    /**
+     * How many of the participants passed every week of one of their sessions of the program.
+     *
+     * @param  EloquentCollection<int, User>  $participants
+     */
+    private function completedParticipantCount(EloquentCollection $participants, Program $program): int
+    {
+        $memberships = TrainingSessionParticipant::query()
+            ->whereIn('user_id', $participants->modelKeys())
+            ->whereHas('trainingSession', fn (Builder $query): Builder => $query->where('program_id', $program->id))
+            ->with('trainingSession')
+            ->get();
+
+        return $this->progression->completedMemberships($memberships)->pluck('user_id')->unique()->count();
     }
 
     /**

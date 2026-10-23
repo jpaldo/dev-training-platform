@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Http\Requests\StoreGateReviewRequest;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\CoachGateReviewPageService;
@@ -18,31 +19,40 @@ use Illuminate\View\View;
 
 class GateReviewController extends Controller
 {
-    public function participant(TrainingWeek $trainingWeek, TrainingGate $trainingGate, ParticipantGatePageService $page): View
+    /**
+     * The participant's Gate page within the session. The route has already checked that they are in the session and
+     * that the week is one of its weeks.
+     */
+    public function participant(TrainingSession $trainingSession, TrainingWeek $trainingWeek, TrainingGate $trainingGate, ParticipantGatePageService $page): View
     {
-        abort_unless($trainingGate->training_week_id === $trainingWeek->id && $trainingWeek->is_active, 404);
+        abort_unless($trainingGate->training_week_id === $trainingWeek->id, 404);
 
-        return view('participant.gate', $page->showData($trainingWeek, request()->user(), $trainingGate));
+        return view('participant.gate', $page->showData($trainingSession, $trainingWeek, request()->user(), $trainingGate));
     }
 
-    public function show(TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, CoachGateReviewPageService $page): View
+    /**
+     * The coach Gate review of a participant's week in the session; a participant who is not in the session is not
+     * found.
+     */
+    public function show(TrainingSession $trainingSession, TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, CoachGateReviewPageService $page): View
     {
-        $this->guard($trainingWeek, $participant, $trainingGate);
-        $evaluation = $trainingGate->evaluations()->where('user_id', $participant->id)->first();
+        $this->guard($trainingSession, $trainingWeek, $participant, $trainingGate);
+        $evaluation = $this->evaluation($trainingSession, $participant, $trainingGate);
         if ($evaluation) {
             Gate::authorize('view', $evaluation);
         }
 
-        return view('coach.gate_review', $page->showData($trainingWeek, $participant, $trainingGate, $evaluation, request()->user()));
+        return view('coach.gate_review', $page->showData($trainingSession, $trainingWeek, $participant, $trainingGate, $evaluation, request()->user()));
     }
 
-    public function update(StoreGateReviewRequest $request, TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, GateReviewService $reviews): RedirectResponse
+    public function update(StoreGateReviewRequest $request, TrainingSession $trainingSession, TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, GateReviewService $reviews): RedirectResponse
     {
-        $this->guard($trainingWeek, $participant, $trainingGate);
+        $this->guard($trainingSession, $trainingWeek, $participant, $trainingGate);
         abort_unless($request->user()->canManageParticipant($participant), 403);
-        $existing = $trainingGate->evaluations()->where('user_id', $participant->id)->first();
+        $existing = $this->evaluation($trainingSession, $participant, $trainingGate);
         Gate::authorize($existing ? 'update' : 'create', $existing ?? GateEvaluation::class);
         $reviews->record(
+            trainingSession: $trainingSession,
             gate: $trainingGate,
             participant: $participant,
             reviewer: $request->user(),
@@ -54,8 +64,21 @@ class GateReviewController extends Controller
         return back()->with('status', 'Gate evaluation saved.');
     }
 
-    private function guard(TrainingWeek $week, User $participant, TrainingGate $gate): void
+    /**
+     * The participant's evaluation of the Gate in the session, if any.
+     */
+    private function evaluation(TrainingSession $trainingSession, User $participant, TrainingGate $gate): ?GateEvaluation
     {
-        abort_unless($week->id === $gate->training_week_id && $participant->role === UserRole::Participant, 404);
+        return $gate->evaluations()->where('training_session_id', $trainingSession->id)->where('user_id', $participant->id)->first();
+    }
+
+    private function guard(TrainingSession $trainingSession, TrainingWeek $week, User $participant, TrainingGate $gate): void
+    {
+        abort_unless(
+            $week->id === $gate->training_week_id
+                && $participant->role === UserRole::Participant
+                && $trainingSession->includesParticipant($participant),
+            404,
+        );
     }
 }

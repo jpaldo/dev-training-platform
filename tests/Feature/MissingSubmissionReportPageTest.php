@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\GateCriterion;
 use App\Models\Program;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -28,6 +30,7 @@ class MissingSubmissionReportPageTest extends TestCase
         GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
         $ada = User::factory()->create(['name' => 'Ada Alpha', 'email' => 'ada@example.test']);
         $ada->assignedCoaches()->attach([$admin->id, $coach->id]);
+        $this->enrollParticipants($week->program);
 
         $response = $this->actingAs($coach)->get(route('coach.reports.missing-submissions'))
             ->assertOk()
@@ -76,6 +79,7 @@ class MissingSubmissionReportPageTest extends TestCase
         User::factory()->create(['name' => 'Ada Alpha', 'employee_id' => 'FS-0001', 'email' => 'ada@example.test']);
         $chooser = User::factory()->create(['name' => 'Ben Beta']);
         WeeklyVideoRecording::factory()->for($chooser, 'participant')->for($week, 'week')->create();
+        $this->enrollParticipants($week->program);
 
         $csv = $this->actingAs($coach)->get(route('coach.reports.missing-submissions.export', ['status' => 'not_submitted']))
             ->assertOk()
@@ -98,6 +102,7 @@ class MissingSubmissionReportPageTest extends TestCase
             ->create();
         $mentor->assignedParticipants()->attach($participants->modelKeys());
         User::factory()->create(['name' => 'Page Unassigned']);
+        $this->enrollParticipants($week->program);
         $filters = [
             'mentor' => $mentor->id,
             'category' => 'activities',
@@ -135,6 +140,7 @@ class MissingSubmissionReportPageTest extends TestCase
         Activity::factory()->for($week, 'week')->create(['title' => 'Explore checkout']);
         User::factory()->create(['name' => 'Mia Manual']);
         User::factory()->create(['name' => 'Abe Automation']);
+        $this->enrollParticipants($week->program);
         $coach = User::factory()->create(['role' => 'coach']);
 
         $this->actingAs($coach)->get(route('coach.reports.missing-submissions', ['path' => 'automation']))
@@ -162,6 +168,7 @@ class MissingSubmissionReportPageTest extends TestCase
             GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
         }
         User::factory()->create(['name' => 'Wendy WeekOne']);
+        $this->enrollParticipants($program);
 
         $response = $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.reports.missing-submissions', ['week' => 1]))
             ->assertOk()
@@ -183,6 +190,7 @@ class MissingSubmissionReportPageTest extends TestCase
         GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_DELIVERABLE]);
         GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week')->state(['is_active' => false]), 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
         User::factory()->create();
+        $this->enrollParticipants($week->program);
 
         $response = $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.reports.missing-submissions'))
             ->assertOk()
@@ -198,6 +206,7 @@ class MissingSubmissionReportPageTest extends TestCase
         $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);
         Activity::factory()->for($week, 'week')->create();
         User::factory()->count(2)->create(['name' => 'Sam Same']);
+        $this->enrollParticipants($week->program);
 
         $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.reports.missing-submissions'))
             ->assertOk()
@@ -220,6 +229,7 @@ class MissingSubmissionReportPageTest extends TestCase
         $automationActivity = Activity::factory()->for($week, 'week')->create(['title' => 'Automation activity', 'position' => 3]);
         ActivityRequirement::factory()->for($automationActivity)->create();
         $participant = User::factory()->create();
+        $this->enrollParticipants($week->program);
 
         $html = $this->actingAs(User::factory()->create(['role' => 'coach']))
             ->get(route('coach.reports.missing-submissions', ['participant' => $participant->id, 'category' => 'activities']))
@@ -248,6 +258,34 @@ class MissingSubmissionReportPageTest extends TestCase
         $this->assertSame($this->reportQueryCount(1), $this->reportQueryCount(3));
     }
 
+    public function test_a_participant_in_no_session_of_the_active_program_has_no_rows(): void
+    {
+        $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);
+        Activity::factory()->for($week, 'week')->create(['title' => 'Explore checkout']);
+        User::factory()->create(['name' => 'Ivy Insession']);
+        $this->enrollParticipants($week->program);
+        User::factory()->create(['name' => 'Oscar Outside']);
+        TrainingSession::factory()->forWeek(TrainingWeek::factory()->for(Program::factory()->create(['is_active' => false]))->create(['week_number' => 2]))->withParticipants(User::query()->where('name', 'Oscar Outside')->sole())->create();
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.reports.missing-submissions'))
+            ->assertOk()
+            ->assertSee('>Ivy Insession</a>', false)
+            ->assertDontSee('>Oscar Outside</a>', false);
+    }
+
+    /**
+     * Add every participant to the earliest session of the program (the one the factories put training records in),
+     * creating an active one when it has none: the report lists only weeks a participant can open in a session.
+     */
+    private function enrollParticipants(Program $program): void
+    {
+        $session = TrainingSession::query()->where('program_id', $program->id)->orderBy('id')->first()
+            ?? TrainingSession::factory()->for($program)->create();
+        $session->participants()->syncWithoutDetaching(
+            User::query()->where('role', UserRole::Participant)->pluck('id')->mapWithKeys(fn (int $id): array => [$id => ['joined_at' => now()]])->all(),
+        );
+    }
+
     /**
      * The markup of the select with the given id, options included.
      */
@@ -274,6 +312,7 @@ class MissingSubmissionReportPageTest extends TestCase
         }
 
         User::factory()->count($participantCount)->create();
+        $this->enrollParticipants($program);
         $coach = User::factory()->create(['role' => 'coach']);
 
         $this->actingAs($coach)->get(route('coach.reports.missing-submissions'))->assertOk();

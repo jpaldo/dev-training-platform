@@ -12,6 +12,13 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
 class TrainingSessionParticipant extends Pivot
 {
     /**
+     * The table, so the model can also be queried on its own.
+     *
+     * @var string
+     */
+    protected $table = 'training_session_participants';
+
+    /**
      * The table has its own auto-incrementing id.
      *
      * @var bool
@@ -21,6 +28,16 @@ class TrainingSessionParticipant extends Pivot
     protected function casts(): array
     {
         return ['joined_at' => 'datetime'];
+    }
+
+    public function trainingSession(): BelongsTo
+    {
+        return $this->belongsTo(TrainingSession::class);
+    }
+
+    public function participant(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     /**

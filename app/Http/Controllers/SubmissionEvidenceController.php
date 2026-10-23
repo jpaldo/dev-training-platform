@@ -30,8 +30,8 @@ class SubmissionEvidenceController extends Controller
         /** @var User $user */
         $user = $request->user();
         abort_if($user->role === UserRole::Participant && $readiness->enforced() && ! $readiness->isReady($user), 403, $readiness->message($user));
-        $progression->ensureCanAccessActivity($user, $trainingWeek, $activity);
-        $progression->ensureCanEditActivity($user, $trainingWeek, $activity);
+        $progression->ensureCanAccessActivity($user, $trainingSession, $trainingWeek, $activity);
+        $progression->ensureCanEditActivity($user, $trainingSession, $trainingWeek, $activity);
         abort_unless($submissionVersion->submission->isForActivityInSession($activity, $trainingSession), 404);
         Gate::authorize('update', $submissionVersion);
         $workflow->ensureDraft($user, $submissionVersion);

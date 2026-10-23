@@ -34,10 +34,9 @@ class WeeklyVideoRecordingPageTest extends TestCase
     public function test_participant_without_google_drive_connection_sees_the_connect_action_and_no_picker(): void
     {
         $participant = User::factory()->create();
-        ['week' => $week] = $this->weekFixture();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        ['week' => $week, 'session' => $session] = $this->weekFixture($participant);
 
-        $response = $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
+        $response = $this->actingAs($participant)->get(route('training.video-recording.edit', [$session, $week]))
             ->assertOk()
             ->assertSeeInOrder([
                 'WEEK 2',
@@ -47,7 +46,7 @@ class WeeklyVideoRecordingPageTest extends TestCase
                 'Video Recording',
                 'Record your actual work for this week.',
                 'Upload your video to your own Google Drive first, then choose it here. The app keeps a link to the file, not the video.',
-                'href="'.route('profile.google-drive.connect', ['return_to' => '/training/weeks/'.$week->id.'/video-recording']).'"',
+                'href="'.route('profile.google-drive.connect', ['return_to' => '/training/sessions/'.$session->id.'/weeks/'.$week->id.'/video-recording']).'"',
                 '>Connect Google Drive</a>',
             ], false)
             ->assertDontSee('data-drive-picker', false)
@@ -59,25 +58,34 @@ class WeeklyVideoRecordingPageTest extends TestCase
         $this->assertSame(1, substr_count($response->getContent(), 'from-brand to-brand-deep'));
     }
 
-    public function test_back_goes_to_the_dashboard_for_a_participant_in_no_session_with_the_week(): void
+    public function test_the_page_shows_only_the_video_chosen_in_its_session_and_posts_within_it(): void
     {
         $participant = User::factory()->create();
-        ['week' => $week] = $this->weekFixture();
-        TrainingSession::factory()->forWeek($week)->create();
+        ['week' => $week, 'gate' => $gate, 'session' => $sessionA] = $this->weekFixture($participant);
+        $sessionB = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $this->connectDrive($participant);
+        $this->chosenVideo($participant, $week);
+        GateEvaluation::factory()->for($sessionA)->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
 
-        $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
+        $this->actingAs($participant)->get(route('training.video-recording.edit', [$sessionB, $week]))
             ->assertOk()
-            ->assertSeeInOrder(['href="'.route('dashboard').'"', 'Back to Week'], false)
-            ->assertDontSee('/training/sessions/', false);
+            ->assertSeeInOrder([
+                'href="'.route('training.weeks.show', [$sessionB, $week]).'"',
+                'Back to Week',
+                '<form method="POST" action="'.route('training.video-recording.store', [$sessionB, $week]).'"',
+                '>Choose Video from Google Drive</button>',
+            ], false)
+            ->assertDontSee('week-2-walkthrough.mp4')
+            ->assertDontSee('This recording is locked');
     }
 
     public function test_participant_with_a_chosen_video_but_no_connection_sees_it_and_is_asked_to_connect_to_change_it(): void
     {
         $participant = User::factory()->create();
-        ['week' => $week] = $this->weekFixture();
+        ['week' => $week, 'session' => $session] = $this->weekFixture($participant);
         $this->chosenVideo($participant, $week);
 
-        $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
+        $this->actingAs($participant)->get(route('training.video-recording.edit', [$session, $week]))
             ->assertOk()
             ->assertSeeInOrder([
                 '<strong>Status:</strong>', '>Chosen</span>',
@@ -88,7 +96,7 @@ class WeeklyVideoRecordingPageTest extends TestCase
                 'data-preview-src="https://drive.google.com/file/d/drive-video-1/preview"',
                 'unshared in your Google Drive. Choose it again.',
                 'Connect Google Drive to choose a different video.',
-                'href="'.route('profile.google-drive.connect', ['return_to' => '/training/weeks/'.$week->id.'/video-recording']).'"',
+                'href="'.route('profile.google-drive.connect', ['return_to' => '/training/sessions/'.$session->id.'/weeks/'.$week->id.'/video-recording']).'"',
                 '>Connect Google Drive</a>',
             ], false)
             ->assertDontSee('Record your actual work for this week.')
@@ -99,10 +107,10 @@ class WeeklyVideoRecordingPageTest extends TestCase
     {
         config()->set('services.google_drive.enabled', false);
         $participant = User::factory()->create();
-        ['week' => $week] = $this->weekFixture();
+        ['week' => $week, 'session' => $session] = $this->weekFixture($participant);
         $this->connectDrive($participant);
 
-        $response = $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
+        $response = $this->actingAs($participant)->get(route('training.video-recording.edit', [$session, $week]))
             ->assertOk()
             ->assertSee('Google Drive is not available yet. Ask an administrator.')
             ->assertDontSee(route('profile.google-drive.connect'), false)
@@ -115,14 +123,14 @@ class WeeklyVideoRecordingPageTest extends TestCase
     public function test_connected_participant_sees_the_picker_form_with_a_single_main_action(): void
     {
         $participant = User::factory()->create();
-        ['week' => $week] = $this->weekFixture();
+        ['week' => $week, 'session' => $session] = $this->weekFixture($participant);
         $this->connectDrive($participant);
 
-        $response = $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
+        $response = $this->actingAs($participant)->get(route('training.video-recording.edit', [$session, $week]))
             ->assertOk()
             ->assertSeeInOrder([
                 'Record your actual work for this week.',
-                '<form method="POST" action="'.route('training.video-recording.store', $week).'" class="m-0 grid grid-cols-1 gap-5" data-weekly-video-form>',
+                '<form method="POST" action="'.route('training.video-recording.store', [$session, $week]).'" class="m-0 grid grid-cols-1 gap-5" data-weekly-video-form>',
                 'name="_token"',
                 '<input type="hidden" name="drive_file_id" value="">',
                 '<input type="hidden" name="resource_key" value="">',
@@ -147,11 +155,11 @@ class WeeklyVideoRecordingPageTest extends TestCase
     public function test_connected_participant_with_a_chosen_video_sees_it_its_notes_and_the_change_action(): void
     {
         $participant = User::factory()->create();
-        ['week' => $week] = $this->weekFixture();
+        ['week' => $week, 'session' => $session] = $this->weekFixture($participant);
         $this->connectDrive($participant);
         $this->chosenVideo($participant, $week);
 
-        $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
+        $this->actingAs($participant)->get(route('training.video-recording.edit', [$session, $week]))
             ->assertOk()
             ->assertSeeInOrder([
                 '>Chosen</span>',
@@ -170,10 +178,10 @@ class WeeklyVideoRecordingPageTest extends TestCase
     {
         config()->set('services.google_drive.picker_api_key', null);
         $participant = User::factory()->create();
-        ['week' => $week] = $this->weekFixture();
+        ['week' => $week, 'session' => $session] = $this->weekFixture($participant);
         $this->connectDrive($participant);
 
-        $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
+        $this->actingAs($participant)->get(route('training.video-recording.edit', [$session, $week]))
             ->assertOk()
             ->assertSeeInOrder([
                 '<button type="button" disabled data-drive-picker-kind="video"',
@@ -187,11 +195,11 @@ class WeeklyVideoRecordingPageTest extends TestCase
     public function test_recording_is_locked_once_the_participant_passes_an_active_gate_of_the_week(): void
     {
         $participant = User::factory()->create();
-        ['week' => $week, 'gate' => $gate] = $this->weekFixture();
+        ['week' => $week, 'gate' => $gate, 'session' => $session] = $this->weekFixture($participant);
         $this->connectDrive($participant);
         GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
 
-        $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
+        $this->actingAs($participant)->get(route('training.video-recording.edit', [$session, $week]))
             ->assertOk()
             ->assertSee('This recording is locked because the Gate has been completed.')
             ->assertDontSee('data-weekly-video-form', false)
@@ -202,14 +210,14 @@ class WeeklyVideoRecordingPageTest extends TestCase
     public function test_recording_stays_open_for_a_passed_inactive_gate_or_another_participants_pass(): void
     {
         $participant = User::factory()->create();
-        ['week' => $week, 'gate' => $gate] = $this->weekFixture();
+        ['week' => $week, 'gate' => $gate, 'session' => $session] = $this->weekFixture($participant);
         $this->connectDrive($participant);
         GateEvaluation::factory()->for($gate, 'gate')->for(User::factory(), 'participant')->create(['status' => 'passed']);
         $inactiveGate = TrainingGate::factory()->for($week, 'week')->create(['is_active' => false, 'position' => 2]);
         GateEvaluation::factory()->for($inactiveGate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
         GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
 
-        $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
+        $this->actingAs($participant)->get(route('training.video-recording.edit', [$session, $week]))
             ->assertOk()
             ->assertSee('data-weekly-video-form', false)
             ->assertSee('Choose Video from Google Drive')
@@ -219,7 +227,7 @@ class WeeklyVideoRecordingPageTest extends TestCase
     public function test_successful_choice_returns_to_the_page_with_the_status_alert(): void
     {
         $participant = User::factory()->create();
-        ['week' => $week] = $this->weekFixture();
+        ['week' => $week, 'session' => $session] = $this->weekFixture($participant);
         $this->connectDrive($participant);
         Http::fake(['https://www.googleapis.com/drive/v3/files/*' => Http::response([
             'id' => 'drive-video-1',
@@ -232,7 +240,7 @@ class WeeklyVideoRecordingPageTest extends TestCase
 
         $this->actingAs($participant)
             ->followingRedirects()
-            ->post(route('training.video-recording.store', $week), ['drive_file_id' => 'drive-video-1'])
+            ->post(route('training.video-recording.store', [$session, $week]), ['drive_file_id' => 'drive-video-1'])
             ->assertOk()
             ->assertSee('role="status"', false)
             ->assertSee('Video chosen from Google Drive.')
@@ -242,15 +250,15 @@ class WeeklyVideoRecordingPageTest extends TestCase
     public function test_refused_choice_returns_with_the_reason_and_the_entered_notes(): void
     {
         $participant = User::factory()->create();
-        ['week' => $week] = $this->weekFixture();
+        ['week' => $week, 'session' => $session] = $this->weekFixture($participant);
         $this->connectDrive($participant);
         Http::fake(['https://www.googleapis.com/drive/v3/files/*' => Http::response(['id' => 'drive-pdf', 'name' => 'notes.pdf', 'mimeType' => 'application/pdf', 'trashed' => false, 'ownedByMe' => true])]);
-        $editUrl = route('training.video-recording.edit', $week);
+        $editUrl = route('training.video-recording.edit', [$session, $week]);
 
         $this->actingAs($participant)
             ->from($editUrl)
             ->followingRedirects()
-            ->post(route('training.video-recording.store', $week), ['drive_file_id' => 'drive-pdf', 'notes' => 'Draft walkthrough notes'])
+            ->post(route('training.video-recording.store', [$session, $week]), ['drive_file_id' => 'drive-pdf', 'notes' => 'Draft walkthrough notes'])
             ->assertOk()
             ->assertSeeInOrder([
                 '>Draft walkthrough notes</textarea>',
@@ -263,19 +271,19 @@ class WeeklyVideoRecordingPageTest extends TestCase
     public function test_participant_cannot_open_the_page_for_a_week_they_cannot_access_yet(): void
     {
         $participant = User::factory()->create();
-        ['week' => $week] = $this->weekFixture();
+        ['week' => $week, 'session' => $session] = $this->weekFixture($participant);
         $nextWeek = TrainingWeek::factory()->for($week->program)->create(['week_number' => 3, 'position' => 2, 'is_active' => true]);
         $this->addVideoGate($nextWeek);
 
-        $this->actingAs($participant)->get(route('training.video-recording.edit', $nextWeek))->assertForbidden();
+        $this->actingAs($participant)->get(route('training.video-recording.edit', [$session, $nextWeek]))->assertForbidden();
     }
 
     public function test_page_is_not_found_for_a_week_whose_checklist_has_no_video_item(): void
     {
         $participant = User::factory()->create();
-        ['week' => $week, 'gate' => $gate] = $this->weekFixture();
+        ['week' => $week, 'gate' => $gate, 'session' => $session] = $this->weekFixture($participant);
         $gate->criteria()->update(['criterion_type' => 'deliverable']);
-        $url = route('training.video-recording.edit', $week);
+        $url = route('training.video-recording.edit', [$session, $week]);
 
         $this->actingAs($participant)->get($url)->assertNotFound();
 
@@ -286,15 +294,20 @@ class WeeklyVideoRecordingPageTest extends TestCase
     }
 
     /**
-     * An active Week 2 (the first week of an active program) with one active Gate that has a weekly video item.
+     * An active Week 2 (the first week of an active program) with one active Gate that has a weekly video item, and an
+     * active session of the program with the participant in it.
      *
-     * @return array{week: TrainingWeek, gate: TrainingGate}
+     * @return array{week: TrainingWeek, gate: TrainingGate, session: TrainingSession}
      */
-    private function weekFixture(): array
+    private function weekFixture(User $participant): array
     {
         $week = TrainingWeek::factory()->for(Program::factory()->create(['is_active' => true]))->create(['week_number' => 2, 'position' => 1, 'is_active' => true]);
 
-        return ['week' => $week, 'gate' => $this->addVideoGate($week)];
+        return [
+            'week' => $week,
+            'gate' => $this->addVideoGate($week),
+            'session' => TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create(),
+        ];
     }
 
     private function chosenVideo(User $participant, TrainingWeek $week): WeeklyVideoRecording

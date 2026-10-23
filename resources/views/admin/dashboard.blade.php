@@ -45,20 +45,6 @@
             @endif
         </x-ui.card>
 
-        <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="admin-training-title">
-            <h2 id="admin-training-title" class="m-0 text-xl font-extrabold">Training overview</h2>
-            @unless($hasActiveProgram)
-                <x-ui.alert tone="warning" role="status">No training program is active yet.</x-ui.alert>
-            @endunless
-            <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                @foreach($trainingStats as $stat)
-                    <x-ui.stat variant="field" :label="$stat['label']">
-                        <dd class="m-0 text-sm/relaxed text-muted"><strong class="text-white">{{ $stat['value'] }}</strong> participant(s) with activity records</dd>
-                    </x-ui.stat>
-                @endforeach
-            </dl>
-        </x-ui.card>
-
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="admin-review-title">
             <h2 id="admin-review-title" class="m-0 text-xl font-extrabold">Review / Gate overview</h2>
             <dl class="m-0 grid grid-cols-2 gap-4 sm:grid-cols-3">

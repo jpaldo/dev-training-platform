@@ -2,9 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\Program;
 use App\Models\TrainingSession;
-use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -114,14 +112,6 @@ class EmptyTrainingDataTest extends TestCase
             ->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE);
     }
 
-    public function test_admin_dashboard_says_no_program_is_active_in_the_training_overview(): void
-    {
-        $this->actingAs(User::factory()->create(['role' => 'admin']))
-            ->get(route('admin.dashboard'))
-            ->assertOk()
-            ->assertSeeInOrder(['Training overview', self::NO_ACTIVE_PROGRAM_NOTICE, 'Review / Gate overview']);
-    }
-
     public function test_participant_score_summary_csv_lists_each_session_membership_with_nothing_completed(): void
     {
         $participant = User::factory()->create(['name' => 'Ada Lovelace', 'employee_id' => 'EMP-000001', 'email' => 'ada@example.com']);
@@ -137,19 +127,5 @@ class EmptyTrainingDataTest extends TestCase
         $this->assertCount(2, $rows);
         $this->assertSame(['Ada Lovelace', 'EMP-000001', $session->titleWithDates(), 'ada@example.com', ''], array_slice($rows[1], 0, 5));
         $this->assertSame(['0', '0', '0', '', '', '', '', 'Not Scored', ''], array_slice($rows[1], 5));
-    }
-
-    public function test_pages_do_not_show_the_notice_while_a_program_is_active(): void
-    {
-        TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
-        $participant = User::factory()->create();
-        $coach = User::factory()->create(['role' => 'coach']);
-
-        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE);
-        $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk()->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE);
-        $this->actingAs(User::factory()->create(['role' => 'admin']))
-            ->get(route('admin.dashboard'))
-            ->assertOk()
-            ->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE);
     }
 }

@@ -41,10 +41,6 @@ class AdminDashboardPageTest extends TestCase
                 '<dt', 'PARTICIPANTS', '<dd', '3',
                 '<dt', 'MENTORS', '<dd', '1',
                 '<dt', 'ADMINS', '<dd', '1',
-                'Training overview',
-                'WEEK2', '<strong class="text-white">2</strong> participant(s) with activity records',
-                'WEEK3', '<strong class="text-white">0</strong>',
-                'WEEK4', '<strong class="text-white">0</strong>',
                 'Review / Gate overview',
                 'AWAITING REVIEW', '<dd class="m-0 text-3xl font-black">1</dd>',
                 'NEEDS REVISION', '<dd class="m-0 text-3xl font-black">1</dd>',
@@ -68,18 +64,35 @@ class AdminDashboardPageTest extends TestCase
             ->assertDontSee('CALENDAR ATTENTION');
     }
 
-    public function test_week_counts_are_zero_without_an_active_program(): void
+    public function test_review_counts_cover_every_program_and_session_and_no_program_wide_training_stats_are_shown(): void
     {
-        $activity = Activity::factory()->for(TrainingWeek::factory()->for(Program::factory()->state(['is_active' => false]))->state(['week_number' => 2]), 'week')->create();
-        ActivitySubmission::factory()->for($activity)->create(['status' => 'submitted']);
+        $activePrograms = Program::factory()->count(2)->create();
+        $inactiveProgram = Program::factory()->create(['is_active' => false]);
+
+        foreach ([...$activePrograms, $inactiveProgram] as $program) {
+            $week = TrainingWeek::factory()->for($program)->create(['week_number' => 1]);
+            $activity = Activity::factory()->for($week, 'week')->create();
+            $session = TrainingSession::factory()->for($program)->create();
+            ActivitySubmission::factory()->for($activity)->for($session)->create(['status' => 'submitted']);
+            ActivitySubmission::factory()->for($activity)->for($session)->create(['status' => 'needs_revision']);
+            GateEvaluation::factory()->for($session)->create([
+                'training_gate_id' => TrainingGate::factory()->create(['training_week_id' => $week->id])->id,
+                'status' => 'needs_revision',
+            ]);
+        }
 
         $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('admin.dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                'WEEK2', '<strong class="text-white">0</strong>',
-                'AWAITING REVIEW', '<dd class="m-0 text-3xl font-black">1</dd>',
-            ], false);
+                'Review / Gate overview',
+                'AWAITING REVIEW', '<dd class="m-0 text-3xl font-black">3</dd>',
+                'NEEDS REVISION', '<dd class="m-0 text-3xl font-black">3</dd>',
+                'PENDING GATES', '<dd class="m-0 text-3xl font-black">3</dd>',
+            ], false)
+            ->assertDontSee('Training overview')
+            ->assertDontSee('participant(s) with activity records')
+            ->assertDontSee('No training program is active yet.');
     }
 
     public function test_the_training_sessions_card_lists_the_five_newest_sessions_by_start_date_linked_to_their_dashboards(): void
@@ -113,7 +126,7 @@ class AdminDashboardPageTest extends TestCase
                 'href="'.route('admin.sessions.show', $sessions['November Run']).'"', 'November Run', 'Active', 'L4 Accelerator', '9 Nov – 6 Dec 2026', 'Participants: <strong class="text-white tabular-nums">2</strong>',
                 'href="'.route('admin.sessions.show', $sessions['October Run']).'"', 'October Run', 'Completed', 'Participants: <strong class="text-white tabular-nums">0</strong>',
                 'href="'.route('admin.sessions.show', $sessions['September Run']).'"', 'September Run', 'Completed',
-                'Training overview',
+                'Review / Gate overview',
             ], false)
             ->assertDontSee('August Run')
             ->assertDontSee('No training sessions yet.');
@@ -131,8 +144,9 @@ class AdminDashboardPageTest extends TestCase
                 'href="'.route('admin.sessions.index').'"', 'View all sessions',
                 'No training sessions yet.',
                 'href="'.route('admin.sessions.create').'"', 'Create session',
-                'Training overview',
+                'Review / Gate overview',
             ], false)
-            ->assertDontSee('data-recent-session-row', false);
+            ->assertDontSee('data-recent-session-row', false)
+            ->assertDontSee('No training program is active yet.');
     }
 }

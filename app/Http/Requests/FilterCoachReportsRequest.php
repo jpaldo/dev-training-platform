@@ -2,8 +2,12 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\UserRole;
+use App\Models\TrainingSession;
+use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class FilterCoachReportsRequest extends FormRequest
 {
@@ -24,7 +28,8 @@ class FilterCoachReportsRequest extends FormRequest
     {
         return [
             'search' => ['nullable', 'string', 'max:100'],
-            'mentor' => ['nullable', 'integer'],
+            'session' => ['nullable', 'integer', Rule::exists(TrainingSession::class, 'id')],
+            'mentor' => ['nullable', 'integer', Rule::exists(User::class, 'id')->where('role', UserRole::Coach)],
         ];
     }
 }

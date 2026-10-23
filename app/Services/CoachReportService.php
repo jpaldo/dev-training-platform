@@ -7,14 +7,12 @@ use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
-use App\Models\Program;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -24,49 +22,55 @@ class CoachReportService
     /** @var list<SubmissionStatus> The submission statuses that put a participant at risk. */
     private const AT_RISK_SUBMISSION_STATUSES = [SubmissionStatus::NeedsRevision, SubmissionStatus::Failed];
 
-    public function __construct(private readonly WeekProgressionService $progression) {}
+    public function __construct(
+        private readonly WeekProgressionService $progression,
+        private readonly ScoringReportService $scoringReports,
+    ) {}
 
     /**
-     * Headline counts of the coach dashboard. A participant has completed the active program once they passed every
-     * week of one of their sessions of it; no one has while no program is active.
+     * Headline counts of the coach dashboard for the viewer, each counting what the page its stat links to lists: the
+     * session memberships they may see (every one for an admin, otherwise those where they are the participant's
+     * current mentor), how many of those memberships passed every week of their session, their review queue awaiting
+     * review and needing revision, and their at-risk memberships.
      *
      * @return array{participants: int, completed: int, needs_review: int, needs_revision: int, at_risk: int}
      */
-    public function dashboardStats(?Program $activeProgram): array
+    public function dashboardStats(User $viewer): array
     {
-        $participants = $this->filteredParticipants()->get(['id']);
+        $memberships = TrainingSessionParticipant::query()
+            ->whereHas('participant', fn (Builder $participants): Builder => $participants->where('role', UserRole::Participant))
+            ->unless($viewer->hasAnyRole(UserRole::Admin), fn (Builder $query): Builder => $query->currentlyMentoredBy($viewer))
+            ->with('trainingSession:id,program_id,weeks_count')
+            ->get(['id', 'training_session_id', 'user_id']);
 
         return [
-            'participants' => $participants->count(),
-            'completed' => $activeProgram ? $this->completedParticipantCount($participants, $activeProgram) : 0,
-            'needs_review' => $this->reviewableSubmissions()->whereIn('status', SubmissionStatus::awaitingReview())->count(),
-            'needs_revision' => $this->reviewableSubmissions()->where('status', SubmissionStatus::NeedsRevision)->count(),
-            'at_risk' => $this->atRiskParticipants()->count(),
+            'participants' => $memberships->count(),
+            'completed' => $this->progression->completedMemberships($memberships)->count(),
+            'needs_review' => $this->reviewQueue($viewer)->whereIn('status', SubmissionStatus::awaitingReview())->count(),
+            'needs_revision' => $this->reviewQueue($viewer)->where('status', SubmissionStatus::NeedsRevision)->count(),
+            'at_risk' => $this->atRiskMemberships($viewer)->count(),
         ];
     }
 
     /**
-     * The participants matching the filters with their current mentors and their submission, Gate evaluation and
-     * passed Gate evaluation counts.
+     * The session memberships the viewer may see that match the search, session and mentor filters
+     * (ScoringReportService::memberships()), one per participant and session, each with the participant's
+     * submission, Gate evaluation and passed Gate evaluation counts in that session (`submission_count`,
+     * `gate_evaluation_count`, `passed_gate_count`).
      *
-     * @param  ?array{search?: ?string, mentor?: int|string|null, assigned_coach?: int|string|null}  $filters
-     * @return Builder<User>
+     * @param  array{search?: ?string, session?: int|string|null, mentor?: int|string|null}  $filters
+     * @return Builder<TrainingSessionParticipant>
      */
-    public function participants(?array $filters = null): Builder
+    public function progressMemberships(User $viewer, array $filters = []): Builder
     {
-        return $this->filteredParticipants($filters)
-            ->withCount([
-                'activitySubmissions',
-                'gateEvaluations',
-                'gateEvaluations as passed_gate_evaluations_count' => fn (Builder $query): Builder => $query->where('status', GateEvaluationStatus::Passed),
-            ])
-            ->with('currentMentors');
-    }
-
-    public function participantSummary(?array $filters = null): Builder
-    {
-        return $this->filteredParticipants($filters)
-            ->withCount(['activitySubmissions', 'gateEvaluations as passed_gate_evaluations_count' => fn (Builder $query): Builder => $query->where('status', GateEvaluationStatus::Passed)]);
+        return $this->scoringReports->memberships($viewer, Arr::only($filters, ['search', 'session', 'mentor']))
+            ->addSelect([
+                'submission_count' => $this->workOfMembership(ActivitySubmission::query())->selectRaw('count(*)'),
+                'gate_evaluation_count' => $this->workOfMembership(GateEvaluation::query())->selectRaw('count(*)'),
+                'passed_gate_count' => $this->workOfMembership(GateEvaluation::query())
+                    ->where('status', GateEvaluationStatus::Passed)
+                    ->selectRaw('count(*)'),
+            ]);
     }
 
     /**
@@ -90,51 +94,67 @@ class CoachReportService
     }
 
     /**
-     * The participants matching the filters who have a submission needing revision or failed, or a Gate evaluation
-     * that did not pass, in id order, with only those submissions (and their activity titles) and evaluations (and
-     * their Gate titles) loaded.
+     * The session memberships the viewer may see that match the search, session and mentor filters
+     * (ScoringReportService::memberships()) where the participant has, in that session, a submission needing revision
+     * or failed, or a Gate evaluation that did not pass. The participant's submissions in those statuses (with their
+     * activity titles) and evaluations that did not pass (with their Gate titles) are loaded for atRiskReasons().
      *
-     * @param  ?array{search?: ?string, mentor?: int|string|null, assigned_coach?: int|string|null}  $filters
-     * @return Builder<User>
+     * @param  array{search?: ?string, session?: int|string|null, mentor?: int|string|null}  $filters
+     * @return Builder<TrainingSessionParticipant>
      */
-    public function atRiskParticipants(?array $filters = null): Builder
+    public function atRiskMemberships(User $viewer, array $filters = []): Builder
     {
-        return $this->filteredParticipants($filters)
+        return $this->scoringReports->memberships($viewer, Arr::only($filters, ['search', 'session', 'mentor']))
             ->where(fn (Builder $query): Builder => $query
-                ->whereHas('activitySubmissions', fn (Builder $submissions): Builder => $submissions->whereIn('status', self::AT_RISK_SUBMISSION_STATUSES))
-                ->orWhereHas('gateEvaluations', fn (Builder $evaluations): Builder => $evaluations->where('status', '!=', GateEvaluationStatus::Passed)))
-            ->with([
-                'activitySubmissions' => fn (Relation $submissions): Relation => $submissions->whereIn('status', self::AT_RISK_SUBMISSION_STATUSES)->with('activity:id,title'),
-                'gateEvaluations' => fn (Relation $evaluations): Relation => $evaluations->where('status', '!=', GateEvaluationStatus::Passed)->with('gate:id,title'),
-            ])
-            ->orderBy('id');
+                ->whereExists($this->workOfMembership(ActivitySubmission::query())->whereIn('status', self::AT_RISK_SUBMISSION_STATUSES))
+                ->orWhereExists($this->workOfMembership(GateEvaluation::query())->where('status', '!=', GateEvaluationStatus::Passed)))
+            ->with(['participant' => fn (Relation $participants): Relation => $participants
+                ->select(['id', 'name', 'email', 'employee_id', 'is_active'])
+                ->with([
+                    'activitySubmissions' => fn (Relation $submissions): Relation => $submissions
+                        ->whereIn('status', self::AT_RISK_SUBMISSION_STATUSES)
+                        ->with('activity:id,title'),
+                    'gateEvaluations' => fn (Relation $evaluations): Relation => $evaluations
+                        ->where('status', '!=', GateEvaluationStatus::Passed)
+                        ->with('gate:id,title'),
+                ])]);
     }
 
     /**
-     * Why a participant loaded by atRiskParticipants() is at risk: "Activity: status" per submission, then "Gate:
-     * status" per evaluation.
+     * Why a membership loaded by atRiskMemberships() is at risk, from the participant's work in its session only:
+     * "Activity: status" per submission, then "Gate: status" per evaluation.
      *
      * @return list<string>
      */
-    public function atRiskReasons(User $participant): array
+    public function atRiskReasons(TrainingSessionParticipant $membership): array
     {
+        $participant = $membership->participant;
+
         return array_merge(
-            $participant->activitySubmissions->map(fn (ActivitySubmission $submission): string => "{$submission->activity->title}: {$submission->status->label()}")->values()->all(),
-            $participant->gateEvaluations->map(fn (GateEvaluation $evaluation): string => "{$evaluation->gate->title}: {$evaluation->status->label()}")->values()->all(),
+            $participant->activitySubmissions
+                ->where('training_session_id', $membership->training_session_id)
+                ->map(fn (ActivitySubmission $submission): string => "{$submission->activity->title}: {$submission->status->label()}")
+                ->values()
+                ->all(),
+            $participant->gateEvaluations
+                ->where('training_session_id', $membership->training_session_id)
+                ->map(fn (GateEvaluation $evaluation): string => "{$evaluation->gate->title}: {$evaluation->status->label()}")
+                ->values()
+                ->all(),
         );
     }
 
     /**
-     * Every at-risk participant matching the filters with their reasons.
+     * Every at-risk membership the viewer may see that matches the filters, with its reasons.
      *
-     * @param  ?array{search?: ?string, mentor?: int|string|null, assigned_coach?: int|string|null}  $filters
-     * @return Collection<int, array{participant: User, reasons: list<string>}>
+     * @param  array{search?: ?string, session?: int|string|null, mentor?: int|string|null}  $filters
+     * @return Collection<int, array{membership: TrainingSessionParticipant, reasons: list<string>}>
      */
-    public function atRiskRows(?array $filters = null): Collection
+    public function atRiskRows(User $viewer, array $filters = []): Collection
     {
-        return $this->atRiskParticipants($filters)->get()->map(fn (User $participant): array => [
-            'participant' => $participant,
-            'reasons' => $this->atRiskReasons($participant),
+        return $this->atRiskMemberships($viewer, $filters)->get()->map(fn (TrainingSessionParticipant $membership): array => [
+            'membership' => $membership,
+            'reasons' => $this->atRiskReasons($membership),
         ]);
     }
 
@@ -180,28 +200,24 @@ class CoachReportService
     }
 
     /**
-     * Headline counts of the reports page.
+     * Headline counts of the progress report over the viewer's session memberships matching the filters (see
+     * progressMemberships()): the memberships, those whose participant is active, their submissions and passed Gate
+     * evaluations in their sessions, and the given at-risk count.
      *
-     * @param  array<string, mixed>  $filters
+     * @param  array{search?: ?string, session?: int|string|null, mentor?: int|string|null}  $filters
      * @return array{participants: int, active: int, submissions: int, gates: int, at_risk: int}
      */
-    public function reportSummary(array $filters, int $atRiskCount): array
+    public function reportSummary(User $viewer, array $filters, int $atRiskCount): array
     {
-        $summaryRows = $this->participantSummary($filters)->get();
+        $memberships = $this->progressMemberships($viewer, $filters)->get();
 
         return [
-            'participants' => $summaryRows->count(),
-            'active' => $summaryRows->where('is_active', true)->count(),
-            'submissions' => $summaryRows->sum('activity_submissions_count'),
-            'gates' => $summaryRows->sum(fn (User $participant): int => $participant->passed_gate_evaluations_count),
+            'participants' => $memberships->count(),
+            'active' => $memberships->filter(fn (TrainingSessionParticipant $membership): bool => (bool) $membership->participant->is_active)->count(),
+            'submissions' => $memberships->sum(fn (TrainingSessionParticipant $membership): int => (int) $membership->submission_count),
+            'gates' => $memberships->sum(fn (TrainingSessionParticipant $membership): int => (int) $membership->passed_gate_count),
             'at_risk' => $atRiskCount,
         ];
-    }
-
-    /** @return Collection<int, User> */
-    public function mentors(): Collection
-    {
-        return User::query()->whereIn('role', [UserRole::Coach, UserRole::Admin])->orderBy('name')->get();
     }
 
     /**
@@ -216,8 +232,9 @@ class CoachReportService
     }
 
     /**
-     * Build a coach report CSV: participant progress by default, or the review queue (the viewer's, see reviewQueue()),
-     * Gate results (the viewer's, see filteredGateResults()) or at-risk list.
+     * Build a coach report CSV, each listing only what the viewer may see: participant progress per session membership
+     * by default (see progressMemberships()), or the review queue (see reviewQueue()), Gate results (see
+     * filteredGateResults()) or the at-risk memberships (see atRiskMemberships()).
      *
      * @param  array<string, mixed>  $input  the request's report filters
      * @return array{filename: string, header: list<string>, rows: Collection<int, list<mixed>>}
@@ -239,15 +256,14 @@ class CoachReportService
             ],
             'risk' => [
                 'filename' => 'at-risk.csv',
-                'header' => ['Participant', 'Reason'],
-                'rows' => $this->atRiskRows($filters)->map(fn (array $r): array => [$r['participant']->name, implode('; ', $r['reasons'])]),
+                'header' => ['Participant', 'Training session', 'Reason'],
+                'rows' => $this->atRiskRows($viewer, $input)->map(fn (array $r): array => [$r['membership']->participant->name, $r['membership']->trainingSession->titleWithDates(), implode('; ', $r['reasons'])]),
             ],
             default => [
                 'filename' => 'participant-progress.csv',
-                'header' => ['Name', 'Employee ID', 'Email', 'Submissions', 'Gate evaluations'],
-                'rows' => $this->participants(Arr::only($input, ['search']))->get()
-                    ->when($input['mentor'] ?? null, fn (Collection $items, int|string $mentor): Collection => $items->filter(fn (User $participant): bool => $participant->currentMentors->contains('id', (int) $mentor))->values())
-                    ->map(fn (User $item): array => [$item->name, $item->employee_id, $item->email, $item->activity_submissions_count, $item->gate_evaluations_count]),
+                'header' => ['Name', 'Employee ID', 'Training session', 'Email', 'Submissions', 'Gate evaluations'],
+                'rows' => $this->progressMemberships($viewer, $input)->get()
+                    ->map(fn (TrainingSessionParticipant $m): array => [$m->participant->name, $m->participant->employee_id, $m->trainingSession->titleWithDates(), $m->participant->email, (int) $m->submission_count, (int) $m->gate_evaluation_count]),
             ],
         };
     }
@@ -263,31 +279,20 @@ class CoachReportService
     }
 
     /**
-     * How many of the participants passed every week of one of their sessions of the program.
+     * Limit a query on a table with `training_session_id` and `user_id` to the outer membership query's participant
+     * in its session.
      *
-     * @param  EloquentCollection<int, User>  $participants
-     */
-    private function completedParticipantCount(EloquentCollection $participants, Program $program): int
-    {
-        $memberships = TrainingSessionParticipant::query()
-            ->whereIn('user_id', $participants->modelKeys())
-            ->whereHas('trainingSession', fn (Builder $query): Builder => $query->where('program_id', $program->id))
-            ->with('trainingSession')
-            ->get();
-
-        return $this->progression->completedMemberships($memberships)->pluck('user_id')->unique()->count();
-    }
-
-    /**
-     * The participants matching the name or email search and mentor filters.
+     * @template TModel of ActivitySubmission|GateEvaluation
      *
-     * @param  ?array{search?: ?string, mentor?: int|string|null, assigned_coach?: int|string|null}  $filters
-     * @return Builder<User>
+     * @param  Builder<TModel>  $query
+     * @return Builder<TModel>
      */
-    private function filteredParticipants(?array $filters = null): Builder
+    private function workOfMembership(Builder $query): Builder
     {
-        return User::query()->where('role', UserRole::Participant)
-            ->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $search): Builder => $search->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))
-            ->when($filters['mentor'] ?? $filters['assigned_coach'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('currentMentors', fn (Builder $coach): Builder => $coach->whereKey($v)));
+        $table = $query->getModel()->getTable();
+
+        return $query
+            ->whereColumn("{$table}.user_id", 'training_session_participants.user_id')
+            ->whereColumn("{$table}.training_session_id", 'training_session_participants.training_session_id');
     }
 }

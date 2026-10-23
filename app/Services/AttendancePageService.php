@@ -14,6 +14,8 @@ class AttendancePageService
 
     private const STATUS_OPTIONS = ['active' => 'Checked in', 'completed' => 'Checked out'];
 
+    public function __construct(private readonly CoachSessionFilterService $sessionFilter) {}
+
     /**
      * Everything the participant's attendance page renders: the open training session (if any) and the
      * participant's session history, newest first. The main action is Check In Now, or Check Out while a
@@ -45,30 +47,23 @@ class AttendancePageService
     }
 
     /**
-     * Everything the coach / admin attendance page renders: the filter options with the selected values and
-     * the matching sessions, newest first. The main action is Export CSV for the same filters.
+     * Everything the coach / admin attendance page renders: the filter options with the selected values and the
+     * matching sessions the viewer may see (see filteredSessions()), newest first. The main action is Export CSV for
+     * the same filters, through the admin or the coach route depending on the area the page is in.
      *
      * @param  array{date_from?: ?string, date_to?: ?string, participant?: int|string|null, status?: ?string}  $filters
      * @param  array<string, mixed>  $query  The current query string, kept on the export link.
      * @return array{areaLabel: string, dateFrom: string, dateTo: string, participantOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, sessions: LengthAwarePaginator<int, array{participant_name: string, participant_email: string, check_in: string, check_out: string, total_hours: string, is_open: bool, status: string}>, exportUrl: string}
      */
-    public function manageData(array $filters, array $query, bool $isAdmin): array
+    public function manageData(User $viewer, array $filters, array $query, bool $isAdminArea): array
     {
-        $participants = User::query()->where('role', UserRole::Participant)->orderBy('name')->get(['id', 'name']);
-
         return [
-            'areaLabel' => $isAdmin ? 'ADMIN' : 'MENTOR',
+            'areaLabel' => $isAdminArea ? 'ADMIN' : 'MENTOR',
             'dateFrom' => (string) ($filters['date_from'] ?? ''),
             'dateTo' => (string) ($filters['date_to'] ?? ''),
-            'participantOptions' => $participants
-                ->map(fn (User $participant): array => [
-                    'value' => (string) $participant->id,
-                    'label' => $participant->name,
-                    'is_selected' => (string) ($filters['participant'] ?? '') === (string) $participant->id,
-                ])
-                ->all(),
+            'participantOptions' => $this->sessionFilter->participantOptions($viewer, $filters['participant'] ?? null),
             'statusOptions' => $this->options(self::STATUS_OPTIONS, $filters['status'] ?? null),
-            'sessions' => $this->filteredSessions($filters)
+            'sessions' => $this->filteredSessions($viewer, $filters)
                 ->latest('check_in_at')
                 ->paginate(self::SESSIONS_PER_PAGE)
                 ->withQueryString()
@@ -81,22 +76,26 @@ class AttendancePageService
                     'is_open' => $session->isOpen(),
                     'status' => $session->isOpen() ? 'CHECKED IN' : 'CHECKED OUT',
                 ]),
-            'exportUrl' => route($isAdmin ? 'admin.attendance.export' : 'coach.attendance.export', $query),
+            'exportUrl' => route($isAdminArea ? 'admin.attendance.export' : 'coach.attendance.export', $query),
         ];
     }
 
     /**
-     * Participant attendance sessions matching the coach / admin filters, with their participant loaded.
-     * Shared by the attendance page and its CSV export.
+     * Participant attendance sessions matching the coach / admin filters, with their participant loaded: every
+     * participant's for an admin, otherwise only those of participants the viewer currently mentors in at least one
+     * training session (attendance itself is not per session). Shared by the attendance page and its CSV export.
      *
      * @param  array{date_from?: ?string, date_to?: ?string, participant?: int|string|null, status?: ?string}  $filters
      * @return Builder<AttendanceSession>
      */
-    public function filteredSessions(array $filters): Builder
+    public function filteredSessions(User $viewer, array $filters): Builder
     {
         return AttendanceSession::query()
             ->with('participant')
-            ->whereHas('participant', fn (Builder $query): Builder => $query->where('role', UserRole::Participant))
+            ->whereHas('participant', fn (Builder $query): Builder => $query
+                ->where('role', UserRole::Participant)
+                ->unless($viewer->hasAnyRole(UserRole::Admin), fn (Builder $participants): Builder => $participants
+                    ->whereHas('currentMentors', fn (Builder $mentors): Builder => $mentors->whereKey($viewer->id))))
             ->when($filters['date_from'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('check_in_at', '>=', $date))
             ->when($filters['date_to'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('check_in_at', '<=', $date))
             ->when($filters['participant'] ?? null, fn (Builder $query, int|string $id): Builder => $query->where('user_id', $id))

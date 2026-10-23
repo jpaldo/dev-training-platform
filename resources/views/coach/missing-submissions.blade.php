@@ -35,14 +35,25 @@
                 </select>
             </div>
             <div class="grid min-w-0 gap-2">
-                <label for="missing-mentor" class="{{ $labelClasses }}">Mentor</label>
-                <select id="missing-mentor" name="mentor" class="{{ $controlClasses }}">
-                    <option value="">All mentors</option>
-                    @foreach($mentorOptions as $option)
+                <label for="missing-session" class="{{ $labelClasses }}">Training session</label>
+                <select id="missing-session" name="session" class="{{ $controlClasses }}">
+                    <option value="">All training sessions</option>
+                    @foreach($sessionOptions as $option)
                         <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
                     @endforeach
                 </select>
             </div>
+            @if($canFilterByMentor)
+                <div class="grid min-w-0 gap-2">
+                    <label for="missing-mentor" class="{{ $labelClasses }}">Mentor</label>
+                    <select id="missing-mentor" name="mentor" class="{{ $controlClasses }}">
+                        <option value="">All mentors</option>
+                        @foreach($mentorOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
             <div class="grid min-w-0 gap-2">
                 <label for="missing-category" class="{{ $labelClasses }}">Category</label>
                 <select id="missing-category" name="category" class="{{ $controlClasses }}">
@@ -98,10 +109,11 @@
                 <p class="m-0 rounded-xl border border-dashed border-line p-5 text-muted">No missing submissions found for the selected filters.</p>
             @else
                 <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="missing-requirements-title" tabindex="0">
-                    <table class="w-full min-w-260 border-collapse text-sm">
+                    <table class="w-full min-w-280 border-collapse text-sm">
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Training session</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Mentor</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Category</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Week</th>
@@ -122,6 +134,12 @@
                                             <span class="wrap-break-word text-muted">{{ $row['participant_email'] }}</span>
                                         </span>
                                     </th>
+                                    <td class="{{ $cellClasses }}">
+                                        <span class="grid gap-0.5">
+                                            <span class="wrap-break-word">{{ $row['session_title'] }}</span>
+                                            <span class="whitespace-nowrap text-muted">{{ $row['session_dates'] }}</span>
+                                        </span>
+                                    </td>
                                     <td class="{{ $cellClasses }} wrap-break-word">{{ $row['mentor'] }}</td>
                                     <td class="{{ $cellClasses }}">{{ $row['category'] }}</td>
                                     <td class="{{ $cellClasses }} whitespace-nowrap">{{ $row['week'] }}</td>

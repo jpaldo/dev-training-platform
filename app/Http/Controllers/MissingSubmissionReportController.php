@@ -12,18 +12,18 @@ class MissingSubmissionReportController extends Controller
 {
     public function index(FilterMissingSubmissionsRequest $request, MissingSubmissionReportPageService $page): View
     {
-        return view('coach.missing-submissions', $page->indexData($request->validated(), $request->query(), max(1, $request->integer('page', 1))));
+        return view('coach.missing-submissions', $page->indexData($request->user(), $request->validated(), $request->query(), max(1, $request->integer('page', 1))));
     }
 
     public function export(FilterMissingSubmissionsRequest $request, MissingSubmissionReportService $report): StreamedResponse
     {
-        $rows = $report->rows($request->validated());
+        $rows = $report->rows($request->user(), $request->validated());
 
         return response()->streamDownload(function () use ($rows): void {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Participant', 'Employee ID', 'Email', 'Mentor', 'Category', 'Week', 'Requirement', 'Expected', 'Submitted', 'Missing', 'Evidences', 'Status']);
+            fputcsv($out, ['Participant', 'Employee ID', 'Training session', 'Email', 'Mentor', 'Category', 'Week', 'Requirement', 'Expected', 'Submitted', 'Missing', 'Evidences', 'Status']);
             foreach ($rows as $row) {
-                fputcsv($out, [$row['participant_name'], $row['employee_id'], $row['email'], $row['mentor'], $row['category'], $row['week'], $row['requirement'], $row['expected'], $row['submitted'], $row['missing'], $row['evidences'], $row['status']]);
+                fputcsv($out, [$row['participant_name'], $row['employee_id'], $row['session'], $row['email'], $row['mentor'], $row['category'], $row['week'], $row['requirement'], $row['expected'], $row['submitted'], $row['missing'], $row['evidences'], $row['status']]);
             }
             fclose($out);
         }, 'missing-submissions.csv', ['Content-Type' => 'text/csv']);

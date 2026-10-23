@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
 use App\Models\AttendanceSession;
+use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\TrainingSession;
 use App\Models\User;
@@ -76,6 +77,9 @@ class AttendanceTest extends TestCase
         $automation = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
         $admin = User::factory()->create(['role' => 'admin']);
+        foreach ([$manual, $automation] as $participant) {
+            MentorAssignment::factory()->create(['participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+        }
         AttendanceSession::create(['user_id' => $manual->id, 'check_in_at' => now()->subHours(2), 'check_out_at' => now(), 'total_seconds' => 7200]);
         AttendanceSession::create(['user_id' => $automation->id, 'check_in_at' => now()->subHour(), 'check_out_at' => null]);
 
@@ -93,6 +97,9 @@ class AttendanceTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create(['employee_id' => 'EMP-1001']);
         $otherParticipant = User::factory()->create();
+        foreach ([$participant, $otherParticipant] as $mentee) {
+            MentorAssignment::factory()->create(['participant_id' => $mentee->id, 'mentor_id' => $coach->id]);
+        }
         $inRange = Carbon::parse('2026-09-10 09:00:00', config('app.timezone'));
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => $inRange, 'check_out_at' => $inRange->copy()->addHour(), 'total_seconds' => 3600]);
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => $inRange->copy()->addDay(), 'check_out_at' => null]);

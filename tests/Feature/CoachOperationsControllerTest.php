@@ -42,7 +42,7 @@ class CoachOperationsControllerTest extends TestCase
         $this->assertSame($singleRowQueryCount, $threeRowQueryCount);
     }
 
-    public function test_dashboard_counts_only_participants_who_passed_every_gate_of_the_active_weeks(): void
+    public function test_dashboard_counts_only_memberships_that_passed_every_active_week_of_their_session(): void
     {
         $program = Program::factory()->create();
         $weekTwoGate = TrainingGate::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 1]), 'week')->create();
@@ -60,23 +60,27 @@ class CoachOperationsControllerTest extends TestCase
         GateEvaluation::factory()->for($weekTwoGate, 'gate')->for($partlyCompleted, 'participant')->create(['status' => 'passed']);
         GateEvaluation::factory()->for($weekThreeGate, 'gate')->for($partlyCompleted, 'participant')->create(['status' => 'needs_revision']);
 
-        $this->actingAs(User::factory()->create(['role' => 'coach']))
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('coach.dashboard'))
             ->assertOk()
-            ->assertViewHas('stats', fn (array $stats): bool => $stats['participants']['value'] === 3 && $stats['completed']['value'] === 1);
+            ->assertViewHas('stats', fn (array $stats): bool => $stats['participants']['value'] === 4 && $stats['completed']['value'] === 1);
     }
 
-    public function test_dashboard_counts_at_risk_participants_without_loading_their_progress(): void
+    public function test_dashboard_counts_at_risk_memberships_without_loading_their_progress(): void
     {
-        ActivitySubmission::factory()->for(User::factory(), 'participant')->create(['status' => 'needs_revision']);
-        ActivitySubmission::factory()->for(User::factory(), 'participant')->create(['status' => 'failed']);
-        GateEvaluation::factory()->for(User::factory(), 'participant')->create(['status' => 'failed']);
-        $steady = User::factory()->create();
-        ActivitySubmission::factory()->for($steady, 'participant')->create(['status' => 'approved']);
-        GateEvaluation::factory()->for($steady, 'participant')->create(['status' => 'passed']);
+        $activity = Activity::factory()->create();
+        $gate = TrainingGate::factory()->for($activity->week, 'week')->create();
+        $session = TrainingSession::factory()->forWeek($activity->week)->create();
+        [$revising, $failing, $failedGate, $steady] = User::factory()->count(4)->create()->all();
+        $session->participants()->attach(collect([$revising, $failing, $failedGate, $steady])->mapWithKeys(fn (User $participant): array => [$participant->id => ['joined_at' => now()]])->all());
+        ActivitySubmission::factory()->for($activity)->for($revising, 'participant')->create(['training_session_id' => $session->id, 'status' => 'needs_revision']);
+        ActivitySubmission::factory()->for($activity)->for($failing, 'participant')->create(['training_session_id' => $session->id, 'status' => 'failed']);
+        GateEvaluation::factory()->for($gate, 'gate')->for($failedGate, 'participant')->for($session)->create(['status' => 'failed']);
+        ActivitySubmission::factory()->for($activity)->for($steady, 'participant')->create(['training_session_id' => $session->id, 'status' => 'approved']);
+        GateEvaluation::factory()->for($gate, 'gate')->for($steady, 'participant')->for($session)->create(['status' => 'passed']);
 
         DB::enableQueryLog();
-        $this->actingAs(User::factory()->create(['role' => 'coach']))
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('coach.dashboard'))
             ->assertOk()
             ->assertViewHas('stats', fn (array $stats): bool => $stats['participants']['value'] === 4 && $stats['at_risk']['value'] === 3);

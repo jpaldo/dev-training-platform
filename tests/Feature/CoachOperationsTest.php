@@ -299,14 +299,22 @@ class CoachOperationsTest extends TestCase
     public function test_progress_export_prints_each_participants_employee_id_after_the_name(): void
     {
         $coach = User::factory()->create(['role' => 'coach']);
-        User::factory()->create(['name' => 'Ada', 'email' => 'ada@example.com', 'employee_id' => 'EMP-5001']);
-        User::factory()->create(['name' => 'Ben', 'email' => 'ben@example.com', 'employee_id' => null]);
+        $session = TrainingSession::factory()->create();
+        $this->mentorInSession(
+            $session,
+            $coach,
+            User::factory()->create(['name' => 'Ada', 'email' => 'ada@example.com', 'employee_id' => 'EMP-5001']),
+            User::factory()->create(['name' => 'Ben', 'email' => 'ben@example.com', 'employee_id' => null]),
+        );
 
         $csv = $this->actingAs($coach)->get(route('coach.reports.export'))->assertOk()->streamedContent();
 
         $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
-        $this->assertSame(['Name', 'Employee ID', 'Email'], array_slice($rows[0], 0, 3));
-        $this->assertEqualsCanonicalizing([['Ada', 'EMP-5001', 'ada@example.com'], ['Ben', '', 'ben@example.com']], array_map(fn (array $row): array => array_slice($row, 0, 3), array_slice($rows, 1)));
+        $this->assertSame(['Name', 'Employee ID', 'Training session', 'Email'], array_slice($rows[0], 0, 4));
+        $this->assertEqualsCanonicalizing(
+            [['Ada', 'EMP-5001', $session->titleWithDates(), 'ada@example.com'], ['Ben', '', $session->titleWithDates(), 'ben@example.com']],
+            array_map(fn (array $row): array => array_slice($row, 0, 4), array_slice($rows, 1)),
+        );
     }
 
     public function test_gate_export_applies_participant_week_and_status_filters(): void
@@ -337,7 +345,8 @@ class CoachOperationsTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create();
         $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
-        ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'needs_revision']);
+        $submission = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'needs_revision']);
+        $this->mentorInSession($submission->trainingSession, $coach, $participant);
         $this->actingAs($coach)->get(route('coach.reports'))->assertOk()->assertSee(e("{$activity->title}: Needs revision"), false);
         $this->assertStringContainsString("{$activity->title}: Needs revision", $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'risk']))->streamedContent());
     }

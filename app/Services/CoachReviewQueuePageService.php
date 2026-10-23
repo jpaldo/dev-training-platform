@@ -3,13 +3,11 @@
 namespace App\Services;
 
 use App\Enums\SubmissionStatus;
-use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
@@ -50,7 +48,7 @@ class CoachReviewQueuePageService
                     ->mapWithKeys(fn (SubmissionStatus $status): array => [$status->value => $status->label()]),
                 $filters['status'] ?? null,
             ),
-            'participantOptions' => $this->options($this->participantNames($viewer), $filters['participant'] ?? null),
+            'participantOptions' => $this->sessionFilter->participantOptions($viewer, $filters['participant'] ?? null),
             'isFiltered' => $isFiltered,
             'emptyMessage' => $isFiltered ? 'No submissions match the selected filters.' : 'No submissions to review.',
             'items' => $this->reports->reviewQueue($viewer, $filters)
@@ -58,22 +56,6 @@ class CoachReviewQueuePageService
                 ->withQueryString()
                 ->through(fn (ActivitySubmission $submission): array => $this->submissionRow($submission)),
         ];
-    }
-
-    /**
-     * The names of the participants the participant filter offers, keyed by id, in name order: every participant for
-     * an admin, otherwise those the viewer currently mentors in at least one session.
-     *
-     * @return Collection<int, string>
-     */
-    private function participantNames(User $viewer): Collection
-    {
-        return User::query()
-            ->where('role', UserRole::Participant)
-            ->unless($viewer->hasAnyRole(UserRole::Admin), fn (Builder $query): Builder => $query
-                ->whereHas('currentMentors', fn (Builder $mentors): Builder => $mentors->whereKey($viewer->id)))
-            ->orderBy('name')
-            ->pluck('name', 'id');
     }
 
     /**

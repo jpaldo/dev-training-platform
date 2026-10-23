@@ -67,12 +67,12 @@ class AttendanceController extends Controller
 
     public function manage(FilterAttendanceSessionsRequest $request, AttendancePageService $page): View
     {
-        return view('attendance.manage', $page->manageData($request->validated(), $request->query(), $request->routeIs('admin.*')));
+        return view('attendance.manage', $page->manageData($request->user(), $request->validated(), $request->query(), $request->routeIs('admin.*')));
     }
 
     public function export(FilterAttendanceSessionsRequest $request, AttendancePageService $page): StreamedResponse
     {
-        $sessions = $page->filteredSessions($request->validated())->latest('check_in_at')->get();
+        $sessions = $page->filteredSessions($request->user(), $request->validated())->latest('check_in_at')->get();
 
         return response()->streamDownload(function () use ($sessions): void {
             $out = fopen('php://output', 'w');

@@ -7,7 +7,6 @@ use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
-use Illuminate\Support\Collection;
 
 class MissingSubmissionReportPageService
 {
@@ -28,20 +27,25 @@ class MissingSubmissionReportPageService
         'video' => 'Missing Video Recordings',
     ];
 
-    public function __construct(private readonly MissingSubmissionReportService $report) {}
+    public function __construct(
+        private readonly MissingSubmissionReportService $report,
+        private readonly CoachSessionFilterService $sessionFilter,
+    ) {}
 
     /**
      * Everything the Missing Submissions report renders: the CSV export link (keeping the current query), the filter
-     * values and options, the summary counts of the rows with their labels, the total row count and the rows of the requested page (25 per page, query string kept). The page
-     * has no single main action, so every button is secondary.
+     * values and options (the participants the viewer mentors, or every participant for an admin; the mentor filter
+     * for admins only), the summary counts of the viewer's rows (MissingSubmissionReportService::rows()) with their
+     * labels, the total row count and the rows of the requested page (25 per page, query string kept), each with its
+     * training session. The page has no single main action, so every button is secondary.
      *
-     * @param  array{participant?: int|string|null, mentor?: int|string|null, category?: string|null, week?: int|string|null, requirement?: string|null, status?: string|null}  $filters
+     * @param  array{participant?: int|string|null, session?: int|string|null, mentor?: int|string|null, category?: string|null, week?: int|string|null, requirement?: string|null, status?: string|null}  $filters
      * @param  array<array-key, mixed>  $query
-     * @return array{exportUrl: string, participantOptions: list<array{value: string, label: string, is_selected: bool}>, mentorOptions: list<array{value: string, label: string, is_selected: bool}>, categoryOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, requirement: string, stats: list<array{label: string, value: int}>, rowCount: int, missingRows: LengthAwarePaginator<int, array{participant_name: string, participant_email: string, participant_url: string, mentor: string, category: string, week: string, requirement: string, expected: int, submitted: int, missing: int, evidences: int, status: string}>}
+     * @return array{exportUrl: string, participantOptions: list<array{value: string, label: string, is_selected: bool}>, sessionOptions: list<array{value: string, label: string, is_selected: bool}>, canFilterByMentor: bool, mentorOptions: list<array{value: string, label: string, is_selected: bool}>, categoryOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, requirement: string, stats: list<array{label: string, value: int}>, rowCount: int, missingRows: LengthAwarePaginator<int, array{participant_name: string, participant_email: string, participant_url: string, session_title: string, session_dates: string, mentor: string, category: string, week: string, requirement: string, expected: int, submitted: int, missing: int, evidences: int, status: string}>}
      */
-    public function indexData(array $filters, array $query, int $page): array
+    public function indexData(User $viewer, array $filters, array $query, int $page): array
     {
-        $rows = $this->report->rows($filters);
+        $rows = $this->report->rows($viewer, $filters);
         $summary = [
             'participants' => $rows->unique(fn (array $row): int => $row['participant']->id)->count(),
             'activities' => $rows->where('category', 'Activities')->count(),
@@ -58,14 +62,10 @@ class MissingSubmissionReportPageService
 
         return [
             'exportUrl' => route('coach.reports.missing-submissions.export', $query),
-            'participantOptions' => $this->modelOptions(
-                User::query()->where('role', UserRole::Participant)->orderBy('name')->get(['id', 'name']),
-                $filters['participant'] ?? null,
-            ),
-            'mentorOptions' => $this->modelOptions(
-                User::query()->whereIn('role', [UserRole::Coach, UserRole::Admin])->orderBy('name')->get(['id', 'name']),
-                $filters['mentor'] ?? null,
-            ),
+            'participantOptions' => $this->sessionFilter->participantOptions($viewer, $filters['participant'] ?? null),
+            'sessionOptions' => $this->sessionFilter->options($viewer, $filters['session'] ?? null),
+            'canFilterByMentor' => $viewer->hasAnyRole(UserRole::Admin),
+            'mentorOptions' => $this->sessionFilter->mentorOptions($viewer, $filters['mentor'] ?? null),
             'categoryOptions' => $this->options(self::CATEGORY_OPTIONS, $filters['category'] ?? null),
             'weekOptions' => $this->options(
                 TrainingWeek::query()
@@ -89,6 +89,8 @@ class MissingSubmissionReportPageService
                     'participant_name' => $row['participant_name'],
                     'participant_email' => $row['email'],
                     'participant_url' => route('coach.participants.show', [$row['trainingSession'], $row['participant']]),
+                    'session_title' => $row['trainingSession']->title,
+                    'session_dates' => $row['trainingSession']->dateRangeLabel(),
                     'mentor' => $row['mentor'],
                     'category' => $row['category'],
                     'week' => $row['week'],
@@ -118,20 +120,5 @@ class MissingSubmissionReportPageService
             ])
             ->values()
             ->all();
-    }
-
-    /**
-     * Select options for the given users: the id as the value, the name as the label, selected when the id matches
-     * the filter value.
-     *
-     * @param  Collection<int, User>  $users
-     * @return list<array{value: string, label: string, is_selected: bool}>
-     */
-    private function modelOptions(Collection $users, int|string|null $selected): array
-    {
-        return $this->options(
-            $users->mapWithKeys(fn (User $user): array => [$user->id => $user->name])->all(),
-            $selected,
-        );
     }
 }

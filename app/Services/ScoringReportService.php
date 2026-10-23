@@ -92,7 +92,7 @@ class ScoringReportService
                 fn (Builder $scores): Builder => $scores->where('performance_band', $band),
             )))
             ->with([
-                'participant:id,name,email,employee_id',
+                'participant:id,name,email,employee_id,is_active',
                 'trainingSession:id,program_id,title,weeks_count,starts_on,ends_on',
             ])
             ->orderBy(User::query()->select('name')->whereColumn('users.id', 'training_session_participants.user_id'))

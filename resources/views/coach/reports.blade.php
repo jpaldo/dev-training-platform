@@ -21,22 +21,35 @@
 
         <x-ui.report-nav current="progress" />
 
-        <x-ui.card as="form" method="GET" action="{{ route('coach.reports') }}" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_auto] lg:items-end" aria-label="Progress filters">
-            <div class="grid min-w-0 gap-2 md:col-span-2 lg:col-span-1">
+        <x-ui.card as="form" method="GET" action="{{ route('coach.reports') }}" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end" aria-label="Progress filters">
+            <div class="grid min-w-0 gap-2">
                 <label for="report-search" class="{{ $labelClasses }}">Participant</label>
                 <input id="report-search" name="search" value="{{ $search }}" placeholder="Name or email" class="{{ $controlClasses }}">
             </div>
             <div class="grid min-w-0 gap-2">
-                <label for="report-mentor" class="{{ $labelClasses }}">Mentor</label>
-                <select id="report-mentor" name="mentor" class="{{ $controlClasses }}">
-                    <option value="">All mentors</option>
-                    @foreach($mentorOptions as $option)
+                <label for="report-session" class="{{ $labelClasses }}">Training session</label>
+                <select id="report-session" name="session" class="{{ $controlClasses }}">
+                    <option value="">All training sessions</option>
+                    @foreach($sessionOptions as $option)
                         <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
                     @endforeach
                 </select>
             </div>
-            <x-ui.button variant="secondary" type="submit">Apply filters</x-ui.button>
-            <x-ui.button variant="secondary" :href="route('coach.reports')">Clear</x-ui.button>
+            @if($canFilterByMentor)
+                <div class="grid min-w-0 gap-2">
+                    <label for="report-mentor" class="{{ $labelClasses }}">Mentor</label>
+                    <select id="report-mentor" name="mentor" class="{{ $controlClasses }}">
+                        <option value="">All mentors</option>
+                        @foreach($mentorOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
+            <div class="flex flex-wrap gap-3">
+                <x-ui.button variant="secondary" type="submit">Apply filters</x-ui.button>
+                <x-ui.button variant="secondary" :href="route('coach.reports')">Clear</x-ui.button>
+            </div>
         </x-ui.card>
 
         <section aria-labelledby="progress-summary-title">
@@ -57,10 +70,11 @@
                 <p class="m-0 rounded-xl border border-dashed border-line p-5 text-muted">No current at-risk participants.</p>
             @else
                 <div class="{{ $regionClasses }}" role="region" aria-labelledby="at-risk-title" tabindex="0">
-                    <table class="w-full min-w-175 border-collapse text-sm">
+                    <table class="w-full min-w-200 border-collapse text-sm">
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Training session</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Reasons</th>
                             </tr>
                         </thead>
@@ -68,6 +82,12 @@
                             @foreach($atRiskRows as $row)
                                 <tr data-at-risk-row>
                                     <th scope="row" class="{{ $cellClasses }} wrap-break-word">{{ $row['participant_name'] }}</th>
+                                    <td class="{{ $cellClasses }}">
+                                        <span class="grid gap-0.5">
+                                            <span class="wrap-break-word">{{ $row['session_title'] }}</span>
+                                            <span class="whitespace-nowrap text-muted">{{ $row['session_dates'] }}</span>
+                                        </span>
+                                    </td>
                                     <td class="{{ $cellClasses }} wrap-break-word">{{ $row['reasons'] }}</td>
                                 </tr>
                             @endforeach
@@ -89,10 +109,11 @@
                 <p class="m-0 rounded-xl border border-dashed border-line p-5 text-muted">No participants match the selected filters.</p>
             @else
                 <div class="{{ $regionClasses }}" role="region" aria-labelledby="participant-progress-title" tabindex="0">
-                    <table class="w-full min-w-175 border-collapse text-sm">
+                    <table class="w-full min-w-220 border-collapse text-sm">
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Training session</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Mentor</th>
                                 <th scope="col" class="{{ $headerCellClasses }} text-right">Submissions</th>
                                 <th scope="col" class="{{ $headerCellClasses }} text-right">Gates</th>
@@ -107,7 +128,13 @@
                                             <span class="wrap-break-word text-muted">{{ $row['email'] }}</span>
                                         </span>
                                     </th>
-                                    <td class="{{ $cellClasses }} wrap-break-word">{{ $row['mentors'] }}</td>
+                                    <td class="{{ $cellClasses }}">
+                                        <span class="grid gap-0.5">
+                                            <span class="wrap-break-word">{{ $row['session_title'] }}</span>
+                                            <span class="whitespace-nowrap text-muted">{{ $row['session_dates'] }}</span>
+                                        </span>
+                                    </td>
+                                    <td class="{{ $cellClasses }} wrap-break-word">{{ $row['mentor_name'] }}</td>
                                     <td class="{{ $cellClasses }} text-right tabular-nums">{{ $row['submission_count'] }}</td>
                                     <td class="{{ $cellClasses }} text-right tabular-nums">{{ $row['gate_count'] }}</td>
                                 </tr>

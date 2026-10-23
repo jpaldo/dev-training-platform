@@ -3,7 +3,11 @@
 namespace App\Services;
 
 use App\Enums\SubmissionStatus;
-use App\Models\Program;
+use App\Enums\UserRole;
+use App\Models\TrainingSession;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Str;
 
 class CoachDashboardPageService
 {
@@ -18,19 +22,19 @@ class CoachDashboardPageService
     public function __construct(private readonly CoachReportService $reports) {}
 
     /**
-     * Everything the coach dashboard renders: whether a program is active (the page shows a notice when none is), the
-     * headline counts with their labels and, where a page lists that set, the link to it with its accessible text.
-     * The page has no single main action, so every link is secondary.
+     * Everything the coach dashboard renders: the viewer's headline counts (CoachReportService::dashboardStats()) with
+     * their labels and, where a page lists that set, the link to it with its accessible text, and for a coach the
+     * "My sessions" list (null for an admin, who is never a session mentor). The page has no single main action, so
+     * every link is secondary.
      *
-     * @return array{hasActiveProgram: bool, stats: array<string, array{label: string, value: int, url: ?string, link_label: ?string}>}
+     * @return array{stats: array<string, array{label: string, value: int, url: ?string, link_label: ?string}>, mySessions: ?list<array{title: string, date_range: string, status_label: string, status_tone: string, participant_count_label: string, participants_url: string}>}
      */
-    public function showData(): array
+    public function showData(User $viewer): array
     {
-        $activeProgram = Program::query()->where('is_active', true)->first();
         $links = $this->statLinks();
         $stats = [];
 
-        foreach ($this->reports->dashboardStats($activeProgram) as $key => $value) {
+        foreach ($this->reports->dashboardStats($viewer) as $key => $value) {
             $stats[$key] = [
                 'label' => self::STAT_LABELS[$key],
                 'value' => $value,
@@ -40,15 +44,43 @@ class CoachDashboardPageService
         }
 
         return [
-            'hasActiveProgram' => $activeProgram !== null,
             'stats' => $stats,
+            'mySessions' => $viewer->hasAnyRole(UserRole::Coach) ? $this->mySessions($viewer) : null,
         ];
     }
 
     /**
-     * The page listing each stat's set, keyed by stat: all participants, the review queue (submissions awaiting review
-     * are listed there with those needing revision), the queue filtered to needs revision and the progress report's
-     * at-risk table. No page lists the completed participants, so that stat has no link.
+     * The sessions the coach is a mentor of, the latest start first, each with its dates, status, how many of its
+     * participants the coach currently mentors there ("2 participants assigned to you") and the participants list
+     * filtered to it.
+     *
+     * @return list<array{title: string, date_range: string, status_label: string, status_tone: string, participant_count_label: string, participants_url: string}>
+     */
+    private function mySessions(User $coach): array
+    {
+        return $coach->mentoredSessions()
+            ->select(['training_sessions.id', 'training_sessions.title', 'training_sessions.starts_on', 'training_sessions.ends_on'])
+            ->withCount(['mentorAssignments as my_participant_count' => fn (Builder $assignments): Builder => $assignments
+                ->current()
+                ->where('mentor_id', $coach->id)])
+            ->orderByDesc('training_sessions.starts_on')
+            ->orderBy('training_sessions.id')
+            ->get()
+            ->map(fn (TrainingSession $trainingSession): array => [
+                'title' => $trainingSession->title,
+                'date_range' => $trainingSession->dateRangeLabel(),
+                'status_label' => $trainingSession->status()->label(),
+                'status_tone' => $trainingSession->status()->tone(),
+                'participant_count_label' => $trainingSession->my_participant_count.' '.Str::plural('participant', $trainingSession->my_participant_count).' assigned to you',
+                'participants_url' => route('coach.participants', ['session' => $trainingSession->id]),
+            ])
+            ->all();
+    }
+
+    /**
+     * The page listing each stat's set, keyed by stat: the participants list, the review queue (submissions awaiting
+     * review are listed there with those needing revision), the queue filtered to needs revision and the progress
+     * report's at-risk table. No page lists the completed participants, so that stat has no link.
      *
      * @return array<string, array{url: string, link_label: string}>
      */

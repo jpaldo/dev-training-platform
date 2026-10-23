@@ -10,14 +10,15 @@ use App\Services\CoachDashboardPageService;
 use App\Services\CoachGateBoardPageService;
 use App\Services\CoachProgressReportPageService;
 use App\Services\CoachReportService;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CoachOperationsController extends Controller
 {
-    public function dashboard(CoachDashboardPageService $page): View
+    public function dashboard(Request $request, CoachDashboardPageService $page): View
     {
-        return view('coach.dashboard', $page->showData());
+        return view('coach.dashboard', $page->showData($request->user()));
     }
 
     public function gates(FilterCoachGatesRequest $request, CoachGateBoardPageService $page): View
@@ -29,7 +30,7 @@ class CoachOperationsController extends Controller
 
     public function reports(FilterCoachReportsRequest $request, CoachProgressReportPageService $page): View
     {
-        return view('coach.reports', $page->indexData($request->validated(), $request->query(), max(1, $request->integer('risk_page', 1))));
+        return view('coach.reports', $page->indexData($request->user(), $request->validated(), $request->query(), max(1, $request->integer('risk_page', 1))));
     }
 
     public function export(ExportCoachReportRequest $request, CoachReportService $reports): StreamedResponse

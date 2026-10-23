@@ -18,7 +18,7 @@ use Illuminate\Support\Collection;
 /**
  * Resolves whether a participant has done the work a Gate checks, for any week of any program: every active activity
  * of the Gate's week has a handed-in latest attempt, the latest handed-in version of each has its required evidence,
- * and, only when the Gate has a weekly video criterion, the week's Weekly Video Recording is uploaded.
+ * and, only when the Gate has a weekly video criterion, the participant has chosen the week's Weekly Video Recording.
  */
 class GateReadinessService
 {
@@ -110,7 +110,7 @@ class GateReadinessService
             $isWeeklyVideoMissing = $videoGateIds->contains($gate->id)
                 && ! $recordedWeekIds->get($participant->id, collect())->contains($gate->training_week_id);
             if ($isWeeklyVideoMissing) {
-                $reasons['weekly_video'] = 'Required Weekly Video Recording is missing. Upload the video before this week can be marked completed.';
+                $reasons['weekly_video'] = 'Required Weekly Video Recording is missing. Choose your video from Google Drive before this week can be marked completed.';
             }
 
             return [$gate->id => $reasons];

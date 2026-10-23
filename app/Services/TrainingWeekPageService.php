@@ -21,10 +21,10 @@ class TrainingWeekPageService
      * Everything the week page renders: the week's active activities, a summary of its first Gate (the user's Gate
      * status, its checklist read only with each required item's review status and, for participants, the link to the
      * Gate page) and, for participants in a week that asks for it, the Weekly Video Recording state. A participant's
-     * main action is Upload Video Recording while such a week has no video yet; in a week that does not ask for the
+     * main action is Choose Weekly Video while such a week has no video chosen yet; in a week that does not ask for the
      * video it is the link to the Gate page (then not repeated on the Gate card), or none without a Gate.
      *
-     * @return array{trainingWeek: TrainingWeek, activities: list<array{position: int, title: string, description: ?string, url: string}>, gate: ?array{title: string, status_label: string, status_tone: string, criteria: list<array{title: string, description: ?string, is_met: bool, status_label: string, status_tone: string}>, url: ?string}, showsWeeklyVideo: bool, videoRecording: ?WeeklyVideoRecording, mainAction: ?array{label: string, url: string}, replaceVideoUrl: string, backUrl: string}
+     * @return array{trainingWeek: TrainingWeek, activities: list<array{position: int, title: string, description: ?string, url: string}>, gate: ?array{title: string, status_label: string, status_tone: string, criteria: list<array{title: string, description: ?string, is_met: bool, status_label: string, status_tone: string}>, url: ?string}, showsWeeklyVideo: bool, videoRecording: ?WeeklyVideoRecording, mainAction: ?array{label: string, url: string}, changeVideoUrl: string, backUrl: string}
      */
     public function showData(TrainingWeek $week, User $user): array
     {
@@ -42,7 +42,7 @@ class TrainingWeekPageService
         $gate = $this->gateSummary($week, $user, $isParticipant);
         $mainAction = null;
         if ($showsWeeklyVideo && ! $videoRecording) {
-            $mainAction = ['label' => 'Upload Video Recording →', 'url' => $videoUrl];
+            $mainAction = ['label' => 'Choose Weekly Video →', 'url' => $videoUrl];
         } elseif (! $showsWeeklyVideo && isset($gate['url'])) {
             $mainAction = ['label' => 'View Gate →', 'url' => $gate['url']];
             $gate['url'] = null;
@@ -63,7 +63,7 @@ class TrainingWeekPageService
             'showsWeeklyVideo' => $showsWeeklyVideo,
             'videoRecording' => $videoRecording,
             'mainAction' => $mainAction,
-            'replaceVideoUrl' => $videoUrl,
+            'changeVideoUrl' => $videoUrl,
             'backUrl' => $isParticipant ? route('dashboard') : route('profile.show'),
         ];
     }

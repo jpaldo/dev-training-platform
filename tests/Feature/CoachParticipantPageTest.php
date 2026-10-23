@@ -155,6 +155,37 @@ class CoachParticipantPageTest extends TestCase
         ];
     }
 
+    public function test_the_weekly_video_card_shows_the_chosen_video_with_a_lazy_preview_and_the_mentor_help_line(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 2]);
+        WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create([
+            'drive_file_id' => 'drive-video-2',
+            'name' => 'week-2-walkthrough.mp4',
+            'size_bytes' => 1572864,
+            'chosen_at' => '2026-10-22 09:30:00',
+        ]);
+
+        $html = $this->actingAs($coach)->get(route('coach.participants.show', $participant))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Weekly Video Recording',
+                '<strong>Week 2</strong>',
+                '>week-2-walkthrough.mp4</p>',
+                '>1.5 MB · chosen Oct 22, 2026 9:30 AM</p>',
+                'href="https://drive.google.com/file/d/drive-video-2/view" target="_blank" rel="noopener noreferrer"',
+                '>Open in Drive<',
+                'data-resource-preview',
+                'Show preview',
+                'data-preview-src="https://drive.google.com/file/d/drive-video-2/preview"',
+                'unshared in the participant\'s Google Drive. Ask them to choose it again.',
+            ], false)
+            ->assertDontSee('unshared in your Google Drive', false)
+            ->getContent();
+
+        $this->assertDoesNotMatchRegularExpression('/<iframe[^>]*\ssrc=/', $html);
+    }
+
     public function test_participant_page_query_count_does_not_grow_with_submissions_videos_and_attendance(): void
     {
         $this->assertSame($this->participantPageQueryCount(1), $this->participantPageQueryCount(3));

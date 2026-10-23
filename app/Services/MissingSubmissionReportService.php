@@ -47,7 +47,7 @@ class MissingSubmissionReportService
                 }
 
                 if ($week->asksForWeeklyVideo() && ! $participant->weeklyVideoRecordings->contains('training_week_id', $week->id)) {
-                    $rows->push($this->row($participant, $mentor, 'Video Recording', $week->week_number, 'Weekly Video Recording', 1, 0, 'Not Uploaded', 0));
+                    $rows->push($this->row($participant, $mentor, 'Video Recording', $week->week_number, 'Weekly Video Recording', 1, 0, 'Not Submitted', 0));
                 }
 
                 foreach ($week->activities as $activity) {
@@ -113,7 +113,7 @@ class MissingSubmissionReportService
         if (($filters['requirement'] ?? null) && ! str_contains(strtolower($row['requirement']), strtolower($filters['requirement']))) {
             return false;
         }
-        if (($filters['status'] ?? null) === 'not_submitted' && ! in_array($row['status'], ['Not Submitted', 'Not Uploaded'], true)) {
+        if (($filters['status'] ?? null) === 'not_submitted' && $row['status'] !== 'Not Submitted') {
             return false;
         }
 

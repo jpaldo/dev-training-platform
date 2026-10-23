@@ -34,7 +34,7 @@ class CoachGateReviewPageTest extends TestCase
         foreach ($activities as $activity) {
             $this->completeActivity($participant, $activity);
         }
-        $recording = $this->uploadWeeklyVideo($participant, $week);
+        $recording = $this->chooseWeeklyVideo($participant, $week);
         $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision', 'comments' => 'Strong week, finish the video.']);
         [$activityCriterion, $videoCriterion] = $criteria;
         GateCriterionEvaluation::factory()->for($evaluation)->for($activityCriterion, 'criterion')->create(['status' => GateCriterionStatus::Met]);
@@ -56,7 +56,7 @@ class CoachGateReviewPageTest extends TestCase
                 'Activities',
                 '2 / 2 submitted',
                 'Video Recording',
-                'Uploaded',
+                'Chosen',
                 'Weekly checklist',
                 'Nothing is ticked automatically.',
                 '<input type="hidden" name="criteria['.$activityCriterion->id.']" value="not_met" form="gate-review-form">',
@@ -108,11 +108,11 @@ class CoachGateReviewPageTest extends TestCase
         foreach ($activities as $activity) {
             $this->completeActivity($participant, $activity);
         }
-        $this->uploadWeeklyVideo($participant, $week);
+        $this->chooseWeeklyVideo($participant, $week);
 
         $content = $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
             ->assertOk()
-            ->assertSeeInOrder(['>Checklist</span>', '0 / 3', '2 / 2 submitted', 'Uploaded'], false)
+            ->assertSeeInOrder(['>Checklist</span>', '0 / 3', '2 / 2 submitted', 'Chosen'], false)
             ->assertDontSee('Blockers')
             ->getContent();
 
@@ -174,7 +174,7 @@ class CoachGateReviewPageTest extends TestCase
                 'Missing',
                 'Blockers',
                 'Activity 1 must have a submitted version.',
-                'Required Weekly Video Recording is missing. Upload the video before this week can be marked completed.',
+                'Required Weekly Video Recording is missing. Choose your video from Google Drive before this week can be marked completed.',
                 'Weekly checklist',
                 'Deliverable links',
                 'No GitHub link submitted yet.',
@@ -209,7 +209,7 @@ class CoachGateReviewPageTest extends TestCase
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
         [$activityCriterion, $videoCriterion] = $criteria;
-        $this->uploadWeeklyVideo($participant, $week);
+        $this->chooseWeeklyVideo($participant, $week);
         $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
         GateCriterionEvaluation::factory()->for($evaluation)->for($activityCriterion, 'criterion')->create(['status' => GateCriterionStatus::NotMet]);
         GateCriterionEvaluation::factory()->for($evaluation)->for($videoCriterion, 'criterion')->create(['status' => GateCriterionStatus::Met]);
@@ -292,7 +292,7 @@ class CoachGateReviewPageTest extends TestCase
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
         [$activityCriterion, $videoCriterion] = $criteria;
         $this->completeActivity($participant, $activities->first());
-        $this->uploadWeeklyVideo($participant, $week);
+        $this->chooseWeeklyVideo($participant, $week);
 
         $this->actingAs($coach)
             ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
@@ -315,7 +315,7 @@ class CoachGateReviewPageTest extends TestCase
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
-        $this->uploadWeeklyVideo($participant, $week);
+        $this->chooseWeeklyVideo($participant, $week);
 
         $this->actingAs($coach)
             ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
@@ -329,7 +329,7 @@ class CoachGateReviewPageTest extends TestCase
         $this->assertSame([GateCriterionStatus::Met, GateCriterionStatus::Met], $evaluation->criterionEvaluations->pluck('status')->all());
     }
 
-    public function test_a_week_cannot_be_completed_with_the_weekly_video_ticked_before_it_is_uploaded(): void
+    public function test_a_week_cannot_be_completed_with_the_weekly_video_ticked_before_it_is_chosen(): void
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
@@ -340,7 +340,7 @@ class CoachGateReviewPageTest extends TestCase
                 'status' => 'passed',
                 'criteria' => $criteria->mapWithKeys(fn (GateCriterion $criterion): array => [$criterion->id => 'met'])->all(),
             ])
-            ->assertSessionHasErrors(['criteria.'.$videoCriterion->id => 'The Weekly Video Recording cannot be marked Met until a video is uploaded.']);
+            ->assertSessionHasErrors(['criteria.'.$videoCriterion->id => 'The Weekly Video Recording cannot be marked Met until the participant has chosen a video.']);
 
         $this->assertDatabaseMissing('gate_evaluations', ['user_id' => $participant->id]);
     }
@@ -349,7 +349,7 @@ class CoachGateReviewPageTest extends TestCase
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
-        $this->uploadWeeklyVideo($participant, $week);
+        $this->chooseWeeklyVideo($participant, $week);
 
         $this->actingAs($coach)
             ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
@@ -366,7 +366,7 @@ class CoachGateReviewPageTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $participant = User::factory()->create();
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
-        $this->uploadWeeklyVideo($participant, $week);
+        $this->chooseWeeklyVideo($participant, $week);
 
         $this->actingAs($admin)
             ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
@@ -464,7 +464,7 @@ class CoachGateReviewPageTest extends TestCase
             ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'configuration' => ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url']]);
             SubmissionVersion::factory()->for($this->completeActivity($participant, $activity), 'submission')->create(['status' => SubmissionStatus::Submitted, 'field_values' => ['deliverable_url' => "https://github.com/ana/l4/pull/{$activity->id}"]]);
         }
-        $this->uploadWeeklyVideo($participant, $week);
+        $this->chooseWeeklyVideo($participant, $week);
         GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
         $url = route('training.coach.gates.show', [$week, $participant, $gate]);
 
@@ -502,7 +502,7 @@ class CoachGateReviewPageTest extends TestCase
         return ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
     }
 
-    private function uploadWeeklyVideo(User $participant, TrainingWeek $week): WeeklyVideoRecording
+    private function chooseWeeklyVideo(User $participant, TrainingWeek $week): WeeklyVideoRecording
     {
         return WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create();
     }

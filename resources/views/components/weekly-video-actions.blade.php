@@ -1,9 +1,32 @@
 {{--
-    The actions for a participant's chosen weekly video: an "Open in Drive" link to the file in Google Drive, in a new
-    tab. The app keeps no copy of the video, so there is no player or download.
+    A participant's chosen weekly video: its name and details (size and when it was chosen), an "Open in Drive" link to
+    the file in Google Drive (new tab), the lazily loaded Drive preview and a help line for when the video does not
+    open. The app keeps no copy of the video, so there is no player or download, and the page never reads Drive (Q6),
+    so the help line explains what to do when the file has gone. The help line speaks to the participant, or with
+    `for-mentor` to the mentor. The slot holds more actions next to "Open in Drive" (the participant's Change Video).
 --}}
-@props(['recording'])
+@props(['recording', 'forMentor' => false])
 
-<div id="weekly-video-actions-{{ $recording->id }}" class="flex flex-wrap items-center gap-2.5" data-weekly-video-actions>
-    <x-ui.button variant="secondary" :href="$recording->driveViewUrl()" target="_blank" rel="noopener noreferrer">Open in Drive<span class="sr-only">: {{ $recording->name }} (opens in a new tab)</span></x-ui.button>
+<div id="weekly-video-actions-{{ $recording->id }}" class="grid w-full min-w-0 grid-cols-1 gap-3" data-weekly-video-actions>
+    <div class="grid min-w-0 gap-1">
+        <p class="font-bold wrap-anywhere">{{ $recording->name }}</p>
+        @if($recording->detailsLabel() !== '')
+            <p class="text-sm text-muted">{{ $recording->detailsLabel() }}</p>
+        @endif
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2.5">
+        <x-ui.button variant="secondary" :href="$recording->driveViewUrl()" target="_blank" rel="noopener noreferrer">Open in Drive<span class="sr-only">: {{ $recording->name }} (opens in a new tab)</span></x-ui.button>
+        {{ $slot }}
+    </div>
+
+    <x-drive-preview :preview-url="$recording->drivePreviewUrl()" :title="$recording->name" />
+
+    <p class="text-sm/relaxed text-muted">
+        @if($forMentor)
+            Video not opening? It may have been deleted, moved to the trash or unshared in the participant's Google Drive. Ask them to choose it again.
+        @else
+            Video not opening? It may have been deleted, moved to the trash or unshared in your Google Drive. Choose it again.
+        @endif
+    </p>
 </div>

@@ -101,7 +101,7 @@ class CoachGateBoardPageService
 
     /**
      * One table row: the Gate and its week, the participant, the status with its badge tone, the
-     * required criteria met, the weekly video (a link when uploaded, otherwise Missing, or Not required when the Gate has no weekly video criterion), the blocker count (null without blockers) and the link to review (or, once completed, view) the Gate.
+     * required criteria met, the weekly video (a link when chosen, otherwise Missing, or Not required when the Gate has no weekly video criterion), the blocker count (null without blockers) and the link to review (or, once completed, view) the Gate.
      *
      * @param  array{gate: TrainingGate, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, criteria_met: int, criteria_total: int, weekly_video: array{status: string, url: ?string, criterion: ?GateCriterion, recording: ?WeeklyVideoRecording}}  $row
      * @return array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, status_label: string, status_tone: string, criteria_met: int, criteria_total: int, video: array{url: ?string, label: string}, blocker_label: ?string, action_label: string, action_url: string}
@@ -133,7 +133,7 @@ class CoachGateBoardPageService
                 'label' => match ($row['weekly_video']['status']) {
                     'not_required' => 'Not required',
                     'missing' => 'Missing',
-                    'met' => '✓ Uploaded',
+                    'met' => '✓ Chosen',
                     default => 'Awaiting Review',
                 },
             ],

@@ -152,9 +152,9 @@ class ParticipantDashboardControllerTest extends TestCase
             ->assertSeeInOrder([
                 'aria-label="Week 2 progress"',
                 '>Video Recording</h3>',
-                'Not uploaded',
+                'Not chosen',
                 'href="'.route('training.video-recording.edit', $weekTwo).'"',
-                '>Upload Video</',
+                '>Choose Video</',
                 'aria-label="Week 3 progress"',
             ], false)
             ->assertDontSee(route('training.video-recording.edit', $weekOne), false)
@@ -162,6 +162,30 @@ class ParticipantDashboardControllerTest extends TestCase
             ->getContent();
 
         $this->assertSame(1, substr_count($html, '>Video Recording</h3>'));
+    }
+
+    public function test_the_video_row_shows_the_chosen_video_with_its_preview_and_the_change_action(): void
+    {
+        $participant = User::factory()->create();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
+        GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
+        $recording = WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create(['name' => 'week-1-walkthrough.mp4']);
+
+        $this->actingAs($participant)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'aria-label="Week 1 progress"',
+                '>Video Recording</h3>',
+                'Chosen',
+                '>week-1-walkthrough.mp4</p>',
+                'href="'.$recording->driveViewUrl().'"',
+                'href="'.route('training.video-recording.edit', $week).'"',
+                '>Change Video</',
+                'data-preview-src="'.$recording->drivePreviewUrl().'"',
+                'unshared in your Google Drive. Choose it again.',
+            ], false)
+            ->assertDontSee('Not chosen')
+            ->assertDontSee('>Choose Video</', false);
     }
 
     public function test_week_panels_show_no_daily_log_progress(): void

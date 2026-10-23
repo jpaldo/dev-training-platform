@@ -46,7 +46,7 @@ class StoreGateReviewRequest extends FormRequest
 
     /**
      * Once the fields are valid, check the decision against the weekly checklist (readiness does not block it): the
-     * weekly video item can be ticked only once a video is uploaded, a completed week needs every required item
+     * weekly video item can be ticked only once a video is chosen, a completed week needs every required item
      * ticked, and an incomplete week needs at least one required item left unticked.
      *
      * @return list<callable(Validator): void>
@@ -60,7 +60,7 @@ class StoreGateReviewRequest extends FormRequest
             $criteria = $this->requiredCriteria();
             $videoCriterion = $criteria->first(fn (GateCriterion $criterion): bool => $criterion->isWeeklyVideo());
             if ($videoCriterion && $this->criterionStatus($videoCriterion) === GateCriterionStatus::Met && $gates->weeklyVideo($this->route('participant'), $this->route('trainingGate'))['status'] === 'missing') {
-                $validator->errors()->add('criteria.'.$videoCriterion->id, 'The Weekly Video Recording cannot be marked Met until a video is uploaded.');
+                $validator->errors()->add('criteria.'.$videoCriterion->id, 'The Weekly Video Recording cannot be marked Met until the participant has chosen a video.');
 
                 return;
             }

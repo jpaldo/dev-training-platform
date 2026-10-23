@@ -88,9 +88,8 @@
                                 <ul class="m-0 grid list-none gap-3 p-0">
                                     @foreach($videoRecordings as $recording)
                                         <li class="grid justify-items-start gap-2 rounded-xl border border-line bg-field px-4 py-3.5">
-                                            <strong class="min-w-0 wrap-anywhere">Week {{ $recording->week->week_number }} · {{ $recording->name }}</strong>
-                                            <p class="m-0 text-sm text-muted">{{ $recording->detailsLabel() }}</p>
-                                            <x-weekly-video-actions :recording="$recording" />
+                                            <strong>Week {{ $recording->week->week_number }}</strong>
+                                            <x-weekly-video-actions :recording="$recording" for-mentor />
                                         </li>
                                     @endforeach
                                 </ul>

@@ -17,6 +17,7 @@ use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Models\WeeklyVideoRecording;
 use App\Services\ParticipantNotificationService;
 use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -244,7 +245,16 @@ class ParticipantNotificationsTest extends TestCase
         ActivitySubmission::factory()->for($participant, 'participant')->for($openActivity)->create(['status' => 'submitted']);
         app(ParticipantNotificationService::class)->sync($participant);
 
-        $this->assertTrue($participant->participantNotifications()->active()->where('key', "week:{$weeks[1]->id}:video")->exists());
+        $videoReminder = $participant->participantNotifications()->active()->where('key', "week:{$weeks[1]->id}:video")->sole();
+        $this->assertSame(ParticipantNotificationType::MissingVideo, $videoReminder->type);
+        $this->assertSame('Weekly Video Recording missing', $videoReminder->title);
+        $this->assertSame('Choose your Week 1 video from Google Drive.', $videoReminder->body);
+        $this->assertSame(route('training.video-recording.edit', $weeks[1]), $videoReminder->action_url);
+
+        WeeklyVideoRecording::factory()->for($participant, 'participant')->for($weeks[1], 'week')->create();
+        app(ParticipantNotificationService::class)->sync($participant);
+
+        $this->assertFalse($participant->participantNotifications()->active()->where('key', "week:{$weeks[1]->id}:video")->exists());
     }
 
     public function test_dashboard_next_action_skips_notifications_awaiting_review(): void

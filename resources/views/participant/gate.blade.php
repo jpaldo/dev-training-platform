@@ -14,9 +14,9 @@
             @endif
         </header>
 
-        @if($uploadVideoUrl)
+        @if($chooseVideoUrl)
             <x-ui.main-action id="gate-main-action">
-                <x-ui.button :href="$uploadVideoUrl">Upload Video Recording →</x-ui.button>
+                <x-ui.button :href="$chooseVideoUrl">Choose Weekly Video →</x-ui.button>
             </x-ui.main-action>
         @endif
 
@@ -54,7 +54,7 @@
                     @if($weeklyVideo['url'])
                         <x-ui.button variant="secondary" :href="$weeklyVideo['url']" target="_blank" rel="noopener noreferrer">View Video ↗<span class="sr-only"> (opens Google Drive in a new tab)</span></x-ui.button>
                     @else
-                        <p class="m-0 leading-relaxed text-muted">Upload a video recording of your work for this week.</p>
+                        <p class="m-0 leading-relaxed text-muted">Choose a video recording of your work for this week from your Google Drive.</p>
                     @endif
                 </x-ui.card>
             @endif

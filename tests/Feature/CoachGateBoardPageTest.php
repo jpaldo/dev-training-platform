@@ -73,7 +73,7 @@ class CoachGateBoardPageTest extends TestCase
                 '>Pat Passed</a>',
                 'border-emerald-400 text-emerald-200 whitespace-nowrap">COMPLETED</span>',
                 '>2 / 2</span>',
-                'href="'.$passedRecording->driveViewUrl().'" target="_blank" rel="noopener noreferrer"', '>✓ Uploaded<span class="sr-only"> (opens Google Drive in a new tab)</span></a>',
+                'href="'.$passedRecording->driveViewUrl().'" target="_blank" rel="noopener noreferrer"', '>✓ Chosen<span class="sr-only"> (opens Google Drive in a new tab)</span></a>',
                 '>—</span>',
                 'href="'.route('training.coach.gates.show', [$week, $passed, $gate]).'"', '>View Gate</a>',
             ], false)
@@ -261,7 +261,7 @@ class CoachGateBoardPageTest extends TestCase
     }
 
     /**
-     * Store an uploaded Weekly Video Recording of the participant for the week.
+     * Store a chosen Weekly Video Recording of the participant for the week.
      */
     private function recordWeeklyVideo(User $participant, TrainingWeek $week): WeeklyVideoRecording
     {

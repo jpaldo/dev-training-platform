@@ -67,7 +67,7 @@ class ParticipantNotificationService
             });
             $requiresVideo = $week->asksForWeeklyVideo();
             $videoMissing = $requiresVideo && $allSubmitted && ! WeeklyVideoRecording::query()->where('user_id', $participant->id)->where('training_week_id', $week->id)->exists();
-            $this->state($participant, "week:{$week->id}:video", ParticipantNotificationType::MissingVideo, 'Weekly Video Recording missing', "Upload your Week {$week->week_number} Video Recording to complete the weekly requirements.", route('training.video-recording.edit', $week), $videoMissing);
+            $this->state($participant, "week:{$week->id}:video", ParticipantNotificationType::MissingVideo, 'Weekly Video Recording missing', "Choose your Week {$week->week_number} video from Google Drive.", route('training.video-recording.edit', $week), $videoMissing);
 
             $gate = $week->gates->first();
             if ($gate) {

@@ -200,15 +200,16 @@
                             @if($item['shows_weekly_video'])
                                 <x-ui.card padding="p-5" class="grid gap-2.5">
                                     <h3 class="m-0 text-base font-extrabold">Video Recording</h3>
-                                    <span class="text-sm text-muted">{{ $item['week']->weekly_video_recording ? 'Uploaded' : 'Not uploaded' }}</span>
-                                    <div class="flex flex-wrap items-center gap-2.5">
-                                        @if($item['week']->weekly_video_recording)
-                                            <x-weekly-video-actions :recording="$item['week']->weekly_video_recording" />
-                                            <x-ui.button variant="secondary" :href="route('training.video-recording.edit', $item['week'])">Replace Video</x-ui.button>
-                                        @else
-                                            <x-ui.button variant="secondary" :href="route('training.video-recording.edit', $item['week'])">Upload Video</x-ui.button>
-                                        @endif
-                                    </div>
+                                    <span class="text-sm text-muted">{{ $item['week']->weekly_video_recording ? 'Chosen' : 'Not chosen' }}</span>
+                                    @if($item['week']->weekly_video_recording)
+                                        <x-weekly-video-actions :recording="$item['week']->weekly_video_recording">
+                                            <x-ui.button variant="secondary" :href="route('training.video-recording.edit', $item['week'])">Change Video</x-ui.button>
+                                        </x-weekly-video-actions>
+                                    @else
+                                        <div class="flex flex-wrap items-center gap-2.5">
+                                            <x-ui.button variant="secondary" :href="route('training.video-recording.edit', $item['week'])">Choose Video</x-ui.button>
+                                        </div>
+                                    @endif
                                 </x-ui.card>
                             @endif
                         </aside>

@@ -90,16 +90,15 @@
                 <x-ui.card as="section" class="grid grid-cols-1 justify-items-start gap-3" aria-labelledby="week-video-title">
                     <x-ui.eyebrow>WEEKLY REQUIREMENT</x-ui.eyebrow>
                     <h2 id="week-video-title" class="{{ $sectionTitleClasses }}">Video Recording</h2>
-                    <p class="m-0 leading-relaxed text-muted">Upload a video walkthrough demonstrating your work for this week.</p>
+                    <p class="m-0 leading-relaxed text-muted">Record a video walkthrough of your work for this week and choose it from your Google Drive.</p>
                     <p class="m-0 flex flex-wrap items-center gap-2">
                         <strong>Status:</strong>
-                        <x-ui.badge :tone="$videoRecording ? 'success' : 'neutral'">{{ $videoRecording ? 'Uploaded' : 'Not uploaded' }}</x-ui.badge>
+                        <x-ui.badge :tone="$videoRecording ? 'success' : 'neutral'">{{ $videoRecording ? 'Chosen' : 'Not chosen' }}</x-ui.badge>
                     </p>
                     @if($videoRecording)
-                        <div class="flex flex-wrap items-center gap-2.5">
-                            <x-weekly-video-actions :recording="$videoRecording" />
-                            <x-ui.button variant="secondary" :href="$replaceVideoUrl">Replace Video</x-ui.button>
-                        </div>
+                        <x-weekly-video-actions :recording="$videoRecording">
+                            <x-ui.button variant="secondary" :href="$changeVideoUrl">Change Video</x-ui.button>
+                        </x-weekly-video-actions>
                     @endif
                 </x-ui.card>
             @endif

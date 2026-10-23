@@ -14,13 +14,12 @@ class WeeklyVideoRecordingPageService
     ) {}
 
     /**
-     * Everything the Weekly Video Recording page renders: the participant's chosen Google Drive video for the week
-     * (with its name, size and when it was chosen), the participant's Google Drive state (`unavailable` while Drive
-     * cannot connect, `not_connected` or `connected`) with the connect link, which brings the participant back to this
-     * page, and the Picker settings and label. The Picker form is replaced by a locked message once the participant has
+     * Everything the Weekly Video Recording page renders: the participant's chosen Google Drive video for the week, the
+     * participant's Google Drive state (`unavailable` while Drive cannot connect, `not_connected` or `connected`) with
+     * the connect link, which brings the participant back to this page, and the Picker settings and label. The Picker form is replaced by a locked message once the participant has
      * passed one of the week's active Gates. The page never reads Google Drive.
      *
-     * @return array{trainingWeek: TrainingWeek, recording: ?WeeklyVideoRecording, recordingDetails: ?string, isLocked: bool, storeUrl: string, backUrl: string, driveState: string, connectUrl: string, picker: array{api_key: ?string, app_id: ?string, token_url: string, unavailable_message: ?string}, pickerLabel: string}
+     * @return array{trainingWeek: TrainingWeek, recording: ?WeeklyVideoRecording, isLocked: bool, storeUrl: string, backUrl: string, driveState: string, connectUrl: string, picker: array{api_key: ?string, app_id: ?string, token_url: string, unavailable_message: ?string}, pickerLabel: string}
      */
     public function editData(TrainingWeek $week, User $user): array
     {
@@ -29,7 +28,6 @@ class WeeklyVideoRecordingPageService
         return [
             'trainingWeek' => $week,
             'recording' => $recording,
-            'recordingDetails' => $recording ? $this->recordingDetails($recording) : null,
             'isLocked' => $this->progression->hasPassedActiveGate($user, $week),
             'storeUrl' => route('training.video-recording.store', $week),
             'backUrl' => route('training.weeks.show', $week),
@@ -42,13 +40,5 @@ class WeeklyVideoRecordingPageService
             'picker' => $this->googleDrive->pickerSettings('video'),
             'pickerLabel' => $recording ? 'Choose a Different Video' : 'Choose Video from Google Drive',
         ];
-    }
-
-    /**
-     * The video's name, size and when it was chosen, e.g. "week-1.mp4 · 12.5 MB · chosen Oct 22, 2026 9:30 AM".
-     */
-    private function recordingDetails(WeeklyVideoRecording $recording): string
-    {
-        return collect([$recording->name, $recording->detailsLabel()])->filter()->implode(' · ');
     }
 }

@@ -128,8 +128,8 @@ class L4TrainingProgramSeeder extends Seeder
                     ],
                     [
                         'type' => GateCriterion::TYPE_WEEKLY_VIDEO,
-                        'title' => 'Weekly video recording uploaded',
-                        'description' => 'A video recording walking through this week\'s work is uploaded.',
+                        'title' => 'Weekly video chosen from Google Drive',
+                        'description' => 'A video walking through this week\'s work is chosen from Google Drive.',
                         'required' => true,
                     ],
                 ],

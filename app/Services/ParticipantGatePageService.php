@@ -17,10 +17,10 @@ class ParticipantGatePageService
     /**
      * Everything the participant Gate page renders: the Gate status, the readiness summary, the Weekly Video Recording
      * state (null when the Gate has no weekly video criterion, so it does not require a video), the week's checklist
-     * (read only, each required item with its review status) and the coach feedback. The main action (Upload Video Recording) is offered only while
+     * (read only, each required item with its review status) and the coach feedback. The main action (Choose Weekly Video) is offered only while
      * the Gate requires a video and none is linked.
      *
-     * @return array{trainingWeek: TrainingWeek, gate: TrainingGate, statusLabel: string, statusTone: string, readinessItems: list<array{label: string, progress: string, message: string}>, showsReadyNotice: bool, weeklyVideo: ?array{description: ?string, status_label: string, status_tone: string, url: ?string}, uploadVideoUrl: ?string, criteria: list<array{title: string, description: ?string, is_met: bool, status_label: string, status_tone: string}>, coachFeedback: ?string}
+     * @return array{trainingWeek: TrainingWeek, gate: TrainingGate, statusLabel: string, statusTone: string, readinessItems: list<array{label: string, progress: string, message: string}>, showsReadyNotice: bool, weeklyVideo: ?array{description: ?string, status_label: string, status_tone: string, url: ?string}, chooseVideoUrl: ?string, criteria: list<array{title: string, description: ?string, is_met: bool, status_label: string, status_tone: string}>, coachFeedback: ?string}
      */
     public function showData(TrainingWeek $week, User $participant, TrainingGate $gate): array
     {
@@ -48,7 +48,7 @@ class ParticipantGatePageService
                 },
                 'url' => $weeklyVideo['url'],
             ] : null,
-            'uploadVideoUrl' => $requiresVideo && ! $weeklyVideo['url'] ? route('training.video-recording.edit', $week) : null,
+            'chooseVideoUrl' => $requiresVideo && ! $weeklyVideo['url'] ? route('training.video-recording.edit', $week) : null,
             'criteria' => $this->criterionRows($gate, $evaluation),
             'coachFeedback' => $evaluation?->comments ?: null,
         ];
@@ -139,7 +139,7 @@ class ParticipantGatePageService
         $items = [];
         foreach ($readiness as $key => $reason) {
             $items[] = match (true) {
-                $key === 'weekly_video' => ['label' => 'Weekly Video Recording', 'progress' => 'Missing', 'message' => 'Upload the required weekly video recording before this week can be marked completed.'],
+                $key === 'weekly_video' => ['label' => 'Weekly Video Recording', 'progress' => 'Missing', 'message' => 'Choose the required weekly video recording from Google Drive before this week can be marked completed.'],
                 str_starts_with($key, 'activity_') => ['label' => 'Activity '.Str::after($key, 'activity_'), 'progress' => 'Not submitted', 'message' => $reason],
                 str_starts_with($key, 'evidence_') => ['label' => 'Activity '.Str::after($key, 'evidence_').' evidence', 'progress' => 'Missing', 'message' => $reason],
                 default => ['label' => 'Requirements', 'progress' => 'Incomplete', 'message' => $reason],

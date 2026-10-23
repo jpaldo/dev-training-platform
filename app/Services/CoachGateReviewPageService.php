@@ -72,7 +72,7 @@ class CoachGateReviewPageService
                 ['label' => 'Activities', 'value' => $this->activityProgress($activities, $latestSubmissions)],
                 ['label' => 'Video Recording', 'value' => match (true) {
                     $weeklyVideo['status'] === 'not_required' => 'Not required',
-                    $weeklyVideo['url'] !== null => 'Uploaded',
+                    $weeklyVideo['url'] !== null => 'Chosen',
                     default => 'Missing',
                 }],
             ],

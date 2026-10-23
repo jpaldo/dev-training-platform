@@ -37,7 +37,7 @@ class GateReadinessTest extends TestCase
             $this->handIn($participant, $week['submitted']);
             $this->handIn($finisher, $week['unsubmitted'], $week['evidence']['unsubmitted']);
             $this->handIn($finisher, $week['submitted'], $week['evidence']['submitted']);
-            $this->uploadWeeklyVideo($finisher, $week['week']);
+            $this->chooseWeeklyVideo($finisher, $week['week']);
         }
 
         $readiness = app(GateReadinessService::class)->readinessForParticipants(collect([$participant, $finisher]), $gates);
@@ -49,7 +49,7 @@ class GateReadinessTest extends TestCase
         $this->assertSame($withoutVideo, $readiness->get($participant->id)->get($gates[0]->id));
         $this->assertSame([
             ...$withoutVideo,
-            'weekly_video' => 'Required Weekly Video Recording is missing. Upload the video before this week can be marked completed.',
+            'weekly_video' => 'Required Weekly Video Recording is missing. Choose your video from Google Drive before this week can be marked completed.',
         ], $readiness->get($participant->id)->get($gates[1]->id));
         $this->assertSame($withoutVideo, $readiness->get($participant->id)->get($gates[2]->id));
         foreach ($gates as $gate) {
@@ -57,7 +57,7 @@ class GateReadinessTest extends TestCase
         }
     }
 
-    public function test_the_weekly_video_is_not_required_without_a_video_criterion_and_otherwise_follows_the_upload_and_review(): void
+    public function test_the_weekly_video_is_not_required_without_a_video_criterion_and_otherwise_follows_the_chosen_video_and_review(): void
     {
         $weeks = $this->threeWeekProgram();
         [$weekOne, $weekTwo, $weekThree] = $weeks->pluck('week')->all();
@@ -69,12 +69,12 @@ class GateReadinessTest extends TestCase
         $this->assertSame('missing', $service->weeklyVideo($participant, $gateTwo)['status']);
         $this->assertTrue($service->weeklyVideo($participant, $gateTwo)['criterion']->is($weeks[1]['video_criterion']));
 
-        $this->uploadWeeklyVideo($participant, $weekOne);
-        $this->uploadWeeklyVideo($participant, $weekThree);
+        $this->chooseWeeklyVideo($participant, $weekOne);
+        $this->chooseWeeklyVideo($participant, $weekThree);
         $this->assertSame('not_required', $service->weeklyVideo($participant, $gateThree)['status']);
         $this->assertSame('missing', $service->weeklyVideo($participant, $gateTwo)['status']);
 
-        $recording = $this->uploadWeeklyVideo($participant, $weekTwo);
+        $recording = $this->chooseWeeklyVideo($participant, $weekTwo);
         $awaiting = $service->weeklyVideo($participant, $gateTwo);
         $this->assertSame('awaiting_review', $awaiting['status']);
         $this->assertSame($recording->driveViewUrl(), $awaiting['url']);
@@ -158,7 +158,7 @@ class GateReadinessTest extends TestCase
         ];
     }
 
-    public function test_a_coach_cannot_mark_the_weekly_video_met_before_it_is_uploaded(): void
+    public function test_a_coach_cannot_mark_the_weekly_video_met_before_it_is_chosen(): void
     {
         $weekTwo = $this->threeWeekProgram()[1];
         ['week' => $week, 'gate' => $gate, 'video_criterion' => $videoCriterion] = $weekTwo;
@@ -168,10 +168,10 @@ class GateReadinessTest extends TestCase
         $review = ['status' => 'needs_revision', 'criteria' => [$videoCriterion->id => 'met']];
 
         $this->actingAs($coach)->post(route('training.coach.gates.update', [$week, $participant, $gate]), $review)
-            ->assertSessionHasErrors(['criteria.'.$videoCriterion->id => 'The Weekly Video Recording cannot be marked Met until a video is uploaded.']);
+            ->assertSessionHasErrors(['criteria.'.$videoCriterion->id => 'The Weekly Video Recording cannot be marked Met until the participant has chosen a video.']);
         $this->assertDatabaseMissing('gate_evaluations', ['user_id' => $participant->id]);
 
-        $this->uploadWeeklyVideo($participant, $week);
+        $this->chooseWeeklyVideo($participant, $week);
 
         $this->actingAs($coach)->post(route('training.coach.gates.update', [$week, $participant, $gate]), $review)
             ->assertSessionHasNoErrors();
@@ -225,7 +225,7 @@ class GateReadinessTest extends TestCase
         }
     }
 
-    private function uploadWeeklyVideo(User $participant, TrainingWeek $week): WeeklyVideoRecording
+    private function chooseWeeklyVideo(User $participant, TrainingWeek $week): WeeklyVideoRecording
     {
         return WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create();
     }

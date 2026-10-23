@@ -9,6 +9,7 @@ use App\Models\Program;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Models\WeeklyVideoRecording;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -46,7 +47,7 @@ class MissingSubmissionReportPageTest extends TestCase
                 'Actionable missing requirements', '2 row(s)',
                 'href="'.e(route('coach.participants.show', $ada)).'"', '>Ada Alpha</a>', '>ada@example.test</span>',
                 '>Admin Blake, Coach Avery</td>', '>Video Recording</td>', '>Week 2</td>', '<strong>Weekly Video Recording</strong>',
-                '>1</td>', '>0</td>', '>1</td>', '>0</td>', '>Not Uploaded</span>',
+                '>1</td>', '>0</td>', '>1</td>', '>0</td>', '>Not Submitted</span>',
                 '>Ada Alpha</a>', '>Activities</td>', '>Week 2</td>', '<strong>Explore checkout</strong>',
                 '>1</td>', '>0</td>', '>1</td>', '>0</td>', '>Not Submitted</span>',
             ], false)
@@ -63,8 +64,28 @@ class MissingSubmissionReportPageTest extends TestCase
         $this->assertMatchesRegularExpression('/aria-current="page"[^>]*>Missing Submissions<\/a>/', $reportNav[1]);
         $this->assertSame(2, substr_count($html, 'data-missing-row'));
         $this->assertStringNotContainsString('Coach Avery', $this->selectMarkup($html, 'missing-participant'));
-        $this->assertMatchesRegularExpression('/border-danger[^"]*">Not Uploaded<\/span>/', $html);
-        $this->assertMatchesRegularExpression('/border-danger[^"]*">Not Submitted<\/span>/', $html);
+        $this->assertSame(2, preg_match_all('/border-danger[^"]*">Not Submitted<\/span>/', $html));
+        $this->assertStringNotContainsString('Not Uploaded', $html);
+    }
+
+    public function test_a_missing_weekly_video_is_not_submitted_in_the_csv_and_the_status_filter_and_a_chosen_one_is_not_listed(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);
+        GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
+        User::factory()->create(['name' => 'Ada Alpha', 'employee_id' => 'FS-0001', 'email' => 'ada@example.test']);
+        $chooser = User::factory()->create(['name' => 'Ben Beta']);
+        WeeklyVideoRecording::factory()->for($chooser, 'participant')->for($week, 'week')->create();
+
+        $csv = $this->actingAs($coach)->get(route('coach.reports.missing-submissions.export', ['status' => 'not_submitted']))
+            ->assertOk()
+            ->streamedContent();
+        $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
+
+        $this->assertSame(['Participant', 'Employee ID', 'Email', 'Mentor', 'Category', 'Week', 'Requirement', 'Expected', 'Submitted', 'Missing', 'Evidences', 'Status'], $rows[0]);
+        $this->assertSame([
+            ['Ada Alpha', 'FS-0001', 'ada@example.test', 'Not assigned', 'Video Recording', 'Week 2', 'Weekly Video Recording', '1', '0', '1', '0', 'Not Submitted'],
+        ], array_slice($rows, 1));
     }
 
     public function test_filters_keep_their_values_and_the_export_and_pagination_links_keep_the_query(): void

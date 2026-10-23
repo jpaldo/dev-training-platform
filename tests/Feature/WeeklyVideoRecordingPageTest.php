@@ -66,9 +66,13 @@ class WeeklyVideoRecordingPageTest extends TestCase
         $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
             ->assertOk()
             ->assertSeeInOrder([
-                '<strong>Chosen</strong> · week-2-walkthrough.mp4 · 1.5 MB · chosen Oct 22, 2026 9:30 AM',
+                '<strong>Status:</strong>', '>Chosen</span>',
+                '>week-2-walkthrough.mp4</p>',
+                '>1.5 MB · chosen Oct 22, 2026 9:30 AM</p>',
                 'href="https://drive.google.com/file/d/drive-video-1/view" target="_blank" rel="noopener noreferrer"',
                 '>Open in Drive<span class="sr-only">: week-2-walkthrough.mp4 (opens in a new tab)</span></a>',
+                'data-preview-src="https://drive.google.com/file/d/drive-video-1/preview"',
+                'unshared in your Google Drive. Choose it again.',
                 'Connect Google Drive to choose a different video.',
                 'href="'.route('profile.google-drive.connect', ['return_to' => '/training/weeks/'.$week->id.'/video-recording']).'"',
                 '>Connect Google Drive</a>',
@@ -136,7 +140,9 @@ class WeeklyVideoRecordingPageTest extends TestCase
         $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
             ->assertOk()
             ->assertSeeInOrder([
-                '<strong>Chosen</strong> · week-2-walkthrough.mp4 · 1.5 MB · chosen Oct 22, 2026 9:30 AM',
+                '>Chosen</span>',
+                '>week-2-walkthrough.mp4</p>',
+                '>1.5 MB · chosen Oct 22, 2026 9:30 AM</p>',
                 'href="https://drive.google.com/file/d/drive-video-1/view"',
                 '>Open in Drive<',
                 '>Saved walkthrough notes</textarea>',

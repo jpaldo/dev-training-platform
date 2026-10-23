@@ -25,7 +25,7 @@ class ParticipantGatePageTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_not_ready_participant_sees_the_readiness_summary_and_a_single_upload_main_action(): void
+    public function test_not_ready_participant_sees_the_readiness_summary_and_a_single_choose_main_action(): void
     {
         $participant = User::factory()->create();
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
@@ -39,7 +39,7 @@ class ParticipantGatePageTest extends TestCase
                 e($gate->description),
                 'id="gate-main-action"',
                 'href="'.route('training.video-recording.edit', $week).'"',
-                'Upload Video Recording →',
+                'Choose Weekly Video →',
                 'Gate readiness',
                 'NOT READY',
                 'Activity 1',
@@ -47,11 +47,11 @@ class ParticipantGatePageTest extends TestCase
                 'Activity 1 must have a submitted version.',
                 'Weekly Video Recording',
                 'Missing',
-                'Upload the required weekly video recording before this week can be marked completed.',
+                'Choose the required weekly video recording from Google Drive before this week can be marked completed.',
                 'id="gate-video-title"',
                 'Status:',
                 'MISSING',
-                'Upload a video recording of your work for this week.',
+                'Choose a video recording of your work for this week from your Google Drive.',
                 'Weekly checklist',
                 'Your mentor checks each item by hand and ticks it.',
                 e($activityCriterion->title),
@@ -68,7 +68,7 @@ class ParticipantGatePageTest extends TestCase
             ->assertDontSee('Your Gate is ready for Mentor review')
             ->assertDontSee('Mentor feedback');
 
-        $this->assertSame(1, substr_count($response->getContent(), 'Upload Video Recording'));
+        $this->assertSame(1, substr_count($response->getContent(), 'Choose Weekly Video'));
     }
 
     public function test_readiness_summary_lists_each_outstanding_reason_once(): void
@@ -90,12 +90,12 @@ class ParticipantGatePageTest extends TestCase
                 'Not submitted',
                 'Activity 2 must have a submitted version.',
                 '<strong>Weekly Video Recording</strong>',
-                'Upload the required weekly video recording before this week can be marked completed.',
+                'Choose the required weekly video recording from Google Drive before this week can be marked completed.',
                 'id="gate-video-title"',
             ], false)
             ->assertDontSee('Complete the outstanding activity and evidence requirements');
 
-        $this->assertSame(1, substr_count($response->getContent(), 'Upload the required weekly video recording before this week can be marked completed.'));
+        $this->assertSame(1, substr_count($response->getContent(), 'Choose the required weekly video recording from Google Drive before this week can be marked completed.'));
     }
 
     public function test_ready_participant_without_an_evaluation_sees_the_ready_notice_and_no_main_action(): void
@@ -103,7 +103,7 @@ class ParticipantGatePageTest extends TestCase
         $participant = User::factory()->create();
         ['week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
         $this->completeWeek($participant, $activities->first());
-        $recording = $this->uploadWeeklyVideo($participant, $week);
+        $recording = $this->chooseWeeklyVideo($participant, $week);
 
         $this->actingAs($participant)->get(route('training.gates.show', [$week, $gate]))
             ->assertOk()
@@ -116,7 +116,7 @@ class ParticipantGatePageTest extends TestCase
                 '>View Video ↗<span class="sr-only"> (opens Google Drive in a new tab)</span></a>',
             ], false)
             ->assertDontSee('gate-main-action')
-            ->assertDontSee('Upload Video Recording');
+            ->assertDontSee('Choose Weekly Video');
     }
 
     public function test_a_gate_without_a_weekly_video_criterion_is_ready_without_a_video_and_shows_no_video_section(): void
@@ -135,7 +135,7 @@ class ParticipantGatePageTest extends TestCase
                 'Weekly checklist',
             ])
             ->assertDontSee('gate-main-action')
-            ->assertDontSee('Upload Video Recording')
+            ->assertDontSee('Choose Weekly Video')
             ->assertDontSee('gate-video-title')
             ->assertDontSee('Weekly Video Recording');
     }
@@ -146,7 +146,7 @@ class ParticipantGatePageTest extends TestCase
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
         [$activityCriterion, $videoCriterion] = $criteria;
         $this->completeWeek($participant, $activities->first());
-        $this->uploadWeeklyVideo($participant, $week);
+        $this->chooseWeeklyVideo($participant, $week);
         $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision', 'comments' => 'Re-record the walkthrough.']);
         GateCriterionEvaluation::factory()->create(['gate_evaluation_id' => $evaluation->id, 'gate_criterion_id' => $activityCriterion->id, 'status' => 'not_met']);
         GateCriterionEvaluation::factory()->create(['gate_evaluation_id' => $evaluation->id, 'gate_criterion_id' => $videoCriterion->id, 'status' => 'met']);
@@ -218,7 +218,7 @@ class ParticipantGatePageTest extends TestCase
         foreach ($activities as $activity) {
             ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
         }
-        $this->uploadWeeklyVideo($participant, $week);
+        $this->chooseWeeklyVideo($participant, $week);
         $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision', 'comments' => 'Keep going.']);
         foreach ($criteria as $criterion) {
             GateCriterionEvaluation::factory()->create(['gate_evaluation_id' => $evaluation->id, 'gate_criterion_id' => $criterion->id]);
@@ -262,7 +262,7 @@ class ParticipantGatePageTest extends TestCase
         ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
     }
 
-    private function uploadWeeklyVideo(User $participant, TrainingWeek $week): WeeklyVideoRecording
+    private function chooseWeeklyVideo(User $participant, TrainingWeek $week): WeeklyVideoRecording
     {
         return WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create();
     }

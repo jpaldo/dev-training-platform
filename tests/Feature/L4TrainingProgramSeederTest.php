@@ -64,7 +64,7 @@ class L4TrainingProgramSeederTest extends TestCase
                     ['deliverable', "Placeholder Activity {$week->week_number}.1 deliverable submitted"],
                     ['deliverable', "Placeholder Activity {$week->week_number}.2 deliverable submitted"],
                     ['session_logs', 'Session logs committed for this week'],
-                    ['weekly_video', 'Weekly video recording uploaded'],
+                    ['weekly_video', 'Weekly video chosen from Google Drive'],
                 ],
                 $gate->criteria->where('is_required', true)->sortBy('position')->map(fn (GateCriterion $item): array => [
                     $item->criterion_type,
@@ -88,6 +88,29 @@ class L4TrainingProgramSeederTest extends TestCase
         $this->assertDatabaseCount('training_gates', 4);
         $this->assertDatabaseCount('gate_criteria', 16);
         $this->assertDatabaseCount('activity_requirements', 16);
+    }
+
+    public function test_running_again_renames_the_old_weekly_video_item_in_place(): void
+    {
+        $this->runSeederWithDefinition(function (array $definition): array {
+            foreach ($definition['weeks'] as $weekIndex => $week) {
+                $definition['weeks'][$weekIndex]['checklist']['items'][3]['title'] = 'Weekly video recording uploaded';
+                $definition['weeks'][$weekIndex]['checklist']['items'][3]['description'] = 'A video recording walking through this week\'s work is uploaded.';
+            }
+
+            return $definition;
+        });
+        $oldItemIds = GateCriterion::query()->where('title', 'Weekly video recording uploaded')->orderBy('id')->pluck('id')->all();
+        $this->assertCount(4, $oldItemIds);
+
+        $this->seed(L4TrainingProgramSeeder::class);
+
+        $this->assertDatabaseCount('gate_criteria', 16);
+        $this->assertDatabaseMissing('gate_criteria', ['title' => 'Weekly video recording uploaded']);
+        $renamedItems = GateCriterion::query()->whereKey($oldItemIds)->orderBy('id')->get();
+        $this->assertSame(array_fill(0, 4, 'Weekly video chosen from Google Drive'), $renamedItems->pluck('title')->all());
+        $this->assertSame(array_fill(0, 4, 'A video walking through this week\'s work is chosen from Google Drive.'), $renamedItems->pluck('description')->all());
+        $this->assertTrue($renamedItems->every(fn (GateCriterion $item): bool => $item->is_required && $item->isWeeklyVideo()));
     }
 
     public function test_running_again_leaves_a_submission_made_between_runs_untouched(): void
@@ -146,7 +169,7 @@ class L4TrainingProgramSeederTest extends TestCase
         $gate = TrainingGate::query()->whereHas('week', fn (Builder $week): Builder => $week->where('week_number', 1))->sole();
         $this->assertSame(4, $gate->criteria()->count());
         $this->assertSame(
-            ['Placeholder Activity 1.1 deliverable submitted', 'Session logs committed for this week', 'Weekly video recording uploaded'],
+            ['Placeholder Activity 1.1 deliverable submitted', 'Session logs committed for this week', 'Weekly video chosen from Google Drive'],
             $gate->criteria()->where('is_required', true)->orderBy('position')->pluck('title')->all(),
         );
     }

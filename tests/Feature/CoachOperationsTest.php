@@ -75,8 +75,9 @@ class CoachOperationsTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 'Weekly Video Recording',
-                'Week 2 · week-2.mp4',
-                '1.5 MB · chosen Oct 22, 2026 9:30 AM',
+                '<strong>Week 2</strong>',
+                '>week-2.mp4</p>',
+                '>1.5 MB · chosen Oct 22, 2026 9:30 AM</p>',
                 'href="'.$driveUrl.'" target="_blank" rel="noopener noreferrer"',
                 '>Open in Drive<',
             ], false)

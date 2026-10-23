@@ -132,7 +132,7 @@ class ActivityMarkdownRenderingTest extends TestCase
         $week = TrainingWeek::factory()->create(['week_number' => 1, 'position' => 1]);
         $activity = Activity::factory()->for($week, 'week')->create();
         $participant = User::factory()->create();
-        $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
+        $submission = ActivitySubmission::factory()->create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
         $version = SubmissionVersion::create(['activity_submission_id' => $submission->id, 'version_number' => 1, 'status' => 'submitted', 'submitted_at' => now(), 'field_values' => [
             'exact_ai_output' => self::AI_OUTPUT,
             'issue_caught' => "**raw marker**\nStill plain text.",

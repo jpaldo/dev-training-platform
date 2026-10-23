@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
 use App\Models\AttendanceSession;
 use App\Models\Program;
@@ -214,7 +215,7 @@ class AttendanceTest extends TestCase
         $this->actingAs($participant)->post(route('participant.attendance.check-out'))->assertRedirect();
         $this->actingAs($participant)->get($activityUrl)->assertRedirect(route('dashboard'));
 
-        $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
+        ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
         $this->actingAs($participant)->get($activityUrl)->assertOk();
     }
 
@@ -224,7 +225,7 @@ class AttendanceTest extends TestCase
         $this->seed(L4TrainingProgramSeeder::class);
         $week = Program::firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 2)->firstOrFail();
-        $submission = $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'draft']);
+        $submission = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'draft']);
         $submission->versions()->create(['version_number' => 1, 'status' => 'draft', 'field_values' => []]);
 
         $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))->assertOk();

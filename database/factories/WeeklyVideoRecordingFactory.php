@@ -14,8 +14,8 @@ use Illuminate\Support\Str;
 class WeeklyVideoRecordingFactory extends Factory
 {
     /**
-     * Define the model's default state: a participant's MP4 for a week, chosen now from their own Google Drive and
-     * not shared yet.
+     * Define the model's default state: a participant's MP4 for a week, in a session of the week's program
+     * (TrainingSessionFactory::defaultForWeek()), chosen now from their own Google Drive and not shared yet.
      *
      * @return array<string, mixed>
      */
@@ -24,6 +24,9 @@ class WeeklyVideoRecordingFactory extends Factory
         return [
             'user_id' => User::factory(),
             'training_week_id' => TrainingWeek::factory(),
+            'training_session_id' => fn (array $attributes): int|TrainingSessionFactory => TrainingSessionFactory::defaultForWeek(
+                TrainingWeek::query()->findOrFail($attributes['training_week_id']),
+            ),
             'drive_file_id' => Str::random(33),
             'drive_resource_key' => null,
             'name' => fake()->slug(3).'.mp4',

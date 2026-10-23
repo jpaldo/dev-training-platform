@@ -18,7 +18,7 @@ class ActivitySubmission extends Model
     /** @use HasFactory<ActivitySubmissionFactory> */
     use HasFactory;
 
-    protected $fillable = ['activity_id', 'user_id', 'attempt_number', 'status', 'submitted_at', 'completed_at'];
+    protected $fillable = ['training_session_id', 'activity_id', 'user_id', 'attempt_number', 'status', 'submitted_at', 'completed_at'];
 
     /**
      * Get the attributes that should be cast.
@@ -75,6 +75,11 @@ class ActivitySubmission extends Model
     public function isAccepted(): bool
     {
         return in_array($this->status, SubmissionStatus::accepted(), true);
+    }
+
+    public function trainingSession(): BelongsTo
+    {
+        return $this->belongsTo(TrainingSession::class);
     }
 
     public function activity(): BelongsTo

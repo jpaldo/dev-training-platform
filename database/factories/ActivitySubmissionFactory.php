@@ -14,7 +14,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class ActivitySubmissionFactory extends Factory
 {
     /**
-     * Define the model's default state.
+     * Define the model's default state: a draft attempt in a session of the activity's program
+     * (TrainingSessionFactory::defaultForWeek()).
      *
      * @return array<string, mixed>
      */
@@ -22,6 +23,9 @@ class ActivitySubmissionFactory extends Factory
     {
         return [
             'activity_id' => Activity::factory(),
+            'training_session_id' => fn (array $attributes): int|TrainingSessionFactory => TrainingSessionFactory::defaultForWeek(
+                Activity::query()->findOrFail($attributes['activity_id'])->week,
+            ),
             'user_id' => User::factory(),
             'status' => SubmissionStatus::Draft,
             'submitted_at' => null,

@@ -52,7 +52,7 @@ class ScoringTest extends TestCase
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
         $coach->assignedParticipants()->attach($participant->id);
-        $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
+        $submission = ActivitySubmission::factory()->create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => ['exact_prompt' => 'Prompt'], 'submitted_at' => now()]);
 
         return [$participant, $coach, $version];

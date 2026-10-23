@@ -10,6 +10,7 @@ use App\Models\EvidenceRequirement;
 use App\Models\GateCriterion;
 use App\Models\Program;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Migrations\Migration;
@@ -153,7 +154,8 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
     /**
      * Writes one row to every training table (and the participant's session, tokens and Drive connection) for the
      * QA program. Rows go in through the query builder: most of these tables have no factory and their
-     * models are removed during Phase 2.
+     * models are removed during Phase 2. The submission, Gate evaluation and video need a training session (since 9.1);
+     * it belongs to another program, because sessions did not exist when this migration ran and keep their program.
      */
     private function seedTrainingRecords(User $participant, User $coach): void
     {
@@ -161,8 +163,9 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         $activity = Activity::query()->firstOrFail();
         $criterion = GateCriterion::query()->firstOrFail();
         $evidenceRequirement = EvidenceRequirement::query()->firstOrFail();
+        $sessionId = TrainingSession::factory()->create()->id;
 
-        $submissionId = DB::table('activity_submissions')->insertGetId(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted']);
+        $submissionId = DB::table('activity_submissions')->insertGetId(['training_session_id' => $sessionId, 'activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted']);
         $versionId = DB::table('submission_versions')->insertGetId(['activity_submission_id' => $submissionId, 'version_number' => 1]);
         $evidenceId = DB::table('submission_evidence')->insertGetId([
             'submission_version_id' => $versionId,
@@ -173,7 +176,7 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
             'original_filename' => 'report.pdf',
         ]);
         $scoreId = DB::table('activity_scores')->insertGetId(['submission_version_id' => $versionId, 'scorer_id' => $coach->id]);
-        $gateEvaluationId = DB::table('gate_evaluations')->insertGetId(['training_gate_id' => $criterion->training_gate_id, 'user_id' => $participant->id, 'reviewer_id' => $coach->id]);
+        $gateEvaluationId = DB::table('gate_evaluations')->insertGetId(['training_session_id' => $sessionId, 'training_gate_id' => $criterion->training_gate_id, 'user_id' => $participant->id, 'reviewer_id' => $coach->id]);
 
         DB::table('google_drive_evidence_exports')->insert(['submission_evidence_id' => $evidenceId]);
         DB::table('google_drive_exports')->insert(['user_id' => $participant->id, 'export_type' => 'weekly_workbook', 'scope_key' => '2']);
@@ -188,6 +191,7 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         DB::table('gate_criterion_evaluations')->insert(['gate_evaluation_id' => $gateEvaluationId, 'gate_criterion_id' => $criterion->id, 'reviewer_id' => $coach->id]);
         DB::table('attendance_sessions')->insert(['user_id' => $participant->id, 'check_in_at' => now()]);
         DB::table('weekly_video_recordings')->insert([
+            'training_session_id' => $sessionId,
             'user_id' => $participant->id,
             'training_week_id' => $week->id,
             'drive_file_id' => 'week-2-video',

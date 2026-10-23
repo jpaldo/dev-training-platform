@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Program;
 use App\Models\TrainingSession;
+use App\Models\TrainingWeek;
 use App\Services\TrainingSessionService;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -28,6 +29,34 @@ class TrainingSessionFactory extends Factory
             'ends_on' => TrainingSessionService::endsOn(today(), 4),
             'created_by' => null,
         ];
+    }
+
+    /**
+     * The session a training record (submission, Gate evaluation, weekly video) for the week belongs to by default:
+     * the earliest session of the week's program that includes the week, or else a new forWeek() session. This way a
+     * participant's records in one program share a session unless the test chooses one.
+     */
+    public static function defaultForWeek(TrainingWeek $week): int|self
+    {
+        $sessionId = TrainingSession::query()
+            ->where('program_id', $week->program_id)
+            ->where('weeks_count', '>=', $week->week_number)
+            ->orderBy('id')
+            ->value('id');
+
+        return $sessionId ?? TrainingSession::factory()->forWeek($week);
+    }
+
+    /**
+     * An active session of the week's program that includes the week: 4 weeks long, or as many weeks as the week's
+     * number when that is higher.
+     */
+    public function forWeek(TrainingWeek $week): static
+    {
+        return $this->state([
+            'program_id' => $week->program_id,
+            'weeks_count' => max(4, $week->week_number),
+        ])->active();
     }
 
     /**

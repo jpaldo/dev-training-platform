@@ -154,7 +154,7 @@ class CoachOperationsTest extends TestCase
         $program = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail();
         $week1 = $program->weeks()->where('week_number', 1)->firstOrFail();
         $gate = $week1->gates()->firstOrFail();
-        GateEvaluation::create(['training_gate_id' => $gate->id, 'user_id' => $manual->id, 'status' => 'passed', 'evaluated_at' => now()]);
+        GateEvaluation::factory()->create(['training_gate_id' => $gate->id, 'user_id' => $manual->id, 'status' => 'passed', 'evaluated_at' => now()]);
 
         $response = $this->actingAs($coach)->get(route('coach.gates'));
         $response->assertOk()->assertSee('<table', false)->assertSee('Week 1')->assertSee('Week 2')->assertSee('Week 4')->assertSee('Gate Manual')->assertSee('Gate Automation')->assertSee('COMPLETED')->assertSee('Criteria')->assertSee('Video')->assertSee('Review Gate');
@@ -170,7 +170,7 @@ class CoachOperationsTest extends TestCase
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
         $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
-        $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
+        $submission = ActivitySubmission::factory()->create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
         $version = SubmissionVersion::create(['activity_submission_id' => $submission->id, 'version_number' => 1, 'status' => 'submitted', 'field_values' => ['finding_and_decision' => 'original'], 'submitted_at' => now()]);
         $this->actingAs($coach)->post(route('coach.reviews.store', $version), ['decision' => 'needs_revision', 'comments' => 'Please clarify the evidence.'])->assertRedirect();
         $this->assertDatabaseHas('submission_reviews', ['submission_version_id' => $version->id, 'decision' => 'needs_revision']);
@@ -240,7 +240,7 @@ class CoachOperationsTest extends TestCase
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
         $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
-        $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
+        $submission = ActivitySubmission::factory()->create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
         $version = SubmissionVersion::create(['activity_submission_id' => $submission->id, 'version_number' => 1, 'status' => 'submitted', 'field_values' => ['x' => 'original'], 'submitted_at' => now()]);
         $this->actingAs($coach)->post(route('coach.reviews.claim', $version))->assertRedirect();
         $this->assertDatabaseHas('activity_submissions', ['id' => $submission->id, 'status' => 'under_review']);
@@ -298,8 +298,8 @@ class CoachOperationsTest extends TestCase
         $program = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first();
         $w1 = $program->weeks()->where('week_number', 1)->first()->gates()->first();
         $w2 = $program->weeks()->where('week_number', 2)->first()->gates()->first();
-        GateEvaluation::create(['training_gate_id' => $w1->id, 'user_id' => $manual->id, 'status' => 'passed', 'evaluated_at' => now()]);
-        GateEvaluation::create(['training_gate_id' => $w2->id, 'user_id' => $automation->id, 'status' => 'failed', 'evaluated_at' => now()]);
+        GateEvaluation::factory()->create(['training_gate_id' => $w1->id, 'user_id' => $manual->id, 'status' => 'passed', 'evaluated_at' => now()]);
+        GateEvaluation::factory()->create(['training_gate_id' => $w2->id, 'user_id' => $automation->id, 'status' => 'failed', 'evaluated_at' => now()]);
         $response = $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'gates', 'participant' => $manual->id, 'week' => 1, 'status' => 'passed']));
         $response->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
         $this->assertStringContainsString($manual->name, $response->streamedContent());
@@ -317,7 +317,7 @@ class CoachOperationsTest extends TestCase
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
         $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
-        $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'needs_revision']);
+        ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'needs_revision']);
         $this->actingAs($coach)->get(route('coach.reports'))->assertOk()->assertSee(e("{$activity->title}: Needs revision"), false);
         $this->assertStringContainsString("{$activity->title}: Needs revision", $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'risk']))->streamedContent());
     }
@@ -329,7 +329,7 @@ class CoachOperationsTest extends TestCase
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
         $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
-        $submission = $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'submitted']);
+        $submission = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'submitted']);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => []]);
         $this->actingAs($coach)->get(route('coach.reviews.show', $version))
             ->assertOk()
@@ -349,7 +349,7 @@ class CoachOperationsTest extends TestCase
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
         $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
-        $submission = $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'submitted']);
+        $submission = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'submitted']);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => []]);
 
         $this->actingAs($coach)->get(route('coach.reviews.show', $version))->assertOk()->assertSee('Read only');
@@ -363,7 +363,7 @@ class CoachOperationsTest extends TestCase
         $participant = User::factory()->create();
         $other = User::factory()->create();
         $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
-        $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $other->id, 'status' => 'submitted']);
+        $submission = ActivitySubmission::factory()->create(['activity_id' => $activity->id, 'user_id' => $other->id, 'status' => 'submitted']);
         $version = SubmissionVersion::create(['activity_submission_id' => $submission->id, 'version_number' => 1, 'status' => 'submitted', 'field_values' => []]);
         $this->actingAs($participant)->get(route('coach.reviews.show', $version))->assertForbidden();
         $this->actingAs($participant)->post(route('coach.reviews.store', $version), ['decision' => 'approved'])->assertForbidden();
@@ -376,7 +376,7 @@ class CoachOperationsTest extends TestCase
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
         $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
-        $failed = $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'failed', 'attempt_number' => 1]);
+        $failed = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'failed', 'attempt_number' => 1]);
         $version = $failed->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => ['answer' => 'original'], 'submitted_at' => now()]);
         $this->actingAs($coach)->post(route('coach.reviews.retry', $version))
             ->assertRedirect(route('coach.participants.show', $participant))
@@ -416,7 +416,7 @@ class CoachOperationsTest extends TestCase
         $this->seedProgram();
         $participant = User::factory()->create();
         $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
-        $failed = $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'failed', 'attempt_number' => 1]);
+        $failed = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'failed', 'attempt_number' => 1]);
         $version = $failed->versions()->create(['version_number' => 1, 'status' => 'failed', 'field_values' => []]);
 
         $this->actingAs($participant)->post(route('coach.reviews.retry', $version))->assertForbidden();
@@ -430,7 +430,7 @@ class CoachOperationsTest extends TestCase
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
         $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
-        $submission = $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'approved', 'attempt_number' => 1]);
+        $submission = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'approved', 'attempt_number' => 1]);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'approved', 'field_values' => []]);
 
         $this->actingAs($coach)->post(route('coach.reviews.retry', $version))->assertStatus(422);
@@ -444,7 +444,7 @@ class CoachOperationsTest extends TestCase
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
         $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
-        $failed = $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'failed', 'attempt_number' => 1]);
+        $failed = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'failed', 'attempt_number' => 1]);
         $version = $failed->versions()->create(['version_number' => 1, 'status' => 'failed', 'field_values' => ['answer' => 'original']]);
         $this->actingAs($participant)->post(route('training.recovery.store', $failed), ['message' => 'Please reconsider this attempt.'])->assertRedirect();
         $request = ActivityRecoveryRequest::firstOrFail();

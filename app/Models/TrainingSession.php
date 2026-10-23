@@ -58,6 +58,21 @@ class TrainingSession extends Model
         return $this->hasMany(TrainingSessionResource::class);
     }
 
+    public function activitySubmissions(): HasMany
+    {
+        return $this->hasMany(ActivitySubmission::class);
+    }
+
+    public function gateEvaluations(): HasMany
+    {
+        return $this->hasMany(GateEvaluation::class);
+    }
+
+    public function weeklyVideoRecordings(): HasMany
+    {
+        return $this->hasMany(WeeklyVideoRecording::class);
+    }
+
     /**
      * Upcoming before the start date, completed after the end date, active from the start date to the end date
      * inclusive.

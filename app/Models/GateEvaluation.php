@@ -17,11 +17,16 @@ class GateEvaluation extends Model
     /** @use HasFactory<GateEvaluationFactory> */
     use HasFactory;
 
-    protected $fillable = ['training_gate_id', 'user_id', 'status', 'reviewer_id', 'evaluated_at', 'comments'];
+    protected $fillable = ['training_session_id', 'training_gate_id', 'user_id', 'status', 'reviewer_id', 'evaluated_at', 'comments'];
 
     protected function casts(): array
     {
         return ['status' => GateEvaluationStatus::class, 'evaluated_at' => 'datetime'];
+    }
+
+    public function trainingSession(): BelongsTo
+    {
+        return $this->belongsTo(TrainingSession::class);
     }
 
     public function gate(): BelongsTo

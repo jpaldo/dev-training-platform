@@ -14,11 +14,9 @@
             <x-session-repository :url="$repositoryUrl" />
         </header>
 
-        @if($canManage)
-            <x-ui.main-action id="gate-review-main-action">
-                <x-ui.button type="submit" form="gate-review-form">Save Gate Evaluation</x-ui.button>
-            </x-ui.main-action>
-        @endif
+        <x-ui.main-action id="gate-review-main-action">
+            <x-ui.button type="submit" form="gate-review-form">Save Gate Evaluation</x-ui.button>
+        </x-ui.main-action>
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
             @if(session('status'))
@@ -62,24 +60,18 @@
                         <ul class="m-0 grid list-none grid-cols-1 content-start gap-3 p-0" aria-label="Checklist items">
                             @foreach($checklist as $item)
                                 <li class="flex min-w-0 items-start gap-3 rounded-xl border border-line bg-field px-4 py-3.5">
-                                    @if($canManage)
-                                        <input type="hidden" name="criteria[{{ $item['id'] }}]" value="{{ $untickedValue }}" form="gate-review-form">
-                                    @endif
+                                    <input type="hidden" name="criteria[{{ $item['id'] }}]" value="{{ $untickedValue }}" form="gate-review-form">
                                     <input
                                         type="checkbox"
                                         id="criterion-{{ $item['id'] }}"
-                                        @if($canManage)
-                                            name="criteria[{{ $item['id'] }}]"
-                                            value="{{ $tickedValue }}"
-                                            form="gate-review-form"
-                                        @else
-                                            disabled
-                                        @endif
+                                        name="criteria[{{ $item['id'] }}]"
+                                        value="{{ $tickedValue }}"
+                                        form="gate-review-form"
                                         @if($item['description'])
                                             aria-describedby="criterion-{{ $item['id'] }}-description"
                                         @endif
                                         @checked(old('criteria.'.$item['id'], $item['saved_status']) === $tickedValue)
-                                        class="mt-0.5 size-5 shrink-0 accent-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent/50 disabled:cursor-not-allowed"
+                                        class="mt-0.5 size-5 shrink-0 accent-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent/50"
                                     >
                                     <div class="grid min-w-0 justify-items-start gap-1.5">
                                         <label for="criterion-{{ $item['id'] }}" class="font-extrabold wrap-break-word">{{ $item['title'] }}</label>
@@ -122,32 +114,25 @@
                 </div>
             </x-ui.card>
 
-            @if($canManage)
-                <x-ui.card as="form" method="POST" action="{{ route('training.coach.gates.update', [$trainingSession, $trainingWeek, $participant, $gate]) }}" id="gate-review-form" class="grid gap-6" aria-labelledby="gate-decision-title">
-                    @csrf
-                    <h2 id="gate-decision-title" class="m-0 text-xl font-extrabold">Mentor decision</h2>
+            <x-ui.card as="form" method="POST" action="{{ route('training.coach.gates.update', [$trainingSession, $trainingWeek, $participant, $gate]) }}" id="gate-review-form" class="grid gap-6" aria-labelledby="gate-decision-title">
+                @csrf
+                <h2 id="gate-decision-title" class="m-0 text-xl font-extrabold">Mentor decision</h2>
 
-                    <div class="grid gap-2">
-                        <label for="gate-status" class="{{ $labelClasses }}">Decision</label>
-                        <p id="gate-status-hint" class="m-0 text-sm/relaxed text-muted">Completed needs every checklist item ticked. Incomplete needs at least one item left unticked; the unticked items are recorded as missing.</p>
-                        <select id="gate-status" name="status" aria-describedby="gate-status-hint" class="{{ $controlClasses }}">
-                            @foreach($decisionOptions as $option)
-                                <option value="{{ $option['value'] }}" @selected(old('status', $selectedDecision) === $option['value'])>{{ $option['label'] }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                <div class="grid gap-2">
+                    <label for="gate-status" class="{{ $labelClasses }}">Decision</label>
+                    <p id="gate-status-hint" class="m-0 text-sm/relaxed text-muted">Completed needs every checklist item ticked. Incomplete needs at least one item left unticked; the unticked items are recorded as missing.</p>
+                    <select id="gate-status" name="status" aria-describedby="gate-status-hint" class="{{ $controlClasses }}">
+                        @foreach($decisionOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected(old('status', $selectedDecision) === $option['value'])>{{ $option['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
 
-                    <div class="grid gap-2 border-t border-line pt-5">
-                        <label for="gate-comments" class="{{ $labelClasses }}">Mentor comments</label>
-                        <textarea id="gate-comments" name="comments" rows="5" class="{{ $controlClasses }} min-h-28 resize-y">{{ old('comments', $evaluation?->comments) }}</textarea>
-                    </div>
-                </x-ui.card>
-            @else
-                <x-ui.card as="section" class="grid gap-4" aria-labelledby="gate-decision-title">
-                    <h2 id="gate-decision-title" class="m-0 text-xl font-extrabold">Mentor decision</h2>
-                    <x-ui.alert tone="error" role="status">Read only — this participant is not assigned to you.</x-ui.alert>
-                </x-ui.card>
-            @endif
+                <div class="grid gap-2 border-t border-line pt-5">
+                    <label for="gate-comments" class="{{ $labelClasses }}">Mentor comments</label>
+                    <textarea id="gate-comments" name="comments" rows="5" class="{{ $controlClasses }} min-h-28 resize-y">{{ old('comments', $evaluation?->comments) }}</textarea>
+                </div>
+            </x-ui.card>
         </div>
     </div>
 @endsection

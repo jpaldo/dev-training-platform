@@ -24,7 +24,7 @@ class CoachOperationsController extends Controller
     {
         $filters = [...$request->validated(), 'status' => $request->enum('status', GateEvaluationStatus::class)];
 
-        return view('coach.gates', $page->indexData($filters, max(1, $request->integer('page', 1))));
+        return view('coach.gates', $page->indexData($request->user(), $filters, max(1, $request->integer('page', 1))));
     }
 
     public function reports(FilterCoachReportsRequest $request, CoachProgressReportPageService $page): View

@@ -16,11 +16,12 @@ class GateEvaluationPolicy
     }
 
     /**
-     * Determine whether the user can view the model.
+     * Determine whether the user can view the model: the evaluated participant, an admin or the participant's current
+     * mentor in the evaluation's session.
      */
     public function view(User $user, GateEvaluation $gateEvaluation): bool
     {
-        return $user->isCoachOrAdmin() || $user->is($gateEvaluation->participant);
+        return $user->is($gateEvaluation->participant) || $this->update($user, $gateEvaluation);
     }
 
     /**

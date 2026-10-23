@@ -63,6 +63,21 @@ class MentorAssignment extends Model
     }
 
     /**
+     * Limit the query to the mentor's current assignment to the participant (`user_id`) of the outer query's row in
+     * that row's session (`training_session_id`), for a `whereExists` on a table with both columns.
+     *
+     * @param  Builder<Model>  $outerQuery
+     */
+    public function scopeCurrentForMentorOfRow(Builder $query, User $mentor, Builder $outerQuery): Builder
+    {
+        return $query
+            ->current()
+            ->whereColumn('mentor_assignments.participant_id', $outerQuery->qualifyColumn('user_id'))
+            ->whereColumn('mentor_assignments.training_session_id', $outerQuery->qualifyColumn('training_session_id'))
+            ->where('mentor_assignments.mentor_id', $mentor->id);
+    }
+
+    /**
      * Limit the query to the participant's assignments in the session, current and ended.
      */
     public function scopeForParticipantInSession(Builder $query, int $trainingSessionId, int $participantId): Builder

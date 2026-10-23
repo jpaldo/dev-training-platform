@@ -66,8 +66,7 @@ class CoachParticipantListPageService
                 ->when($filters['search'] ?? null, fn (Builder $query, string $search): Builder => $query->where(fn (Builder $matches): Builder => $matches
                     ->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%"))))
-            ->unless($viewer->hasAnyRole(UserRole::Admin), fn (Builder $query): Builder => $query
-                ->whereExists($this->currentAssignmentOfMembership()->where('mentor_assignments.mentor_id', $viewer->id)))
+            ->unless($viewer->hasAnyRole(UserRole::Admin), fn (Builder $query): Builder => $query->currentlyMentoredBy($viewer))
             ->when($filters['session'] ?? null, fn (Builder $query, int|string $trainingSessionId): Builder => $query->where('training_session_id', $trainingSessionId))
             ->with([
                 'participant' => fn (Relation $participants): Relation => $participants

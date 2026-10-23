@@ -172,7 +172,7 @@ class CoachOperationsTest extends TestCase
         $program = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail();
         $week1 = $program->weeks()->where('week_number', 1)->firstOrFail();
         $gate = $week1->gates()->firstOrFail();
-        TrainingSession::factory()->forWeek($week1)->withParticipants($manual, $automation)->create();
+        $this->mentorInSession(TrainingSession::factory()->forWeek($week1)->create(), $coach, $manual, $automation);
         GateEvaluation::factory()->create(['training_gate_id' => $gate->id, 'user_id' => $manual->id, 'status' => 'passed', 'evaluated_at' => now()]);
 
         $response = $this->actingAs($coach)->get(route('coach.gates'));
@@ -318,16 +318,17 @@ class CoachOperationsTest extends TestCase
         $program = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first();
         $w1 = $program->weeks()->where('week_number', 1)->first()->gates()->first();
         $w2 = $program->weeks()->where('week_number', 2)->first()->gates()->first();
-        GateEvaluation::factory()->create(['training_gate_id' => $w1->id, 'user_id' => $manual->id, 'status' => 'passed', 'evaluated_at' => now()]);
+        $evaluation = GateEvaluation::factory()->create(['training_gate_id' => $w1->id, 'user_id' => $manual->id, 'status' => 'passed', 'evaluated_at' => now()]);
         GateEvaluation::factory()->create(['training_gate_id' => $w2->id, 'user_id' => $automation->id, 'status' => 'failed', 'evaluated_at' => now()]);
+        $this->mentorInSession($evaluation->trainingSession, $coach, $manual, $automation);
         $response = $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'gates', 'participant' => $manual->id, 'week' => 1, 'status' => 'passed']));
         $response->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
         $this->assertStringContainsString($manual->name, $response->streamedContent());
         $this->assertStringContainsString(',1,"'.$w1->title.'",passed,', $response->streamedContent());
         $this->assertStringNotContainsString($automation->name, $response->streamedContent());
         $rows = array_map(str_getcsv(...), explode("\n", trim($response->streamedContent())));
-        $this->assertSame(['Participant', 'Employee ID', 'Week', 'Gate', 'Status', 'Evaluated', 'Reviewer'], $rows[0]);
-        $this->assertSame([$manual->name, 'EMP-4001'], array_slice($rows[1], 0, 2));
+        $this->assertSame(['Participant', 'Employee ID', 'Training session', 'Week', 'Gate', 'Status', 'Evaluated', 'Reviewer'], $rows[0]);
+        $this->assertSame([$manual->name, 'EMP-4001', $evaluation->trainingSession->titleWithDates()], array_slice($rows[1], 0, 3));
     }
 
     public function test_at_risk_report_contains_authoritative_reason(): void

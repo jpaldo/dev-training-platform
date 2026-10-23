@@ -143,9 +143,23 @@ class CoachReportService
         return GateEvaluation::query()->with(['participant', 'gate.week'])->latest('evaluated_at');
     }
 
-    public function filteredGateResults(?array $filters = null): Builder
+    /**
+     * The Gate evaluations the viewer may see (every one for an admin, otherwise those whose participant the viewer
+     * currently mentors in the evaluation's session) that match the filters, latest evaluation first, with the
+     * participant, Gate and week, and training session.
+     *
+     * @param  array{participant?: int|string|null, status?: ?string, week?: int|string|null, session?: int|string|null}  $filters
+     * @return Builder<GateEvaluation>
+     */
+    public function filteredGateResults(User $viewer, array $filters = []): Builder
     {
-        return $this->gateResults()->when($filters['participant'] ?? null, fn (Builder $q, int|string $v): Builder => $q->where('user_id', $v))->when($filters['status'] ?? null, fn (Builder $q, string $v): Builder => $q->where('status', $v))->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('gate.week', fn (Builder $w): Builder => $w->where('week_number', $v)));
+        return $this->gateResults()
+            ->unless($viewer->hasAnyRole(UserRole::Admin), fn (Builder $query): Builder => $query->currentlyMentoredBy($viewer))
+            ->when($filters['session'] ?? null, fn (Builder $q, int|string $v): Builder => $q->where('training_session_id', $v))
+            ->when($filters['participant'] ?? null, fn (Builder $q, int|string $v): Builder => $q->where('user_id', $v))
+            ->when($filters['status'] ?? null, fn (Builder $q, string $v): Builder => $q->where('status', $v))
+            ->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('gate.week', fn (Builder $w): Builder => $w->where('week_number', $v)))
+            ->with('trainingSession:id,title,starts_on,ends_on');
     }
 
     /**
@@ -203,7 +217,7 @@ class CoachReportService
 
     /**
      * Build a coach report CSV: participant progress by default, or the review queue (the viewer's, see reviewQueue()),
-     * Gate results or at-risk list.
+     * Gate results (the viewer's, see filteredGateResults()) or at-risk list.
      *
      * @param  array<string, mixed>  $input  the request's report filters
      * @return array{filename: string, header: list<string>, rows: Collection<int, list<mixed>>}
@@ -220,8 +234,8 @@ class CoachReportService
             ],
             'gates' => [
                 'filename' => 'gate-results.csv',
-                'header' => ['Participant', 'Employee ID', 'Week', 'Gate', 'Status', 'Evaluated', 'Reviewer'],
-                'rows' => $this->filteredGateResults($filters)->get()->map(fn (GateEvaluation $e): array => [$e->participant->name, $e->participant->employee_id, $e->gate->week->week_number, $e->gate->title, $e->status->value, $e->evaluated_at, $e->reviewer_id]),
+                'header' => ['Participant', 'Employee ID', 'Training session', 'Week', 'Gate', 'Status', 'Evaluated', 'Reviewer'],
+                'rows' => $this->filteredGateResults($viewer, $filters)->get()->map(fn (GateEvaluation $e): array => [$e->participant->name, $e->participant->employee_id, $e->trainingSession->titleWithDates(), $e->gate->week->week_number, $e->gate->title, $e->status->value, $e->evaluated_at, $e->reviewer_id]),
             ],
             'risk' => [
                 'filename' => 'at-risk.csv',

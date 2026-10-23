@@ -81,24 +81,19 @@ class MentorScopeAuthorizationTest extends TestCase
         $this->assertForbiddenOnWork($cy, $work, $participant);
     }
 
-    public function test_only_an_admin_and_the_current_mentor_see_the_weekly_video_link_on_the_gate_review(): void
+    public function test_only_an_admin_and_the_current_mentor_open_the_gate_review_with_the_weekly_video_link(): void
     {
         ['work' => $work, 'admin' => $admin, 'currentMentor' => $ben, 'previousMentor' => $ana, 'otherSessionMentor' => $cy, 'participant' => $participant] = $this->fixture();
-        $videoLink = 'href="'.$work['recording']->driveViewUrl().'"';
         $gatePageUrl = route('training.coach.gates.show', [$work['session'], $work['week'], $participant, $work['gate']]);
 
         foreach ([$admin, $ben] as $viewer) {
             $this->actingAs($viewer)->get($gatePageUrl)
                 ->assertOk()
-                ->assertSee($videoLink, false)
+                ->assertSee('href="'.$work['recording']->driveViewUrl().'"', false)
                 ->assertSee('Save Gate Evaluation');
         }
 
-        $this->actingAs($ana)->get($gatePageUrl)
-            ->assertOk()
-            ->assertSee('Read only — this participant is not assigned to you.')
-            ->assertDontSee($videoLink, false)
-            ->assertDontSee('View Video');
+        $this->actingAs($ana)->get($gatePageUrl)->assertForbidden();
         $this->actingAs($cy)->get($gatePageUrl)->assertForbidden();
     }
 
@@ -120,14 +115,15 @@ class MentorScopeAuthorizationTest extends TestCase
     }
 
     /**
-     * Open the work's review page and send each mentor action on the work as the user, and assert that every one is
-     * forbidden and the actions changed nothing.
+     * Open the work's review and Gate review pages and send each mentor action on the work as the user, and assert that
+     * every one is forbidden and the actions changed nothing.
      *
      * @param  array{session: TrainingSession, week: TrainingWeek, gate: TrainingGate, criteria: Collection<int, GateCriterion>, version: SubmissionVersion, earlierVersion: SubmissionVersion, evidence: SubmissionEvidence, recoveryRequest: ActivityRecoveryRequest, recording: WeeklyVideoRecording}  $work
      */
     private function assertForbiddenOnWork(User $user, array $work, User $participant): void
     {
         $this->actingAs($user)->get(route('coach.reviews.show', $work['version']))->assertForbidden();
+        $this->actingAs($user)->get(route('training.coach.gates.show', [$work['session'], $work['week'], $participant, $work['gate']]))->assertForbidden();
         $this->actingAs($user)->post(route('coach.reviews.store', $work['version']), self::REVIEW)->assertForbidden();
         $this->actingAs($user)->post(route('coach.scoring.second-reader', $work['version']), $this->secondReading($user))->assertForbidden();
         $this->actingAs($user)->post(route('coach.scoring.store', $work['version']), self::SCORE)->assertForbidden();

@@ -44,6 +44,15 @@ class TrainingSessionParticipant extends Pivot
         return $query->where('training_session_id', $trainingSessionId)->where('user_id', $userId);
     }
 
+    /**
+     * Limit the query to memberships where the given coach is the participant's current mentor in the session (a
+     * `mentor_assignments` row for that participant and session naming them, not ended).
+     */
+    public function scopeCurrentlyMentoredBy(Builder $query, User $mentor): Builder
+    {
+        return $query->whereExists(MentorAssignment::query()->currentForMentorOfRow($mentor, $query));
+    }
+
     public function trainingSession(): BelongsTo
     {
         return $this->belongsTo(TrainingSession::class);

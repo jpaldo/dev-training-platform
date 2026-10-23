@@ -105,11 +105,11 @@ class CoachOperationsControllerTest extends TestCase
     {
         $coach = User::factory()->create(['role' => 'coach']);
 
-        $this->createGateProgress(1);
+        $this->mentorInSessionsOfTheirGates($coach, $this->createGateProgress(1));
         $singleRowQueryCount = $this->queryCount($coach, route('coach.gates'));
 
-        $this->createGateProgress(3);
-        $threeRowQueryCount = $this->queryCount($coach, route('coach.gates'));
+        $this->mentorInSessionsOfTheirGates($coach, $this->createGateProgress(3));
+        $threeRowQueryCount = $this->queryCount($coach, route('coach.gates'), expectedRows: 1 + 3 * 3);
 
         $this->assertSame($singleRowQueryCount, $threeRowQueryCount);
     }
@@ -161,11 +161,33 @@ class CoachOperationsControllerTest extends TestCase
     }
 
     /**
-     * Count the queries of a coach request to the URL after a warm-up request.
+     * Add each participant to the sessions of their Gate evaluations and make the coach a mentor of those sessions and
+     * the participant's current mentor there, so the coach's Gate board lists their rows.
+     *
+     * @param  Collection<int, User>  $participants
      */
-    private function queryCount(User $coach, string $url): int
+    private function mentorInSessionsOfTheirGates(User $coach, Collection $participants): void
     {
-        $this->actingAs($coach)->get($url)->assertOk();
+        foreach ($participants as $participant) {
+            foreach (GateEvaluation::query()->where('user_id', $participant->id)->distinct()->pluck('training_session_id') as $trainingSessionId) {
+                $session = TrainingSession::query()->findOrFail($trainingSessionId);
+                $session->participants()->attach($participant, ['joined_at' => now()]);
+                $session->mentors()->syncWithoutDetaching([$coach->id]);
+                MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+            }
+        }
+    }
+
+    /**
+     * Count the queries of a coach request to the URL after a warm-up request, which lists the expected number of Gate
+     * board rows when given.
+     */
+    private function queryCount(User $coach, string $url, ?int $expectedRows = null): int
+    {
+        $response = $this->actingAs($coach)->get($url)->assertOk();
+        if ($expectedRows !== null) {
+            $this->assertSame($expectedRows, substr_count($response->getContent(), 'data-gate-row'));
+        }
 
         DB::flushQueryLog();
         DB::enableQueryLog();

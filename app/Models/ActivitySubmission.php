@@ -92,11 +92,7 @@ class ActivitySubmission extends Model
      */
     public function scopeCurrentlyMentoredBy(Builder $query, User $mentor): Builder
     {
-        return $query->whereExists(MentorAssignment::query()
-            ->current()
-            ->whereColumn('mentor_assignments.participant_id', $query->qualifyColumn('user_id'))
-            ->whereColumn('mentor_assignments.training_session_id', $query->qualifyColumn('training_session_id'))
-            ->where('mentor_assignments.mentor_id', $mentor->id));
+        return $query->whereExists(MentorAssignment::query()->currentForMentorOfRow($mentor, $query));
     }
 
     public function trainingSession(): BelongsTo

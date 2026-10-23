@@ -31,18 +31,15 @@ class GateReviewController extends Controller
     }
 
     /**
-     * The coach Gate review of a participant's week in the session; a participant who is not in the session is not
-     * found.
+     * The coach Gate review of a participant's week in the session, for an admin or the participant's current mentor
+     * there; a participant who is not in the session is not found.
      */
     public function show(TrainingSession $trainingSession, TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, CoachGateReviewPageService $page): View
     {
         $this->guard($trainingSession, $trainingWeek, $participant, $trainingGate);
-        $evaluation = $this->evaluation($trainingSession, $participant, $trainingGate);
-        if ($evaluation) {
-            Gate::authorize('view', $evaluation);
-        }
+        abort_unless(request()->user()->mentorsParticipantInSession($participant, $trainingSession), 403);
 
-        return view('coach.gate_review', $page->showData($trainingSession, $trainingWeek, $participant, $trainingGate, $evaluation, request()->user()));
+        return view('coach.gate_review', $page->showData($trainingSession, $trainingWeek, $participant, $trainingGate, $this->evaluation($trainingSession, $participant, $trainingGate)));
     }
 
     public function update(StoreGateReviewRequest $request, TrainingSession $trainingSession, TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, GateReviewService $reviews): RedirectResponse

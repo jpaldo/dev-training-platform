@@ -24,10 +24,19 @@
             </dl>
         </section>
 
-        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_repeat(2,minmax(0,1fr))_auto] lg:items-end" aria-label="Filter Gates">
+        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 lg:grid-cols-[repeat(2,minmax(0,2fr))_repeat(2,minmax(0,1fr))_auto] lg:items-end" aria-label="Filter Gates">
             <div class="grid min-w-0 gap-2">
                 <label for="gate-search" class="{{ $labelClasses }}">Search participant</label>
                 <input id="gate-search" name="search" value="{{ $search }}" placeholder="Name or email…" class="{{ $controlClasses }}">
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="gate-session" class="{{ $labelClasses }}">Training session</label>
+                <select id="gate-session" name="session" class="{{ $controlClasses }}">
+                    <option value="">All training sessions</option>
+                    @foreach($sessionOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
             </div>
             <div class="grid min-w-0 gap-2">
                 <label for="gate-week" class="{{ $labelClasses }}">Week</label>
@@ -52,12 +61,13 @@
 
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="gate-board-caption">
             <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="gate-board-caption" tabindex="0">
-                <table class="w-full min-w-240 border-collapse text-sm">
+                <table class="w-full min-w-280 border-collapse text-sm">
                     <caption id="gate-board-caption" class="pb-3 text-left text-muted">One row per participant, training session and Gate</caption>
                     <thead>
                         <tr>
                             <th scope="col" class="{{ $headerCellClasses }}">Gate</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
+                            <th scope="col" class="{{ $headerCellClasses }}">Training session</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Status</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Criteria</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Video</th>
@@ -78,6 +88,12 @@
                                     <span class="grid justify-items-start gap-0.5">
                                         <a href="{{ $row['participant_url'] }}" class="{{ $linkClasses }} wrap-break-word">{{ $row['participant_name'] }}</a>
                                         <span class="wrap-break-word text-muted">{{ $row['participant_email'] }}</span>
+                                    </span>
+                                </td>
+                                <td class="{{ $cellClasses }}">
+                                    <span class="grid gap-0.5">
+                                        <span class="wrap-break-word">{{ $row['session_title'] }}</span>
+                                        <span class="whitespace-nowrap text-muted">{{ $row['session_dates'] }}</span>
                                     </span>
                                 </td>
                                 <td class="{{ $cellClasses }}">

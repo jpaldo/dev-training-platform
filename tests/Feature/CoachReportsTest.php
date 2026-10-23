@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
+use App\Models\GateEvaluation;
 use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingGate;
 use App\Models\TrainingSession;
 use App\Models\User;
 use Database\Seeders\L4TrainingProgramSeeder;
@@ -162,6 +164,34 @@ class CoachReportsTest extends TestCase
         $this->assertSame([['Pat Participant', $sessionY->titleWithDates()]], array_map(fn (array $row): array => [$row[0], $row[2]], array_slice($sessionYRows, 1)));
 
         $this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'reviews', 'session' => 999]))->assertSessionHasErrors(['session']);
+    }
+
+    public function test_gate_results_export_lists_only_the_viewers_current_participants_with_their_training_session(): void
+    {
+        $ana = User::factory()->create(['role' => 'coach']);
+        $ben = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create(['name' => 'Pat Participant', 'employee_id' => 'EMP-7001']);
+        $other = User::factory()->create(['name' => 'Quinn Other']);
+        $gate = TrainingGate::factory()->create(['title' => 'Week checklist']);
+        $sessionX = TrainingSession::factory()->forWeek($gate->week)->create(['title' => 'Session X']);
+        $sessionY = TrainingSession::factory()->forWeek($gate->week)->create(['title' => 'Session Y']);
+        MentorAssignment::factory()->ended()->create(['training_session_id' => $sessionX->id, 'participant_id' => $participant->id, 'mentor_id' => $ana->id]);
+        MentorAssignment::factory()->create(['training_session_id' => $sessionX->id, 'participant_id' => $participant->id, 'mentor_id' => $ben->id]);
+        foreach ([[$participant, $sessionX], [$participant, $sessionY], [$other, $sessionX]] as [$evaluated, $trainingSession]) {
+            GateEvaluation::factory()->for($gate, 'gate')->for($evaluated, 'participant')->for($trainingSession)->create(['status' => 'passed', 'evaluated_at' => now()]);
+        }
+
+        $benRows = $this->csvRows($this->actingAs($ben)->get(route('coach.reports.export', ['type' => 'gates']))->assertOk()->streamedContent());
+        $this->assertSame(['Participant', 'Employee ID', 'Training session', 'Week', 'Gate'], array_slice($benRows[0], 0, 5));
+        $this->assertSame([['Pat Participant', 'EMP-7001', $sessionX->titleWithDates(), (string) $gate->week->week_number, 'Week checklist']], array_map(fn (array $row): array => array_slice($row, 0, 5), array_slice($benRows, 1)));
+
+        $this->assertCount(1, $this->csvRows($this->actingAs($ana)->get(route('coach.reports.export', ['type' => 'gates']))->assertOk()->streamedContent()));
+
+        $admin = User::factory()->create(['role' => 'admin']);
+        $adminRows = $this->csvRows($this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'gates']))->assertOk()->streamedContent());
+        $this->assertCount(4, $adminRows);
+        $sessionYRows = $this->csvRows($this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'gates', 'session' => $sessionY->id]))->assertOk()->streamedContent());
+        $this->assertSame([['Pat Participant', $sessionY->titleWithDates()]], array_map(fn (array $row): array => [$row[0], $row[2]], array_slice($sessionYRows, 1)));
     }
 
     /**

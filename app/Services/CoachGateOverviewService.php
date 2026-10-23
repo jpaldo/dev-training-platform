@@ -32,17 +32,20 @@ class CoachGateOverviewService
     ) {}
 
     /**
-     * Build the coach Gate board: one row per session membership and active Gate of one of the session's weeks, each
+     * Build the coach Gate board: one row per session membership the viewer may see (every one for an admin, otherwise
+     * those where the viewer is the participant's current mentor) and active Gate of one of the session's weeks, each
      * from the participant's work in that session, sorted by status, with summary counts.
      *
-     * @param  array{week?: int|string|null, search?: string|null, status?: GateEvaluationStatus|null}  $filters
+     * @param  array{week?: int|string|null, search?: string|null, status?: GateEvaluationStatus|null, session?: int|string|null}  $filters
      * @return array{rows: Collection<int, array{gate: TrainingGate, trainingSession: TrainingSession, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, criteria_met: int, criteria_total: int, weekly_video: array{status: string, url: ?string, criterion: ?GateCriterion, recording: ?WeeklyVideoRecording}}>, summary: array{total: int, ready: int, awaiting: int, passed: int, not_ready: int}}
      */
-    public function board(array $filters): array
+    public function board(User $viewer, array $filters): array
     {
         $gates = TrainingGate::query()->where('is_active', true)->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('week', fn (Builder $w): Builder => $w->where('week_number', $v)))->with(['week', 'criteria'])->get();
         $memberships = TrainingSessionParticipant::query()
             ->whereHas('participant', fn (Builder $q): Builder => $q->where('role', UserRole::Participant)->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $s): Builder => $s->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%"))))
+            ->unless($viewer->hasAnyRole(UserRole::Admin), fn (Builder $query): Builder => $query->currentlyMentoredBy($viewer))
+            ->when($filters['session'] ?? null, fn (Builder $query, int|string $trainingSessionId): Builder => $query->where('training_session_id', $trainingSessionId))
             ->with(['trainingSession', 'participant'])
             ->orderBy('id')
             ->get();

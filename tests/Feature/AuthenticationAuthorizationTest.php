@@ -279,6 +279,10 @@ class AuthenticationAuthorizationTest extends TestCase
         $this->assertFalse($coach->can('update', $participant));
         $this->assertTrue($coach->can('view', $submission));
         $this->assertTrue($coach->can('update', $gateEvaluation));
+        $this->assertTrue($coach->can('view', $gateEvaluation));
+        $this->assertTrue($admin->can('view', $gateEvaluation));
+        $this->assertTrue($participant->can('view', $gateEvaluation));
+        $this->assertFalse(User::factory()->create(['role' => 'coach'])->can('view', $gateEvaluation));
         $this->assertTrue($admin->can('update', $participant));
         $this->assertTrue($admin->can('view', $submission));
         $this->assertFalse($participant->can('update', $gateEvaluation));

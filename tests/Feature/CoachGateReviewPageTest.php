@@ -94,8 +94,7 @@ class CoachGateReviewPageTest extends TestCase
             ->assertDontSee('Blockers')
             ->assertDontSee('value="failed"', false)
             ->assertDontSee('Criterion decisions')
-            ->assertDontSee('Optional stretch goal')
-            ->assertDontSee('Read only');
+            ->assertDontSee('Optional stretch goal');
 
         $content = $response->getContent();
         $this->assertSame(1, substr_count($content, 'Save Gate Evaluation'));
@@ -249,27 +248,33 @@ class CoachGateReviewPageTest extends TestCase
             ->assertSeeInOrder(['>Checklist</span>', '1 / 2', 'Activities'], false);
     }
 
-    public function test_a_session_mentor_who_is_not_the_participants_mentor_sees_the_gate_read_only(): void
+    public function test_only_the_participants_current_mentor_among_the_session_mentors_opens_the_gate(): void
+    {
+        [$currentMentor, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, mentor: $currentMentor);
+        $otherMentor = User::factory()->create(['role' => 'coach']);
+        $session->mentors()->attach($otherMentor->id);
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => User::factory()->create()->id, 'mentor_id' => $otherMentor->id]);
+        $previousMentor = User::factory()->create(['role' => 'coach']);
+        $session->mentors()->attach($previousMentor->id);
+        MentorAssignment::factory()->ended()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $previousMentor->id]);
+        GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
+        $pageUrl = route('training.coach.gates.show', [$session, $week, $participant, $gate]);
+
+        $this->actingAs($otherMentor)->get($pageUrl)->assertForbidden();
+        $this->actingAs($previousMentor)->get($pageUrl)->assertForbidden();
+        $this->actingAs($currentMentor)->get($pageUrl)->assertOk()->assertSee('Save Gate Evaluation');
+    }
+
+    public function test_an_admin_who_mentors_no_one_sees_the_decision_form(): void
     {
         $participant = User::factory()->create();
-        $coach = User::factory()->create(['role' => 'coach']);
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
-        $session->mentors()->attach($coach->id);
-        $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
-        GateCriterionEvaluation::factory()->for($evaluation)->for($criteria->first(), 'criterion')->create(['status' => GateCriterionStatus::Met]);
+        ['session' => $session, 'week' => $week, 'gate' => $gate] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
 
-        $content = $this->actingAs($coach)->get(route('training.coach.gates.show', [$session, $week, $participant, $gate]))
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('training.coach.gates.show', [$session, $week, $participant, $gate]))
             ->assertOk()
-            ->assertSeeInOrder(['Weekly checklist', 'id="criterion-'.$criteria->first()->id.'"', 'checked', 'Mentor decision', 'Read only — this participant is not assigned to you.'], false)
-            ->assertDontSee('name="criteria[', false)
-            ->assertDontSee('id="gate-review-main-action"', false)
-            ->assertDontSee('Save Gate Evaluation')
-            ->assertDontSee('action="'.route('training.coach.gates.update', [$session, $week, $participant, $gate]).'"', false)
-            ->assertDontSee('name="status"', false)
-            ->getContent();
-
-        $this->assertSame(2, preg_match_all('/\sdisabled\s/', $content));
-        $this->assertSame(1, substr_count($content, ' checked'));
+            ->assertSee('id="gate-review-main-action"', false)
+            ->assertSee('action="'.route('training.coach.gates.update', [$session, $week, $participant, $gate]).'" id="gate-review-form"', false);
     }
 
     public function test_a_rejected_decision_returns_to_the_page_with_the_error(): void

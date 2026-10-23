@@ -21,6 +21,7 @@ use App\Support\SessionWeekState;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Str;
@@ -76,11 +77,13 @@ class AdminTrainingSessionPageService
      * whose confirmation warns that those participants become unassigned; the add form offers the active coaches who
      * are not mentors of the session (one more query). Below them, each participant has a select of the session's
      * mentors and their mentor history. Activities are the active activities of the session's weeks (the weeks and their
-     * activities in two queries). Resources are grouped "Whole session", "Week 1", … (one query), every link open
+     * activities in two queries), each with its counts of the session's current participants by their latest attempt in
+     * this session (see activityRows(), one more query) and a link to the review queue filtered by the session and the
+     * activity. Resources are grouped "Whole session", "Week 1", … (one query), every link open
      * whatever its week's date, with the form that adds a link. The overview counts the session's current participants
      * and their records in this session only (see overviewStats() and weekWorkStats()), in a fixed number of queries.
      *
-     * @return array{title: string, program: string, dateRange: string, weeksLabel: string, statusLabel: string, statusTone: string, editUrl: string, indexUrl: string, tabs: list<array{key: string, label: string}>, selectedTab: string, overviewStats: list<array{label: string, value: int, note: ?string}>, weekWorkStats: list<array{label: string, value: int}>, participants: list<array{name: string, employee_id: string, job_role: string, current_mentor: string, joined_on: string, remove_url: string}>, addParticipants: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentors: list<array{id: int, name: string, employee_id: string, current_participant_count: int, remove_url: string, remove_confirmation: string}>, addMentors: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentorAssignments: list<array{participant_id: int, participant_name: string, assign_url: string, error_bag: string, current_mentor_id: string, history: list<string>}>, mentorOptions: list<array{value: string, label: string}>, activities: list<array{week: string, title: string}>, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, locked_message: null, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, rename_url: string, rename_error_bag: string, remove_url: string}>}>, addResource: array{url: string, weekOptions: list<array{value: string, label: string}>}}
+     * @return array{title: string, program: string, dateRange: string, weeksLabel: string, statusLabel: string, statusTone: string, editUrl: string, indexUrl: string, tabs: list<array{key: string, label: string}>, selectedTab: string, overviewStats: list<array{label: string, value: int, note: ?string}>, weekWorkStats: list<array{label: string, value: int}>, participants: list<array{name: string, employee_id: string, job_role: string, current_mentor: string, joined_on: string, remove_url: string}>, addParticipants: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentors: list<array{id: int, name: string, employee_id: string, current_participant_count: int, remove_url: string, remove_confirmation: string}>, addMentors: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentorAssignments: list<array{participant_id: int, participant_name: string, assign_url: string, error_bag: string, current_mentor_id: string, history: list<string>}>, mentorOptions: list<array{value: string, label: string}>, activityCountColumns: list<array{key: string, label: string}>, activities: list<array{week: string, title: string, counts: array{not_started: int, in_progress: int, awaiting_review: int, needs_revision: int, approved: int, failed: int}, review_queue_url: string}>, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, locked_message: null, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, rename_url: string, rename_error_bag: string, remove_url: string}>}>, addResource: array{url: string, weekOptions: list<array{value: string, label: string}>}}
      */
     public function showData(TrainingSession $trainingSession): array
     {
@@ -91,7 +94,7 @@ class AdminTrainingSessionPageService
         $participants = $this->participantRows($trainingSession, $sessionParticipants, $assignmentsByParticipant);
         $mentors = $this->mentorRows($trainingSession);
         $weeks = $this->sessionWeeks($trainingSession);
-        $activities = $this->activityRows($weeks);
+        $activities = $this->activityRows($trainingSession, $sessionParticipants, $weeks);
         $resources = $this->resources->tabData($trainingSession, fn (TrainingSessionResource $resource): array => [
             'rename_url' => route('admin.sessions.resources.update', [$resource->training_session_id, $resource]),
             'rename_error_bag' => UpdateTrainingSessionResourceRequest::errorBagFor($resource),
@@ -123,6 +126,7 @@ class AdminTrainingSessionPageService
             'addMentors' => $this->addMentorsForm($trainingSession),
             'mentorAssignments' => $this->mentorAssignmentRows($trainingSession, $sessionParticipants, $assignmentsByParticipant),
             'mentorOptions' => array_map(fn (array $mentor): array => ['value' => (string) $mentor['id'], 'label' => $mentor['name']], $mentors),
+            'activityCountColumns' => $this->activityCountColumns(),
             'activities' => $activities,
             'resourceGroups' => $resources['groups'],
             'addResource' => $this->addResourceForm($trainingSession),
@@ -531,19 +535,126 @@ class AdminTrainingSessionPageService
     }
 
     /**
-     * The active activities of the session's weeks, in week and position order.
+     * The active activities of the session's weeks, in week and position order, each with its counts of the session's
+     * current participants by their latest attempt at the activity in this session (see latestAttemptCountsByActivity()
+     * and attemptCountKey()), so each participant counts once per activity and the counts add up to the participants:
+     * **not started** = no attempt; **in progress** = a draft not handed in yet (a first draft, a revision of a version
+     * sent back, which returns the attempt to `Draft`, or a retry opened after a failed attempt); **awaiting review** =
+     * `SubmissionStatus::awaitingReview()`; **needs revision** = `NeedsRevision`; **approved** =
+     * `SubmissionStatus::accepted()`; **failed** = `Failed` with no retry opened. A removed participant's work keeps the
+     * session but is not counted. Each row links to the review queue filtered by the session and the activity.
      *
+     * @param  Collection<int, User>  $participants
      * @param  Collection<int, TrainingWeek>  $weeks  the session's weeks with their active activities (see sessionWeeks())
-     * @return list<array{week: string, title: string}>
+     * @return list<array{week: string, title: string, counts: array{not_started: int, in_progress: int, awaiting_review: int, needs_revision: int, approved: int, failed: int}, review_queue_url: string}>
      */
-    private function activityRows(Collection $weeks): array
+    private function activityRows(TrainingSession $trainingSession, Collection $participants, Collection $weeks): array
     {
+        $countsByActivity = $this->latestAttemptCountsByActivity($trainingSession, $participants, $weeks);
+
         return $weeks
             ->flatMap(fn (TrainingWeek $week): array => $week->activities
-                ->map(fn (Activity $activity): array => ['week' => "Week {$week->week_number}", 'title' => $activity->title])
+                ->map(fn (Activity $activity): array => [
+                    'week' => "Week {$week->week_number}",
+                    'title' => $activity->title,
+                    'counts' => $this->activityCounts($countsByActivity->get($activity->id, []), $participants->count()),
+                    'review_queue_url' => route('coach.reviews', ['session' => $trainingSession->id, 'activity' => $activity->id]),
+                ])
                 ->all())
             ->values()
             ->all();
+    }
+
+    /**
+     * One activity's counts from the participants' latest attempts by stored status; the participants without an attempt
+     * are not started.
+     *
+     * @param  array<string, int>  $participantsByStatus
+     * @return array{not_started: int, in_progress: int, awaiting_review: int, needs_revision: int, approved: int, failed: int}
+     */
+    private function activityCounts(array $participantsByStatus, int $participantCount): array
+    {
+        $counts = ['in_progress' => 0, 'awaiting_review' => 0, 'needs_revision' => 0, 'approved' => 0, 'failed' => 0];
+
+        foreach ($participantsByStatus as $status => $participants) {
+            $counts[$this->attemptCountKey(SubmissionStatus::from($status))] += $participants;
+        }
+
+        return ['not_started' => $participantCount - array_sum($counts), ...$counts];
+    }
+
+    /**
+     * The Activities tab's count columns, in display order, keyed as activityRows() counts.
+     *
+     * @return list<array{key: string, label: string}>
+     */
+    private function activityCountColumns(): array
+    {
+        return [
+            ['key' => 'not_started', 'label' => 'Not started'],
+            ['key' => 'in_progress', 'label' => 'In progress'],
+            ['key' => 'awaiting_review', 'label' => 'Awaiting review'],
+            ['key' => 'needs_revision', 'label' => SubmissionStatus::NeedsRevision->label()],
+            ['key' => 'approved', 'label' => SubmissionStatus::Approved->label()],
+            ['key' => 'failed', 'label' => SubmissionStatus::Failed->label()],
+        ];
+    }
+
+    /**
+     * The count an attempt's status falls in on the Activities tab.
+     */
+    private function attemptCountKey(SubmissionStatus $status): string
+    {
+        return match (true) {
+            $status === SubmissionStatus::Draft => 'in_progress',
+            in_array($status, SubmissionStatus::awaitingReview(), true) => 'awaiting_review',
+            $status === SubmissionStatus::NeedsRevision => 'needs_revision',
+            in_array($status, SubmissionStatus::accepted(), true) => 'approved',
+            $status === SubmissionStatus::Failed => 'failed',
+        };
+    }
+
+    /**
+     * The number of the session's current participants per activity and status of their latest attempt at it in this
+     * session (the highest attempt number, then the highest ID, so each participant counts once per activity), keyed by
+     * activity ID and then by the stored status. One grouped query, none without participants or activities.
+     *
+     * @param  Collection<int, User>  $participants
+     * @param  Collection<int, TrainingWeek>  $weeks  the session's weeks with their active activities (see sessionWeeks())
+     * @return SupportCollection<int, array<string, int>>
+     */
+    private function latestAttemptCountsByActivity(TrainingSession $trainingSession, Collection $participants, Collection $weeks): SupportCollection
+    {
+        $activityIds = $weeks->flatMap(fn (TrainingWeek $week): array => $week->activities->modelKeys())->all();
+
+        if ($participants->isEmpty() || $activityIds === []) {
+            return collect();
+        }
+
+        return ActivitySubmission::query()
+            ->where('activity_submissions.training_session_id', $trainingSession->id)
+            ->whereIn('activity_submissions.user_id', $participants->modelKeys())
+            ->whereIn('activity_submissions.activity_id', $activityIds)
+            ->whereNotExists(fn (QueryBuilder $laterAttempts): QueryBuilder => $laterAttempts
+                ->selectRaw('1')
+                ->from('activity_submissions as later_attempts')
+                ->whereColumn('later_attempts.training_session_id', 'activity_submissions.training_session_id')
+                ->whereColumn('later_attempts.user_id', 'activity_submissions.user_id')
+                ->whereColumn('later_attempts.activity_id', 'activity_submissions.activity_id')
+                ->where(fn (QueryBuilder $later): QueryBuilder => $later
+                    ->whereColumn('later_attempts.attempt_number', '>', 'activity_submissions.attempt_number')
+                    ->orWhere(fn (QueryBuilder $sameNumber): QueryBuilder => $sameNumber
+                        ->whereColumn('later_attempts.attempt_number', 'activity_submissions.attempt_number')
+                        ->whereColumn('later_attempts.id', '>', 'activity_submissions.id'))))
+            ->groupBy('activity_submissions.activity_id', 'activity_submissions.status')
+            ->select(['activity_submissions.activity_id', 'activity_submissions.status'])
+            ->selectRaw('count(*) as participant_count')
+            ->toBase()
+            ->get()
+            ->groupBy('activity_id')
+            ->map(fn (SupportCollection $rows): array => $rows
+                ->mapWithKeys(fn (object $row): array => [$row->status => (int) $row->participant_count])
+                ->all());
     }
 
     /**

@@ -108,6 +108,58 @@ class AdminTrainingSessionDashboardTest extends TestCase
             ->assertDontSee('Other program activity');
     }
 
+    public function test_the_activities_tab_counts_each_current_participants_latest_attempt_in_this_session(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->create();
+        $firstWeek = $this->week($program, 1);
+        $setUpRepo = Activity::factory()->for($firstWeek, 'week')->create(['title' => 'Set up the repo', 'position' => 1]);
+        $writeTests = Activity::factory()->for($firstWeek, 'week')->create(['title' => 'Write the tests', 'position' => 2]);
+        $shipApi = Activity::factory()->for($this->week($program, 2), 'week')->create(['title' => 'Ship the API']);
+        [$ava, $ben, $cara, $dan, $eve, $fay, $gus] = User::factory()->count(7)->create()->all();
+        $session = $this->twoWeekSession($program);
+        $session->participants()->attach([$ava->id, $ben->id, $cara->id, $dan->id, $eve->id], ['joined_at' => now()]);
+        $otherSession = TrainingSession::factory()->for($program)->create();
+        $otherSession->participants()->attach([$dan->id, $eve->id, $gus->id], ['joined_at' => now()]);
+        $this->attempt($setUpRepo, $session, $ava, 'failed');
+        $this->attempt($setUpRepo, $session, $ava, 'approved', attemptNumber: 2);
+        $this->attempt($setUpRepo, $session, $ben, 'failed');
+        $this->attempt($setUpRepo, $session, $ben, 'draft', attemptNumber: 2);
+        $this->attempt($setUpRepo, $session, $cara, 'failed');
+        $this->attempt($setUpRepo, $session, $dan, 'submitted');
+        $this->attempt($writeTests, $session, $ava, 'under_review');
+        $this->attempt($writeTests, $session, $ben, 'needs_revision');
+        ActivitySubmission::factory()->for($writeTests)->for($session)->for($cara, 'participant')->create(['status' => 'draft', 'submitted_at' => now()->subDays(3)]);
+        $this->attempt($writeTests, $session, $dan, 'completed');
+        $this->attempt($setUpRepo, $session, $fay, 'submitted');
+        $this->attempt($writeTests, $session, $fay, 'approved');
+        $this->attempt($setUpRepo, $otherSession, $dan, 'approved');
+        $this->attempt($writeTests, $otherSession, $eve, 'submitted');
+        $this->attempt($shipApi, $otherSession, $dan, 'resubmitted');
+        $this->attempt($shipApi, $otherSession, $gus, 'needs_revision');
+
+        $response = $this->actingAs($admin)
+            ->get(route('admin.sessions.show', $session))
+            ->assertOk()
+            ->assertSee('Activities (3)')
+            ->assertSeeInOrder(['Not started', 'In progress', 'Awaiting review', 'Needs revision', 'Approved', 'Failed', 'Reviews'])
+            ->assertSee('<a href="'.e(route('coach.reviews', ['session' => $session->id, 'activity' => $setUpRepo->id])).'" aria-label="Open the review queue for Set up the repo"', false);
+
+        $this->assertSame([
+            'Set up the repo' => ['not_started' => 1, 'in_progress' => 1, 'awaiting_review' => 1, 'needs_revision' => 0, 'approved' => 1, 'failed' => 1],
+            'Write the tests' => ['not_started' => 1, 'in_progress' => 1, 'awaiting_review' => 1, 'needs_revision' => 1, 'approved' => 1, 'failed' => 0],
+            'Ship the API' => ['not_started' => 5, 'in_progress' => 0, 'awaiting_review' => 0, 'needs_revision' => 0, 'approved' => 0, 'failed' => 0],
+        ], array_column($response->viewData('activities'), 'counts', 'title'));
+        $this->assertSame(
+            [
+                route('coach.reviews', ['session' => $session->id, 'activity' => $setUpRepo->id]),
+                route('coach.reviews', ['session' => $session->id, 'activity' => $writeTests->id]),
+                route('coach.reviews', ['session' => $session->id, 'activity' => $shipApi->id]),
+            ],
+            array_column($response->viewData('activities'), 'review_queue_url'),
+        );
+    }
+
     public function test_the_overview_counts_only_the_current_participants_and_their_records_in_this_session(): void
     {
         $this->travelTo('2026-11-17 09:00:00');
@@ -192,6 +244,10 @@ class AdminTrainingSessionDashboardTest extends TestCase
             'Participants with locked weeks' => 0,
         ], array_column($response->viewData('overviewStats'), 'value', 'label'));
         $this->assertSame(['Week 1' => 0, 'Week 2' => 0], array_column($response->viewData('weekWorkStats'), 'value', 'label'));
+        $this->assertSame(
+            [['not_started' => 0, 'in_progress' => 0, 'awaiting_review' => 0, 'needs_revision' => 0, 'approved' => 0, 'failed' => 0]],
+            array_column($response->viewData('activities'), 'counts'),
+        );
     }
 
     public function test_an_unknown_session_is_not_found(): void
@@ -212,12 +268,13 @@ class AdminTrainingSessionDashboardTest extends TestCase
     }
 
     /**
-     * The participant's attempt at the activity in the session with the status, handed in a day ago unless it is a
-     * draft.
+     * The participant's attempt (the first unless given) at the activity in the session with the status, handed in a
+     * day ago unless it is a draft.
      */
-    private function attempt(Activity $activity, TrainingSession $session, User $participant, string $status): void
+    private function attempt(Activity $activity, TrainingSession $session, User $participant, string $status, int $attemptNumber = 1): void
     {
         ActivitySubmission::factory()->for($activity)->for($session)->for($participant, 'participant')->create([
+            'attempt_number' => $attemptNumber,
             'status' => $status,
             'submitted_at' => $status === 'draft' ? null : now()->subDay(),
         ]);
@@ -250,8 +307,9 @@ class AdminTrainingSessionDashboardTest extends TestCase
     /**
      * Create a 2-week session with the given number of participants, of mentors and of activities in each week, each
      * participant with an ended and a current mentor assignment, an attempt awaiting review in Week 1, one needing
-     * revision in Week 2, an incomplete Week 1 review that locks Week 2 and an attempt in another session, and count the
-     * queries of an admin's dashboard request after a warm-up request.
+     * revision in Week 2, a failed attempt and its retry draft at the last Week 2 activity, an incomplete Week 1 review
+     * that locks Week 2 and an attempt in another session, and count the queries of an admin's dashboard request after a
+     * warm-up request.
      */
     private function dashboardQueryCount(int $count): int
     {
@@ -273,6 +331,8 @@ class AdminTrainingSessionDashboardTest extends TestCase
             MentorAssignment::factory()->for($session)->create(['participant_id' => $participant->id, 'mentor_id' => $mentors[$index]->id]);
             $this->attempt($firstWeekActivities[$index], $session, $participant, 'submitted');
             $this->attempt($secondWeekActivities[$index], $session, $participant, 'needs_revision');
+            $this->attempt($secondWeekActivities->last(), $session, $participant, 'failed');
+            $this->attempt($secondWeekActivities->last(), $session, $participant, 'draft', attemptNumber: 2);
             $this->review($firstGate, $session, $participant, 'needs_revision');
             $this->attempt($firstWeekActivities[$index], $otherSession, $participant, 'submitted');
         }
@@ -281,7 +341,9 @@ class AdminTrainingSessionDashboardTest extends TestCase
         DB::flushQueryLog();
         DB::enableQueryLog();
         $this->actingAs($admin)->get(route('admin.sessions.show', $session))->assertOk()->assertSee("Participants ({$count})")
-            ->assertViewHas('weekWorkStats', [['label' => 'Week 1', 'value' => $count], ['label' => 'Week 2', 'value' => $count]]);
+            ->assertViewHas('weekWorkStats', [['label' => 'Week 1', 'value' => $count], ['label' => 'Week 2', 'value' => $count]])
+            ->assertViewHas('activities', fn (array $activities): bool => array_sum(array_map(fn (array $activity): int => $activity['counts']['in_progress'], $activities)) === $count
+                && array_sum(array_map(fn (array $activity): int => $activity['counts']['awaiting_review'], $activities)) === $count);
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());

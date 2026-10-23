@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\ActivityScoreStatus;
+use App\Enums\GateCriterionStatus;
 use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
@@ -10,6 +11,7 @@ use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
 use App\Models\EvidenceRequirement;
 use App\Models\GateCriterion;
+use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
@@ -22,6 +24,7 @@ use App\Models\User;
 use App\Models\WeeklyVideoRecording;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -387,6 +390,128 @@ class ParticipantTrainingSessionPageTest extends TestCase
             ->assertDontSee('Week two work');
     }
 
+    public function test_a_week_locked_by_an_incomplete_review_lists_its_missing_items_linking_to_the_reviewed_week(): void
+    {
+        ['participant' => $participant, 'session' => $session] = $this->incompleteWeekOneReview();
+        $this->travelTo('2026-11-16 09:00:00');
+
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="session-panel-week-2"',
+                '<span class="sr-only">Locked: </span>Complete your Week 1 deliverables to unlock</span>',
+                'Not met in your Week 1 review:',
+                'href="'.route('training.sessions.show', $session).'#week-1"',
+                '>Repository link</a>',
+                'href="'.route('training.sessions.show', $session).'#week-1"',
+                '>Session logs committed for this week</a>',
+                'id="session-panel-overview"',
+            ], false)
+            ->assertDontSee('Weekly video ticked')
+            ->assertDontSee('Waiting for your mentor')
+            ->assertDontSee('Week two work');
+    }
+
+    public function test_work_handed_in_for_the_reviewed_week_after_the_review_shows_waiting_for_the_mentor_and_keeps_the_week_locked(): void
+    {
+        ['participant' => $participant, 'session' => $session, 'weekOneActivity' => $weekOneActivity] = $this->incompleteWeekOneReview();
+        $this->handInVersion($session, $weekOneActivity, $participant, '2026-11-15 08:00:00');
+        $this->travelTo('2026-11-16 09:00:00');
+
+        $html = $this->actingAs($participant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="session-tab-week-2"',
+                '<span class="sr-only">(Locked)</span>',
+                'id="session-panel-week-2"',
+                '<span class="sr-only">Locked: </span>Waiting for your mentor to verify Week 1</span>',
+                'id="session-panel-overview"',
+            ], false)
+            ->assertDontSee('Complete your Week 1 deliverables to unlock')
+            ->assertDontSee('Not met in your Week 1 review:')
+            ->assertDontSee('>Repository link</a>', false)
+            ->assertDontSee('Week two work')
+            ->getContent();
+
+        $this->assertStringNotContainsString('data-missing-items', $html);
+    }
+
+    #[DataProvider('workThatDoesNotAwaitVerification')]
+    public function test_work_outside_the_reviewed_week_session_or_time_does_not_change_the_missing_list(string $case): void
+    {
+        ['participant' => $participant, 'session' => $session, 'weekOneActivity' => $weekOneActivity, 'weekTwoActivity' => $weekTwoActivity] = $this->incompleteWeekOneReview();
+        match ($case) {
+            'handed in before the review' => $this->handInVersion($session, $weekOneActivity, $participant, '2026-11-14 09:59:59'),
+            'saved as a draft after the review' => $this->handInVersion($session, $weekOneActivity, $participant, null),
+            'handed in for another week' => $this->handInVersion($session, $weekTwoActivity, $participant, '2026-11-15 08:00:00'),
+            'handed in in another session' => $this->handInVersion(
+                TrainingSession::factory()->for($session->program)->withParticipants($participant)->create(['weeks_count' => 2, 'starts_on' => '2026-11-09', 'ends_on' => '2026-11-22']),
+                $weekOneActivity,
+                $participant,
+                '2026-11-15 08:00:00',
+            ),
+        };
+        $this->travelTo('2026-11-16 09:00:00');
+
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="session-panel-week-2"',
+                'Complete your Week 1 deliverables to unlock',
+                '>Repository link</a>',
+                '>Session logs committed for this week</a>',
+            ], false)
+            ->assertDontSee('Waiting for your mentor');
+    }
+
+    /**
+     * Work by the participant that is not in the incomplete Week 1 review's week and session after the review.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function workThatDoesNotAwaitVerification(): array
+    {
+        return [
+            'handed in before the review' => ['handed in before the review'],
+            'saved as a draft after the review' => ['saved as a draft after the review'],
+            'handed in for another week' => ['handed in for another week'],
+            'handed in in another session' => ['handed in in another session'],
+        ];
+    }
+
+    public function test_a_new_incomplete_review_after_new_work_brings_the_missing_list_back(): void
+    {
+        Queue::fake();
+        ['participant' => $participant, 'session' => $session, 'weekOne' => $weekOne, 'weekOneActivity' => $weekOneActivity, 'criteria' => $criteria] = $this->incompleteWeekOneReview();
+        $this->handInVersion($session, $weekOneActivity, $participant, '2026-11-15 08:00:00');
+        $this->travelTo('2026-11-16 09:00:00');
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)->post(route('training.coach.gates.update', [$session, $weekOne, $participant, $weekOne->gates()->sole()]), [
+            'status' => GateEvaluationStatus::NeedsRevision->value,
+            'criteria' => [
+                $criteria['repository']->id => 'met',
+                $criteria['logs']->id => 'not_met',
+                $criteria['video']->id => 'met',
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="session-panel-week-2"',
+                'Complete your Week 1 deliverables to unlock',
+                '>Session logs committed for this week</a>',
+            ], false)
+            ->assertDontSee('Waiting for your mentor')
+            ->assertDontSee('>Repository link</a>', false);
+    }
+
+    public function test_session_page_query_count_does_not_grow_with_locked_weeks_and_missing_items(): void
+    {
+        $this->assertSame($this->lockedSessionPageQueryCount(1), $this->lockedSessionPageQueryCount(3));
+    }
+
     public function test_only_the_panel_of_a_week_whose_checklist_has_a_video_item_shows_the_video_row(): void
     {
         $participant = User::factory()->create();
@@ -514,6 +639,83 @@ class ParticipantTrainingSessionPageTest extends TestCase
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());
+    }
+
+    /**
+     * Build a session whose Week 1 has an incomplete review with as many missing items as the given number of later,
+     * locked weeks (each with an activity), and count the queries of a session page request after a warm-up request.
+     */
+    private function lockedSessionPageQueryCount(int $lockedWeeks): int
+    {
+        $participant = User::factory()->create();
+        $program = Program::factory()->create();
+        $weekOne = TrainingWeek::factory()->for($program)->create(['week_number' => 1, 'position' => 1]);
+        Activity::factory()->for($weekOne, 'week')->create();
+        $gate = TrainingGate::factory()->for($weekOne, 'week')->create();
+        $session = TrainingSession::factory()->for($program)->withParticipants($participant)->create([
+            'weeks_count' => $lockedWeeks + 1,
+            'starts_on' => today()->subWeeks($lockedWeeks),
+        ]);
+        $review = GateEvaluation::factory()->for($gate, 'gate')->for($session)->for($participant, 'participant')->create([
+            'status' => GateEvaluationStatus::NeedsRevision,
+            'evaluated_at' => now()->subDay(),
+        ]);
+
+        foreach (range(1, $lockedWeeks) as $offset) {
+            GateCriterionEvaluation::factory()->for($review, 'gateEvaluation')->for(GateCriterion::factory()->for($gate, 'gate'), 'criterion')->create(['status' => GateCriterionStatus::NotMet]);
+            $week = TrainingWeek::factory()->for($program)->create(['week_number' => $offset + 1, 'position' => $offset + 1]);
+            Activity::factory()->for($week, 'week')->create();
+        }
+
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))->assertOk()->assertSee('Not met in your Week 1 review:');
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))->assertOk();
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
+    }
+
+    /**
+     * The two-week session of twoWeekSession() with an activity in each week and a Week 1 checklist of three required
+     * items, reviewed incomplete on Sat 14 Nov 2026 at 10:00 with "Repository link" and "Session logs committed for this
+     * week" not met and "Weekly video ticked" met.
+     *
+     * @return array{participant: User, session: TrainingSession, weekOne: TrainingWeek, weekOneActivity: Activity, weekTwoActivity: Activity, criteria: array{repository: GateCriterion, logs: GateCriterion, video: GateCriterion}}
+     */
+    private function incompleteWeekOneReview(): array
+    {
+        ['participant' => $participant, 'session' => $session, 'weekOne' => $weekOne, 'lockedActivity' => $weekTwoActivity] = $this->twoWeekSession();
+        $weekOneActivity = Activity::factory()->for($weekOne, 'week')->create(['title' => 'Week one work']);
+        $gate = $weekOne->gates()->sole();
+        $criteria = [
+            'repository' => GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => GateCriterion::TYPE_DELIVERABLE, 'title' => 'Repository link', 'position' => 1]),
+            'logs' => GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => GateCriterion::TYPE_SESSION_LOGS, 'title' => 'Session logs committed for this week', 'position' => 2]),
+            'video' => GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => GateCriterion::TYPE_DELIVERABLE, 'title' => 'Weekly video ticked', 'position' => 3]),
+        ];
+        $review = GateEvaluation::factory()->for($gate, 'gate')->for($session)->for($participant, 'participant')->create([
+            'status' => GateEvaluationStatus::NeedsRevision,
+            'evaluated_at' => '2026-11-14 10:00:00',
+        ]);
+        foreach (['repository' => GateCriterionStatus::NotMet, 'logs' => GateCriterionStatus::NotMet, 'video' => GateCriterionStatus::Met] as $key => $status) {
+            GateCriterionEvaluation::factory()->for($review, 'gateEvaluation')->for($criteria[$key], 'criterion')->create(['status' => $status]);
+        }
+
+        return compact('participant', 'session', 'weekOne', 'weekOneActivity', 'weekTwoActivity', 'criteria');
+    }
+
+    /**
+     * A version of the participant's attempt at the activity in the session, handed in at the given time, or a draft
+     * when it is null.
+     */
+    private function handInVersion(TrainingSession $session, Activity $activity, User $participant, ?string $submittedAt): SubmissionVersion
+    {
+        $status = $submittedAt === null ? 'draft' : 'submitted';
+
+        return SubmissionVersion::factory()
+            ->for(ActivitySubmission::factory()->for($session)->for($activity)->for($participant, 'participant')->create(['status' => $status]), 'submission')
+            ->create(['status' => $status, 'submitted_at' => $submittedAt]);
     }
 
     /**

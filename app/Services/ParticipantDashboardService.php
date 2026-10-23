@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\GateCriterionStatus;
 use App\Enums\GateEvaluationStatus;
 use App\Enums\SubmissionStatus;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
+use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
@@ -14,6 +16,8 @@ use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
+use App\Support\SessionWeekState;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
@@ -32,13 +36,14 @@ class ParticipantDashboardService
      * Build the rows of the session's weeks, in week order, for the membership's participant, with their activity
      * progress in the session attached: each week's pass and access state, its activity progress and its Weekly Video
      * Recording come from the session. A week is available only while it is open, even once completed, and otherwise
-     * carries the message its tab shows (`SessionWeekState::lockedMessage()`). An available week shows its Weekly Video
-     * Recording only when it asks for one.
+     * carries the message its tab shows (`SessionWeekState::lockedMessage()`); a week locked by an earlier incomplete
+     * review also carries that week's number and, until the participant hands in new work there, the titles of the
+     * review's missing checklist items. An available week shows its Weekly Video Recording only when it asks for one.
      * The current week is the latest open week of an active session (`WeekProgressionService::currentWeekId()`). Built
      * with a fixed number of queries.
      *
      * @param  TrainingSessionParticipant  $membership  with its training session and participant loaded
-     * @return Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_message: ?string, shows_weekly_video: bool, is_current: bool, attendance_required: bool}>
+     * @return Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_message: ?string, locked_by_week_number: ?int, missing_items: list<string>, shows_weekly_video: bool, is_current: bool, attendance_required: bool}>
      */
     public function weeks(TrainingSessionParticipant $membership, ?AttendanceSession $activeAttendance): Collection
     {
@@ -61,10 +66,13 @@ class ParticipantDashboardService
             ->get()
             ->keyBy('training_week_id');
         $this->attachActivityProgress($participant, $trainingSession, $sessionWeeks);
+        $missingItems = $this->missingChecklistItems(
+            $weekStates->first(fn (SessionWeekState $state): bool => $state->isLocked() && ! $state->awaitingVerification)?->lockingReviewId,
+        );
 
         $currentWeekId = $this->progression->currentWeekId($trainingSession, $weekStates);
 
-        return $sessionWeeks->map(function (TrainingWeek $week) use ($weekStates, $videoRecordings, $currentWeekId, $activeAttendance): array {
+        return $sessionWeeks->map(function (TrainingWeek $week) use ($weekStates, $videoRecordings, $missingItems, $currentWeekId, $activeAttendance): array {
             $weekState = $weekStates->get($week->id);
             $available = $weekState->isOpen();
             $week->weekly_video_recording = $videoRecordings->get($week->id);
@@ -75,6 +83,8 @@ class ParticipantDashboardService
                 'passed' => $weekState->passed,
                 'available' => $available,
                 'locked_message' => $weekState->lockedMessage(),
+                'locked_by_week_number' => $weekState->lockedByWeekNumber,
+                'missing_items' => $weekState->isLocked() && ! $weekState->awaitingVerification ? $missingItems : [],
                 'shows_weekly_video' => $available && $week->asksForWeeklyVideo(),
                 'is_current' => $isCurrent,
                 'attendance_required' => $isCurrent && ! $activeAttendance,
@@ -117,6 +127,28 @@ class ParticipantDashboardService
             })
             ->all())
             ->values();
+    }
+
+    /**
+     * The titles of the required checklist items the review marked not met, in checklist order; none without a review.
+     *
+     * @return list<string>
+     */
+    private function missingChecklistItems(?int $reviewId): array
+    {
+        if ($reviewId === null) {
+            return [];
+        }
+
+        return GateCriterion::query()
+            ->where('is_required', true)
+            ->whereHas('evaluations', fn (Builder $query): Builder => $query
+                ->where('gate_evaluation_id', $reviewId)
+                ->where('status', GateCriterionStatus::NotMet))
+            ->orderBy('position')
+            ->orderBy('id')
+            ->pluck('title')
+            ->all();
     }
 
     /**

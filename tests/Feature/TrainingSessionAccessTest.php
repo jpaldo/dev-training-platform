@@ -106,7 +106,7 @@ class TrainingSessionAccessTest extends TestCase
     }
 
     #[DataProvider('closedWeekCases')]
-    public function test_a_participant_is_forbidden_from_the_week_activity_and_submission_pages_of_a_closed_week_with_its_message(string $today, ?GateEvaluationStatus $weekOneReview, string $message): void
+    public function test_a_participant_is_forbidden_from_the_week_activity_and_submission_pages_of_a_closed_week_with_its_message(string $today, ?GateEvaluationStatus $weekOneReview, bool $weekOneWorkAfterReview, string $message): void
     {
         $this->travelTo($today);
         $participant = $this->checkedInParticipant();
@@ -122,7 +122,12 @@ class TrainingSessionAccessTest extends TestCase
         ]);
         $gate = TrainingGate::factory()->for($weekOne, 'week')->create();
         if ($weekOneReview) {
-            GateEvaluation::factory()->for($gate, 'gate')->for($session)->for($participant, 'participant')->create(['status' => $weekOneReview]);
+            GateEvaluation::factory()->for($gate, 'gate')->for($session)->for($participant, 'participant')->create(['status' => $weekOneReview, 'evaluated_at' => '2026-11-14 10:00:00']);
+        }
+        if ($weekOneWorkAfterReview) {
+            SubmissionVersion::factory()
+                ->for(ActivitySubmission::factory()->for($session)->for($weekOneActivity)->for($participant, 'participant')->create(['status' => SubmissionStatus::Submitted]), 'submission')
+                ->create(['status' => SubmissionStatus::Submitted, 'submitted_at' => '2026-11-15 08:00:00']);
         }
         $handedIn = SubmissionVersion::factory()
             ->for(ActivitySubmission::factory()->for($session)->for($weekTwoActivity)->for($participant, 'participant')->create(['status' => SubmissionStatus::Submitted]), 'submission')
@@ -141,16 +146,17 @@ class TrainingSessionAccessTest extends TestCase
     }
 
     /**
-     * The two reasons a week of a session starting on Mon 9 Nov 2026 is closed: Week 2 before its date, and Week 2
-     * after its date while Week 1 has an incomplete review.
+     * The reasons a week of a session starting on Mon 9 Nov 2026 is closed: Week 2 before its date, Week 2 after its
+     * date while Week 1 has an incomplete review, and the same once Week 1 work was handed in after that review.
      *
-     * @return array<string, array{string, ?GateEvaluationStatus, string}>
+     * @return array<string, array{string, ?GateEvaluationStatus, bool, string}>
      */
     public static function closedWeekCases(): array
     {
         return [
-            'not opened yet' => ['2026-11-15 09:00:00', null, 'Opens on Mon 16 Nov'],
-            'locked by an incomplete review' => ['2026-11-16 09:00:00', GateEvaluationStatus::NeedsRevision, 'Complete your Week 1 deliverables to unlock'],
+            'not opened yet' => ['2026-11-15 09:00:00', null, false, 'Opens on Mon 16 Nov'],
+            'locked by an incomplete review' => ['2026-11-16 09:00:00', GateEvaluationStatus::NeedsRevision, false, 'Complete your Week 1 deliverables to unlock'],
+            'waiting for the mentor to verify' => ['2026-11-16 09:00:00', GateEvaluationStatus::NeedsRevision, true, 'Waiting for your mentor to verify Week 1'],
         ];
     }
 

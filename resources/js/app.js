@@ -113,11 +113,21 @@ const initializePageTabs = () => {
             });
         });
 
-        const tabFromHash = tabs.find((tab) => `#${tab.dataset.tabKey}` === window.location.hash);
+        const tabFromHash = () => tabs.find((tab) => `#${tab.dataset.tabKey}` === window.location.hash);
+        const initialTab = tabFromHash();
 
-        if (tabFromHash) {
-            select(tabFromHash, { updateHash: false });
+        if (initialTab) {
+            select(initialTab, { updateHash: false });
         }
+
+        // A link to a tab on the same page (e.g. "#week-1") only changes the hash, so select and focus that tab.
+        window.addEventListener('hashchange', () => {
+            const linkedTab = tabFromHash();
+
+            if (linkedTab) {
+                select(linkedTab, { focus: true, updateHash: false });
+            }
+        });
     });
 };
 

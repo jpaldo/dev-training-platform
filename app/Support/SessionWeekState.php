@@ -7,8 +7,9 @@ use Carbon\CarbonInterface;
 
 /**
  * Where one week of a training session stands for one participant: whether they can open it (with the date it opens
- * on, and the earlier week whose incomplete review locks it), and whether they completed it (every Gate of the week has
- * a completed review in the session). Built by `WeekProgressionService`.
+ * on, and the earlier week whose incomplete review locks it, that review's id and whether the participant handed in new
+ * work in that week since the review), and whether they completed it (every Gate of the week has a completed review in
+ * the session). Built by `WeekProgressionService`.
  */
 class SessionWeekState
 {
@@ -18,6 +19,8 @@ class SessionWeekState
         public readonly CarbonInterface $opensOn,
         public readonly ?int $lockedByWeekNumber,
         public readonly bool $passed,
+        public readonly ?int $lockingReviewId,
+        public readonly bool $awaitingVerification,
     ) {}
 
     /**
@@ -46,13 +49,16 @@ class SessionWeekState
 
     /**
      * Why the participant cannot open the week, shown on its tab and as the 403 message of its pages: "Opens on Mon 16
-     * Nov" before its date, "Complete your Week 1 deliverables to unlock" while an earlier week's review locks it, and
-     * null while it is open.
+     * Nov" before its date, "Complete your Week 1 deliverables to unlock" while an earlier week's review locks it,
+     * "Waiting for your mentor to verify Week 1" once they handed in work in that week after the review, and null while
+     * it is open.
      */
     public function lockedMessage(): ?string
     {
         return match ($this->access) {
-            WeekAccessState::Locked => "Complete your Week {$this->lockedByWeekNumber} deliverables to unlock",
+            WeekAccessState::Locked => $this->awaitingVerification
+                ? "Waiting for your mentor to verify Week {$this->lockedByWeekNumber}"
+                : "Complete your Week {$this->lockedByWeekNumber} deliverables to unlock",
             WeekAccessState::NotOpen => "Opens on {$this->opensOn->format('D j M')}",
             WeekAccessState::Open => null,
         };

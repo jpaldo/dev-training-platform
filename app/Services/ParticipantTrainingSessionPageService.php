@@ -56,12 +56,13 @@ class ParticipantTrainingSessionPageService
      * Everything the session details page renders for a participant in the session: the header facts (title, program,
      * date range, status), the GitHub repository they added for the session (null until they add one) with the URL its
      * form saves to, whether they completed every week of it, and one tab per session week (activities with
-     * their progress in the session, the week's Gates and its Weekly Video Recording), then the Overview tab and the
+     * their progress in the session, the week's Gates and its Weekly Video Recording; a week locked by an incomplete
+     * review links its missing checklist items to the locking week's tab), then the Overview tab and the
      * read-only Resources tab, whose label carries the number of resources. Every resource of the session is listed,
      * grouped like the admin tab (one query); 11.6 holds back the week resources that have not opened yet. The selected
      * tab is the current week, else the last available week, else the first week.
      *
-     * @return array{trainingSession: TrainingSession, title: string, program: string, dateRange: string, statusLabel: string, statusTone: string, repositoryUrl: ?string, repositoryFormUrl: string, isTrainingComplete: bool, weeks: Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_message: ?string, shows_weekly_video: bool, is_current: bool, attendance_required: bool, tab_key: string, gates: Collection<int, array{week: TrainingWeek, gate: TrainingGate, evaluation: ?GateEvaluation, readiness: ?array<string, string>, status_label: string}>}>, tabs: list<array{key: string, label: string, state: ?string}>, selectedTab: string, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string}>}>, googleDriveReady: bool, googleDriveReadinessEnforced: bool}
+     * @return array{trainingSession: TrainingSession, title: string, program: string, dateRange: string, statusLabel: string, statusTone: string, repositoryUrl: ?string, repositoryFormUrl: string, isTrainingComplete: bool, weeks: Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_message: ?string, locked_by_week_number: ?int, missing_items: list<string>, shows_weekly_video: bool, is_current: bool, attendance_required: bool, tab_key: string, missing_items_url: ?string, gates: Collection<int, array{week: TrainingWeek, gate: TrainingGate, evaluation: ?GateEvaluation, readiness: ?array<string, string>, status_label: string}>}>, tabs: list<array{key: string, label: string, state: ?string}>, selectedTab: string, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string}>}>, googleDriveReady: bool, googleDriveReadinessEnforced: bool}
      */
     public function showData(TrainingSession $trainingSession, User $participant): array
     {
@@ -75,10 +76,15 @@ class ParticipantTrainingSessionPageService
         /** @var ?AttendanceSession $activeAttendance */
         $activeAttendance = $participant->attendanceSessions()->whereNull('check_out_at')->latest('check_in_at')->first();
         $gatesByWeek = $this->dashboard->gates($membership)->groupBy(fn (array $gateItem): int => $gateItem['week']->id);
-        $weeks = $this->dashboard->weeks($membership, $activeAttendance)
+        $weekRows = $this->dashboard->weeks($membership, $activeAttendance);
+        $weeksByNumber = $weekRows->pluck('week')->keyBy('week_number');
+        $weeks = $weekRows
             ->map(fn (array $item): array => [
                 ...$item,
                 'tab_key' => $this->weekTabKey($item['week']),
+                'missing_items_url' => $item['locked_by_week_number'] !== null
+                    ? $this->weekTabUrl($trainingSession, $weeksByNumber->get($item['locked_by_week_number']))
+                    : null,
                 'gates' => $gatesByWeek->get($item['week']->id, collect()),
             ]);
         $selectedWeek = $weeks->firstWhere('is_current', true) ?? $weeks->last(fn (array $item): bool => $item['available']) ?? $weeks->first();

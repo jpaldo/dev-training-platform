@@ -56,7 +56,12 @@
                     </div>
 
                     @if(! $item['available'])
-                        @include('training-sessions.locked-week', ['message' => $item['locked_message']])
+                        @include('training-sessions.locked-week', [
+                            'message' => $item['locked_message'],
+                            'lockedByWeekNumber' => $item['locked_by_week_number'],
+                            'missingItems' => $item['missing_items'],
+                            'missingItemsUrl' => $item['missing_items_url'],
+                        ])
                     @else
                         @if($item['attendance_required'])
                             <x-ui.alert class="mb-6" role="status">

@@ -26,7 +26,7 @@
                 <h2 id="session-list-title" class="text-xl font-extrabold">All sessions</h2>
                 @if($sessions->isNotEmpty())
                     <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="session-list-title" tabindex="0">
-                        <table class="w-full min-w-160 border-collapse text-sm" aria-labelledby="session-list-title">
+                        <table class="w-full min-w-180 border-collapse text-sm" aria-labelledby="session-list-title">
                             <thead>
                                 <tr>
                                     <th scope="col" class="{{ $headerCellClasses }}">Title</th>
@@ -34,6 +34,7 @@
                                     <th scope="col" class="{{ $headerCellClasses }}">Dates</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">Status</th>
                                     <th scope="col" class="{{ $headerCellClasses }} text-right">Participants</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -46,6 +47,9 @@
                                             <x-ui.badge :tone="$session['status_tone']">{{ $session['status_label'] }}</x-ui.badge>
                                         </td>
                                         <td class="{{ $cellClasses }} text-right tabular-nums">{{ $session['participant_count'] }}</td>
+                                        <td class="{{ $cellClasses }}">
+                                            <x-ui.button variant="secondary" :href="$session['edit_url']" aria-label="Edit {{ $session['title'] }}">Edit</x-ui.button>
+                                        </td>
                                     </tr>
                                 @endforeach
                             </tbody>

@@ -73,6 +73,14 @@ class TrainingSession extends Model
     }
 
     /**
+     * Whether anyone has joined the session. Once someone has, its program can no longer change.
+     */
+    public function hasParticipants(): bool
+    {
+        return $this->participants()->exists();
+    }
+
+    /**
      * Limit the query to sessions that are upcoming or active: they end today or later.
      */
     public function scopeNotCompleted(Builder $query): Builder

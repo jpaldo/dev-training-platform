@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreTrainingSessionRequest;
+use App\Http\Requests\UpdateTrainingSessionRequest;
 use App\Models\TrainingSession;
 use App\Services\AdminTrainingSessionPageService;
 use App\Services\TrainingSessionService;
@@ -31,5 +32,19 @@ class AdminTrainingSessionController extends Controller
         $session = $sessions->create($request->validated(), $request->user());
 
         return redirect()->route('admin.sessions.index')->with('status', "Training session \"{$session->title}\" created.");
+    }
+
+    public function edit(TrainingSession $trainingSession, AdminTrainingSessionPageService $page): View
+    {
+        Gate::authorize('update', $trainingSession);
+
+        return view('admin.sessions.form', $page->formData($trainingSession));
+    }
+
+    public function update(UpdateTrainingSessionRequest $request, TrainingSession $trainingSession, TrainingSessionService $sessions): RedirectResponse
+    {
+        $sessions->update($trainingSession, $request->validated(), $request->user());
+
+        return redirect()->route('admin.sessions.index')->with('status', "Training session \"{$trainingSession->title}\" updated.");
     }
 }

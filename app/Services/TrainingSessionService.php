@@ -29,16 +29,9 @@ class TrainingSessionService
      */
     public function create(array $details, User $creator): TrainingSession
     {
-        $startsOn = Carbon::parse($details['starts_on'])->startOfDay();
-        $weeksCount = (int) $details['weeks_count'];
-
-        return DB::transaction(function () use ($details, $creator, $startsOn, $weeksCount): TrainingSession {
+        return DB::transaction(function () use ($details, $creator): TrainingSession {
             $session = TrainingSession::query()->create([
-                'program_id' => $details['program_id'],
-                'title' => $details['title'],
-                'weeks_count' => $weeksCount,
-                'starts_on' => $startsOn,
-                'ends_on' => self::endsOn($startsOn, $weeksCount),
+                ...$this->detailAttributes($details),
                 'created_by' => $creator->id,
             ]);
 
@@ -46,5 +39,54 @@ class TrainingSessionService
 
             return $session;
         });
+    }
+
+    /**
+     * Save the session's new details with the end date computed from the start date and weeks, and record
+     * `training_session_updated` with the names of the fields that changed. Details that change nothing are neither
+     * saved nor recorded.
+     *
+     * @param  array{program_id: int|string, title: string, weeks_count: int|string, starts_on: string}  $details
+     */
+    public function update(TrainingSession $session, array $details, User $editor): TrainingSession
+    {
+        $session->fill($this->detailAttributes($details));
+
+        if (! $session->isDirty()) {
+            return $session;
+        }
+
+        return DB::transaction(function () use ($session, $editor): TrainingSession {
+            $changedFields = array_keys($session->getDirty());
+
+            $session->save();
+
+            $this->audit->record($editor, 'training_session_updated', metadata: [
+                'training_session_id' => $session->id,
+                'changed_fields' => $changedFields,
+            ]);
+
+            return $session;
+        });
+    }
+
+    /**
+     * The session columns an admin sets, with the end date that follows from the start date and weeks.
+     *
+     * @param  array{program_id: int|string, title: string, weeks_count: int|string, starts_on: string}  $details
+     * @return array{program_id: int, title: string, weeks_count: int, starts_on: CarbonInterface, ends_on: CarbonInterface}
+     */
+    private function detailAttributes(array $details): array
+    {
+        $startsOn = Carbon::parse($details['starts_on'])->startOfDay();
+        $weeksCount = (int) $details['weeks_count'];
+
+        return [
+            'program_id' => (int) $details['program_id'],
+            'title' => $details['title'],
+            'weeks_count' => $weeksCount,
+            'starts_on' => $startsOn,
+            'ends_on' => self::endsOn($startsOn, $weeksCount),
+        ];
     }
 }

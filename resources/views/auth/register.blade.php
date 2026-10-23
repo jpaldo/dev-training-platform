@@ -66,19 +66,6 @@
                 </div>
 
                 <div class="grid min-w-0 gap-2">
-                    <label for="training_path" class="{{ $labelClasses }}">Training path</label>
-                    <select id="training_path" name="training_path" required class="{{ $controlClasses }}">
-                        <option value="">Select a path…</option>
-                        @foreach($trainingPathOptions as $value => $label)
-                            <option value="{{ $value }}" @selected(old('training_path') === $value)>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                    @error('training_path')
-                        <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
-                    @enderror
-                </div>
-
-                <div class="grid min-w-0 gap-2">
                     <label for="password" class="{{ $labelClasses }}">Password</label>
                     <input id="password" name="password" type="password" autocomplete="new-password" required class="{{ $controlClasses }}">
                     @error('password')

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Enums\JobRole;
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Http\Requests\StoreRegisteredUserRequest;
 use App\Models\User;
@@ -17,7 +16,6 @@ class RegisteredUserController extends Controller
     {
         return view('auth.register', [
             'jobRoleOptions' => JobRole::options(),
-            'trainingPathOptions' => TrainingPath::options(),
         ]);
     }
 

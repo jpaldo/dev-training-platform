@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Enums\JobRole;
-use App\Enums\TrainingPath;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -31,7 +30,6 @@ class StoreRegisteredUserRequest extends FormRequest
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users')],
             'job_role' => ['required', Rule::enum(JobRole::class)],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'training_path' => ['required', Rule::enum(TrainingPath::class)],
         ];
     }
 

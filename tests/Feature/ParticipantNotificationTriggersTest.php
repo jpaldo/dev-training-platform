@@ -42,7 +42,6 @@ class ParticipantNotificationTriggersTest extends TestCase
             'job_role' => 'developer',
             'password' => 'password123',
             'password_confirmation' => 'password123',
-            'training_path' => 'manual',
         ])->assertRedirect(route('profile.show'));
 
         $this->assertQueuedOneSyncFor(User::where('email', 'registered@example.test')->sole());

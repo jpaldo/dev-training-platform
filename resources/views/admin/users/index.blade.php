@@ -46,7 +46,7 @@
                 </x-ui.card>
             @endif
 
-            <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" aria-label="Filter users">
+            <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" aria-label="Filter users">
                 <div class="grid min-w-0 gap-2">
                     <label for="user-search" class="{{ $labelClasses }}">Search</label>
                     <input id="user-search" name="search" value="{{ $search }}" placeholder="Name, email or employee ID" class="{{ $controlClasses }}">
@@ -69,15 +69,6 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="grid min-w-0 gap-2">
-                    <label for="user-path" class="{{ $labelClasses }}">QA Path</label>
-                    <select id="user-path" name="path" class="{{ $controlClasses }}">
-                        <option value="">All</option>
-                        @foreach($pathOptions as $option)
-                            <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
-                        @endforeach
-                    </select>
-                </div>
                 <x-ui.button variant="secondary" type="submit">Filter</x-ui.button>
             </x-ui.card>
 
@@ -92,7 +83,6 @@
                                     <th scope="col" class="{{ $headerCellClasses }}">Employee ID</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">Email</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">Access Type</th>
-                                    <th scope="col" class="{{ $headerCellClasses }}">QA Path</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">Status</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">Created</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">Actions</th>
@@ -105,7 +95,6 @@
                                         <td class="{{ $cellClasses }} whitespace-nowrap">{{ $user['employee_id'] }}</td>
                                         <td class="{{ $cellClasses }} wrap-break-word text-muted">{{ $user['email'] }}</td>
                                         <td class="{{ $cellClasses }} whitespace-nowrap">{{ $user['access_type'] }}</td>
-                                        <td class="{{ $cellClasses }} whitespace-nowrap">{{ $user['path'] }}</td>
                                         <td class="{{ $cellClasses }}">
                                             <x-ui.badge :tone="$user['is_active'] ? 'success' : 'danger'">{{ $user['is_active'] ? 'Active' : 'Disabled' }}</x-ui.badge>
                                         </td>

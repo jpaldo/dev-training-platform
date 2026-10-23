@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Enums\JobRole;
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Http\Requests\FilterAdminUsersRequest;
 use App\Http\Requests\StoreAdminUserRequest;
@@ -24,7 +23,9 @@ class AdminUserController extends Controller
 {
     public function index(FilterAdminUsersRequest $request, AdminUserPageService $page): View
     {
-        return view('admin.users.index', $page->indexData($request->validated()));
+        $filters = [...$request->validated(), 'access_type' => $request->enum('access_type', UserRole::class)];
+
+        return view('admin.users.index', $page->indexData($filters));
     }
 
     public function create(AdminUserPageService $page): View
@@ -35,13 +36,11 @@ class AdminUserController extends Controller
     public function store(StoreAdminUserRequest $request, PasswordSetupService $passwordSetup): RedirectResponse
     {
         $data = $request->validated();
-        [$role, $path] = $this->mapAccessType($data['access_type']);
         $user = User::query()->create([
             ...$this->identityAttributes($request),
             'email' => $data['email'],
             'password' => Hash::make(Str::random(96)),
-            'role' => $role,
-            'training_path' => $path,
+            'role' => $request->enum('access_type', UserRole::class),
             'is_active' => $data['is_active'] ?? true,
         ]);
         $this->audit($request, $user, 'user_created', ['access_type' => $data['access_type']]);
@@ -69,7 +68,7 @@ class AdminUserController extends Controller
     public function update(UpdateAdminUserRequest $request, User $user): RedirectResponse
     {
         $data = $request->validated();
-        [$role, $path] = $this->mapAccessType($data['access_type']);
+        $role = $request->enum('access_type', UserRole::class);
         $willBeActive = (bool) ($data['is_active'] ?? false);
         if ($user->role === UserRole::Admin && $user->is_active && ! $willBeActive) {
             $this->ensureCanDeactivate($user);
@@ -81,7 +80,6 @@ class AdminUserController extends Controller
             ...$this->identityAttributes($request),
             'email' => $data['email'],
             'role' => $role,
-            'training_path' => $path,
             'is_active' => $data['is_active'] ?? false,
         ];
         if (filled($data['password'] ?? null)) {
@@ -119,22 +117,6 @@ class AdminUserController extends Controller
         if ($user->role === UserRole::Admin && $user->is_active && User::query()->where('role', UserRole::Admin)->where('is_active', true)->count() <= 1) {
             throw ValidationException::withMessages(['user' => 'The last active admin cannot be disabled.']);
         }
-    }
-
-    /**
-     * The role and training path of an Access Type (coaches and admins have no path).
-     *
-     * @return array{UserRole, ?TrainingPath}
-     */
-    private function mapAccessType(string $accessType): array
-    {
-        return match ($accessType) {
-            'admin' => [UserRole::Admin, null],
-            'coach' => [UserRole::Coach, null],
-            'qa_automation' => [UserRole::Participant, TrainingPath::Automation],
-            'qa_automation_manual' => [UserRole::Participant, TrainingPath::AutomationManual],
-            default => [UserRole::Participant, TrainingPath::Manual],
-        };
     }
 
     /**

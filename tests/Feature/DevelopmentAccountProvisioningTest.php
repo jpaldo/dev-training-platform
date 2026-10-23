@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\JobRole;
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
@@ -30,7 +29,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
 
         $this->assertSame(count(self::seededAccounts()), User::count());
 
-        foreach (self::seededAccounts() as [$email, $password, $employeeId, $firstName, $lastName, $role, $jobRole, $trainingPath]) {
+        foreach (self::seededAccounts() as [$email, $password, $employeeId, $firstName, $lastName, $role, $jobRole]) {
             $user = User::query()->where('email', $email)->sole();
 
             $this->assertSame($employeeId, $user->employee_id);
@@ -39,7 +38,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
             $this->assertSame("{$firstName} {$lastName}", $user->name);
             $this->assertSame($role, $user->role);
             $this->assertSame($jobRole, $user->job_role);
-            $this->assertSame($trainingPath, $user->training_path);
+            $this->assertNull($user->training_path);
             $this->assertTrue($user->is_active);
             $this->assertTrue(Hash::check($password, $user->password));
         }
@@ -140,7 +139,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
     }
 
     #[DataProvider('seededAccounts')]
-    public function test_every_seeded_account_signs_in_to_its_dashboard_without_the_employee_id_prompt(string $email, string $password, string $employeeId, string $firstName, string $lastName, UserRole $role, JobRole $jobRole, ?TrainingPath $trainingPath): void
+    public function test_every_seeded_account_signs_in_to_its_dashboard_without_the_employee_id_prompt(string $email, string $password, string $employeeId, string $firstName, string $lastName, UserRole $role, JobRole $jobRole): void
     {
         $this->seed();
         $landingRoute = match ($role) {
@@ -177,7 +176,6 @@ class DevelopmentAccountProvisioningTest extends TestCase
             'job_role' => 'developer',
             'password' => 'password123',
             'password_confirmation' => 'password123',
-            'training_path' => 'manual',
             'role' => 'coach',
         ])->assertRedirect(route('profile.show'));
         $this->assertDatabaseHas('users', ['email' => 'attempt@example.test', 'role' => 'participant']);
@@ -206,18 +204,18 @@ class DevelopmentAccountProvisioningTest extends TestCase
     /**
      * Every account `DatabaseSeeder` creates, as `config/development_accounts.php` defines it.
      *
-     * @return array<string, array{0: string, 1: string, 2: string, 3: string, 4: string, 5: UserRole, 6: JobRole, 7: ?TrainingPath}>
+     * @return array<string, array{0: string, 1: string, 2: string, 3: string, 4: string, 5: UserRole, 6: JobRole}>
      */
     public static function seededAccounts(): array
     {
         return [
-            'test participant' => ['test@example.com', 'password', 'DEV-0001', 'Test', 'User', UserRole::Participant, JobRole::Developer, TrainingPath::Manual],
-            'coach' => ['coach.dev@example.test', 'CoachDev!2026', 'DEV-0002', 'Development', 'Coach', UserRole::Coach, JobRole::Developer, null],
-            'admin' => ['admin.dev@example.test', 'AdminDev!2026', 'DEV-0003', 'Development', 'Admin', UserRole::Admin, JobRole::ProjectManager, null],
-            'first demo participant' => ['participant1.dev@example.test', 'ParticipantDev1!2026', 'DEV-0004', 'Avery', 'Santos', UserRole::Participant, JobRole::Developer, TrainingPath::Automation],
-            'second demo participant' => ['participant2.dev@example.test', 'ParticipantDev2!2026', 'DEV-0005', 'Jordan', 'Reyes', UserRole::Participant, JobRole::Developer, TrainingPath::AutomationManual],
-            'first demo mentor' => ['mentor1.dev@example.test', 'MentorDev1!2026', 'DEV-0006', 'Casey', 'Lim', UserRole::Coach, JobRole::Developer, null],
-            'second demo mentor' => ['mentor2.dev@example.test', 'MentorDev2!2026', 'DEV-0007', 'Riley', 'Tan', UserRole::Coach, JobRole::Developer, null],
+            'test participant' => ['test@example.com', 'password', 'DEV-0001', 'Test', 'User', UserRole::Participant, JobRole::Developer],
+            'coach' => ['coach.dev@example.test', 'CoachDev!2026', 'DEV-0002', 'Development', 'Coach', UserRole::Coach, JobRole::Developer],
+            'admin' => ['admin.dev@example.test', 'AdminDev!2026', 'DEV-0003', 'Development', 'Admin', UserRole::Admin, JobRole::ProjectManager],
+            'first demo participant' => ['participant1.dev@example.test', 'ParticipantDev1!2026', 'DEV-0004', 'Avery', 'Santos', UserRole::Participant, JobRole::Developer],
+            'second demo participant' => ['participant2.dev@example.test', 'ParticipantDev2!2026', 'DEV-0005', 'Jordan', 'Reyes', UserRole::Participant, JobRole::Developer],
+            'first demo mentor' => ['mentor1.dev@example.test', 'MentorDev1!2026', 'DEV-0006', 'Casey', 'Lim', UserRole::Coach, JobRole::Developer],
+            'second demo mentor' => ['mentor2.dev@example.test', 'MentorDev2!2026', 'DEV-0007', 'Riley', 'Tan', UserRole::Coach, JobRole::Developer],
         ];
     }
 
@@ -242,6 +240,6 @@ class DevelopmentAccountProvisioningTest extends TestCase
      */
     private function provisionedFields(): array
     {
-        return ['id', 'email', 'employee_id', 'first_name', 'last_name', 'name', 'role', 'job_role', 'training_path', 'is_active', 'created_at'];
+        return ['id', 'email', 'employee_id', 'first_name', 'last_name', 'name', 'role', 'job_role', 'is_active', 'created_at'];
     }
 }

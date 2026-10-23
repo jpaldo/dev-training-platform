@@ -57,7 +57,7 @@ class AuthPagesTest extends TestCase
             ->assertDontSee('wrong-password');
     }
 
-    public function test_guest_sees_the_registration_form_with_every_job_role_and_training_path_and_sign_in_link(): void
+    public function test_guest_sees_the_registration_form_with_every_job_role_and_no_training_path_and_sign_in_link(): void
     {
         $response = $this->get(route('register'))
             ->assertOk()
@@ -80,12 +80,6 @@ class AuthPagesTest extends TestCase
                 '<option value="project_manager" >Project Manager (PM)</option>',
                 '<option value="qa_tester" >QA Tester</option>',
                 '<option value="developer" >Developer</option>',
-                '<label for="training_path"',
-                'id="training_path" name="training_path" required',
-                '<option value="">Select a path…</option>',
-                '<option value="manual" >Manual</option>',
-                '<option value="automation" >Automation</option>',
-                '<option value="automation_manual" >Automation / Manual</option>',
                 '<label for="password"',
                 'id="password" name="password" type="password" autocomplete="new-password" required',
                 '<label for="password_confirmation"',
@@ -97,7 +91,9 @@ class AuthPagesTest extends TestCase
                 'Sign in.',
             ], false)
             ->assertDontSee('role="alert"', false)
-            ->assertDontSee('id="name"', false);
+            ->assertDontSee('id="name"', false)
+            ->assertDontSee('name="training_path"', false)
+            ->assertDontSee('Training path');
 
         $this->assertStringStartsWith('<!doctype html>', ltrim($response->getContent()));
         $this->assertSame(1, substr_count($response->getContent(), '<button'));
@@ -114,7 +110,6 @@ class AuthPagesTest extends TestCase
                 'last_name' => 'Participant',
                 'email' => 'taken@example.test',
                 'job_role' => 'qa_tester',
-                'training_path' => 'automation',
                 'password' => 'short',
                 'password_confirmation' => 'short',
             ])
@@ -130,7 +125,6 @@ class AuthPagesTest extends TestCase
                 'id="email" name="email" type="email" value="taken@example.test"',
                 'role="alert">The email has already been taken.</p>',
                 '<option value="qa_tester" selected>QA Tester</option>',
-                '<option value="automation" selected>Automation</option>',
                 'id="password" name="password" type="password"',
                 'role="alert">The password field must be at least 8 characters.</p>',
             ], false)

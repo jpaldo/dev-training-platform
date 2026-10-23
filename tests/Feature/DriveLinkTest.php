@@ -18,7 +18,6 @@ class DriveLinkTest extends TestCase
             'first_name' => 'Renamed',
             'last_name' => 'Participant',
             'email' => $participant->email,
-            'training_path' => 'manual',
             'drive_link' => 'not-a-url',
         ])->assertSessionHasNoErrors()->assertRedirect(route('profile.show'));
 

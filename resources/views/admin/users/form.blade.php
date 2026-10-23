@@ -70,7 +70,7 @@
                             <option value="{{ $option['value'] }}" @selected(old('access_type', $accessType) === $option['value'])>{{ $option['label'] }}</option>
                         @endforeach
                     </select>
-                    <p id="access-type-hint" class="{{ $hintClasses }}">Admin, Mentor / Coach, QA Manual, and QA Automation map to the platform's existing authorization model.</p>
+                    <p id="access-type-hint" class="{{ $hintClasses }}">Admin, Mentor / Coach and Participant map to the platform's existing authorization model.</p>
                 </div>
 
                 @if($isEditing)

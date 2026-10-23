@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\JobRole;
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\AdminAuditLog;
 use App\Models\User;
@@ -29,21 +28,39 @@ class AdminUserManagementTest extends TestCase
         $participant = User::factory()->create(['employee_id' => 'EMP-OLD']);
 
         $this->actingAs($coach)
-            ->put(route('admin.users.update', $participant), $this->userPayload(['employee_id' => 'EMP-NEW', 'email' => $participant->email, 'access_type' => 'qa_manual']))
+            ->put(route('admin.users.update', $participant), $this->userPayload(['employee_id' => 'EMP-NEW', 'email' => $participant->email, 'access_type' => 'participant']))
             ->assertForbidden();
 
         $this->assertSame('EMP-OLD', $participant->fresh()->employee_id);
     }
 
-    public function test_admin_can_create_each_access_type_with_existing_role_mapping(): void
+    public function test_admin_can_create_each_access_type_as_that_role_without_a_training_path(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
-        foreach ([['admin', 'admin', null], ['coach', 'coach', null], ['qa_manual', 'participant', 'manual'], ['qa_automation', 'participant', 'automation'], ['qa_automation_manual', 'participant', 'automation_manual']] as [$access, $role, $path]) {
+        foreach (['admin', 'coach', 'participant'] as $access) {
             $email = $access.'-'.fake()->unique()->safeEmail();
             $this->actingAs($admin)->post(route('admin.users.store'), $this->userPayload(['employee_id' => 'EMP-'.$access, 'email' => $email, 'access_type' => $access]))->assertRedirect(route('admin.users.index'))->assertSessionHas('password_setup_url');
-            $this->assertDatabaseHas('users', ['email' => $email, 'employee_id' => 'EMP-'.$access, 'role' => $role, 'training_path' => $path, 'is_active' => 1]);
-            $this->assertDatabaseHas('admin_audit_logs', ['actor_id' => $admin->id, 'action' => 'user_created']);
+            $this->assertDatabaseHas('users', ['email' => $email, 'employee_id' => 'EMP-'.$access, 'role' => $access, 'training_path' => null, 'is_active' => 1]);
+            $this->assertDatabaseHas('admin_audit_logs', ['actor_id' => $admin->id, 'action' => 'user_created', 'metadata->access_type' => $access]);
         }
+    }
+
+    public function test_the_former_qa_access_types_fail_validation_on_create_and_edit(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $participant = User::factory()->create(['training_path' => 'manual']);
+
+        foreach (['qa_manual', 'qa_automation', 'qa_automation_manual'] as $formerAccessType) {
+            $this->actingAs($admin)
+                ->post(route('admin.users.store'), $this->userPayload(['employee_id' => 'EMP-NEW', 'email' => 'new@example.test', 'access_type' => $formerAccessType]))
+                ->assertSessionHasErrors(['access_type' => 'The selected access type is invalid.']);
+            $this->actingAs($admin)
+                ->put(route('admin.users.update', $participant), $this->userPayload(['employee_id' => $participant->employee_id, 'email' => $participant->email, 'access_type' => $formerAccessType]))
+                ->assertSessionHasErrors(['access_type' => 'The selected access type is invalid.']);
+        }
+
+        $this->assertDatabaseMissing('users', ['email' => 'new@example.test']);
+        $this->assertDatabaseCount('admin_audit_logs', 0);
     }
 
     public function test_admin_can_create_a_coach_with_an_employee_id_and_correct_it_later(): void
@@ -163,10 +180,9 @@ class AdminUserManagementTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
         $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
-        $this->actingAs($admin)->put(route('admin.users.update', $participant), $this->userPayload(['employee_id' => $participant->employee_id, 'email' => $participant->email, 'access_type' => 'qa_automation']))->assertRedirect();
+        $this->actingAs($admin)->put(route('admin.users.update', $participant), $this->userPayload(['employee_id' => $participant->employee_id, 'email' => $participant->email, 'access_type' => 'coach']))->assertRedirect();
         $participant->refresh();
-        $this->assertSame(UserRole::Participant, $participant->role);
-        $this->assertSame(TrainingPath::Automation, $participant->training_path);
+        $this->assertSame(UserRole::Coach, $participant->role);
         $this->actingAs($admin)->post(route('admin.users.disable', $participant))->assertRedirect();
         $this->assertFalse($participant->fresh()->is_active);
         $this->assertFalse(Hash::check('PasswordDoesNotMatter', $participant->password));

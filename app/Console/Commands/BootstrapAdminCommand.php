@@ -48,7 +48,6 @@ class BootstrapAdminCommand extends Command
                 'email' => 'mprestoza@fullscale.ph',
                 'password' => Hash::make($temporaryPassword),
                 'role' => UserRole::Admin,
-                'training_path' => null,
                 'is_active' => true,
             ]);
 

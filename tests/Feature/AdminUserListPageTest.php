@@ -10,7 +10,7 @@ class AdminUserListPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_rows_show_the_employee_id_access_type_path_status_and_account_actions_of_each_user(): void
+    public function test_rows_show_the_employee_id_access_type_status_and_account_actions_of_each_user(): void
     {
         $this->travelTo(now()->setDate(2026, 3, 10));
         $admin = User::factory()->create(['role' => 'admin', 'training_path' => null, 'name' => 'Ada Admin', 'created_at' => now()->subDays(5)]);
@@ -32,18 +32,22 @@ class AdminUserListPageTest extends TestCase
                 'aria-label="Filter users"',
                 'role="region" aria-labelledby="user-list-title"',
                 '>Name</th>', '>Employee ID</th>', '>Email</th>',
-                '>Hal Hybrid</th>', '>EMP-0042</td>', 'QA Automation / Manual', 'Automation / Manual', '>Disabled</span>', 'Mar 9, 2026',
+                '>Hal Hybrid</th>', '>EMP-0042</td>', '>Participant</td>', '>Disabled</span>', 'Mar 9, 2026',
                 'href="'.route('admin.users.edit', $hybrid).'"', 'Edit',
                 'action="'.route('admin.users.enable', $hybrid).'"', 'Enable',
-                '>Ava Automation</th>', 'QA Automation', 'Automation', '>Active</span>', 'Mar 8, 2026',
-                '>Max Manual</th>', 'QA Manual', 'Manual', '>Active</span>',
-                '>Cole Coach</th>', '>—</td>', 'Mentor / Coach', '—', '>Active</span>',
-                '>Ada Admin</th>', 'Admin', '—', '>Active</span>', 'Mar 5, 2026',
+                '>Ava Automation</th>', '>Participant</td>', '>Active</span>', 'Mar 8, 2026',
+                '>Max Manual</th>', '>Participant</td>', '>Active</span>',
+                '>Cole Coach</th>', '>—</td>', '>Mentor / Coach</td>', '>Active</span>',
+                '>Ada Admin</th>', '>Admin</td>', '>Active</span>', 'Mar 5, 2026',
                 'action="'.route('admin.users.disable', $admin).'"', 'data-confirm="Disable this account? Historical training records will be preserved."', 'Disable',
             ], false)
             ->assertDontSee('action="'.route('admin.users.disable', $hybrid).'"', false)
             ->assertDontSee('action="'.route('admin.users.enable', $admin).'"', false)
-            ->assertDontSee('Password setup link');
+            ->assertDontSee('Password setup link')
+            ->assertDontSee('QA Path')
+            ->assertDontSee('name="path"', false)
+            ->assertDontSee('QA Automation')
+            ->assertDontSee('QA Manual');
 
         $this->assertSame(1, substr_count($response->getContent(), 'View Attendance'));
     }
@@ -54,12 +58,11 @@ class AdminUserListPageTest extends TestCase
         User::factory()->create(['training_path' => 'automation', 'name' => 'Ava Automation']);
         User::factory()->create(['training_path' => 'manual', 'name' => 'Max Manual']);
 
-        $this->actingAs($admin)->get(route('admin.users.index', ['search' => 'Ava', 'access_type' => 'qa_automation', 'status' => 'active', 'path' => 'automation']))
+        $this->actingAs($admin)->get(route('admin.users.index', ['search' => 'Ava', 'access_type' => 'participant', 'status' => 'active']))
             ->assertOk()
             ->assertSee('name="search" value="Ava"', false)
-            ->assertSee('<option value="qa_automation" selected>QA Automation</option>', false)
+            ->assertSee('<option value="participant" selected>Participant</option>', false)
             ->assertSee('<option value="active" selected>Active</option>', false)
-            ->assertSee('<option value="automation" selected>Automation</option>', false)
             ->assertSee('>Ava Automation</th>', false)
             ->assertDontSee('Max Manual');
 
@@ -68,6 +71,44 @@ class AdminUserListPageTest extends TestCase
             ->assertSee('<option value="disabled" selected>Disabled</option>', false)
             ->assertSee('No users match these filters.')
             ->assertDontSee('<table', false);
+    }
+
+    public function test_the_access_type_filter_lists_only_users_with_that_role_and_ignores_a_path(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null, 'name' => 'Ada Admin']);
+        User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Cole Coach']);
+        User::factory()->create(['training_path' => 'manual', 'name' => 'Max Manual']);
+        User::factory()->create(['training_path' => null, 'name' => 'Nia Nopath']);
+
+        $this->actingAs($admin)->get(route('admin.users.index', ['access_type' => 'participant', 'path' => 'automation']))
+            ->assertOk()
+            ->assertSessionHasNoErrors()
+            ->assertSeeInOrder([
+                '<option value="">All</option>',
+                '<option value="admin" >Admin</option>',
+                '<option value="coach" >Mentor / Coach</option>',
+                '<option value="participant" selected>Participant</option>',
+            ], false)
+            ->assertSee('>Max Manual</th>', false)
+            ->assertSee('>Nia Nopath</th>', false)
+            ->assertDontSee('>Cole Coach</th>', false)
+            ->assertDontSee('>Ada Admin</th>', false);
+
+        $this->actingAs($admin)->get(route('admin.users.index', ['access_type' => 'coach']))
+            ->assertOk()
+            ->assertSee('>Cole Coach</th>', false)
+            ->assertDontSee('>Max Manual</th>', false)
+            ->assertDontSee('>Ada Admin</th>', false);
+    }
+
+    public function test_the_access_type_filter_rejects_the_former_qa_access_types(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+
+        foreach (['qa_manual', 'qa_automation', 'qa_automation_manual'] as $formerAccessType) {
+            $this->actingAs($admin)->get(route('admin.users.index', ['access_type' => $formerAccessType]))
+                ->assertSessionHasErrors(['access_type' => 'The selected access type is invalid.']);
+        }
     }
 
     public function test_searching_for_an_employee_id_finds_that_user(): void

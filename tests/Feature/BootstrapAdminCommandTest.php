@@ -28,7 +28,6 @@ class BootstrapAdminCommandTest extends TestCase
         $this->assertSame('Maricel Prestoza', $admin->name);
         $this->assertSame('mprestoza@fullscale.ph', $admin->email);
         $this->assertSame(UserRole::Admin, $admin->role);
-        $this->assertNull($admin->training_path);
         $this->assertTrue($admin->is_active);
         $this->assertDatabaseHas('admin_audit_logs', ['action' => 'first_admin_bootstrapped', 'target_user_id' => $admin->id]);
         $this->assertTrue(Hash::check('QaPlatform#Admin2026!', $admin->password));

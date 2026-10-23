@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -27,9 +26,8 @@ class FilterAdminUsersRequest extends FormRequest
     {
         return [
             'search' => ['nullable', 'string', 'max:100'],
-            'access_type' => ['nullable', 'in:admin,coach,qa_manual,qa_automation,qa_automation_manual'],
+            'access_type' => ['nullable', Rule::enum(UserRole::class)],
             'status' => ['nullable', 'in:active,disabled'],
-            'path' => ['nullable', Rule::enum(TrainingPath::class)],
         ];
     }
 }

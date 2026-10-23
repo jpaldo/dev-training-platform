@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\JobRole;
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -13,12 +12,11 @@ class AdminUserPageService
 {
     private const USERS_PER_PAGE = 25;
 
+    /** @var array<string, string> The Access Type option texts by role value, in display order. */
     private const ACCESS_TYPES = [
-        'admin' => 'Admin',
-        'coach' => 'Mentor / Coach',
-        'qa_manual' => 'QA Manual',
-        'qa_automation' => 'QA Automation',
-        'qa_automation_manual' => 'QA Automation / Manual',
+        UserRole::Admin->value => 'Admin',
+        UserRole::Coach->value => 'Mentor / Coach',
+        UserRole::Participant->value => 'Participant',
     ];
 
     private const STATUS_OPTIONS = ['active' => 'Active', 'disabled' => 'Disabled'];
@@ -27,8 +25,8 @@ class AdminUserPageService
      * Everything the user management page renders: the settings links, the filter values and the matching user
      * rows. Add User is the page's single main action; every other button is secondary.
      *
-     * @param  array{search?: ?string, access_type?: ?string, status?: ?string, path?: ?string}  $filters
-     * @return array{createUrl: string, settingsLinks: list<array{label: string, url: string}>, passwordSetupExpiresInMinutes: int, search: string, accessTypeOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, pathOptions: list<array{value: string, label: string, is_selected: bool}>, users: LengthAwarePaginator<int, array{name: string, employee_id: string, email: string, access_type: string, path: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string}>, attendanceUrl: string}
+     * @param  array{search?: ?string, access_type?: ?UserRole, status?: ?string}  $filters
+     * @return array{createUrl: string, settingsLinks: list<array{label: string, url: string}>, passwordSetupExpiresInMinutes: int, search: string, accessTypeOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, users: LengthAwarePaginator<int, array{name: string, employee_id: string, email: string, access_type: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string}>, attendanceUrl: string}
      */
     public function indexData(array $filters): array
     {
@@ -40,9 +38,8 @@ class AdminUserPageService
             ],
             'passwordSetupExpiresInMinutes' => (int) config('password_setup.expire'),
             'search' => (string) ($filters['search'] ?? ''),
-            'accessTypeOptions' => $this->options(self::ACCESS_TYPES, $filters['access_type'] ?? null),
+            'accessTypeOptions' => $this->options(self::ACCESS_TYPES, ($filters['access_type'] ?? null)?->value),
             'statusOptions' => $this->options(self::STATUS_OPTIONS, $filters['status'] ?? null),
-            'pathOptions' => $this->options(TrainingPath::options(), $filters['path'] ?? null),
             'users' => $this->filteredUsers($filters)
                 ->latest()
                 ->paginate(self::USERS_PER_PAGE)
@@ -79,7 +76,7 @@ class AdminUserPageService
                 ->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])
                 ->values()
                 ->all(),
-            'accessType' => $user ? $this->accessType($user) : '',
+            'accessType' => $user?->role->value ?? '',
             'accessTypeOptions' => collect(self::ACCESS_TYPES)
                 ->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])
                 ->values()
@@ -92,7 +89,7 @@ class AdminUserPageService
     }
 
     /**
-     * @param  array{search?: ?string, access_type?: ?string, status?: ?string, path?: ?string}  $filters
+     * @param  array{search?: ?string, access_type?: ?UserRole, status?: ?string}  $filters
      * @return Builder<User>
      */
     private function filteredUsers(array $filters): Builder
@@ -103,21 +100,14 @@ class AdminUserPageService
                 ->orWhere('email', 'like', "%{$search}%")
                 ->orWhere('employee_id', 'like', "%{$search}%")))
             ->when($filters['status'] ?? null, fn (Builder $query, string $status): Builder => $query->where('is_active', $status === 'active'))
-            ->when($filters['path'] ?? null, fn (Builder $query, string $path): Builder => $query->where('training_path', $path))
-            ->when($filters['access_type'] ?? null, fn (Builder $query, string $type): Builder => $query->where(fn (Builder $q): Builder => match ($type) {
-                'admin' => $q->where('role', UserRole::Admin),
-                'coach' => $q->where('role', UserRole::Coach),
-                'qa_manual' => $q->where('role', UserRole::Participant)->where('training_path', TrainingPath::Manual),
-                'qa_automation' => $q->where('role', UserRole::Participant)->where('training_path', TrainingPath::Automation),
-                'qa_automation_manual' => $q->where('role', UserRole::Participant)->where('training_path', TrainingPath::AutomationManual),
-            }));
+            ->when($filters['access_type'] ?? null, fn (Builder $query, UserRole $role): Builder => $query->where('role', $role));
     }
 
     /**
-     * One table row ("—" for a user without an employee ID). The access type label comes from the same mapping as the
-     * edit form's Access Type and the QA path from the training path's label.
+     * One table row ("—" for a user without an employee ID). The access type label is the edit form's Access Type
+     * option text for the user's role.
      *
-     * @return array{name: string, employee_id: string, email: string, access_type: string, path: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string}
+     * @return array{name: string, employee_id: string, email: string, access_type: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string}
      */
     private function userRow(User $user): array
     {
@@ -125,28 +115,13 @@ class AdminUserPageService
             'name' => $user->name,
             'employee_id' => filled($user->employee_id) ? $user->employee_id : '—',
             'email' => $user->email,
-            'access_type' => self::ACCESS_TYPES[$this->accessType($user)],
-            'path' => $user->training_path?->label() ?? '—',
+            'access_type' => self::ACCESS_TYPES[$user->role->value],
             'is_active' => (bool) $user->is_active,
             'created' => (string) $user->created_at?->format('M j, Y'),
             'edit_url' => route('admin.users.edit', $user),
             'disable_url' => $user->is_active ? route('admin.users.disable', $user) : null,
             'enable_url' => $user->is_active ? null : route('admin.users.enable', $user),
         ];
-    }
-
-    /**
-     * The Access Type of an existing user (the edit form preselects it; the user list shows its label).
-     */
-    private function accessType(User $user): string
-    {
-        return match (true) {
-            $user->hasAnyRole(UserRole::Admin) => 'admin',
-            $user->hasAnyRole(UserRole::Coach) => 'coach',
-            $user->training_path === TrainingPath::Automation => 'qa_automation',
-            $user->training_path === TrainingPath::AutomationManual => 'qa_automation_manual',
-            default => 'qa_manual',
-        };
     }
 
     /**

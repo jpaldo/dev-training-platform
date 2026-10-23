@@ -35,7 +35,6 @@ class ProfilePageTest extends TestCase
             'employee_id' => 'EMP-1001',
             'job_role' => 'qa_tester',
             'email' => 'pat@example.test',
-            'training_path' => 'automation',
             'drive_link' => 'https://drive.google.com/drive/folders/legacy-folder',
         ]);
 
@@ -61,10 +60,6 @@ class ProfilePageTest extends TestCase
                 'id="first_name" name="first_name" value="Pat"',
                 'id="last_name" name="last_name" value="Participant"',
                 'id="email" name="email" type="email" value="pat@example.test"',
-                'id="training_path" name="training_path"',
-                '<option value="manual" >Manual</option>',
-                '<option value="automation" selected>Automation</option>',
-                '<option value="automation_manual" >Automation / Manual</option>',
                 '</form>',
                 '>Google Drive Settings</h2>',
                 'Not connected',
@@ -74,6 +69,8 @@ class ProfilePageTest extends TestCase
             ], false)
             ->assertDontSee('name="employee_id"', false)
             ->assertDontSee('name="job_role"', false)
+            ->assertDontSee('name="training_path"', false)
+            ->assertDontSee('Training path')
             ->assertDontSee('data-drive-picker', false)
             ->assertDontSee('apis.google.com/js/api.js', false)
             ->assertDontSee('Google Drive Sync')
@@ -84,24 +81,23 @@ class ProfilePageTest extends TestCase
         $this->assertSame(1, substr_count($response->getContent(), 'Sign out'));
     }
 
-    public function test_coach_sees_the_profile_form_without_training_path_or_google_drive_card(): void
+    public function test_coach_sees_the_profile_form_without_the_google_drive_card(): void
     {
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Casey Coach']);
 
         $this->actingAs($coach)->get(route('profile.show'))
             ->assertOk()
             ->assertSeeInOrder(['Save profile', 'Sign out', '>Your profile</h2>', 'Role: Coach', 'name="first_name" value="Casey"', 'name="last_name" value="Coach"'], false)
-            ->assertDontSee('name="training_path"', false)
             ->assertDontSee('Google Drive Settings')
             ->assertDontSee('name="drive_link"', false);
     }
 
     public function test_saving_the_profile_returns_with_the_status_alert(): void
     {
-        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
+        $participant = User::factory()->create(['role' => 'participant']);
 
         $this->actingAs($participant)
-            ->patch(route('profile.update'), ['first_name' => 'Renamed', 'last_name' => 'Participant', 'email' => 'renamed@example.test', 'training_path' => 'automation_manual'])
+            ->patch(route('profile.update'), ['first_name' => 'Renamed', 'last_name' => 'Participant', 'email' => 'renamed@example.test'])
             ->assertRedirect(route('profile.show'));
 
         $this->assertSame('Renamed Participant', $participant->refresh()->name);
@@ -112,7 +108,6 @@ class ProfilePageTest extends TestCase
                 'role="status">Profile updated.</div>',
                 'name="first_name" value="Renamed"',
                 'name="last_name" value="Participant"',
-                '<option value="automation_manual" selected>Automation / Manual</option>',
             ], false);
     }
 
@@ -125,7 +120,6 @@ class ProfilePageTest extends TestCase
                 'first_name' => 'Pat',
                 'last_name' => 'Participant',
                 'email' => $participant->email,
-                'training_path' => 'manual',
                 'employee_id' => 'EMP-9999',
                 'job_role' => 'project_manager',
             ])
@@ -149,19 +143,18 @@ class ProfilePageTest extends TestCase
 
     public function test_rejected_profile_save_returns_with_old_input_and_the_field_error(): void
     {
-        $participant = User::factory()->create(['role' => 'participant', 'name' => 'Pat Participant', 'training_path' => 'manual']);
+        $participant = User::factory()->create(['role' => 'participant', 'name' => 'Pat Participant']);
 
         $this->actingAs($participant)
             ->from(route('profile.show'))
             ->followingRedirects()
-            ->patch(route('profile.update'), ['first_name' => 'Patricia', 'last_name' => '', 'email' => 'changed@example.test', 'training_path' => 'automation'])
+            ->patch(route('profile.update'), ['first_name' => 'Patricia', 'last_name' => '', 'email' => 'changed@example.test'])
             ->assertOk()
             ->assertSeeInOrder([
                 'id="first_name" name="first_name" value="Patricia"',
                 'id="last_name" name="last_name" value=""',
                 'role="alert">The last name field is required.</p>',
                 'value="changed@example.test"',
-                '<option value="automation" selected>Automation</option>',
             ], false)
             ->assertDontSee('value="Participant"', false);
 

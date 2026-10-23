@@ -54,7 +54,6 @@ class TrainingPathFilterValidationTest extends TestCase
     public static function pathFilterPages(): array
     {
         return [
-            'admin users' => ['admin.users.index', 'admin'],
             'attendance' => ['coach.attendance.index', 'coach'],
             'participants' => ['coach.participants', 'coach'],
             'gate board' => ['coach.gates', 'coach'],
@@ -73,7 +72,6 @@ class TrainingPathFilterValidationTest extends TestCase
     public static function pathFilteredRoutes(): array
     {
         return [
-            'admin users' => ['admin.users.index', 'admin'],
             'attendance' => ['coach.attendance.index', 'coach'],
             'participants' => ['coach.participants', 'coach'],
             'gate board' => ['coach.gates', 'coach'],

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\TrainingPath;
+use App\Enums\UserRole;
 use App\Models\AttendanceSession;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -36,14 +37,14 @@ class AdminUserFormPageTest extends TestCase
                 'id="access_type" name="access_type"',
                 '<option value="admin" >Admin</option>',
                 '<option value="coach" >Mentor / Coach</option>',
-                '<option value="qa_manual" >QA Manual</option>',
-                '<option value="qa_automation" >QA Automation</option>',
-                '<option value="qa_automation_manual" >QA Automation / Manual</option>',
+                '<option value="participant" >Participant</option>',
+                'Admin, Mentor / Coach and Participant map to the platform\'s existing authorization model.',
                 'Secure password setup',
                 'name="is_active" value="0"', 'name="is_active" value="1" checked',
                 'Active account',
             ], false)
             ->assertDontSee('name="_method"', false)
+            ->assertDontSee('qa_manual', false)
             ->assertDontSee('name="password"', false)
             ->assertDontSee('Training Drive')
             ->assertDontSee('Assigned Coaches')
@@ -52,7 +53,7 @@ class AdminUserFormPageTest extends TestCase
 
     public function test_editing_a_participant_shows_the_saved_values_drive_coach_assignment_and_all_time_attendance(): void
     {
-        $participant = User::factory()->create(['name' => 'Hal Hybrid', 'employee_id' => 'EMP-0042', 'job_role' => 'qa_tester', 'email' => 'hal@example.test', 'training_path' => 'automation_manual', 'is_active' => false, 'drive_link' => 'https://drive.google.com/drive/folders/hal']);
+        $participant = User::factory()->create(['name' => 'Hal Hybrid', 'employee_id' => 'EMP-0042', 'job_role' => 'qa_tester', 'email' => 'hal@example.test', 'is_active' => false, 'drive_link' => 'https://drive.google.com/drive/folders/hal']);
         $assigned = User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Bea Coach', 'email' => 'bea@example.test']);
         User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Abe Coach', 'email' => 'abe@example.test']);
         User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Ina Inactive', 'is_active' => false]);
@@ -75,7 +76,7 @@ class AdminUserFormPageTest extends TestCase
                 'id="last_name" name="last_name" value="Hybrid"',
                 'value="hal@example.test"',
                 '<option value="qa_tester" selected>QA Tester</option>',
-                '<option value="qa_automation_manual" selected>QA Automation / Manual</option>',
+                '<option value="participant" selected>Participant</option>',
                 'id="password" name="password" type="password"',
                 'id="password_confirmation" name="password_confirmation" type="password"',
                 'Training Drive',
@@ -96,25 +97,26 @@ class AdminUserFormPageTest extends TestCase
             ->assertDontSee('Secure password setup');
     }
 
-    #[DataProvider('participantAccessTypes')]
-    public function test_editing_a_participant_preselects_the_access_type_of_their_training_path(TrainingPath $trainingPath, string $selectedOption): void
+    #[DataProvider('accessTypesByRole')]
+    public function test_editing_a_user_preselects_the_access_type_of_their_role_whatever_their_training_path(UserRole $role, ?TrainingPath $trainingPath, string $selectedOption): void
     {
-        $participant = User::factory()->create(['training_path' => $trainingPath]);
+        $user = User::factory()->create(['role' => $role, 'training_path' => $trainingPath]);
 
-        $this->actingAs($this->admin())->get(route('admin.users.edit', $participant))
+        $this->actingAs($this->admin())->get(route('admin.users.edit', $user))
             ->assertOk()
-            ->assertSee($selectedOption, false);
+            ->assertSee($selectedOption, false)
+            ->assertSeeInOrder(['<option value="admin"', '<option value="coach"', '<option value="participant"'], false);
     }
 
     /**
-     * @return array<string, array{TrainingPath, string}>
+     * @return array<string, array{UserRole, ?TrainingPath, string}>
      */
-    public static function participantAccessTypes(): array
+    public static function accessTypesByRole(): array
     {
         return [
-            'manual' => [TrainingPath::Manual, '<option value="qa_manual" selected>QA Manual</option>'],
-            'automation' => [TrainingPath::Automation, '<option value="qa_automation" selected>QA Automation</option>'],
-            'automation / manual' => [TrainingPath::AutomationManual, '<option value="qa_automation_manual" selected>QA Automation / Manual</option>'],
+            'participant without a path' => [UserRole::Participant, null, '<option value="participant" selected>Participant</option>'],
+            'participant with a former path' => [UserRole::Participant, TrainingPath::Automation, '<option value="participant" selected>Participant</option>'],
+            'admin' => [UserRole::Admin, null, '<option value="admin" selected>Admin</option>'],
         ];
     }
 

@@ -31,7 +31,7 @@ class UpdateAdminUserRequest extends FormRequest
             'last_name' => ['required', 'string', 'max:255'],
             'job_role' => ['nullable', Rule::enum(JobRole::class)],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users')->ignore($user)],
-            'access_type' => ['required', Rule::in(['admin', 'coach', 'qa_manual', 'qa_automation', 'qa_automation_manual'])],
+            'access_type' => ['required', Rule::enum(UserRole::class)],
             'password' => ['nullable', 'confirmed', Password::defaults()],
             'is_active' => ['sometimes', 'boolean'],
         ];

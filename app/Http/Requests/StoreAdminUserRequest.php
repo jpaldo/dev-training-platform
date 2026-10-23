@@ -27,7 +27,7 @@ class StoreAdminUserRequest extends FormRequest
             'last_name' => ['required', 'string', 'max:255'],
             'job_role' => ['nullable', Rule::enum(JobRole::class)],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users')],
-            'access_type' => ['required', Rule::in(['admin', 'coach', 'qa_manual', 'qa_automation', 'qa_automation_manual'])],
+            'access_type' => ['required', Rule::enum(UserRole::class)],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

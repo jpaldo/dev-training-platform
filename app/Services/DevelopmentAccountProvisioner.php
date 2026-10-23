@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\JobRole;
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
@@ -43,7 +42,6 @@ class DevelopmentAccountProvisioner
                     'password' => Hash::make($account['password']),
                     'role' => UserRole::from($account['role']),
                     'job_role' => JobRole::from($account['job_role']),
-                    'training_path' => isset($account['training_path']) ? TrainingPath::from($account['training_path']) : null,
                     'is_active' => true,
                 ],
             );

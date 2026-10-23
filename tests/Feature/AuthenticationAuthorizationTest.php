@@ -48,7 +48,6 @@ class AuthenticationAuthorizationTest extends TestCase
             'name' => 'Ana Maria Cruz',
             'job_role' => 'qa_tester',
             'role' => 'participant',
-            'training_path' => 'manual',
         ]);
     }
 
@@ -90,14 +89,13 @@ class AuthenticationAuthorizationTest extends TestCase
 
     public function test_authenticated_participants_can_update_only_their_own_profile_fields(): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
 
         $this->actingAs($participant)
             ->patch(route('profile.update'), [
                 'first_name' => 'Updated',
                 'last_name' => 'Participant',
                 'email' => 'updated@example.test',
-                'training_path' => 'automation',
                 'role' => 'admin',
             ])
             ->assertRedirect(route('profile.show'));
@@ -107,36 +105,33 @@ class AuthenticationAuthorizationTest extends TestCase
             'name' => 'Updated Participant',
             'email' => 'updated@example.test',
             'role' => 'participant',
-            'training_path' => 'automation',
         ]);
     }
 
-    public function test_only_participants_must_keep_a_training_path_on_their_profile(): void
+    public function test_a_participant_without_a_training_path_can_save_their_profile(): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $participant = User::factory()->create(['training_path' => null]);
 
         $this->actingAs($participant)
-            ->patch(route('profile.update'), ['first_name' => $participant->first_name, 'last_name' => $participant->last_name, 'email' => $participant->email])
-            ->assertSessionHasErrors(['training_path' => 'The training path field is required.']);
-        $this->assertDatabaseHas('users', ['id' => $participant->id, 'training_path' => 'manual']);
+            ->patch(route('profile.update'), ['first_name' => 'Updated', 'last_name' => 'Participant', 'email' => $participant->email])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('profile.show'));
 
-        $this->actingAs($coach)
-            ->patch(route('profile.update'), ['first_name' => 'Updated', 'last_name' => 'Coach', 'email' => $coach->email])
-            ->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('users', ['id' => $coach->id, 'name' => 'Updated Coach', 'training_path' => null]);
+        $this->assertDatabaseHas('users', ['id' => $participant->id, 'name' => 'Updated Participant', 'training_path' => null]);
     }
 
-    public function test_registration_and_profile_updates_reject_an_unknown_training_path(): void
+    public function test_registration_and_profile_updates_ignore_a_posted_training_path(): void
     {
-        $this->post(route('register.store'), [...$this->registrationFields(), 'training_path' => 'performance'])
-            ->assertSessionHasErrors(['training_path' => 'The selected training path is invalid.']);
-        $this->assertGuest();
+        $this->post(route('register.store'), [...$this->registrationFields(), 'training_path' => 'automation'])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('profile.show'));
+        $this->assertDatabaseHas('users', ['email' => 'manual@example.test', 'training_path' => null]);
 
         $participant = User::factory()->create(['training_path' => 'manual']);
         $this->actingAs($participant)
             ->patch(route('profile.update'), ['first_name' => $participant->first_name, 'last_name' => $participant->last_name, 'email' => $participant->email, 'training_path' => 'performance'])
-            ->assertSessionHasErrors(['training_path' => 'The selected training path is invalid.']);
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('profile.show'));
         $this->assertDatabaseHas('users', ['id' => $participant->id, 'training_path' => 'manual']);
     }
 
@@ -433,7 +428,6 @@ class AuthenticationAuthorizationTest extends TestCase
             'job_role' => 'qa_tester',
             'password' => 'password123',
             'password_confirmation' => 'password123',
-            'training_path' => 'manual',
         ];
     }
 }

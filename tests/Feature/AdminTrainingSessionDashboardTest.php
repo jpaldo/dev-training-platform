@@ -4,8 +4,11 @@ namespace Tests\Feature;
 
 use App\Enums\JobRole;
 use App\Models\Activity;
+use App\Models\ActivitySubmission;
+use App\Models\GateEvaluation;
 use App\Models\MentorAssignment;
 use App\Models\Program;
+use App\Models\TrainingGate;
 use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
@@ -105,6 +108,92 @@ class AdminTrainingSessionDashboardTest extends TestCase
             ->assertDontSee('Other program activity');
     }
 
+    public function test_the_overview_counts_only_the_current_participants_and_their_records_in_this_session(): void
+    {
+        $this->travelTo('2026-11-17 09:00:00');
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->create();
+        $firstWeek = $this->week($program, 1);
+        $secondWeek = $this->week($program, 2);
+        [$setUpRepo, $writeTests] = Activity::factory()->for($firstWeek, 'week')->count(2)->create()->all();
+        $shipApi = Activity::factory()->for($secondWeek, 'week')->create();
+        $firstGate = TrainingGate::factory()->for($firstWeek, 'week')->create();
+        $secondGate = TrainingGate::factory()->for($secondWeek, 'week')->create();
+        [$ava, $ben, $cara, $dan, $eve, $fay] = User::factory()->count(6)->create()->all();
+        [$mia, $max] = User::factory()->count(2)->create(['role' => 'coach'])->all();
+        $session = $this->twoWeekSession($program);
+        $session->participants()->attach([$ava->id, $ben->id, $cara->id, $dan->id], ['joined_at' => now()]);
+        $session->mentors()->attach([$mia->id, $max->id]);
+        $otherSession = TrainingSession::factory()->for($program)->create(['weeks_count' => 2, 'starts_on' => '2026-11-09', 'ends_on' => '2026-11-22']);
+        $otherSession->participants()->attach([$dan->id, $eve->id], ['joined_at' => now()]);
+        MentorAssignment::factory()->for($session)->create(['participant_id' => $ava->id, 'mentor_id' => $mia->id]);
+        MentorAssignment::factory()->for($session)->ended()->create(['participant_id' => $ben->id, 'mentor_id' => $max->id]);
+        MentorAssignment::factory()->for($session)->create(['participant_id' => $dan->id, 'mentor_id' => $max->id]);
+        $this->attempt($setUpRepo, $session, $ava, 'submitted');
+        $this->attempt($shipApi, $session, $ava, 'needs_revision');
+        $this->attempt($setUpRepo, $session, $ben, 'under_review');
+        $this->attempt($writeTests, $session, $ben, 'approved');
+        $this->attempt($shipApi, $session, $ben, 'draft');
+        $this->attempt($setUpRepo, $session, $cara, 'draft');
+        $this->attempt($setUpRepo, $session, $dan, 'resubmitted');
+        $this->attempt($writeTests, $session, $dan, 'needs_revision');
+        $this->review($firstGate, $session, $ava, 'needs_revision');
+        $this->review($firstGate, $session, $ben, 'passed');
+        $this->review($firstGate, $session, $cara, 'failed');
+        $this->review($secondGate, $session, $dan, 'needs_revision');
+        $this->attempt($setUpRepo, $session, $fay, 'submitted');
+        $this->attempt($shipApi, $session, $fay, 'needs_revision');
+        $this->review($firstGate, $session, $fay, 'needs_revision');
+        $this->attempt($shipApi, $otherSession, $dan, 'submitted');
+        $this->attempt($writeTests, $otherSession, $dan, 'needs_revision');
+        $this->review($firstGate, $otherSession, $dan, 'needs_revision');
+        $this->attempt($shipApi, $otherSession, $eve, 'submitted');
+
+        $response = $this->actingAs($admin)
+            ->get(route('admin.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder(['Participants and reviews', 'Awaiting review', '3', 'Activity attempts waiting for a mentor'])
+            ->assertSeeInOrder(['Participants who handed in work', 'Week 1', '3', 'Week 2', '1']);
+
+        $this->assertSame([
+            'Participants' => 4,
+            'Mentors' => 2,
+            'Unassigned' => 2,
+            'Awaiting review' => 3,
+            'Needs revision' => 2,
+            'Pending gates' => 3,
+            'Participants with locked weeks' => 2,
+        ], array_column($response->viewData('overviewStats'), 'value', 'label'));
+        $this->assertSame(['Week 1' => 3, 'Week 2' => 1], array_column($response->viewData('weekWorkStats'), 'value', 'label'));
+    }
+
+    public function test_the_overview_of_a_session_without_participants_counts_zero(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->create();
+        $activity = Activity::factory()->for($this->week($program, 1), 'week')->create();
+        $this->week($program, 2);
+        $session = $this->twoWeekSession($program);
+        $session->mentors()->attach(User::factory()->create(['role' => 'coach']));
+        $otherSession = TrainingSession::factory()->for($program)->create();
+        $participant = User::factory()->create();
+        $otherSession->participants()->attach($participant, ['joined_at' => now()]);
+        $this->attempt($activity, $otherSession, $participant, 'submitted');
+
+        $response = $this->actingAs($admin)->get(route('admin.sessions.show', $session))->assertOk();
+
+        $this->assertSame([
+            'Participants' => 0,
+            'Mentors' => 1,
+            'Unassigned' => 0,
+            'Awaiting review' => 0,
+            'Needs revision' => 0,
+            'Pending gates' => 0,
+            'Participants with locked weeks' => 0,
+        ], array_column($response->viewData('overviewStats'), 'value', 'label'));
+        $this->assertSame(['Week 1' => 0, 'Week 2' => 0], array_column($response->viewData('weekWorkStats'), 'value', 'label'));
+    }
+
     public function test_an_unknown_session_is_not_found(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
@@ -112,7 +201,7 @@ class AdminTrainingSessionDashboardTest extends TestCase
         $this->actingAs($admin)->get(route('admin.sessions.show', 999))->assertNotFound();
     }
 
-    public function test_query_count_does_not_grow_with_participants_mentors_assignments_and_activities(): void
+    public function test_query_count_does_not_grow_with_participants_mentors_assignments_activities_and_their_work(): void
     {
         $this->assertSame($this->dashboardQueryCount(1), $this->dashboardQueryCount(4));
     }
@@ -120,6 +209,29 @@ class AdminTrainingSessionDashboardTest extends TestCase
     private function week(Program $program, int $weekNumber): TrainingWeek
     {
         return TrainingWeek::factory()->for($program)->create(['week_number' => $weekNumber, 'position' => $weekNumber]);
+    }
+
+    /**
+     * The participant's attempt at the activity in the session with the status, handed in a day ago unless it is a
+     * draft.
+     */
+    private function attempt(Activity $activity, TrainingSession $session, User $participant, string $status): void
+    {
+        ActivitySubmission::factory()->for($activity)->for($session)->for($participant, 'participant')->create([
+            'status' => $status,
+            'submitted_at' => $status === 'draft' ? null : now()->subDay(),
+        ]);
+    }
+
+    /**
+     * A mentor's review of the participant's checklist (Gate) in the session with the status, saved two days ago.
+     */
+    private function review(TrainingGate $gate, TrainingSession $session, User $participant, string $status): void
+    {
+        GateEvaluation::factory()->for($gate, 'gate')->for($session)->for($participant, 'participant')->create([
+            'status' => $status,
+            'evaluated_at' => now()->subDays(2),
+        ]);
     }
 
     /**
@@ -137,16 +249,21 @@ class AdminTrainingSessionDashboardTest extends TestCase
 
     /**
      * Create a 2-week session with the given number of participants, of mentors and of activities in each week, each
-     * participant with an ended and a current mentor assignment, and count the queries of an admin's dashboard request
-     * after a warm-up request.
+     * participant with an ended and a current mentor assignment, an attempt awaiting review in Week 1, one needing
+     * revision in Week 2, an incomplete Week 1 review that locks Week 2 and an attempt in another session, and count the
+     * queries of an admin's dashboard request after a warm-up request.
      */
     private function dashboardQueryCount(int $count): int
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $program = Program::factory()->create();
-        Activity::factory()->for($this->week($program, 1), 'week')->count($count)->create();
-        Activity::factory()->for($this->week($program, 2), 'week')->count($count)->create();
+        $firstWeek = $this->week($program, 1);
+        $secondWeek = $this->week($program, 2);
+        $firstWeekActivities = Activity::factory()->for($firstWeek, 'week')->count($count)->create();
+        $secondWeekActivities = Activity::factory()->for($secondWeek, 'week')->count($count)->create();
+        $firstGate = TrainingGate::factory()->for($firstWeek, 'week')->create();
         $session = $this->twoWeekSession($program);
+        $otherSession = TrainingSession::factory()->for($program)->create();
         $participants = User::factory()->count($count)->create();
         $mentors = User::factory()->count($count)->create(['role' => 'coach']);
         $session->participants()->attach($participants, ['joined_at' => now()]);
@@ -154,12 +271,17 @@ class AdminTrainingSessionDashboardTest extends TestCase
         foreach ($participants as $index => $participant) {
             MentorAssignment::factory()->for($session)->ended()->create(['participant_id' => $participant->id, 'mentor_id' => $mentors[$index]->id]);
             MentorAssignment::factory()->for($session)->create(['participant_id' => $participant->id, 'mentor_id' => $mentors[$index]->id]);
+            $this->attempt($firstWeekActivities[$index], $session, $participant, 'submitted');
+            $this->attempt($secondWeekActivities[$index], $session, $participant, 'needs_revision');
+            $this->review($firstGate, $session, $participant, 'needs_revision');
+            $this->attempt($firstWeekActivities[$index], $otherSession, $participant, 'submitted');
         }
 
         $this->actingAs($admin)->get(route('admin.sessions.show', $session))->assertOk();
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $this->actingAs($admin)->get(route('admin.sessions.show', $session))->assertOk()->assertSee("Participants ({$count})");
+        $this->actingAs($admin)->get(route('admin.sessions.show', $session))->assertOk()->assertSee("Participants ({$count})")
+            ->assertViewHas('weekWorkStats', [['label' => 'Week 1', 'value' => $count], ['label' => 'Week 2', 'value' => $count]]);
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());

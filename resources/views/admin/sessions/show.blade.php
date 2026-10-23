@@ -45,6 +45,28 @@
                             <x-ui.stat variant="field" size="md" label="Weeks" :value="$weeksLabel" />
                             <x-ui.stat variant="field" label="Status" :value="$statusLabel" :tone="$statusTone" />
                         </dl>
+
+                        <section class="grid grid-cols-1 gap-3" aria-labelledby="session-overview-stats-title" data-overview-stats>
+                            <h3 id="session-overview-stats-title" class="text-base font-extrabold">Participants and reviews</h3>
+                            <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                                @foreach($overviewStats as $stat)
+                                    <x-ui.stat variant="field" :label="$stat['label']" :value="$stat['value']" :note="$stat['note']" />
+                                @endforeach
+                            </dl>
+                        </section>
+
+                        <section class="grid grid-cols-1 gap-3" aria-labelledby="session-overview-weeks-title" data-week-work-stats>
+                            <h3 id="session-overview-weeks-title" class="text-base font-extrabold">Participants who handed in work</h3>
+                            @if($weekWorkStats !== [])
+                                <dl class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                                    @foreach($weekWorkStats as $stat)
+                                        <x-ui.stat variant="field" :label="$stat['label']" :value="$stat['value']" />
+                                    @endforeach
+                                </dl>
+                            @else
+                                <p class="text-sm/relaxed text-muted">This session has no weeks.</p>
+                            @endif
+                        </section>
                     </x-ui.card>
                 </x-ui.tab-panel>
 

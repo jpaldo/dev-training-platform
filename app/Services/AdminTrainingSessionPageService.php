@@ -2,16 +2,22 @@
 
 namespace App\Services;
 
+use App\Enums\GateEvaluationStatus;
+use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Http\Requests\AssignMentorRequest;
 use App\Http\Requests\UpdateTrainingSessionResourceRequest;
 use App\Models\Activity;
+use App\Models\ActivitySubmission;
+use App\Models\GateEvaluation;
 use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\TrainingSession;
+use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingSessionResource;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Support\SessionWeekState;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -23,7 +29,10 @@ class AdminTrainingSessionPageService
 {
     private const SESSIONS_PER_PAGE = 20;
 
-    public function __construct(private readonly TrainingSessionResourceService $resources) {}
+    public function __construct(
+        private readonly TrainingSessionResourceService $resources,
+        private readonly WeekProgressionService $progression,
+    ) {}
 
     /**
      * Everything the training session list renders: the Create Session link and every session, newest start date
@@ -66,10 +75,12 @@ class AdminTrainingSessionPageService
      * Mentors are read in one query with their number of current participants in the session, each with a Remove link
      * whose confirmation warns that those participants become unassigned; the add form offers the active coaches who
      * are not mentors of the session (one more query). Below them, each participant has a select of the session's
-     * mentors and their mentor history. Activities are the active activities of the session's weeks. Resources are
-     * grouped "Whole session", "Week 1", … (one query), every link open whatever its week's date, with the form that adds a link.
+     * mentors and their mentor history. Activities are the active activities of the session's weeks (the weeks and their
+     * activities in two queries). Resources are grouped "Whole session", "Week 1", … (one query), every link open
+     * whatever its week's date, with the form that adds a link. The overview counts the session's current participants
+     * and their records in this session only (see overviewStats() and weekWorkStats()), in a fixed number of queries.
      *
-     * @return array{title: string, program: string, dateRange: string, weeksLabel: string, statusLabel: string, statusTone: string, editUrl: string, indexUrl: string, tabs: list<array{key: string, label: string}>, selectedTab: string, participants: list<array{name: string, employee_id: string, job_role: string, current_mentor: string, joined_on: string, remove_url: string}>, addParticipants: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentors: list<array{id: int, name: string, employee_id: string, current_participant_count: int, remove_url: string, remove_confirmation: string}>, addMentors: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentorAssignments: list<array{participant_id: int, participant_name: string, assign_url: string, error_bag: string, current_mentor_id: string, history: list<string>}>, mentorOptions: list<array{value: string, label: string}>, activities: list<array{week: string, title: string}>, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, locked_message: null, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, rename_url: string, rename_error_bag: string, remove_url: string}>}>, addResource: array{url: string, weekOptions: list<array{value: string, label: string}>}}
+     * @return array{title: string, program: string, dateRange: string, weeksLabel: string, statusLabel: string, statusTone: string, editUrl: string, indexUrl: string, tabs: list<array{key: string, label: string}>, selectedTab: string, overviewStats: list<array{label: string, value: int, note: ?string}>, weekWorkStats: list<array{label: string, value: int}>, participants: list<array{name: string, employee_id: string, job_role: string, current_mentor: string, joined_on: string, remove_url: string}>, addParticipants: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentors: list<array{id: int, name: string, employee_id: string, current_participant_count: int, remove_url: string, remove_confirmation: string}>, addMentors: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentorAssignments: list<array{participant_id: int, participant_name: string, assign_url: string, error_bag: string, current_mentor_id: string, history: list<string>}>, mentorOptions: list<array{value: string, label: string}>, activities: list<array{week: string, title: string}>, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, locked_message: null, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, rename_url: string, rename_error_bag: string, remove_url: string}>}>, addResource: array{url: string, weekOptions: list<array{value: string, label: string}>}}
      */
     public function showData(TrainingSession $trainingSession): array
     {
@@ -79,7 +90,8 @@ class AdminTrainingSessionPageService
         $assignmentsByParticipant = $this->mentorAssignmentsByParticipant($trainingSession, $sessionParticipants);
         $participants = $this->participantRows($trainingSession, $sessionParticipants, $assignmentsByParticipant);
         $mentors = $this->mentorRows($trainingSession);
-        $activities = $this->activityRows($trainingSession);
+        $weeks = $this->sessionWeeks($trainingSession);
+        $activities = $this->activityRows($weeks);
         $resources = $this->resources->tabData($trainingSession, fn (TrainingSessionResource $resource): array => [
             'rename_url' => route('admin.sessions.resources.update', [$resource->training_session_id, $resource]),
             'rename_error_bag' => UpdateTrainingSessionResourceRequest::errorBagFor($resource),
@@ -103,6 +115,8 @@ class AdminTrainingSessionPageService
                 $this->countedTab('resources', 'Resources', $resources['count']),
             ],
             'selectedTab' => 'overview',
+            'overviewStats' => $this->overviewStats($trainingSession, $sessionParticipants, $assignmentsByParticipant, count($mentors), $weeks),
+            'weekWorkStats' => $this->weekWorkStats($trainingSession, $sessionParticipants, $weeks),
             'participants' => $participants,
             'addParticipants' => $this->addParticipantsForm($trainingSession),
             'mentors' => $mentors,
@@ -392,19 +406,139 @@ class AdminTrainingSessionPageService
     }
 
     /**
-     * The active activities of the session's weeks, in week and position order.
+     * The session's weeks in week order, each with its active activities in position order (two queries).
      *
-     * @return list<array{week: string, title: string}>
+     * @return Collection<int, TrainingWeek>
      */
-    private function activityRows(TrainingSession $trainingSession): array
+    private function sessionWeeks(TrainingSession $trainingSession): Collection
     {
         return $trainingSession->weeks()
-            ->select(['id', 'week_number'])
+            ->select(['id', 'program_id', 'week_number', 'is_active'])
             ->with(['activities' => fn (Relation $activities): Relation => $activities
                 ->select(['id', 'training_week_id', 'title'])
                 ->where('is_active', true)
                 ->orderBy('position')])
-            ->get()
+            ->get();
+    }
+
+    /**
+     * The overview's headline counts, each over the session's current participants and their records in this session
+     * only (a removed participant's work keeps the session but is not counted): the participants; the session's
+     * mentors; the participants without a current mentor; their activity attempts awaiting review
+     * (`SubmissionStatus::awaitingReview()`) and needing revision (an earlier attempt is always failed, since a retry
+     * opens only after a failure, so these are their latest attempts); their saved Gate reviews that are not completed
+     * (`Passed`), as the admin dashboard's global count; and the participants with a week locked by an incomplete review
+     * of an earlier week (`WeekProgressionService::weekStatesForMemberships()`; an incomplete review of the last week
+     * locks nothing). Three queries, plus two or three for the locks, none without participants.
+     *
+     * @param  Collection<int, User>  $participants  with their membership as the pivot (see sessionParticipants())
+     * @param  SupportCollection<int, Collection<int, MentorAssignment>>  $assignmentsByParticipant
+     * @param  Collection<int, TrainingWeek>  $weeks  the session's weeks (see sessionWeeks())
+     * @return list<array{label: string, value: int, note: ?string}>
+     */
+    private function overviewStats(TrainingSession $trainingSession, Collection $participants, SupportCollection $assignmentsByParticipant, int $mentorCount, Collection $weeks): array
+    {
+        $participantIds = $participants->modelKeys();
+        $hasParticipants = $participantIds !== [];
+        $attempts = fn (): Builder => ActivitySubmission::query()
+            ->where('training_session_id', $trainingSession->id)
+            ->whereIn('user_id', $participantIds);
+
+        return [
+            ['label' => 'Participants', 'value' => $participants->count(), 'note' => null],
+            ['label' => 'Mentors', 'value' => $mentorCount, 'note' => null],
+            [
+                'label' => 'Unassigned',
+                'value' => $participants->reject(fn (User $participant): bool => $this->currentAssignment($assignmentsByParticipant, $participant) !== null)->count(),
+                'note' => 'Participants without a mentor',
+            ],
+            [
+                'label' => 'Awaiting review',
+                'value' => $hasParticipants ? $attempts()->whereIn('status', SubmissionStatus::awaitingReview())->count() : 0,
+                'note' => 'Activity attempts waiting for a mentor',
+            ],
+            [
+                'label' => 'Needs revision',
+                'value' => $hasParticipants ? $attempts()->where('status', SubmissionStatus::NeedsRevision)->count() : 0,
+                'note' => 'Activity attempts sent back',
+            ],
+            [
+                'label' => 'Pending gates',
+                'value' => $hasParticipants
+                    ? GateEvaluation::query()
+                        ->where('training_session_id', $trainingSession->id)
+                        ->whereIn('user_id', $participantIds)
+                        ->where('status', '!=', GateEvaluationStatus::Passed)
+                        ->count()
+                    : 0,
+                'note' => 'Week reviews not completed',
+            ],
+            [
+                'label' => 'Participants with locked weeks',
+                'value' => $hasParticipants ? $this->participantsWithLockedWeeks($trainingSession, $participants, $weeks) : 0,
+                'note' => 'Locked by an incomplete week review',
+            ],
+        ];
+    }
+
+    /**
+     * The number of the session's participants with at least one week locked by an incomplete review of an earlier week
+     * (two queries, and a third when a week is locked).
+     *
+     * @param  Collection<int, User>  $participants  with their membership as the pivot (see sessionParticipants())
+     * @param  Collection<int, TrainingWeek>  $weeks  the session's weeks (see sessionWeeks())
+     */
+    private function participantsWithLockedWeeks(TrainingSession $trainingSession, Collection $participants, Collection $weeks): int
+    {
+        $memberships = $participants->map(fn (User $participant): TrainingSessionParticipant => $participant->pivot->setRelation('trainingSession', $trainingSession));
+
+        return $this->progression->weekStatesForMemberships($memberships, $weeks)
+            ->filter(fn (SupportCollection $states): bool => $states->contains(fn (SessionWeekState $state): bool => $state->isLocked()))
+            ->count();
+    }
+
+    /**
+     * One count per session week, in week order: the session's current participants who handed in work in that week in
+     * this session, that is at least one attempt at one of the week's activities that was handed in at least once
+     * (`submitted_at` set, which submitting sets with the version's; drafts never handed in do not count). One query,
+     * none without participants.
+     *
+     * @param  Collection<int, User>  $participants
+     * @param  Collection<int, TrainingWeek>  $weeks  the session's weeks (see sessionWeeks())
+     * @return list<array{label: string, value: int}>
+     */
+    private function weekWorkStats(TrainingSession $trainingSession, Collection $participants, Collection $weeks): array
+    {
+        $countsByWeek = $participants->isEmpty() || $weeks->isEmpty() ? collect() : ActivitySubmission::query()
+            ->join('activities', 'activities.id', '=', 'activity_submissions.activity_id')
+            ->where('activity_submissions.training_session_id', $trainingSession->id)
+            ->whereIn('activity_submissions.user_id', $participants->modelKeys())
+            ->whereIn('activities.training_week_id', $weeks->modelKeys())
+            ->whereNotNull('activity_submissions.submitted_at')
+            ->groupBy('activities.training_week_id')
+            ->select('activities.training_week_id')
+            ->selectRaw('count(distinct activity_submissions.user_id) as participant_count')
+            ->toBase()
+            ->pluck('participant_count', 'training_week_id');
+
+        return $weeks
+            ->map(fn (TrainingWeek $week): array => [
+                'label' => "Week {$week->week_number}",
+                'value' => (int) $countsByWeek->get($week->id, 0),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The active activities of the session's weeks, in week and position order.
+     *
+     * @param  Collection<int, TrainingWeek>  $weeks  the session's weeks with their active activities (see sessionWeeks())
+     * @return list<array{week: string, title: string}>
+     */
+    private function activityRows(Collection $weeks): array
+    {
+        return $weeks
             ->flatMap(fn (TrainingWeek $week): array => $week->activities
                 ->map(fn (Activity $activity): array => ['week' => "Week {$week->week_number}", 'title' => $activity->title])
                 ->all())

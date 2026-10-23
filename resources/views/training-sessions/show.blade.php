@@ -147,6 +147,27 @@
                     </x-ui.alert>
                 </x-ui.card>
             </x-ui.tab-panel>
+
+            <x-ui.tab-panel name="resources" :selected="$selectedTab" id-prefix="session">
+                <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="session-resources-title">
+                    <h2 id="session-resources-title" class="text-xl font-extrabold">Resources</h2>
+
+                    @forelse($resourceGroups as $group)
+                        <section class="grid min-w-0 grid-cols-1 gap-3" aria-labelledby="session-resources-{{ $group['key'] }}-title" data-resource-group>
+                            <h3 id="session-resources-{{ $group['key'] }}-title" class="text-base font-extrabold">{{ $group['label'] }}</h3>
+                            <ul class="grid grid-cols-1 gap-3">
+                                @foreach($group['resources'] as $resource)
+                                    <li class="min-w-0">
+                                        <x-session-resource :resource="$resource" />
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </section>
+                    @empty
+                        <p class="text-muted">No resources in this session yet.</p>
+                    @endforelse
+                </x-ui.card>
+            </x-ui.tab-panel>
         </div>
     </div>
 @endsection

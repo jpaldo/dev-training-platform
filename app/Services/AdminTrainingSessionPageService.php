@@ -13,12 +13,13 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class AdminTrainingSessionPageService
 {
     private const SESSIONS_PER_PAGE = 20;
+
+    public function __construct(private readonly TrainingSessionResourceService $resources) {}
 
     /**
      * Everything the training session list renders: the Create Session link and every session, newest start date
@@ -67,7 +68,11 @@ class AdminTrainingSessionPageService
         $status = $trainingSession->status();
         $participants = $this->participantRows($trainingSession);
         $activities = $this->activityRows($trainingSession);
-        $resources = $this->resourceRows($trainingSession);
+        $resources = $this->resources->tabData($trainingSession, fn (TrainingSessionResource $resource): array => [
+            'rename_url' => route('admin.sessions.resources.update', [$resource->training_session_id, $resource]),
+            'rename_error_bag' => UpdateTrainingSessionResourceRequest::errorBagFor($resource),
+            'remove_url' => route('admin.sessions.resources.destroy', [$resource->training_session_id, $resource]),
+        ]);
 
         return [
             'title' => $trainingSession->title,
@@ -83,13 +88,13 @@ class AdminTrainingSessionPageService
                 $this->countedTab('participants', 'Participants', count($participants)),
                 $this->countedTab('mentors', 'Mentors', 0),
                 $this->countedTab('activities', 'Activities', count($activities)),
-                $this->countedTab('resources', 'Resources', $resources->count()),
+                $this->countedTab('resources', 'Resources', $resources['count']),
             ],
             'selectedTab' => 'overview',
             'participants' => $participants,
             'addParticipants' => $this->addParticipantsForm($trainingSession),
             'activities' => $activities,
-            'resourceGroups' => $this->resourceGroups($resources),
+            'resourceGroups' => $resources['groups'],
             'addResource' => $this->addResourceForm($trainingSession),
         ];
     }
@@ -246,68 +251,6 @@ class AdminTrainingSessionPageService
                 ->all())
             ->values()
             ->all();
-    }
-
-    /**
-     * The session's resources, whole-session ones first and then by week, each week in the order they were added.
-     *
-     * @return Collection<int, TrainingSessionResource>
-     */
-    private function resourceRows(TrainingSession $trainingSession): Collection
-    {
-        return $trainingSession->resources()
-            ->select(['id', 'training_session_id', 'week_number', 'title', 'url'])
-            ->orderBy('week_number')
-            ->orderBy('id')
-            ->get();
-    }
-
-    /**
-     * The Resources tab's groups, "Whole session" first and then "Week 1", "Week 2", …; weeks without resources are
-     * left out. Each row shows the link's host and kind ("Google Drive", "Google Docs", "Google Slides", "Google Sheets"
-     * or "Link"), opens the URL as entered ("Open in Drive" or "Open"), carries the embedded preview address of a Drive
-     * file (null for any other link) and links to its Rename and Remove actions.
-     *
-     * @param  Collection<int, TrainingSessionResource>  $resources
-     * @return list<array{key: string, label: string, resources: list<array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, rename_url: string, rename_error_bag: string, remove_url: string}>}>
-     */
-    private function resourceGroups(Collection $resources): array
-    {
-        return $resources
-            ->groupBy(fn (TrainingSessionResource $resource): string => $resource->week_number === null ? 'session' : "week-{$resource->week_number}")
-            ->map(fn (Collection $group, string $key): array => [
-                'key' => $key,
-                'label' => $group->first()->week_number === null ? 'Whole session' : "Week {$group->first()->week_number}",
-                'resources' => $group
-                    ->map(fn (TrainingSessionResource $resource): array => $this->resourceRow($resource))
-                    ->values()
-                    ->all(),
-            ])
-            ->values()
-            ->all();
-    }
-
-    /**
-     * One resource row.
-     *
-     * @return array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, rename_url: string, rename_error_bag: string, remove_url: string}
-     */
-    private function resourceRow(TrainingSessionResource $resource): array
-    {
-        $driveLink = $resource->googleDriveLink();
-
-        return [
-            'id' => $resource->id,
-            'title' => $resource->title,
-            'kind_label' => $driveLink?->label ?? 'Link',
-            'host' => parse_url($resource->url, PHP_URL_HOST) ?: $resource->url,
-            'open_url' => $resource->url,
-            'open_label' => $driveLink ? 'Open in Drive' : 'Open',
-            'preview_url' => $driveLink?->previewUrl,
-            'rename_url' => route('admin.sessions.resources.update', [$resource->training_session_id, $resource]),
-            'rename_error_bag' => UpdateTrainingSessionResourceRequest::errorBagFor($resource),
-            'remove_url' => route('admin.sessions.resources.destroy', [$resource->training_session_id, $resource]),
-        ];
     }
 
     /**

@@ -17,6 +17,7 @@ class ParticipantTrainingSessionPageService
         private readonly ParticipantDashboardService $dashboard,
         private readonly WeekProgressionService $progression,
         private readonly GoogleDriveReadinessService $driveReadiness,
+        private readonly TrainingSessionResourceService $resources,
     ) {}
 
     /**
@@ -43,10 +44,12 @@ class ParticipantTrainingSessionPageService
     /**
      * Everything the session details page renders for a participant in the session: the header facts (title, program,
      * date range, status), whether they completed every week of it, and one tab per session week (activities with
-     * their progress in the session, the week's Gates and its Weekly Video Recording) followed by the Overview tab. The
-     * selected tab is the current week, else the last available week, else the first week.
+     * their progress in the session, the week's Gates and its Weekly Video Recording), then the Overview tab and the
+     * read-only Resources tab, whose label carries the number of resources. Every resource of the session is listed,
+     * grouped like the admin tab (one query); 11.6 holds back the week resources that have not opened yet. The selected
+     * tab is the current week, else the last available week, else the first week.
      *
-     * @return array{trainingSession: TrainingSession, title: string, program: string, dateRange: string, statusLabel: string, statusTone: string, isTrainingComplete: bool, weeks: Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_reason: ?string, shows_weekly_video: bool, is_current: bool, attendance_required: bool, tab_key: string, gates: Collection<int, array{week: TrainingWeek, gate: TrainingGate, evaluation: ?GateEvaluation, readiness: ?array<string, string>, status_label: string}>}>, tabs: list<array{key: string, label: string, state: ?string}>, selectedTab: string, googleDriveReady: bool, googleDriveReadinessEnforced: bool}
+     * @return array{trainingSession: TrainingSession, title: string, program: string, dateRange: string, statusLabel: string, statusTone: string, isTrainingComplete: bool, weeks: Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_reason: ?string, shows_weekly_video: bool, is_current: bool, attendance_required: bool, tab_key: string, gates: Collection<int, array{week: TrainingWeek, gate: TrainingGate, evaluation: ?GateEvaluation, readiness: ?array<string, string>, status_label: string}>}>, tabs: list<array{key: string, label: string, state: ?string}>, selectedTab: string, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string}>}>, googleDriveReady: bool, googleDriveReadinessEnforced: bool}
      */
     public function showData(TrainingSession $trainingSession, User $participant): array
     {
@@ -68,6 +71,7 @@ class ParticipantTrainingSessionPageService
             ]);
         $selectedWeek = $weeks->firstWhere('is_current', true) ?? $weeks->last(fn (array $item): bool => $item['available']) ?? $weeks->first();
         $status = $trainingSession->status();
+        $resources = $this->resources->tabData($trainingSession);
 
         return [
             'trainingSession' => $trainingSession,
@@ -90,8 +94,10 @@ class ParticipantTrainingSessionPageService
                     },
                 ])
                 ->push(['key' => 'overview', 'label' => 'Overview', 'state' => null])
+                ->push(['key' => 'resources', 'label' => "Resources ({$resources['count']})", 'state' => null])
                 ->all(),
             'selectedTab' => $selectedWeek['tab_key'] ?? 'overview',
+            'resourceGroups' => $resources['groups'],
             'googleDriveReady' => $this->driveReadiness->isReady($participant),
             'googleDriveReadinessEnforced' => $this->driveReadiness->enforced(),
         ];

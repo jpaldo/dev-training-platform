@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\TrainingSession;
 use App\Models\TrainingSessionResource;
 use App\Models\User;
+use Closure;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class TrainingSessionResourceService
@@ -67,6 +69,65 @@ class TrainingSessionResourceService
 
             $this->audit->record($admin, 'session_resource_removed', metadata: $this->auditMetadata($resource));
         });
+    }
+
+    /**
+     * The session's resources as a Resources tab lists them, read in one query: their number and their groups,
+     * "Whole session" first and then "Week 1", "Week 2", … (weeks without resources are left out), each group in the
+     * order the resources were added. Each row shows the link's host and kind ("Google Drive", "Google Docs", "Google
+     * Slides", "Google Sheets" or "Link"), opens the URL as entered ("Open in Drive" or "Open") and carries the embedded
+     * preview address of a Drive file (null for any other link). `$rowActions` adds a page's own keys to each row, such
+     * as the admin tab's Rename and Remove URLs.
+     *
+     * @param  (Closure(TrainingSessionResource): array<string, mixed>)|null  $rowActions
+     * @return array{count: int, groups: list<array{key: string, label: string, resources: list<array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, ...}>}>}
+     */
+    public function tabData(TrainingSession $trainingSession, ?Closure $rowActions = null): array
+    {
+        $resources = $trainingSession->resources()
+            ->select(['id', 'training_session_id', 'week_number', 'title', 'url'])
+            ->orderBy('week_number')
+            ->orderBy('id')
+            ->get();
+
+        return [
+            'count' => $resources->count(),
+            'groups' => $resources
+                ->groupBy(fn (TrainingSessionResource $resource): string => $resource->week_number === null ? 'session' : "week-{$resource->week_number}")
+                ->map(fn (Collection $group, string $key): array => [
+                    'key' => $key,
+                    'label' => $group->first()->week_number === null ? 'Whole session' : "Week {$group->first()->week_number}",
+                    'resources' => $group
+                        ->map(fn (TrainingSessionResource $resource): array => [
+                            ...$this->row($resource),
+                            ...($rowActions ? $rowActions($resource) : []),
+                        ])
+                        ->values()
+                        ->all(),
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * One resource row of a Resources tab.
+     *
+     * @return array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string}
+     */
+    private function row(TrainingSessionResource $resource): array
+    {
+        $driveLink = $resource->googleDriveLink();
+
+        return [
+            'id' => $resource->id,
+            'title' => $resource->title,
+            'kind_label' => $driveLink?->label ?? 'Link',
+            'host' => parse_url($resource->url, PHP_URL_HOST) ?: $resource->url,
+            'open_url' => $resource->url,
+            'open_label' => $driveLink ? 'Open in Drive' : 'Open',
+            'preview_url' => $driveLink?->previewUrl,
+        ];
     }
 
     /**

@@ -16,6 +16,7 @@ use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingSession;
+use App\Models\TrainingSessionResource;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -27,6 +28,10 @@ use Tests\TestCase;
 class ParticipantTrainingSessionPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
+
+    private const DRIVE_URL = 'https://drive.google.com/file/d/1aB_c-D2/view?usp=sharing';
+
+    private const YOUTUBE_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 
     public function test_the_header_shows_the_session_title_program_dates_and_status(): void
     {
@@ -78,7 +83,7 @@ class ParticipantTrainingSessionPageTest extends TestCase
         $this->assertSame(1, substr_count($html, 'data-page-tabs'));
     }
 
-    public function test_a_session_without_weeks_shows_only_the_overview_tab(): void
+    public function test_a_session_without_weeks_shows_only_the_overview_and_an_empty_resources_tab(): void
     {
         $participant = User::factory()->create();
         $session = TrainingSession::factory()->withParticipants($participant)->create();
@@ -86,13 +91,70 @@ class ParticipantTrainingSessionPageTest extends TestCase
         $html = $this->actingAs($participant)->get(route('training.sessions.show', $session))
             ->assertOk()
             ->assertSee('How this training works')
+            ->assertSee('Resources (0)')
+            ->assertSee('No resources in this session yet.')
             ->assertDontSee('id="session-tab-week-', false)
             ->getContent();
 
         $this->assertMatchesRegularExpression('/id="session-tab-overview"[^>]*aria-selected="true"/', $html);
     }
 
-    public function test_session_page_query_count_does_not_grow_with_weeks_activities_and_gates(): void
+    public function test_the_resources_tab_comes_last_counts_and_groups_only_this_sessions_resources(): void
+    {
+        $participant = User::factory()->create();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create(['weeks_count' => 2]);
+        TrainingSessionResource::factory()->for($session)->forWeek(2)->create(['title' => 'Kick-off recording', 'url' => self::YOUTUBE_URL]);
+        TrainingSessionResource::factory()->for($session)->googleDrive()->create(['title' => 'Training handbook']);
+        TrainingSessionResource::factory()->for(TrainingSession::factory()->forWeek($week)->withParticipants($participant))->create(['title' => 'Other session resource']);
+
+        $html = $this->actingAs($participant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder(['id="session-tab-week-1"', 'id="session-tab-overview"', 'id="session-tab-resources"', 'Resources (2)'], false)
+            ->assertSeeInOrder(['Whole session', 'Training handbook', 'Week 2', 'Kick-off recording'])
+            ->assertDontSee('Other session resource')
+            ->assertDontSee('No resources in this session yet.')
+            ->getContent();
+
+        $this->assertMatchesRegularExpression('/id="session-tab-week-1"[^>]*aria-selected="true"/', $html);
+        $this->assertMatchesRegularExpression('/id="session-panel-resources"[^>]*\shidden\b/', $html);
+    }
+
+    public function test_a_drive_resource_opens_in_drive_and_has_a_collapsed_lazy_preview_without_actions(): void
+    {
+        $participant = User::factory()->create();
+        $session = TrainingSession::factory()->withParticipants($participant)->create();
+        TrainingSessionResource::factory()->for($session)->create(['title' => 'Training handbook', 'url' => self::DRIVE_URL]);
+
+        $response = $this->actingAs($participant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder(['Whole session', 'Training handbook', '>Google Drive<', 'drive.google.com', '>Open in Drive<', 'Show preview'], false)
+            ->assertSee('href="'.e(self::DRIVE_URL).'" target="_blank" rel="noopener noreferrer"', false)
+            ->assertSee('data-preview-src="https://drive.google.com/file/d/1aB_c-D2/preview"', false)
+            ->assertSee('title="Preview of Training handbook"', false)
+            ->assertDontSee('Rename')
+            ->assertDontSee('Remove');
+
+        $this->assertDoesNotMatchRegularExpression('/<iframe[^>]*\ssrc=/', $response->getContent());
+        $this->assertDoesNotMatchRegularExpression('/<details[^>]*data-resource-preview[^>]*\sopen/', $response->getContent());
+    }
+
+    public function test_a_plain_link_resource_opens_in_a_new_tab_without_a_preview(): void
+    {
+        $participant = User::factory()->create();
+        $session = TrainingSession::factory()->withParticipants($participant)->create(['weeks_count' => 2]);
+        TrainingSessionResource::factory()->for($session)->forWeek(2)->create(['title' => 'Kick-off recording', 'url' => self::YOUTUBE_URL]);
+
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder(['Week 2', 'Kick-off recording', '>Link<', 'www.youtube.com', '>Open<'], false)
+            ->assertSee('href="'.e(self::YOUTUBE_URL).'" target="_blank" rel="noopener noreferrer"', false)
+            ->assertDontSee('Open in Drive')
+            ->assertDontSee('Show preview')
+            ->assertDontSee('<iframe', false);
+    }
+
+    public function test_session_page_query_count_does_not_grow_with_weeks_activities_gates_and_resources(): void
     {
         $this->assertSame($this->sessionPageQueryCount(1), $this->sessionPageQueryCount(3));
     }
@@ -372,8 +434,8 @@ class ParticipantTrainingSessionPageTest extends TestCase
     }
 
     /**
-     * Build a session of a new program with the given number of weeks, activities per week and gates, fill it with
-     * participant progress, and count the queries of a session page request after a warm-up request.
+     * Build a session of a new program with the given number of weeks, activities per week, gates and week resources,
+     * fill it with participant progress, and count the queries of a session page request after a warm-up request.
      */
     private function sessionPageQueryCount(int $rows): int
     {
@@ -387,6 +449,7 @@ class ParticipantTrainingSessionPageTest extends TestCase
             GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_video']);
             GateEvaluation::factory()->for($gate, 'gate')->for($session)->for($participant, 'participant')->create(['status' => $position < $rows ? 'passed' : 'not_ready']);
             WeeklyVideoRecording::factory()->for($session)->for($participant, 'participant')->for($week, 'week')->create();
+            TrainingSessionResource::factory()->for($session)->googleDrive()->forWeek($week->week_number)->create();
 
             foreach (range(2, $rows + 1) as $activityPosition) {
                 $activity = Activity::factory()->for($week, 'week')->create(['position' => $activityPosition]);

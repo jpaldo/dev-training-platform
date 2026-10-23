@@ -6,6 +6,7 @@ use App\Models\AdminAuditLog;
 use App\Models\TrainingSession;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class AdminTrainingSessionParticipantTest extends TestCase
@@ -120,11 +121,11 @@ class AdminTrainingSessionParticipantTest extends TestCase
             ->assertSeeInOrder(['<option value="'.$otherSessionMember->id.'"', 'Ava Santos (EMP-0001)', 'Cara Reyes (no employee ID)'], false)
             ->assertDontSee('Mia Member (EMP-0100)')
             ->assertDontSee('Ian Inactive')
-            ->assertDontSee('Cole Coach')
             ->assertSee('action="'.route('admin.sessions.participants.destroy', [$session, $member]).'" data-confirm="Remove Mia Member from this session? Their work is kept."', false)
             ->assertSee('aria-label="Remove Mia Member"', false);
 
         $this->assertStringContainsString('name="_method" value="DELETE"', $response->getContent());
+        $this->assertStringNotContainsString('Cole Coach', Str::betweenFirst($response->getContent(), 'id="session-participant-ids"', '</select>'));
     }
 
     public function test_the_add_form_is_replaced_by_a_note_when_every_active_participant_is_in_the_session(): void

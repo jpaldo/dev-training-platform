@@ -7,6 +7,7 @@
         $tableRegionClasses = 'relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50';
         $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
         $participantErrors = $errors->getBag('participants');
+        $mentorErrors = $errors->getBag('mentors');
         $resourceErrors = $errors->getBag('resources');
     @endphp
 
@@ -124,7 +125,72 @@
                 <x-ui.tab-panel name="mentors" :selected="$selectedTab" id-prefix="session">
                     <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="session-mentors-title">
                         <h2 id="session-mentors-title" class="text-xl font-extrabold">Mentors</h2>
-                        <p class="text-muted">No mentors in this session yet.</p>
+
+                        @if($addMentors['options'] !== [])
+                            <form method="POST" action="{{ $addMentors['url'] }}" class="grid grid-cols-1 gap-3 rounded-xl border border-line bg-surface-sunken p-4" aria-labelledby="session-add-mentors-title">
+                                @csrf
+                                <h3 id="session-add-mentors-title" class="text-base font-extrabold">Add mentors</h3>
+                                <div class="grid min-w-0 grid-cols-1 gap-2">
+                                    <label for="session-mentor-ids" class="text-sm font-extrabold">Name (Employee ID)</label>
+                                    <p id="session-mentor-ids-hint" class="text-sm/relaxed text-muted">Active users with the Mentor role who are not mentors of this session. Hold Ctrl (Cmd on a Mac) to choose more than one.</p>
+                                    <select
+                                        id="session-mentor-ids"
+                                        name="user_ids[]"
+                                        multiple
+                                        required
+                                        size="{{ $addMentors['size'] }}"
+                                        aria-describedby="session-mentor-ids-hint{{ $mentorErrors->any() ? ' session-mentor-ids-error' : '' }}"
+                                        @if($mentorErrors->any()) aria-invalid="true" @endif
+                                        class="{{ $controlClasses }}"
+                                    >
+                                        @foreach($addMentors['options'] as $option)
+                                            <option value="{{ $option['value'] }}" @selected($mentorErrors->any() && in_array($option['value'], (array) old('user_ids', []), true))>{{ $option['label'] }}</option>
+                                        @endforeach
+                                    </select>
+                                    @if($mentorErrors->any())
+                                        <p id="session-mentor-ids-error" class="text-sm text-rose-200" role="alert">{{ $mentorErrors->first() }}</p>
+                                    @endif
+                                </div>
+                                <div>
+                                    <x-ui.button variant="secondary" type="submit">Add Mentors</x-ui.button>
+                                </div>
+                            </form>
+                        @else
+                            <p class="text-sm/relaxed text-muted">There are no other active users with the Mentor role to add.</p>
+                        @endif
+
+                        @if($mentors !== [])
+                            <div class="{{ $tableRegionClasses }}" role="region" aria-labelledby="session-mentors-title" tabindex="0">
+                                <table class="w-full min-w-120 border-collapse text-sm" aria-labelledby="session-mentors-title">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col" class="{{ $headerCellClasses }}">Name</th>
+                                            <th scope="col" class="{{ $headerCellClasses }}">Employee ID</th>
+                                            <th scope="col" class="{{ $headerCellClasses }}">Current participants</th>
+                                            <th scope="col" class="{{ $headerCellClasses }}">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($mentors as $mentor)
+                                            <tr data-mentor-row>
+                                                <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">{{ $mentor['name'] }}</th>
+                                                <td class="{{ $cellClasses }} whitespace-nowrap tabular-nums">{{ $mentor['employee_id'] }}</td>
+                                                <td class="{{ $cellClasses }} tabular-nums">{{ $mentor['current_participant_count'] }}</td>
+                                                <td class="{{ $cellClasses }}">
+                                                    <form method="POST" action="{{ $mentor['remove_url'] }}" data-confirm="{{ $mentor['remove_confirmation'] }}">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <x-ui.button variant="secondary" type="submit" aria-label="Remove {{ $mentor['name'] }}">Remove</x-ui.button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @else
+                            <p class="text-muted">No mentors in this session yet.</p>
+                        @endif
                     </x-ui.card>
                 </x-ui.tab-panel>
 

@@ -8,6 +8,7 @@ use App\Http\Controllers\AdminGoogleDriveController;
 use App\Http\Controllers\AdminInterviewSchedulingController;
 use App\Http\Controllers\AdminSettingsController;
 use App\Http\Controllers\AdminTrainingSessionController;
+use App\Http\Controllers\AdminTrainingSessionMentorController;
 use App\Http\Controllers\AdminTrainingSessionParticipantController;
 use App\Http\Controllers\AdminTrainingSessionResourceController;
 use App\Http\Controllers\AdminUserController;
@@ -108,6 +109,8 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::put('/sessions/{trainingSession}', [AdminTrainingSessionController::class, 'update'])->name('sessions.update');
         Route::post('/sessions/{trainingSession}/participants', [AdminTrainingSessionParticipantController::class, 'store'])->name('sessions.participants.store');
         Route::delete('/sessions/{trainingSession}/participants/{participant}', [AdminTrainingSessionParticipantController::class, 'destroy'])->scopeBindings()->name('sessions.participants.destroy');
+        Route::post('/sessions/{trainingSession}/mentors', [AdminTrainingSessionMentorController::class, 'store'])->name('sessions.mentors.store');
+        Route::delete('/sessions/{trainingSession}/mentors/{mentor}', [AdminTrainingSessionMentorController::class, 'destroy'])->scopeBindings()->name('sessions.mentors.destroy');
         Route::post('/sessions/{trainingSession}/resources', [AdminTrainingSessionResourceController::class, 'store'])->name('sessions.resources.store');
         Route::put('/sessions/{trainingSession}/resources/{resource}', [AdminTrainingSessionResourceController::class, 'update'])->scopeBindings()->name('sessions.resources.update');
         Route::delete('/sessions/{trainingSession}/resources/{resource}', [AdminTrainingSessionResourceController::class, 'destroy'])->scopeBindings()->name('sessions.resources.destroy');

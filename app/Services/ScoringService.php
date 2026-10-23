@@ -46,28 +46,33 @@ class ScoringService
     /**
      * @return array{weeks: Collection<int, array{rows: Collection<int, array{activity: Activity, submission: ?ActivitySubmission, version: ?SubmissionVersion, score: ?ActivityScore}>, completed: int, total: int, scored: int, average: ?int}>, completed: int, total: int, scored: int, average: ?int}
      */
-    public function summary(User $participant, Program $program): array
+    public function summary(User $participant, ?Program $program): array
     {
         return $this->summaries(collect([$participant]), $program)[$participant->id];
     }
 
     /**
-     * The scored weeks of the program: every active week, in position order.
+     * The scored weeks of the program: every active week, in position order (none without a program).
      *
      * @return Collection<int, TrainingWeek>
      */
-    public function scoredWeeks(Program $program): Collection
+    public function scoredWeeks(?Program $program): Collection
     {
+        if (! $program) {
+            return new Collection;
+        }
+
         return $program->weeks()->where('is_active', true)->orderBy('position')->get();
     }
 
     /**
-     * Summarize every active week of the program for each participant with a fixed number of queries.
+     * Summarize every active week of the program for each participant with a fixed number of queries (no weeks and
+     * zero totals without a program).
      *
      * @param  Collection<int, User>  $participants
      * @return Collection<int, array{weeks: Collection<int, array{rows: Collection<int, array{activity: Activity, submission: ?ActivitySubmission, version: ?SubmissionVersion, score: ?ActivityScore}>, completed: int, total: int, scored: int, average: ?int}>, completed: int, total: int, scored: int, average: ?int}> keyed by participant id
      */
-    public function summaries(Collection $participants, Program $program): Collection
+    public function summaries(Collection $participants, ?Program $program): Collection
     {
         $weeks = $this->scoredWeeks($program);
         $weeklySummaries = $this->weeklySummaries($participants, $weeks);

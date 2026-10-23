@@ -18,6 +18,9 @@
 
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="admin-training-title">
             <h2 id="admin-training-title" class="m-0 text-xl font-extrabold">Training overview</h2>
+            @unless($hasActiveProgram)
+                <x-ui.alert tone="warning" role="status">No training program is active yet.</x-ui.alert>
+            @endunless
             <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-3">
                 @foreach($trainingStats as $stat)
                     <x-ui.stat variant="field" :label="$stat['label']">

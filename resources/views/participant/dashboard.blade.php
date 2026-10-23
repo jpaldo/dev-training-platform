@@ -26,9 +26,13 @@
 
         <header class="grid gap-2">
             <x-ui.eyebrow>PARTICIPANT DASHBOARD</x-ui.eyebrow>
-            <x-ui.page-title>{{ $program->name }}</x-ui.page-title>
+            <x-ui.page-title>{{ $program?->name ?? 'No active program' }}</x-ui.page-title>
             <p class="m-0 text-muted">{{ $user->name }} · {{ $user->trainingPathLabel() }} QA · Start at Week 2.</p>
         </header>
+
+        @unless($program)
+            <x-ui.alert tone="warning" role="status">No training program is active yet.</x-ui.alert>
+        @endunless
 
         <x-ui.card as="section" class="flex flex-wrap gap-x-8 gap-y-6" aria-labelledby="attendance-title">
             <div class="grid min-w-0 grow-[1.5] basis-72 content-start gap-2">

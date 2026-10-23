@@ -16,11 +16,11 @@ class AdminDashboardPageService
     public function __construct(private readonly AdminSettingsStatusService $settings) {}
 
     /**
-     * Everything the admin dashboard renders: the account counts, the training and review / Gate counts with their
-     * labels, the integration statuses and the admin tool links. The page has no single main action, so every link is
-     * secondary.
+     * Everything the admin dashboard renders: the account counts, whether a program is active (the training overview
+     * shows a notice when none is), the training and review / Gate counts with their labels, the integration statuses
+     * and the admin tool links. The page has no single main action, so every link is secondary.
      *
-     * @return array{systemStats: list<array{label: string, value: int}>, trainingStats: list<array{label: string, value: int}>, reviewStats: list<array{label: string, value: int}>, integrationStatuses: list<array{label: string, status: string}>, toolLinks: list<array{label: string, url: string}>}
+     * @return array{systemStats: list<array{label: string, value: int}>, hasActiveProgram: bool, trainingStats: list<array{label: string, value: int}>, reviewStats: list<array{label: string, value: int}>, integrationStatuses: list<array{label: string, status: string}>, toolLinks: list<array{label: string, url: string}>}
      */
     public function showData(): array
     {
@@ -33,6 +33,7 @@ class AdminDashboardPageService
                 ['label' => 'COACHES', 'value' => User::query()->where('role', UserRole::Coach)->count()],
                 ['label' => 'ADMINS', 'value' => User::query()->where('role', UserRole::Admin)->count()],
             ],
+            'hasActiveProgram' => $program !== null,
             'trainingStats' => [
                 ['label' => 'WEEK2', 'value' => $this->participantsWithWeek($program, 2)],
                 ['label' => 'WEEK3', 'value' => $this->participantsWithWeek($program, 3)],

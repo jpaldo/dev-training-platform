@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\ExportParticipantScoreSummaryRequest;
 use App\Http\Requests\FilterScoringReportRequest;
 use App\Models\ActivityScore;
 use App\Models\Program;
@@ -35,9 +34,9 @@ class ScoringReportController extends Controller
         }));
     }
 
-    public function participantSummary(ExportParticipantScoreSummaryRequest $request, ScoringReportService $reports, ScoringService $scoring): StreamedResponse
+    public function participantSummary(FilterScoringReportRequest $request, ScoringReportService $reports, ScoringService $scoring): StreamedResponse
     {
-        $program = Program::query()->where('is_active', true)->firstOrFail();
+        $program = Program::query()->where('is_active', true)->first();
         $participants = $reports->participants($request->validated());
         $summaries = $scoring->summaries($participants, $program);
         $rows = $participants->map(fn (User $p): array => [$p->name, $p->employee_id, $p->email, $p->trainingPathLabel(), $p->assignedCoaches->pluck('name')->implode('; '), $summaries[$p->id]]);

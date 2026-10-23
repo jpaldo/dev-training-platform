@@ -243,11 +243,11 @@ class ScoringTest extends TestCase
         $this->actingAs($coach)->get(route('coach.reports.participant-summary'))->assertOk()->assertDownload('participant-score-summary.csv');
     }
 
-    public function test_participant_summary_without_an_active_program_is_not_found_before_validation(): void
+    public function test_participant_summary_without_an_active_program_validates_its_filters_like_the_scores_export(): void
     {
         $coach = User::factory()->create(['role' => 'coach']);
 
-        $this->actingAs($coach)->get(route('coach.reports.participant-summary', ['week' => 9]))->assertNotFound();
+        $this->actingAs($coach)->get(route('coach.reports.participant-summary', ['week' => 9]))->assertSessionHasErrors(['week' => 'The selected week is invalid.']);
     }
 
     public function test_scoring_page_displays_answers_and_ordered_prompt_history_for_exact_version(): void

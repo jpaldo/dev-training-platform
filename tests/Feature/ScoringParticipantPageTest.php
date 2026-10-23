@@ -128,13 +128,15 @@ class ScoringParticipantPageTest extends TestCase
         $this->actingAs($coach)->get(route('coach.scoring.participant', User::factory()->create(['role' => 'coach'])))->assertNotFound();
     }
 
-    public function test_without_an_active_program_the_page_is_not_found(): void
+    public function test_without_an_active_program_the_page_says_so_and_shows_no_weeks(): void
     {
-        Program::factory()->create(['is_active' => false]);
+        TrainingWeek::factory()->for(Program::factory()->state(['is_active' => false]))->create(['week_number' => 1, 'position' => 1]);
 
         $this->actingAs(User::factory()->create(['role' => 'coach']))
             ->get(route('coach.scoring.participant', User::factory()->create()))
-            ->assertNotFound();
+            ->assertOk()
+            ->assertSeeInOrder(['No training program is active yet.', 'OVERALL COMPLETION', '0 / 0'])
+            ->assertDontSee('WEEK 1');
     }
 
     public function test_query_count_does_not_grow_with_the_number_of_activities(): void

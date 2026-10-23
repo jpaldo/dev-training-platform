@@ -22,6 +22,10 @@
             </nav>
         </header>
 
+        @unless($hasActiveProgram)
+            <x-ui.alert tone="warning" role="status">No training program is active yet.</x-ui.alert>
+        @endunless
+
         <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto_auto]" aria-label="Filter participants">
             <div class="grid min-w-0 gap-2 sm:col-span-2 xl:col-span-1">
                 <label for="score-search" class="{{ $labelClasses }}">Search participant</label>

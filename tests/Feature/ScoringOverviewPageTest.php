@@ -178,11 +178,16 @@ class ScoringOverviewPageTest extends TestCase
         $this->assertSame($this->overviewQueryCount(1), $this->overviewQueryCount(3));
     }
 
-    public function test_without_an_active_program_the_overview_is_not_found(): void
+    public function test_without_an_active_program_the_overview_says_so_and_shows_no_week_columns(): void
     {
-        Program::factory()->create(['is_active' => false]);
+        TrainingWeek::factory()->for(Program::factory()->state(['is_active' => false]))->create(['week_number' => 1, 'position' => 1]);
+        User::factory()->create(['name' => 'Ada Lovelace']);
 
-        $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.scoring.index'))->assertNotFound();
+        $this->actingAs(User::factory()->create(['role' => 'coach']))
+            ->get(route('coach.scoring.index'))
+            ->assertOk()
+            ->assertSeeInOrder(['No training program is active yet.', 'Ada Lovelace', '0 / 0 (0%)'])
+            ->assertDontSee('>W1<', false);
     }
 
     /**

@@ -96,12 +96,12 @@ class ScoringPageService
     }
 
     /**
-     * Everything the scoring overview renders: the filter values and options and the matching participants with
-     * the score and completion of every active week of the program and overall. The page has no single main action,
-     * so every button is secondary.
+     * Everything the scoring overview renders: whether a program is active (the page shows a notice when none is), the
+     * filter values and options and the matching participants with the score and completion of every active week of
+     * the program and overall. The page has no single main action, so every button is secondary.
      *
      * @param  array{search?: ?string, path?: ?string, week?: int|string|null, activity?: int|string|null, score_status?: ?string, band?: ?string, assigned_to_me?: bool|int|string|null}  $filters
-     * @return array{criteriaUrl: string, reportsUrl: string, search: string, pathOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, scoreStatusOptions: list<array{value: string, label: string, is_selected: bool}>, bandOptions: list<array{value: string, label: string, is_selected: bool}>, isAssignedToMe: bool, weekNumbers: list<int>, participants: LengthAwarePaginator<int, array{name: string, email: string, path: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, coach_names: string, scoring_url: string}>}
+     * @return array{hasActiveProgram: bool, criteriaUrl: string, reportsUrl: string, search: string, pathOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, scoreStatusOptions: list<array{value: string, label: string, is_selected: bool}>, bandOptions: list<array{value: string, label: string, is_selected: bool}>, isAssignedToMe: bool, weekNumbers: list<int>, participants: LengthAwarePaginator<int, array{name: string, email: string, path: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, coach_names: string, scoring_url: string}>}
      */
     public function indexData(User $viewer, array $filters): array
     {
@@ -110,6 +110,7 @@ class ScoringPageService
         $summaries = $this->scoring->summaries($participants->getCollection(), $program);
 
         return [
+            'hasActiveProgram' => $program !== null,
             'criteriaUrl' => route('coach.scoring.criteria'),
             'reportsUrl' => route('coach.scoring.reports'),
             'search' => (string) ($filters['search'] ?? ''),
@@ -124,16 +125,19 @@ class ScoringPageService
     }
 
     /**
-     * Everything the participant scoring page renders: the overall score and completion, and per scored week its
-     * average, completion and the activity rows with the link to score (or view the score of) each submitted version.
+     * Everything the participant scoring page renders: whether a program is active (the page shows a notice when none
+     * is), the overall score and completion, and per scored week its average, completion and the activity rows with
+     * the link to score (or view the score of) each submitted version.
      *
-     * @return array{participantName: string, participantEmail: string, path: string, stats: list<array{label: string, value: string, note: ?string}>, weeks: list<array{number: int, heading: string, detail: string, rows: list<array{activity: string, score: string, band: string, status: string, action: ?array{label: string, url: string}}>}>}
+     * @return array{hasActiveProgram: bool, participantName: string, participantEmail: string, path: string, stats: list<array{label: string, value: string, note: ?string}>, weeks: list<array{number: int, heading: string, detail: string, rows: list<array{activity: string, score: string, band: string, status: string, action: ?array{label: string, url: string}}>}>}
      */
     public function participantData(User $participant): array
     {
-        $summary = $this->scoring->summary($participant, $this->activeProgram());
+        $program = $this->activeProgram();
+        $summary = $this->scoring->summary($participant, $program);
 
         return [
+            'hasActiveProgram' => $program !== null,
             'participantName' => $participant->name,
             'participantEmail' => $participant->email,
             'path' => $participant->trainingPathLabel(),
@@ -275,9 +279,9 @@ class ScoringPageService
             ->implode(' · ');
     }
 
-    private function activeProgram(): Program
+    private function activeProgram(): ?Program
     {
-        return Program::query()->where('is_active', true)->firstOrFail();
+        return Program::query()->where('is_active', true)->first();
     }
 
     /**

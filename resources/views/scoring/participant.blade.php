@@ -13,6 +13,10 @@
             <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $participantEmail }} · {{ $path }}</p>
         </header>
 
+        @unless($hasActiveProgram)
+            <x-ui.alert tone="warning" role="status">No training program is active yet.</x-ui.alert>
+        @endunless
+
         @if(session('status'))
             <x-ui.alert tone="success" role="status">{{ session('status') }}</x-ui.alert>
         @endif

@@ -20,13 +20,13 @@ class ParticipantDashboardController extends Controller
         $user = $request->user();
         $user->load('assignedCoaches');
         $lifecycle->reconcileStale($user->id);
-        $program = Program::query()->where('is_active', true)->with(['weeks.activities'])->orderBy('id')->firstOrFail();
+        $program = Program::query()->where('is_active', true)->with(['weeks.activities'])->orderBy('id')->first();
         $activeAttendance = $user->attendanceSessions()->whereNull('check_out_at')->latest('check_in_at')->first();
-        $weeks = $dashboard->weeks($user, $program, $activeAttendance);
+        $weeks = $program ? $dashboard->weeks($user, $program, $activeAttendance) : collect();
 
-        $programCompleted = $progression->isProgramCompleted($user, $program);
+        $programCompleted = $program !== null && $progression->isProgramCompleted($user, $program);
         $recentAttendance = $user->attendanceSessions()->whereNotNull('check_out_at')->latest('check_in_at')->limit(5)->get();
-        $gates = $dashboard->gates($user, $program);
+        $gates = $program ? $dashboard->gates($user, $program) : collect();
 
         $googleDriveReady = $driveReadiness->isReady($user);
         $googleDriveReadinessEnforced = $driveReadiness->enforced();

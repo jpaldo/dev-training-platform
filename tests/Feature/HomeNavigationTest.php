@@ -111,11 +111,16 @@ class HomeNavigationTest extends TestCase
         $response = $this->actingAs($participant)->get(route('dashboard'));
 
         $response->assertOk()
-            ->assertSee('TRAINING OVERVIEW')
-            ->assertSee('AI-Output Validation')
-            ->assertSee('AI-Assisted Failure Analysis, Test Generation &amp; Regression Intelligence', false)
-            ->assertSee('Sustain, Reuse, Reassess')
-            ->assertSee('A Coach must review and pass the Gate before the next week becomes available.');
+            ->assertSeeInOrder([
+                'TRAINING OVERVIEW',
+                '>How this training works</h2>',
+                'Throughout the training, you will practice how to:',
+                'Gates &amp; progression',
+                'A Coach must review and pass the Gate before the next week becomes available.',
+            ], false)
+            ->assertDontSee('AI-Assisted QA Level 3')
+            ->assertDontSee('AI-Output Validation')
+            ->assertDontSee('Training journey');
     }
 
     public function test_dashboard_disclosure_and_tabs_have_accessible_defaults_without_changing_content(): void
@@ -134,7 +139,7 @@ class HomeNavigationTest extends TestCase
             ->assertSee('aria-controls="dashboard-missing-content"', false)
             ->assertSee('aria-expanded="true"', false)
             ->assertSee('Complete your next activity.')
-            ->assertSee('AI-Output Validation')
+            ->assertSee('How this training works')
             ->assertSee('Gates &amp; progression', false)
             ->assertSee('TRAINING SESSION');
     }

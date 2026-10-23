@@ -114,7 +114,7 @@
                                                 <p class="{{ $hintClasses }}">Select Other only when the artifact does not fit the configured options.</p>
                                             </div>
                                         </div>
-                                        <p class="{{ $hintClasses }}">Select the type of AI-generated QA artifact you are validating or using for this activity.</p>
+                                        <p class="{{ $hintClasses }}">Select the type of AI-generated artifact you are validating or using for this activity.</p>
                                         <script>
                                             (() => {
                                                 const select = document.querySelector('[data-artifact-type-select]');

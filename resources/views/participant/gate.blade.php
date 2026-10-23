@@ -54,7 +54,7 @@
                     @if($weeklyVideo['url'])
                         <x-ui.button variant="secondary" :href="$weeklyVideo['url']">View Video ↗</x-ui.button>
                     @else
-                        <p class="m-0 leading-relaxed text-muted">Upload a video recording of your actual QA work for this week.</p>
+                        <p class="m-0 leading-relaxed text-muted">Upload a video recording of your work for this week.</p>
                     @endif
                 </x-ui.card>
             @endif

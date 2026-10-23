@@ -16,11 +16,11 @@
             <p class="m-0 text-sm text-muted">Last updated: September 11, 2026</p>
         </header>
 
-        <p class="{{ $paragraphClasses }}">This Privacy Policy explains how the Developer Training Platform (“the platform”) handles information when you use its QA training services.</p>
+        <p class="{{ $paragraphClasses }}">This Privacy Policy explains how the Developer Training Platform (“the platform”) handles information when you use its training services.</p>
 
         <section class="{{ $sectionClasses }}">
             <h2 class="{{ $headingClasses }}">Information used by the platform</h2>
-            <p class="{{ $paragraphClasses }}">The platform uses account details such as your name, email address, role, QA path, and profile information you provide. It also stores the training information you submit, including activity responses, artifacts, evidence, participant notes, reviews, scores, and related feedback.</p>
+            <p class="{{ $paragraphClasses }}">The platform uses account details such as your name, email address, employee ID, job role, role, and profile information you provide. It also stores the training information you submit, including activity responses, artifacts, evidence, participant notes, reviews, scores, and related feedback.</p>
             <p class="{{ $paragraphClasses }}">When you use attendance features, the platform records check-in and check-out timestamps and the resulting session duration. Coaches/Mentors and Admins may access training records needed to operate, review, and administer the program.</p>
         </section>
 
@@ -33,7 +33,7 @@
 
         <section class="{{ $sectionClasses }}">
             <h2 class="{{ $headingClasses }}">How information is used</h2>
-            <p class="{{ $paragraphClasses }}">Information is used to authenticate users, deliver QA training, record progress and attendance, review submissions, calculate configured scores, evaluate Gates, provide feedback, protect platform security, and administer accounts. We do not sell participant information.</p>
+            <p class="{{ $paragraphClasses }}">Information is used to authenticate users, deliver training, record progress and attendance, review submissions, calculate configured scores, evaluate Gates, provide feedback, protect platform security, and administer accounts. We do not sell participant information.</p>
         </section>
 
         <section class="{{ $sectionClasses }}">

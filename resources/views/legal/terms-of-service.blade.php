@@ -20,7 +20,7 @@
 
         <section class="{{ $sectionClasses }}">
             <h2 class="{{ $headingClasses }}">Acceptable use</h2>
-            <p class="{{ $paragraphClasses }}">Use the platform only for authorized QA training and related program activities. Keep your account information accurate, protect your credentials, and do not attempt to access another person’s account, submissions, evidence, scores, files, or private data.</p>
+            <p class="{{ $paragraphClasses }}">Use the platform only for authorized training and related program activities. Keep your account information accurate, protect your credentials, and do not attempt to access another person’s account, submissions, evidence, scores, files, or private data.</p>
         </section>
 
         <section class="{{ $sectionClasses }}">

@@ -51,7 +51,7 @@ class ParticipantGatePageTest extends TestCase
                 'id="gate-video-title"',
                 'Status:',
                 'MISSING',
-                'Upload a video recording of your actual QA work for this week.',
+                'Upload a video recording of your work for this week.',
                 'Criteria',
                 e($activityCriterion->title),
                 'Awaiting Review',

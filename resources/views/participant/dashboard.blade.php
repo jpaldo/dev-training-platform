@@ -220,25 +220,23 @@
                 <div class="grid grid-cols-1 gap-6">
                 <x-ui.card class="grid gap-3.5">
                     <x-ui.eyebrow>TRAINING OVERVIEW</x-ui.eyebrow>
-                    <h2 id="training-overview-title" class="m-0 text-xl font-extrabold">AI-Assisted QA Level 3</h2>
-                    <p class="m-0 leading-relaxed text-muted">This training is designed to develop Level 3 QA testers who can use AI to accelerate QA work while still owning the quality, validation, and final decision.</p>
-                    <p class="m-0 leading-relaxed text-muted">AI can generate test cases, analysis, recommendations, and other QA artifacts — but you are responsible for determining whether the output is actually correct.</p>
+                    <h2 id="training-overview-title" class="m-0 text-xl font-extrabold">How this training works</h2>
+                    <p class="m-0 leading-relaxed text-muted">The training runs week by week. Each week has activities to complete, evidence to hand in and work that is reviewed before you move on.</p>
+                    <p class="m-0 leading-relaxed text-muted">AI tools can help you work faster, but you own the quality of your work, how you check it and the final decision.</p>
                     <h3 class="m-0 text-base font-extrabold">Throughout the training, you will practice how to:</h3>
                     <ul class="m-0 list-disc pl-5 leading-relaxed text-muted">
-                        <li>Validate AI-generated QA outputs instead of blindly trusting them.</li>
+                        <li>Complete each week's activities and hand in your submissions.</li>
+                        <li>Check AI-generated output instead of blindly trusting it.</li>
                         <li>Identify and document cases where AI is wrong, incomplete, or misleading.</li>
-                        <li>Use AI to support test generation, failure analysis, and regression planning.</li>
-                        <li>Turn effective AI-assisted QA practices into reusable team assets.</li>
                         <li>Demonstrate your reasoning, evidence, and decisions through documented submissions.</li>
+                        <li>Act on review feedback and revise work that needs changes.</li>
                         <li>Apply a disciplined workflow where AI assists the work and you own the conclusion.</li>
                     </ul>
-                    <h3 class="m-0 mt-2 text-base font-extrabold">Training journey</h3>
-                    <div class="grid gap-3.5 md:grid-cols-3">
-                        <div class="grid content-start gap-2 rounded-2xl border border-line bg-surface-sunken p-4.5"><x-ui.eyebrow>WEEK 2</x-ui.eyebrow><h3 class="m-0 text-base font-extrabold">AI-Output Validation</h3><p class="m-0 text-sm/relaxed text-muted">Learn to validate AI-generated QA artifacts using evidence, source information, specifications, cross-checking, execution, and logging.</p></div>
-                        <div class="grid content-start gap-2 rounded-2xl border border-line bg-surface-sunken p-4.5"><x-ui.eyebrow>WEEK 3</x-ui.eyebrow><h3 class="m-0 text-base font-extrabold">AI-Assisted Failure Analysis, Test Generation &amp; Regression Intelligence</h3><p class="m-0 text-sm/relaxed text-muted">Use AI to support failure investigation, test creation, regression prioritization, and coverage analysis while maintaining human ownership of the conclusion.</p></div>
-                        <div class="grid content-start gap-2 rounded-2xl border border-line bg-surface-sunken p-4.5"><x-ui.eyebrow>WEEK 4</x-ui.eyebrow><h3 class="m-0 text-base font-extrabold">Sustain, Reuse, Reassess</h3><p class="m-0 text-sm/relaxed text-muted">Turn repeated AI-assisted QA work into a reusable team asset, demonstrate Level 3 QA capability through a mock interview, and complete a formal reassessment.</p></div>
-                    </div>
-                    <x-ui.alert class="mt-2 grid gap-2"><strong class="text-cyan-200">Gates &amp; progression</strong><p class="m-0">Each week includes required activities and evidence. A Coach must review and pass the Gate before the next week becomes available.</p><p class="m-0">Your progress is based on demonstrated QA judgment and evidence — not simply completing AI-generated work.</p></x-ui.alert>
+                    <x-ui.alert class="mt-2 grid gap-2">
+                        <strong class="text-cyan-200">Gates &amp; progression</strong>
+                        <p class="m-0">Each week includes required activities and evidence. A Coach must review and pass the Gate before the next week becomes available.</p>
+                        <p class="m-0">Your progress is based on demonstrated judgment and evidence — not simply completing AI-generated work.</p>
+                    </x-ui.alert>
                 </x-ui.card>
                 </div>
             </x-ui.tab-panel>

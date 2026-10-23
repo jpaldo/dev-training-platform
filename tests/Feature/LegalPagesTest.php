@@ -18,12 +18,14 @@ class LegalPagesTest extends TestCase
                 'LEGAL',
                 '>Privacy Policy</h1>',
                 'Last updated: September 11, 2026',
-                'This Privacy Policy explains how the Developer Training Platform (“the platform”) handles information',
+                'This Privacy Policy explains how the Developer Training Platform (“the platform”) handles information when you use its training services.',
                 '>Information used by the platform</h2>',
+                'The platform uses account details such as your name, email address, employee ID, job role, role, and profile information you provide.',
                 '>Google Drive connection</h2>',
                 '>drive.file</code> permission',
                 'The platform does not request Gmail, Calendar, or Contacts access.',
                 '>How information is used</h2>',
+                'Information is used to authenticate users, deliver training, record progress and attendance,',
                 'We do not sell participant information.',
                 '>Access and retention</h2>',
                 '>Security</h2>',
@@ -33,7 +35,9 @@ class LegalPagesTest extends TestCase
                 '>mprestoza@fullscale.ph</a>.',
                 '>Changes</h2>',
                 'The updated version and effective date will be posted on this page.',
-            ], false);
+            ], false)
+            ->assertDontSee('QA training')
+            ->assertDontSee('QA path');
 
         $this->assertStringStartsWith('<!doctype html>', ltrim($response->getContent()));
     }
@@ -49,6 +53,7 @@ class LegalPagesTest extends TestCase
                 'Last updated: September 11, 2026',
                 'These Terms govern your use of the Developer Training Platform.',
                 '>Acceptable use</h2>',
+                'Use the platform only for authorized training and related program activities.',
                 '>Training submissions and evidence</h2>',
                 '>Content and intellectual property</h2>',
                 '>Roles and reviews</h2>',
@@ -63,7 +68,8 @@ class LegalPagesTest extends TestCase
                 '>mprestoza@fullscale.ph</a>.',
                 '>Governing law</h2>',
                 'To be confirmed by the platform owner:</strong> governing law and jurisdiction should be specified here before production publication.',
-            ], false);
+            ], false)
+            ->assertDontSee('QA training');
 
         $this->assertStringStartsWith('<!doctype html>', ltrim($response->getContent()));
     }

@@ -75,7 +75,7 @@
                 <x-ui.card as="section" class="grid grid-cols-1 justify-items-start gap-3" aria-labelledby="week-video-title">
                     <x-ui.eyebrow>WEEKLY REQUIREMENT</x-ui.eyebrow>
                     <h2 id="week-video-title" class="{{ $sectionTitleClasses }}">Video Recording</h2>
-                    <p class="m-0 leading-relaxed text-muted">Upload a video walkthrough demonstrating your actual QA work for this week.</p>
+                    <p class="m-0 leading-relaxed text-muted">Upload a video walkthrough demonstrating your work for this week.</p>
                     <p class="m-0 flex flex-wrap items-center gap-2">
                         <strong>Status:</strong>
                         <x-ui.badge :tone="$videoRecording ? 'success' : 'neutral'">{{ $videoRecording ? 'Uploaded' : 'Not uploaded' }}</x-ui.badge>

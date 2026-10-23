@@ -13,7 +13,7 @@
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>WEEK {{ $trainingWeek->week_number }}</x-ui.eyebrow>
             <x-ui.page-title>Week {{ $trainingWeek->week_number }} Video Recording</x-ui.page-title>
-            <p class="m-0 leading-relaxed text-muted">Upload a video walkthrough demonstrating your actual QA work and explaining your validation process, evidence reviewed, findings, and final QA decision.</p>
+            <p class="m-0 leading-relaxed text-muted">Upload a video walkthrough demonstrating your work and explaining your validation process, evidence reviewed, findings, and final decision.</p>
         </header>
 
         <div class="flex flex-wrap items-center gap-3 lg:self-start lg:justify-end">

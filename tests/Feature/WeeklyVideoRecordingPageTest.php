@@ -28,7 +28,7 @@ class WeeklyVideoRecordingPageTest extends TestCase
             ->assertSeeInOrder([
                 'WEEK 2',
                 'Week 2 Video Recording',
-                'Upload a video walkthrough demonstrating your actual QA work',
+                'Upload a video walkthrough demonstrating your work and explaining your validation process, evidence reviewed, findings, and final decision.',
                 'href="'.route('training.weeks.show', $week).'"',
                 'Back to Week',
                 'Video Recording',

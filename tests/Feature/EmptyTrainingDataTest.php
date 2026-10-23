@@ -88,26 +88,30 @@ class EmptyTrainingDataTest extends TestCase
             ->assertDontSee('data-page-tabs', false);
     }
 
-    public function test_scoring_overview_says_no_program_is_active_and_lists_participants_without_weeks(): void
+    public function test_scoring_overview_lists_no_rows_without_training_sessions(): void
     {
         User::factory()->create(['name' => 'Ada Lovelace']);
 
-        $this->actingAs(User::factory()->create(['role' => 'coach']))
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('coach.scoring.index'))
             ->assertOk()
-            ->assertSeeInOrder([self::NO_ACTIVE_PROGRAM_NOTICE, 'Ada Lovelace', '0 / 0 (0%)'])
+            ->assertSee('No participants match these filters.')
+            ->assertDontSee('Ada Lovelace')
+            ->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE)
             ->assertDontSee('>W1<', false);
     }
 
-    public function test_participant_scoring_page_says_no_program_is_active_and_shows_nothing_completed(): void
+    public function test_participant_scoring_page_in_a_session_of_a_program_without_weeks_says_so_and_shows_nothing_completed(): void
     {
         $participant = User::factory()->create();
+        $session = TrainingSession::factory()->withParticipants($participant)->create();
 
-        $this->actingAs(User::factory()->create(['role' => 'coach']))
-            ->get(route('coach.scoring.participant', $participant))
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->get(route('coach.scoring.participant', [$session, $participant]))
             ->assertOk()
-            ->assertSeeInOrder([self::NO_ACTIVE_PROGRAM_NOTICE, 'OVERALL SCORE', '— / 100', 'OVERALL COMPLETION', '0 / 0'])
-            ->assertDontSee('WEEK 1');
+            ->assertSeeInOrder(['This training session has no weeks to score yet.', 'OVERALL SCORE', '— / 100', 'OVERALL COMPLETION', '0 / 0'])
+            ->assertDontSee('WEEK 1')
+            ->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE);
     }
 
     public function test_admin_dashboard_says_no_program_is_active_in_the_training_overview(): void
@@ -118,11 +122,12 @@ class EmptyTrainingDataTest extends TestCase
             ->assertSeeInOrder(['Training overview', self::NO_ACTIVE_PROGRAM_NOTICE, 'Review / Gate overview']);
     }
 
-    public function test_participant_score_summary_csv_lists_each_participant_with_nothing_completed(): void
+    public function test_participant_score_summary_csv_lists_each_session_membership_with_nothing_completed(): void
     {
-        User::factory()->create(['name' => 'Ada Lovelace', 'employee_id' => 'EMP-000001', 'email' => 'ada@example.com']);
+        $participant = User::factory()->create(['name' => 'Ada Lovelace', 'employee_id' => 'EMP-000001', 'email' => 'ada@example.com']);
+        $session = TrainingSession::factory()->withParticipants($participant)->create();
 
-        $csv = $this->actingAs(User::factory()->create(['role' => 'coach']))
+        $csv = $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('coach.reports.participant-summary'))
             ->assertOk()
             ->assertDownload('participant-score-summary.csv')
@@ -130,8 +135,8 @@ class EmptyTrainingDataTest extends TestCase
 
         $rows = array_map(str_getcsv(...), array_filter(explode("\n", $csv)));
         $this->assertCount(2, $rows);
-        $this->assertSame(['Ada Lovelace', 'EMP-000001', 'ada@example.com'], array_slice($rows[1], 0, 3));
-        $this->assertSame(['0', '0', '0', '', '', '', '', 'Not Scored', ''], array_slice($rows[1], 4));
+        $this->assertSame(['Ada Lovelace', 'EMP-000001', $session->titleWithDates(), 'ada@example.com', ''], array_slice($rows[1], 0, 5));
+        $this->assertSame(['0', '0', '0', '', '', '', '', 'Not Scored', ''], array_slice($rows[1], 5));
     }
 
     public function test_pages_do_not_show_the_notice_while_a_program_is_active(): void
@@ -142,7 +147,6 @@ class EmptyTrainingDataTest extends TestCase
 
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE);
         $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk()->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE);
-        $this->actingAs($coach)->get(route('coach.scoring.participant', $participant))->assertOk()->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE);
         $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('admin.dashboard'))
             ->assertOk()

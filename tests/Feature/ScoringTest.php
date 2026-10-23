@@ -54,6 +54,7 @@ class ScoringTest extends TestCase
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
         $submission = ActivitySubmission::factory()->create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
+        $submission->trainingSession->participants()->attach($participant, ['joined_at' => now()]);
         MentorAssignment::factory()->create(['training_session_id' => $submission->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => ['exact_prompt' => 'Prompt'], 'submitted_at' => now()]);
 
@@ -67,13 +68,13 @@ class ScoringTest extends TestCase
         $this->actingAs($coach)->get(route('coach.scoring.criteria'))->assertOk()->assertSee('D1')->assertSee('D5')->assertSee('second reader')->assertSee('Bias watch');
         $this->actingAs($coach)->get(route('coach.scoring.edit', $version))->assertOk()->assertSee('Evidence / Reasoning');
         $payload = ['dimensions' => ['D1' => ['points' => 25, 'evidence_reasoning' => 'Requirements met.'], 'D2' => ['points' => 21, 'evidence_reasoning' => 'Validation executed.'], 'D3' => ['points' => 17, 'evidence_reasoning' => 'AI used deliberately.'], 'D4' => ['points' => 12, 'evidence_reasoning' => 'Judgment documented.'], 'D5' => ['points' => 8, 'evidence_reasoning' => 'Evidence supplied.']]];
-        $this->actingAs($coach)->post(route('coach.scoring.store', $version), $payload)->assertRedirect(route('coach.scoring.participant', $participant));
+        $this->actingAs($coach)->post(route('coach.scoring.store', $version), $payload)->assertRedirect(route('coach.scoring.participant', [$version->submission->trainingSession, $participant]));
         $score = ActivityScore::with('dimensions')->firstOrFail();
         $this->assertSame(ActivityScoreStatus::Published, $score->status);
         $this->assertSame(83, $score->total_score);
         $this->assertSame('Proficient', $score->performance_band);
         $this->assertCount(5, $score->dimensions);
-        $this->actingAs($coach)->get(route('coach.scoring.participant', $participant))->assertOk()->assertSee('83')->assertSee('Proficient');
+        $this->actingAs($coach)->get(route('coach.scoring.participant', [$version->submission->trainingSession, $participant]))->assertOk()->assertSee('83')->assertSee('Proficient');
     }
 
     public function test_overall_feedback_is_saved_reloaded_and_updated_separately_from_change_reason(): void
@@ -204,13 +205,13 @@ class ScoringTest extends TestCase
         $this->assertSame('Minimal', app(ScoringService::class)->band(34));
     }
 
-    public function test_unassigned_coach_can_view_score_form_but_cannot_save_score(): void
+    public function test_unassigned_coach_can_neither_view_the_score_form_nor_save_a_score(): void
     {
         [$participant, , $version] = $this->fixture();
         $unassigned = User::factory()->create(['role' => 'coach']);
         $payload = ['dimensions' => ['D1' => ['points' => 25, 'evidence_reasoning' => 'Requirements met.'], 'D2' => ['points' => 21, 'evidence_reasoning' => 'Validation executed.'], 'D3' => ['points' => 17, 'evidence_reasoning' => 'AI used deliberately.'], 'D4' => ['points' => 12, 'evidence_reasoning' => 'Judgment documented.'], 'D5' => ['points' => 8, 'evidence_reasoning' => 'Evidence supplied.']]];
 
-        $this->actingAs($unassigned)->get(route('coach.scoring.edit', $version))->assertOk()->assertSee('Read only');
+        $this->actingAs($unassigned)->get(route('coach.scoring.edit', $version))->assertForbidden();
         $this->actingAs($unassigned)->post(route('coach.scoring.store', $version), $payload)->assertForbidden();
         $this->assertDatabaseCount('activity_scores', 0);
         $this->assertSame($participant->id, $version->submission->user_id);

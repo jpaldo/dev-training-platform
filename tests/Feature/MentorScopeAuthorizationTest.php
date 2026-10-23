@@ -46,7 +46,7 @@ class MentorScopeAuthorizationTest extends TestCase
 
         $this->actingAs($ben)->post(route('coach.reviews.store', $work['version']), self::REVIEW)->assertRedirect()->assertSessionHasNoErrors();
         $this->actingAs($ben)->post(route('coach.scoring.second-reader', $work['version']), $this->secondReading($ben))->assertRedirect()->assertSessionHasNoErrors();
-        $this->actingAs($ben)->post(route('coach.scoring.store', $work['version']), self::SCORE)->assertRedirect(route('coach.scoring.participant', $participant));
+        $this->actingAs($ben)->post(route('coach.scoring.store', $work['version']), self::SCORE)->assertRedirect(route('coach.scoring.participant', [$work['session'], $participant]));
         $this->actingAs($ben)->post($this->gateUrl($work, $participant), $this->completedChecklist($work['criteria']))->assertRedirect()->assertSessionHasNoErrors();
         $this->actingAs($ben)->post(route('coach.recovery.decide', $work['recoveryRequest']), self::RECOVERY_DECISION)->assertRedirect()->assertSessionHasNoErrors();
         $this->actingAs($ben)->get(route('training.evidence.download', $work['evidence']))->assertOk()->assertDownload('report.pdf');
@@ -103,7 +103,7 @@ class MentorScopeAuthorizationTest extends TestCase
 
         $this->actingAs($admin)->post(route('coach.reviews.store', $work['version']), self::REVIEW)->assertRedirect()->assertSessionHasNoErrors();
         $this->actingAs($admin)->post(route('coach.scoring.second-reader', $work['version']), $this->secondReading($admin))->assertRedirect()->assertSessionHasNoErrors();
-        $this->actingAs($admin)->post(route('coach.scoring.store', $work['version']), self::SCORE)->assertRedirect(route('coach.scoring.participant', $participant));
+        $this->actingAs($admin)->post(route('coach.scoring.store', $work['version']), self::SCORE)->assertRedirect(route('coach.scoring.participant', [$work['session'], $participant]));
         $this->actingAs($admin)->post($this->gateUrl($work, $participant), $this->completedChecklist($work['criteria']))->assertRedirect()->assertSessionHasNoErrors();
         $this->actingAs($admin)->post(route('coach.recovery.decide', $work['recoveryRequest']), self::RECOVERY_DECISION)->assertRedirect()->assertSessionHasNoErrors();
         $this->actingAs($admin)->get(route('training.evidence.download', $work['evidence']))->assertOk();
@@ -124,6 +124,8 @@ class MentorScopeAuthorizationTest extends TestCase
     {
         $this->actingAs($user)->get(route('coach.reviews.show', $work['version']))->assertForbidden();
         $this->actingAs($user)->get(route('training.coach.gates.show', [$work['session'], $work['week'], $participant, $work['gate']]))->assertForbidden();
+        $this->actingAs($user)->get(route('coach.scoring.edit', $work['version']))->assertForbidden();
+        $this->actingAs($user)->get(route('coach.scoring.participant', [$work['session'], $participant]))->assertForbidden();
         $this->actingAs($user)->post(route('coach.reviews.store', $work['version']), self::REVIEW)->assertForbidden();
         $this->actingAs($user)->post(route('coach.scoring.second-reader', $work['version']), $this->secondReading($user))->assertForbidden();
         $this->actingAs($user)->post(route('coach.scoring.store', $work['version']), self::SCORE)->assertForbidden();

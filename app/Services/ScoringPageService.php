@@ -6,13 +6,12 @@ use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivityScore;
 use App\Models\ActivityScoreSuggestion;
-use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -42,6 +41,7 @@ class ScoringPageService
         private readonly SubmissionAnswerPresenter $answers,
         private readonly AiProviderConfigurationService $configuration,
         private readonly ScoringReportService $reports,
+        private readonly CoachSessionFilterService $sessionFilter,
     ) {}
 
     /**
@@ -50,20 +50,21 @@ class ScoringPageService
      * prompt / output history, evidence), the AI suggestions, the scoring fields with their values
      * (a suggestion draft kept from the page, otherwise the saved score, otherwise the suggestion when nothing is saved
      * yet), the live score context and the second-reader review. The scoring fields are the activity's scoring
-     * dimensions; an activity without dimensions cannot be scored. The single main action is Save / Publish Score.
+     * dimensions; an activity without dimensions cannot be scored. Only an admin or the participant's current mentor in
+     * the submission's session opens the page, so the score and second-reader forms are always theirs to use. The
+     * single main action is Save / Publish Score.
      *
      * @param  array<string, mixed>|null  $draft  The scoring form values flashed when a suggestion was generated.
-     * @return array{version: SubmissionVersion, activityTitle: string, participantName: string, repositoryUrl: ?string, weekNumber: int, submissionStatus: string, submittedAt: string, answers: list<array{label: string, text: mixed, link: ?string}>, evidenceRows: list<array{title: string, detail: ?string}>, suggestion: ?ActivityScoreSuggestion, suggestionRows: list<array{heading: string, feedback: mixed, evidence_basis: mixed}>, evidenceProcessing: list<string>, suggestionData: ?array{dimensions: mixed, overall_feedback: ?string}, aiStatus: string, isAiConfigured: bool, canManage: bool, canScore: bool, rubricSummary: ?string, scoreMaximum: int, scoreFields: list<array{key: string, label: string, max: int, evidence_id: string, points_id: string, points: mixed, evidence_reasoning: mixed}>, overallFeedback: mixed, previousAverage: ?int, score: ?ActivityScore, canManageSecondReader: bool, readers: Collection<int, User>}
+     * @return array{version: SubmissionVersion, activityTitle: string, participantName: string, repositoryUrl: ?string, weekNumber: int, submissionStatus: string, submittedAt: string, answers: list<array{label: string, text: mixed, link: ?string}>, evidenceRows: list<array{title: string, detail: ?string}>, suggestion: ?ActivityScoreSuggestion, suggestionRows: list<array{heading: string, feedback: mixed, evidence_basis: mixed}>, evidenceProcessing: list<string>, suggestionData: ?array{dimensions: mixed, overall_feedback: ?string}, aiStatus: string, isAiConfigured: bool, canScore: bool, rubricSummary: ?string, scoreMaximum: int, scoreFields: list<array{key: string, label: string, max: int, evidence_id: string, points_id: string, points: mixed, evidence_reasoning: mixed}>, overallFeedback: mixed, previousAverage: ?int, score: ?ActivityScore, canManageSecondReader: bool, readers: Collection<int, User>}
      */
-    public function editData(SubmissionVersion $version, User $viewer, ?array $draft): array
+    public function editData(SubmissionVersion $version, ?array $draft): array
     {
-        $version->loadMissing(['submission.participant', 'submission.trainingSession', 'submission.activity.week', 'evidence', 'activityScore.dimensions', 'scoreSuggestion', 'interactions']);
+        $version->loadMissing(['submission.participant', 'submission.activity.week', 'evidence', 'activityScore.dimensions', 'scoreSuggestion', 'interactions']);
         $submission = $version->submission;
         $score = $version->activityScore;
         $suggestion = $version->scoreSuggestion;
         $dimensions = $submission->activity->scoringDimensions();
-        $canManage = $viewer->mentorsParticipantInSession($submission->participant, $submission->trainingSession);
-        $canManageSecondReader = $canManage && (bool) $score?->second_reader_required;
+        $canManageSecondReader = (bool) $score?->second_reader_required;
         $aiStatus = $this->configuration->adminValues()['status'];
 
         return [
@@ -82,8 +83,7 @@ class ScoringPageService
             'suggestionData' => $suggestion ? ['dimensions' => $suggestion->dimensions, 'overall_feedback' => $suggestion->overall_feedback] : null,
             'aiStatus' => $aiStatus,
             'isAiConfigured' => $aiStatus === self::AI_CONFIGURED,
-            'canManage' => $canManage,
-            'canScore' => $canManage && $dimensions !== [],
+            'canScore' => $dimensions !== [],
             'rubricSummary' => $this->rubricSummary($dimensions),
             'scoreMaximum' => $submission->activity->scoringMaximum(),
             'scoreFields' => $this->scoreFields($dimensions, $score, $suggestion, $draft),
@@ -98,49 +98,61 @@ class ScoringPageService
     }
 
     /**
-     * Everything the scoring overview renders: whether a program is active (the page shows a notice when none is), the
-     * filter values and options and the matching participants with the score and completion of every active week of
-     * the program and overall. The page has no single main action, so every button is secondary.
+     * Everything the scoring overview renders: the filter values and options (the training sessions the viewer may
+     * filter by and, for an admin, the mentors) and one row per participant and training session the viewer may see
+     * (every membership for an admin, otherwise those where the viewer is the participant's current mentor), each with
+     * the score and completion of every week of that session and overall from the participant's work in it. The week
+     * columns are the week numbers of the listed rows' sessions. The page has no single main action, so every button
+     * is secondary.
      *
-     * @param  array{search?: ?string, week?: int|string|null, activity?: int|string|null, score_status?: ?string, band?: ?string, assigned_to_me?: bool|int|string|null}  $filters
-     * @return array{hasActiveProgram: bool, criteriaUrl: string, reportsUrl: string, search: string, weekOptions: list<array{value: string, label: string, is_selected: bool}>, scoreStatusOptions: list<array{value: string, label: string, is_selected: bool}>, bandOptions: list<array{value: string, label: string, is_selected: bool}>, isAssignedToMe: bool, weekNumbers: list<int>, participants: LengthAwarePaginator<int, array{name: string, email: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, coach_names: string, scoring_url: string}>}
+     * @param  array{search?: ?string, session?: int|string|null, mentor?: int|string|null, week?: int|string|null, activity?: int|string|null, score_status?: ?string, band?: ?string}  $filters
+     * @return array{criteriaUrl: string, reportsUrl: string, search: string, sessionOptions: list<array{value: string, label: string, is_selected: bool}>, canFilterByMentor: bool, mentorOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, scoreStatusOptions: list<array{value: string, label: string, is_selected: bool}>, bandOptions: list<array{value: string, label: string, is_selected: bool}>, weekNumbers: list<int>, participants: LengthAwarePaginator<int, array{name: string, email: string, session_title: string, session_dates: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, mentor_name: string, scoring_url: string}>}
      */
     public function indexData(User $viewer, array $filters): array
     {
-        $program = $this->activeProgram();
-        $participants = $this->filteredParticipants($viewer, $filters);
-        $summaries = $this->scoring->summaries($participants->getCollection(), $program);
+        $memberships = $this->reports->memberships($viewer, $filters)
+            ->paginate(self::PARTICIPANTS_PER_PAGE)
+            ->withQueryString();
+        $summaries = $this->scoring->sessionSummaries($memberships->getCollection());
+        $weekNumbers = $summaries
+            ->flatMap(fn (array $summary): array => $summary['weeks']->keys()->all())
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
 
         return [
-            'hasActiveProgram' => $program !== null,
             'criteriaUrl' => route('coach.scoring.criteria'),
             'reportsUrl' => route('coach.scoring.reports'),
             'search' => (string) ($filters['search'] ?? ''),
+            'sessionOptions' => $this->sessionFilter->options($viewer, $filters['session'] ?? null),
+            'canFilterByMentor' => $viewer->hasAnyRole(UserRole::Admin),
+            'mentorOptions' => $this->sessionFilter->mentorOptions($viewer, $filters['mentor'] ?? null),
             'weekOptions' => $this->weekOptions($filters['week'] ?? null),
             'scoreStatusOptions' => $this->options(self::SCORE_STATUS_OPTIONS, $filters['score_status'] ?? null),
             'bandOptions' => $this->options(self::BAND_OPTIONS, $filters['band'] ?? null),
-            'isAssignedToMe' => (bool) ($filters['assigned_to_me'] ?? false),
-            'weekNumbers' => $this->scoring->scoredWeeks($program)->pluck('week_number')->all(),
-            'participants' => $participants->through(fn (User $participant): array => $this->overviewRow($participant, $summaries[$participant->id])),
+            'weekNumbers' => $weekNumbers,
+            'participants' => $memberships->through(fn (TrainingSessionParticipant $membership): array => $this->overviewRow($membership, $summaries[$membership->id], $weekNumbers)),
         ];
     }
 
     /**
-     * Everything the participant scoring page renders: whether a program is active (the page shows a notice when none
-     * is), the overall score and completion, and per scored week its average, completion and the activity rows with
-     * the link to score (or view the score of) each submitted version.
+     * Everything the participant scoring page renders for one training session: the participant and the session, the
+     * overall score and completion of their work in it, and per week of the session its average, completion and the
+     * activity rows with the link to score (or view the score of) each submitted version.
      *
-     * @return array{hasActiveProgram: bool, participantName: string, participantEmail: string, stats: list<array{label: string, value: string, note: ?string}>, weeks: list<array{number: int, heading: string, detail: string, rows: list<array{activity: string, score: string, band: string, status: string, action: ?array{label: string, url: string}}>}>}
+     * @return array{participantName: string, participantEmail: string, sessionLabel: string, stats: list<array{label: string, value: string, note: ?string}>, weeks: list<array{number: int, heading: string, detail: string, rows: list<array{activity: string, score: string, band: string, status: string, action: ?array{label: string, url: string}}>}>}
      */
-    public function participantData(User $participant): array
+    public function participantData(TrainingSession $trainingSession, User $participant): array
     {
-        $program = $this->activeProgram();
-        $summary = $this->scoring->summary($participant, $program);
+        $membership = TrainingSessionParticipant::query()->forParticipantInSession($trainingSession->id, $participant->id)->firstOrFail();
+        $membership->setRelation('trainingSession', $trainingSession);
+        $summary = $this->scoring->sessionSummaries(collect([$membership]))[$membership->id];
 
         return [
-            'hasActiveProgram' => $program !== null,
             'participantName' => $participant->name,
             'participantEmail' => $participant->email,
+            'sessionLabel' => $trainingSession->titleWithDates(),
             'stats' => [
                 ['label' => 'OVERALL SCORE', 'value' => ($summary['average'] ?? '—').' / 100', 'note' => null],
                 [
@@ -202,21 +214,25 @@ class ScoringPageService
 
     /**
      * Everything the scoring reports page renders: the two CSV export links (keeping the current query), the filter
-     * options, the scoring completion counts of the submitted versions matching the filters and their score-band
-     * distribution. The page has no single main action, so every button is secondary.
+     * options (the training sessions the viewer may filter by and, for an admin, the mentors), the scoring completion
+     * counts of the submitted versions the viewer may see that match the filters and their score-band distribution.
+     * The page has no single main action, so every button is secondary.
      *
-     * @param  array{participant?: int|string|null, week?: int|string|null, activity?: int|string|null, assigned_coach?: int|string|null, score_status?: ?string, band?: ?string, from?: ?string, to?: ?string}  $filters
+     * @param  array{participant?: int|string|null, session?: int|string|null, mentor?: int|string|null, week?: int|string|null, activity?: int|string|null, score_status?: ?string, band?: ?string, from?: ?string, to?: ?string}  $filters
      * @param  array<array-key, mixed>  $query
-     * @return array{scoresExportUrl: string, participantSummaryExportUrl: string, weekOptions: list<array{value: string, label: string, is_selected: bool}>, scoreStatusOptions: list<array{value: string, label: string, is_selected: bool}>, bandOptions: list<array{value: string, label: string, is_selected: bool}>, stats: list<array{label: string, value: string}>, bandRows: list<array{band: string, count: int}>}
+     * @return array{scoresExportUrl: string, participantSummaryExportUrl: string, sessionOptions: list<array{value: string, label: string, is_selected: bool}>, canFilterByMentor: bool, mentorOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, scoreStatusOptions: list<array{value: string, label: string, is_selected: bool}>, bandOptions: list<array{value: string, label: string, is_selected: bool}>, stats: list<array{label: string, value: string}>, bandRows: list<array{band: string, count: int}>}
      */
-    public function reportsData(array $filters, array $query): array
+    public function reportsData(User $viewer, array $filters, array $query): array
     {
-        $versions = $this->reports->versions($filters)->get();
+        $versions = $this->reports->versions($viewer, $filters)->get();
         $bandCounts = $versions->countBy(fn (SubmissionVersion $version): string => $version->publishedActivityScore?->performance_band ?? self::NOT_SCORED_BAND);
 
         return [
             'scoresExportUrl' => route('coach.reports.scores', $query),
             'participantSummaryExportUrl' => route('coach.reports.participant-summary', $query),
+            'sessionOptions' => $this->sessionFilter->options($viewer, $filters['session'] ?? null),
+            'canFilterByMentor' => $viewer->hasAnyRole(UserRole::Admin),
+            'mentorOptions' => $this->sessionFilter->mentorOptions($viewer, $filters['mentor'] ?? null),
             'weekOptions' => $this->weekOptions($filters['week'] ?? null),
             'scoreStatusOptions' => $this->options(self::SCORE_STATUS_OPTIONS, $filters['score_status'] ?? null),
             'bandOptions' => $this->options(self::BAND_OPTIONS, $filters['band'] ?? null),
@@ -228,14 +244,15 @@ class ScoringPageService
     }
 
     /**
-     * The scoring completion page: the completion counts of the submitted versions matching the filters.
+     * The scoring completion page: the completion counts of the submitted versions the viewer may see that match the
+     * filters.
      *
-     * @param  array{participant?: int|string|null, week?: int|string|null, activity?: int|string|null, assigned_coach?: int|string|null, score_status?: ?string, band?: ?string, from?: ?string, to?: ?string}  $filters
+     * @param  array{participant?: int|string|null, session?: int|string|null, mentor?: int|string|null, week?: int|string|null, activity?: int|string|null, score_status?: ?string, band?: ?string, from?: ?string, to?: ?string}  $filters
      * @return array{stats: list<array{label: string, value: string}>}
      */
-    public function completionData(array $filters): array
+    public function completionData(User $viewer, array $filters): array
     {
-        return ['stats' => $this->scoringCompletionStats($this->reports->versions($filters)->get())];
+        return ['stats' => $this->scoringCompletionStats($this->reports->versions($viewer, $filters)->get())];
     }
 
     /**
@@ -278,72 +295,39 @@ class ScoringPageService
             ->implode(' · ');
     }
 
-    private function activeProgram(): ?Program
-    {
-        return Program::query()->where('is_active', true)->first();
-    }
-
     /**
-     * The participants matching the overview filters, 25 per page with the query string kept. "Assigned to me" only
-     * narrows the list for a coach.
+     * One overview row: the participant, the session and its dates, per week column the session week's average with
+     * its band (null while unscored) and completion ("—" when the session has no such week), the overall average and
+     * completion in the session, the current mentor and the link to the participant's scoring in the session.
      *
-     * @param  array<string, mixed>  $filters
-     * @return LengthAwarePaginator<int, User>
+     * @param  array{weeks: \Illuminate\Support\Collection<int, array{completed: int, total: int, average: ?int}>, completed: int, total: int, average: ?int}  $summary  the membership's ScoringService summary
+     * @param  list<int>  $weekNumbers  the overview's week columns
+     * @return array{name: string, email: string, session_title: string, session_dates: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, mentor_name: string, scoring_url: string}
      */
-    private function filteredParticipants(User $viewer, array $filters): LengthAwarePaginator
+    private function overviewRow(TrainingSessionParticipant $membership, array $summary, array $weekNumbers): array
     {
-        return User::query()
-            ->where('role', UserRole::Participant)
-            ->when($filters['search'] ?? null, fn (Builder $query, string $search): Builder => $query->where(
-                fn (Builder $searchQuery): Builder => $searchQuery->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"),
-            ))
-            ->when($filters['week'] ?? null, fn (Builder $query, int|string $week): Builder => $query->whereHas(
-                'activitySubmissions.activity.week',
-                fn (Builder $weekQuery): Builder => $weekQuery->where('week_number', $week),
-            ))
-            ->when($filters['activity'] ?? null, fn (Builder $query, int|string $activity): Builder => $query->whereHas(
-                'activitySubmissions.activity',
-                fn (Builder $activityQuery): Builder => $activityQuery->whereKey($activity),
-            ))
-            ->when(($filters['assigned_to_me'] ?? false) && $viewer->hasAnyRole(UserRole::Coach), fn (Builder $query): Builder => $query->whereHas(
-                'currentMentors',
-                fn (Builder $coachQuery): Builder => $coachQuery->whereKey($viewer->id),
-            ))
-            ->when(($filters['score_status'] ?? null) === 'scored', fn (Builder $query): Builder => $query->whereHas('activitySubmissions.versions.publishedActivityScore'))
-            ->when(($filters['score_status'] ?? null) === 'unscored', fn (Builder $query): Builder => $query->whereDoesntHave('activitySubmissions.versions.publishedActivityScore'))
-            ->when($filters['band'] ?? null, fn (Builder $query, string $band): Builder => $query->whereHas(
-                'activitySubmissions.versions.publishedActivityScore',
-                fn (Builder $scoreQuery): Builder => $scoreQuery->where('performance_band', $band),
-            ))
-            ->with('currentMentors')
-            ->paginate(self::PARTICIPANTS_PER_PAGE)
-            ->withQueryString();
-    }
+        $participant = $membership->participant;
 
-    /**
-     * One overview row: the participant, each scored week's average with its band (null while unscored) and
-     * completion, the overall average and completion, the current mentors and the link to the participant's scoring.
-     *
-     * @param  array{weeks: \Illuminate\Support\Collection<int, array{completed: int, total: int, average: ?int}>, completed: int, total: int, average: ?int}  $summary  the participant's ScoringService summary
-     * @return array{name: string, email: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, coach_names: string, scoring_url: string}
-     */
-    private function overviewRow(User $participant, array $summary): array
-    {
         return [
             'name' => $participant->name,
             'email' => $participant->email,
-            'weeks' => $summary['weeks']
-                ->map(fn (array $week): array => [
-                    'average' => $week['average'],
-                    'band' => $week['average'] !== null ? $this->scoring->band($week['average']) : null,
-                    'completion' => $this->completion($week['completed'], $week['total']),
-                ])
-                ->values()
+            'session_title' => $membership->trainingSession->title,
+            'session_dates' => $membership->trainingSession->dateRangeLabel(),
+            'weeks' => collect($weekNumbers)
+                ->map(function (int $weekNumber) use ($summary): array {
+                    $week = $summary['weeks']->get($weekNumber);
+
+                    return [
+                        'average' => $week['average'] ?? null,
+                        'band' => isset($week['average']) ? $this->scoring->band($week['average']) : null,
+                        'completion' => $week ? $this->completion($week['completed'], $week['total']) : '—',
+                    ];
+                })
                 ->all(),
             'average' => (string) ($summary['average'] ?? '—'),
             'completion' => $this->completion($summary['completed'], $summary['total']),
-            'coach_names' => $participant->currentMentors->pluck('name')->unique()->implode(', ') ?: 'Unassigned',
-            'scoring_url' => route('coach.scoring.participant', $participant),
+            'mentor_name' => $membership->mentor_name ?? 'Unassigned',
+            'scoring_url' => route('coach.scoring.participant', [$membership->trainingSession, $participant]),
         ];
     }
 

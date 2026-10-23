@@ -22,15 +22,31 @@
             </nav>
         </header>
 
-        @unless($hasActiveProgram)
-            <x-ui.alert tone="warning" role="status">No training program is active yet.</x-ui.alert>
-        @endunless
-
-        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto_auto]" aria-label="Filter participants">
-            <div class="grid min-w-0 gap-2 sm:col-span-2 xl:col-span-1">
+        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end lg:grid-cols-3" aria-label="Filter participants">
+            <div class="grid min-w-0 gap-2">
                 <label for="score-search" class="{{ $labelClasses }}">Search participant</label>
                 <input id="score-search" name="search" value="{{ $search }}" placeholder="Name or email" class="{{ $controlClasses }}">
             </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="score-session" class="{{ $labelClasses }}">Training session</label>
+                <select id="score-session" name="session" class="{{ $controlClasses }}">
+                    <option value="">All training sessions</option>
+                    @foreach($sessionOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            @if($canFilterByMentor)
+                <div class="grid min-w-0 gap-2">
+                    <label for="score-mentor" class="{{ $labelClasses }}">Mentor</label>
+                    <select id="score-mentor" name="mentor" class="{{ $controlClasses }}">
+                        <option value="">All mentors</option>
+                        @foreach($mentorOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
             <div class="grid min-w-0 gap-2">
                 <label for="score-week" class="{{ $labelClasses }}">Week</label>
                 <select id="score-week" name="week" class="{{ $controlClasses }}">
@@ -58,10 +74,6 @@
                     @endforeach
                 </select>
             </div>
-            <label class="flex min-h-11 items-center gap-2.5 text-sm font-extrabold">
-                <input type="checkbox" name="assigned_to_me" value="1" @checked($isAssignedToMe) class="size-4.5 shrink-0 accent-brand focus-visible:outline-3 focus-visible:outline-accent/50">
-                Assigned to me
-            </label>
             <x-ui.button variant="secondary" type="submit">Filter</x-ui.button>
         </x-ui.card>
 
@@ -69,10 +81,11 @@
             <h2 id="scoring-participants-title" class="m-0 text-xl font-extrabold">Participant scores</h2>
             @if($participants->isNotEmpty())
                 <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="scoring-participants-title" tabindex="0">
-                    <table class="w-full min-w-250 border-separate border-spacing-0 text-sm" aria-labelledby="scoring-participants-title">
+                    <table class="w-full min-w-280 border-separate border-spacing-0 text-sm" aria-labelledby="scoring-participants-title">
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Training session</th>
                                 @foreach($weekNumbers as $weekNumber)
                                     <th scope="col" class="{{ $headerCellClasses }}">W{{ $weekNumber }}</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">W{{ $weekNumber }} Completion</th>
@@ -92,6 +105,12 @@
                                             <span class="wrap-break-word text-muted">{{ $participant['email'] }}</span>
                                         </span>
                                     </th>
+                                    <td class="{{ $cellClasses }}">
+                                        <span class="grid gap-0.5">
+                                            <span class="wrap-break-word">{{ $participant['session_title'] }}</span>
+                                            <span class="whitespace-nowrap text-muted">{{ $participant['session_dates'] }}</span>
+                                        </span>
+                                    </td>
                                     @foreach($participant['weeks'] as $week)
                                         <td class="{{ $cellClasses }}">
                                             @if($week['average'] !== null)
@@ -107,7 +126,7 @@
                                     @endforeach
                                     <td class="{{ $cellClasses }} tabular-nums">{{ $participant['average'] }}</td>
                                     <td class="{{ $cellClasses }} whitespace-nowrap tabular-nums">{{ $participant['completion'] }}</td>
-                                    <td class="{{ $cellClasses }} wrap-break-word">{{ $participant['coach_names'] }}</td>
+                                    <td class="{{ $cellClasses }} wrap-break-word">{{ $participant['mentor_name'] }}</td>
                                     <td class="{{ $cellClasses }} {{ $actionCellClasses }}">
                                         <x-ui.button variant="secondary" :href="$participant['scoring_url']" class="whitespace-nowrap">View Scoring</x-ui.button>
                                     </td>

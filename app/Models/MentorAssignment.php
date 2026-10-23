@@ -63,6 +63,20 @@ class MentorAssignment extends Model
     }
 
     /**
+     * Limit the query to the current assignment of the participant (`user_id`) of the outer query's row in that row's
+     * session (`training_session_id`), for a subquery on a table with both columns.
+     *
+     * @param  Builder<Model>  $outerQuery
+     */
+    public function scopeCurrentOfRow(Builder $query, Builder $outerQuery): Builder
+    {
+        return $query
+            ->current()
+            ->whereColumn('mentor_assignments.participant_id', $outerQuery->qualifyColumn('user_id'))
+            ->whereColumn('mentor_assignments.training_session_id', $outerQuery->qualifyColumn('training_session_id'));
+    }
+
+    /**
      * Limit the query to the mentor's current assignment to the participant (`user_id`) of the outer query's row in
      * that row's session (`training_session_id`), for a `whereExists` on a table with both columns.
      *
@@ -71,10 +85,23 @@ class MentorAssignment extends Model
     public function scopeCurrentForMentorOfRow(Builder $query, User $mentor, Builder $outerQuery): Builder
     {
         return $query
-            ->current()
-            ->whereColumn('mentor_assignments.participant_id', $outerQuery->qualifyColumn('user_id'))
-            ->whereColumn('mentor_assignments.training_session_id', $outerQuery->qualifyColumn('training_session_id'))
+            ->currentOfRow($outerQuery)
             ->where('mentor_assignments.mentor_id', $mentor->id);
+    }
+
+    /**
+     * Select the name of the current mentor of the outer query's row (its participant in its session; null when they
+     * have none), for a subselect column on a table with `user_id` and `training_session_id`.
+     *
+     * @param  Builder<Model>  $outerQuery
+     */
+    public function scopeCurrentMentorNameOfRow(Builder $query, Builder $outerQuery): Builder
+    {
+        return $query
+            ->currentOfRow($outerQuery)
+            ->join('users', 'users.id', '=', 'mentor_assignments.mentor_id')
+            ->select('users.name')
+            ->limit(1);
     }
 
     /**

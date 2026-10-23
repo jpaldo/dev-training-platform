@@ -8,6 +8,7 @@ use App\Models\ActivitySubmission;
 use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -19,12 +20,13 @@ class ScoringParticipantPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_coach_sees_the_overall_and_weekly_scores_with_a_row_and_action_per_activity(): void
+    public function test_the_mentor_sees_the_overall_and_weekly_scores_in_the_session_with_a_row_and_action_per_activity(): void
     {
         $program = Program::factory()->create();
         $weekTwo = $this->week($program, 2);
         $weekThree = $this->week($program, 3);
         $this->week($program, 4);
+        $session = TrainingSession::factory()->forWeek($weekTwo)->create(['title' => 'November training']);
         $scored = Activity::factory()->for($weekTwo, 'week')->create(['title' => 'Exploratory charter', 'position' => 1]);
         $unscored = Activity::factory()->for($weekTwo, 'week')->create(['title' => 'Bug report', 'position' => 2]);
         $drafted = Activity::factory()->for($weekTwo, 'week')->create(['title' => 'Draft notes', 'position' => 3]);
@@ -36,14 +38,15 @@ class ScoringParticipantPageTest extends TestCase
         $unscoredVersion = $this->version($participant, $unscored, 'submitted');
         $draftVersion = $this->version($participant, $drafted, 'draft');
 
-        $response = $this->actingAs(User::factory()->create(['role' => 'coach']))
-            ->get(route('coach.scoring.participant', $participant))
+        $response = $this->actingAs($this->mentor($session, $participant))
+            ->get(route('coach.scoring.participant', [$session, $participant]))
             ->assertOk();
 
         $response->assertSeeInOrder([
             'SCORING · PARTICIPANT',
             '>Ada Automation</h1>',
             'ada@example.com</p>',
+            '<strong>Training session:</strong> '.$session->titleWithDates().'</p>',
             'OVERALL SCORE</dt>', '>83 / 100</dd>',
             'OVERALL COMPLETION</dt>', '>2 / 5</dd>', '>40% complete · 1 scored</dd>',
             '>WEEK 2</div>', '>83 / 100 average</h2>', 'Completion: 2 / 4 (50%) · Scored: 1 / 4',
@@ -58,8 +61,57 @@ class ScoringParticipantPageTest extends TestCase
             '>WEEK 4</div>', '>Average not yet scored</h2>', 'Completion: 0 / 0 (0%) · Scored: 0 / 0',
             'No active activities in this week.',
         ], false);
-        $response->assertDontSee(route('coach.scoring.edit', $draftVersion), false)->assertDontSee('from-brand to-brand-deep', false);
+        $response->assertDontSee(route('coach.scoring.edit', $draftVersion), false)
+            ->assertDontSee('from-brand to-brand-deep', false)
+            ->assertDontSee('This training session has no weeks to score yet.');
         $this->assertSame(1, substr_count($response->getContent(), 'No active activities in this week.'));
+    }
+
+    public function test_the_page_shows_only_the_work_in_its_session(): void
+    {
+        $week = $this->week(Program::factory()->create(), 2);
+        $activity = Activity::factory()->for($week, 'week')->create(['title' => 'Exploratory charter', 'position' => 1]);
+        [$sessionX, $sessionY] = TrainingSession::factory()->forWeek($week)->count(2)->create()->all();
+        $participant = User::factory()->create();
+        $versionX = $this->version($participant, $activity, 'submitted', $sessionX);
+        $this->publishedScore($versionX, 83, 'Proficient');
+        $versionY = $this->version($participant, $activity, 'submitted', $sessionY);
+        $this->publishedScore($versionY, 41, 'Beginning');
+
+        $this->actingAs($this->mentor($sessionY, $participant))
+            ->get(route('coach.scoring.participant', [$sessionY, $participant]))
+            ->assertOk()
+            ->assertSeeInOrder(['>41 / 100</dd>', '>Exploratory charter</th>', '>41</td>', 'href="'.route('coach.scoring.edit', $versionY).'"'], false)
+            ->assertDontSee('>83', false)
+            ->assertDontSee(route('coach.scoring.edit', $versionX), false);
+    }
+
+    public function test_only_an_admin_or_the_participants_current_mentor_in_the_session_opens_the_page(): void
+    {
+        $week = $this->week(Program::factory()->create(), 2);
+        [$sessionX, $sessionY] = TrainingSession::factory()->forWeek($week)->count(2)->create()->all();
+        $participant = User::factory()->create();
+        $previousMentor = $this->mentor($sessionX, $participant);
+        MentorAssignment::query()->update(['ended_at' => now()]);
+        $currentMentor = $this->mentor($sessionX, $participant);
+        $otherSessionMentor = $this->mentor($sessionY, $participant);
+        $url = route('coach.scoring.participant', [$sessionX, $participant]);
+
+        foreach ([$previousMentor, $otherSessionMentor, User::factory()->create(['role' => 'coach'])] as $coach) {
+            $this->actingAs($coach)->get($url)->assertForbidden();
+        }
+        $this->actingAs($currentMentor)->get($url)->assertOk();
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->get($url)->assertOk();
+        $this->actingAs($participant)->get($url)->assertForbidden();
+    }
+
+    public function test_a_participant_who_is_not_in_the_session_is_not_found(): void
+    {
+        $session = TrainingSession::factory()->forWeek($this->week(Program::factory()->create(), 2))->create();
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->get(route('coach.scoring.participant', [$session, User::factory()->create()]))
+            ->assertNotFound();
     }
 
     public function test_activity_row_scores_the_latest_submitted_version_rather_than_a_newer_revision_draft(): void
@@ -69,9 +121,10 @@ class ScoringParticipantPageTest extends TestCase
         $participant = User::factory()->create();
         $submittedVersion = $this->version($participant, $activity, 'submitted');
         $draftVersion = SubmissionVersion::factory()->for($submittedVersion->submission, 'submission')->create(['version_number' => 2, 'status' => 'draft']);
+        $session = $submittedVersion->submission->trainingSession;
 
-        $this->actingAs(User::factory()->create(['role' => 'coach']))
-            ->get(route('coach.scoring.participant', $participant))
+        $this->actingAs($this->mentor($session, $participant))
+            ->get(route('coach.scoring.participant', [$session, $participant]))
             ->assertOk()
             ->assertSee('href="'.route('coach.scoring.edit', $submittedVersion).'"', false)
             ->assertDontSee(route('coach.scoring.edit', $draftVersion), false);
@@ -90,9 +143,10 @@ class ScoringParticipantPageTest extends TestCase
             'total_score' => 41,
             'performance_band' => 'Beginning',
         ]);
+        $session = $version->submission->trainingSession;
 
-        $this->actingAs(User::factory()->create(['role' => 'coach']))
-            ->get(route('coach.scoring.participant', $participant))
+        $this->actingAs($this->mentor($session, $participant))
+            ->get(route('coach.scoring.participant', [$session, $participant]))
             ->assertOk()
             ->assertSeeInOrder([
                 'OVERALL SCORE</dt>', '>— / 100</dd>', '>100% complete · 0 scored</dd>',
@@ -110,33 +164,38 @@ class ScoringParticipantPageTest extends TestCase
         Queue::fake();
         $activity = Activity::factory()->for($this->week(Program::factory()->create(), 2), 'week')->withScoringDimensions()->create();
         $participant = User::factory()->create();
-        $coach = User::factory()->create(['role' => 'coach']);
         $version = $this->version($participant, $activity, 'submitted');
-        MentorAssignment::factory()->create(['training_session_id' => $version->submission->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+        $coach = $this->mentor($version->submission->trainingSession, $participant);
         $dimensions = collect($activity->scoringDimensions())->mapWithKeys(fn (array $dimension): array => [$dimension['key'] => ['points' => 1, 'evidence_reasoning' => 'Reason']])->all();
 
         $this->actingAs($coach)->followingRedirects()
             ->post(route('coach.scoring.store', $version), ['dimensions' => $dimensions])
             ->assertOk()
-            ->assertSeeInOrder(['SCORING · PARTICIPANT', 'role="status"', 'Activity score saved.', 'OVERALL SCORE</dt>'], false);
+            ->assertSeeInOrder(['SCORING · PARTICIPANT', 'role="status"', 'Activity score saved.', 'OVERALL SCORE</dt>'], false)
+            ->assertSee('<strong>Training session:</strong> '.$version->submission->trainingSession->titleWithDates().'</p>', false);
     }
 
     public function test_a_user_who_is_not_a_participant_is_not_found(): void
     {
-        Program::factory()->create();
-        $coach = User::factory()->create(['role' => 'coach']);
+        $session = TrainingSession::factory()->forWeek($this->week(Program::factory()->create(), 2))->create();
+        $coachInSession = User::factory()->create(['role' => 'coach']);
+        $session->participants()->attach($coachInSession, ['joined_at' => now()]);
 
-        $this->actingAs($coach)->get(route('coach.scoring.participant', User::factory()->create(['role' => 'coach'])))->assertNotFound();
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->get(route('coach.scoring.participant', [$session, $coachInSession]))
+            ->assertNotFound();
     }
 
-    public function test_without_an_active_program_the_page_says_so_and_shows_no_weeks(): void
+    public function test_a_session_without_active_weeks_says_so_and_shows_no_weeks(): void
     {
-        TrainingWeek::factory()->for(Program::factory()->state(['is_active' => false]))->create(['week_number' => 1, 'position' => 1]);
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1, 'is_active' => false]);
+        $session = TrainingSession::factory()->forWeek($week)->create();
+        $participant = User::factory()->create();
 
-        $this->actingAs(User::factory()->create(['role' => 'coach']))
-            ->get(route('coach.scoring.participant', User::factory()->create()))
+        $this->actingAs($this->mentor($session, $participant))
+            ->get(route('coach.scoring.participant', [$session, $participant]))
             ->assertOk()
-            ->assertSeeInOrder(['No training program is active yet.', 'OVERALL COMPLETION', '0 / 0'])
+            ->assertSeeInOrder(['This training session has no weeks to score yet.', 'OVERALL COMPLETION', '0 / 0'])
             ->assertDontSee('WEEK 1');
     }
 
@@ -151,13 +210,31 @@ class ScoringParticipantPageTest extends TestCase
     }
 
     /**
-     * A first version of the participant's submission of the activity, with the submission and version in the given
-     * status.
+     * Add the participant to the session (when not in it yet) with a new coach, made a session mentor, as their current
+     * mentor there, and return that coach.
      */
-    private function version(User $participant, Activity $activity, string $status): SubmissionVersion
+    private function mentor(TrainingSession $session, User $participant): User
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $session->mentors()->attach($coach);
+        $session->participants()->syncWithoutDetaching([$participant->id => ['joined_at' => now()]]);
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+
+        return $coach;
+    }
+
+    /**
+     * A first version of the participant's submission of the activity, with the submission and version in the given
+     * status, in the given session (by default the program's first session that includes the week).
+     */
+    private function version(User $participant, Activity $activity, string $status, ?TrainingSession $session = null): SubmissionVersion
     {
         $submittedAt = $status === 'draft' ? null : now();
-        $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => $status, 'submitted_at' => $submittedAt]);
+        $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create([
+            'status' => $status,
+            'submitted_at' => $submittedAt,
+            ...($session ? ['training_session_id' => $session->id] : []),
+        ]);
 
         return SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => $status, 'submitted_at' => $submittedAt]);
     }
@@ -174,15 +251,16 @@ class ScoringParticipantPageTest extends TestCase
     }
 
     /**
-     * Build a new active program with the given number of activities in each of Weeks 2–4, each submitted and scored
-     * by one participant, and count the queries of the participant scoring page after a warm-up request.
+     * Build a new program and session with the given number of activities in each of Weeks 2–4, each submitted and
+     * scored by one participant, and count the queries of the participant scoring page for their mentor after a
+     * warm-up request.
      */
     private function participantPageQueryCount(int $activityCount): int
     {
-        Program::query()->update(['is_active' => false]);
         $program = Program::factory()->create();
+        $session = TrainingSession::factory()->forWeek($this->week($program, 1))->create();
         $participant = User::factory()->create();
-        $coach = User::factory()->create(['role' => 'coach']);
+        $coach = $this->mentor($session, $participant);
 
         foreach ([2, 3, 4] as $weekNumber) {
             $week = TrainingWeek::factory()->for($program)->create(['week_number' => $weekNumber, 'position' => $weekNumber]);
@@ -193,10 +271,11 @@ class ScoringParticipantPageTest extends TestCase
             }
         }
 
-        $this->actingAs($coach)->get(route('coach.scoring.participant', $participant))->assertOk();
+        $url = route('coach.scoring.participant', [$session, $participant]);
+        $this->actingAs($coach)->get($url)->assertOk();
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $this->actingAs($coach)->get(route('coach.scoring.participant', $participant))->assertOk()->assertSee('>80 / 100 average</h2>', false);
+        $this->actingAs($coach)->get($url)->assertOk()->assertSee('>80 / 100 average</h2>', false);
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());

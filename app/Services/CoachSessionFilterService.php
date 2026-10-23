@@ -30,4 +30,30 @@ class CoachSessionFilterService
             ])
             ->all();
     }
+
+    /**
+     * The mentors a coach page's mentor filter offers an admin, by name: every coach who is a mentor of at least one
+     * session, marked when they are the selected one. A coach sees only their own mentees, so they get none.
+     *
+     * @return list<array{value: string, label: string, is_selected: bool}>
+     */
+    public function mentorOptions(User $viewer, int|string|null $selectedMentorId): array
+    {
+        if (! $viewer->hasAnyRole(UserRole::Admin)) {
+            return [];
+        }
+
+        return User::query()
+            ->where('role', UserRole::Coach)
+            ->whereHas('mentoredSessions')
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get(['id', 'name'])
+            ->map(fn (User $mentor): array => [
+                'value' => (string) $mentor->id,
+                'label' => $mentor->name,
+                'is_selected' => (string) $selectedMentorId === (string) $mentor->id,
+            ])
+            ->all();
+    }
 }

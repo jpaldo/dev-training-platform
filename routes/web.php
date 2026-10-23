@@ -146,7 +146,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::get('/reports/progress.csv', [CoachOperationsController::class, 'export'])->name('reports.export');
         Route::get('/scoring', [ScoringController::class, 'index'])->name('scoring.index');
         Route::get('/scoring/criteria', [ScoringController::class, 'criteria'])->name('scoring.criteria');
-        Route::get('/scoring/participants/{participant}', [ScoringController::class, 'participant'])->name('scoring.participant');
+        Route::get('/scoring/sessions/{trainingSession}/participants/{participant}', [ScoringController::class, 'participant'])->scopeBindings()->name('scoring.participant');
         Route::get('/scoring/versions/{submissionVersion}', [ScoringController::class, 'edit'])->name('scoring.edit');
         Route::post('/scoring/versions/{submissionVersion}/suggestion', [ScoringController::class, 'generateSuggestion'])->name('scoring.suggestion');
         Route::post('/scoring/versions/{submissionVersion}/improve', [ScoringController::class, 'improveFeedback'])->name('scoring.improve');

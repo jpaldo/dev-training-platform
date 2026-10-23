@@ -211,20 +211,27 @@ class ScoringEditPageTest extends TestCase
         $this->assertSame(70, $version->activityScore()->value('second_score'));
     }
 
-    public function test_unassigned_coach_sees_a_read_only_page_without_the_score_or_second_reader_forms(): void
+    public function test_only_an_admin_or_the_participants_current_mentor_in_the_session_opens_the_page(): void
     {
-        $version = $this->version();
+        [$currentMentor, $version] = $this->assignedCoachWithVersion();
         $this->score($version, ['D1' => [25, 'Saved D1']], null, ['second_reader_required' => true]);
-        $unassigned = User::factory()->create(['role' => 'coach']);
+        $session = $version->submission->trainingSession;
+        $previousMentor = User::factory()->create(['role' => 'coach']);
+        MentorAssignment::factory()->ended()->create(['training_session_id' => $session->id, 'participant_id' => $version->submission->user_id, 'mentor_id' => $previousMentor->id]);
+        $sessionMentorOfAnother = User::factory()->create(['role' => 'coach']);
+        $session->mentors()->attach($sessionMentorOfAnother);
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'mentor_id' => $sessionMentorOfAnother->id]);
+        $url = route('coach.scoring.edit', $version);
 
-        $response = $this->actingAs($unassigned)->get(route('coach.scoring.edit', $version))->assertOk();
-
-        $response->assertSeeInOrder(['Read only — this participant is not assigned to you.', 'Live Score', 'Second reader', 'Needs second reader'], false);
-        $response->assertDontSee('id="score-form"', false)
-            ->assertDontSee('form="score-form"', false)
-            ->assertDontSee('AI scoring status')
-            ->assertDontSee('Assign second reader')
-            ->assertDontSee('The first-reader score remains preserved.');
+        foreach ([$previousMentor, $sessionMentorOfAnother, User::factory()->create(['role' => 'coach'])] as $coach) {
+            $this->actingAs($coach)->get($url)->assertForbidden();
+        }
+        $this->actingAs($currentMentor)->get($url)->assertOk()->assertSee('id="score-form"', false)->assertSee('Assign second reader');
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->get($url)
+            ->assertOk()
+            ->assertSee('id="score-form"', false)
+            ->assertSee('Assign second reader')
+            ->assertDontSee('Read only');
     }
 
     public function test_assigned_coach_can_assign_an_active_second_reader_when_one_is_required(): void

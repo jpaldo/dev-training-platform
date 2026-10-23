@@ -205,10 +205,8 @@
                                 @enderror
                             </div>
                         </form>
-                    @elseif($canManage)
-                        <x-ui.alert tone="warning" role="status">This activity has no scoring dimensions, so it cannot be scored.</x-ui.alert>
                     @else
-                        <x-ui.alert tone="error" role="status">Read only — this participant is not assigned to you.</x-ui.alert>
+                        <x-ui.alert tone="warning" role="status">This activity has no scoring dimensions, so it cannot be scored.</x-ui.alert>
                     @endif
                 </x-ui.card>
 
@@ -271,11 +269,6 @@
                         </div>
                         <x-ui.button variant="secondary" type="submit">Save second-reader review</x-ui.button>
                     </form>
-                </x-ui.card>
-            @elseif($score?->second_reader_required)
-                <x-ui.card as="section" class="grid grid-cols-1 gap-2" aria-labelledby="second-reader-title">
-                    <h2 id="second-reader-title" class="{{ $sectionTitleClasses }}">Second reader</h2>
-                    <p class="m-0 leading-relaxed">{{ $score->secondReaderStatus() }}</p>
                 </x-ui.card>
             @endif
 

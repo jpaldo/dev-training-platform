@@ -51,13 +51,12 @@ class CoachParticipantListPageService
      */
     private function memberships(User $viewer, array $filters): Builder
     {
-        return TrainingSessionParticipant::query()
+        $memberships = TrainingSessionParticipant::query();
+
+        return $memberships
             ->select(['id', 'training_session_id', 'user_id'])
             ->addSelect([
-                'mentor_name' => $this->currentAssignmentOfMembership()
-                    ->join('users', 'users.id', '=', 'mentor_assignments.mentor_id')
-                    ->select('users.name')
-                    ->limit(1),
+                'mentor_name' => MentorAssignment::query()->currentMentorNameOfRow($memberships),
                 'submission_count' => $this->workOfMembership(ActivitySubmission::query())->selectRaw('count(*)'),
                 'gate_count' => $this->workOfMembership(GateEvaluation::query())->selectRaw('count(*)'),
             ])
@@ -77,19 +76,6 @@ class CoachParticipantListPageService
             ->orderBy(User::query()->select('name')->whereColumn('users.id', 'training_session_participants.user_id'))
             ->orderByDesc(TrainingSession::query()->select('starts_on')->whereColumn('training_sessions.id', 'training_session_participants.training_session_id'))
             ->orderBy('id');
-    }
-
-    /**
-     * The current mentor assignment of the outer query's membership (its participant in its session).
-     *
-     * @return Builder<MentorAssignment>
-     */
-    private function currentAssignmentOfMembership(): Builder
-    {
-        return MentorAssignment::query()
-            ->current()
-            ->whereColumn('mentor_assignments.participant_id', 'training_session_participants.user_id')
-            ->whereColumn('mentor_assignments.training_session_id', 'training_session_participants.training_session_id');
     }
 
     /**

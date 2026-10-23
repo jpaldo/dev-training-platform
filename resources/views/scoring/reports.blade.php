@@ -20,7 +20,27 @@
             </div>
         </header>
 
-        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end lg:grid-cols-[repeat(3,minmax(0,1fr))_auto]" aria-label="Scoring report filters">
+        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end lg:grid-cols-3" aria-label="Scoring report filters">
+            <div class="grid min-w-0 gap-2">
+                <label for="report-session" class="{{ $labelClasses }}">Training session</label>
+                <select id="report-session" name="session" class="{{ $controlClasses }}">
+                    <option value="">All training sessions</option>
+                    @foreach($sessionOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            @if($canFilterByMentor)
+                <div class="grid min-w-0 gap-2">
+                    <label for="report-mentor" class="{{ $labelClasses }}">Mentor</label>
+                    <select id="report-mentor" name="mentor" class="{{ $controlClasses }}">
+                        <option value="">All mentors</option>
+                        @foreach($mentorOptions as $option)
+                            <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
             <div class="grid min-w-0 gap-2">
                 <label for="report-week" class="{{ $labelClasses }}">Week</label>
                 <select id="report-week" name="week" class="{{ $controlClasses }}">

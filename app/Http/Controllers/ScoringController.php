@@ -10,6 +10,7 @@ use App\Http\Requests\StoreActivityScoreRequest;
 use App\Http\Requests\StoreSecondReaderScoreRequest;
 use App\Models\ActivityScore;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\ScoringPageService;
 use App\Services\ScoringService;
@@ -19,6 +20,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 use RuntimeException;
 
@@ -29,20 +31,31 @@ class ScoringController extends Controller
         return view('scoring.index', $page->indexData($request->user(), $request->validated()));
     }
 
-    public function participant(User $participant, ScoringPageService $page): View
+    /**
+     * A participant's scores in one training session. The participant is bound through the session's participants, so
+     * someone who is not in the session is not found; only an admin or the participant's current mentor in the session
+     * may open it.
+     */
+    public function participant(Request $request, TrainingSession $trainingSession, User $participant, ScoringPageService $page): View
     {
-        abort_unless($participant->role === UserRole::Participant, 404);
+        abort_unless($participant->hasAnyRole(UserRole::Participant), 404);
+        abort_unless($request->user()->mentorsParticipantInSession($participant, $trainingSession), 403);
 
-        return view('scoring.participant', $page->participantData($participant));
+        return view('scoring.participant', $page->participantData($trainingSession, $participant));
     }
 
+    /**
+     * The scoring page of a submitted version, for an admin or the participant's current mentor in the submission's
+     * session.
+     */
     public function edit(Request $request, SubmissionVersion $submissionVersion, ScoringPageService $page): View
     {
-        $submissionVersion->load('submission.participant');
+        $submissionVersion->load(['submission.participant', 'submission.trainingSession']);
         $draft = $request->session()->pull('scoring_draft');
         abort_unless(! $submissionVersion->isDraft() && $submissionVersion->submission->participant->role === UserRole::Participant, 404);
+        Gate::authorize('view', $submissionVersion);
 
-        return view('scoring.edit', $page->editData($submissionVersion, $request->user(), is_array($draft) ? $draft : null));
+        return view('scoring.edit', $page->editData($submissionVersion, is_array($draft) ? $draft : null));
     }
 
     public function generateSuggestion(Request $request, SubmissionVersion $submissionVersion, ScoringSuggestionService $suggestions): RedirectResponse
@@ -101,7 +114,9 @@ class ScoringController extends Controller
         });
         $syncs->request($submissionVersion->submission->participant, 'score_published');
 
-        return redirect()->route('coach.scoring.participant', $submissionVersion->submission->user_id)->with('status', 'Activity score saved.');
+        return redirect()
+            ->route('coach.scoring.participant', [$submissionVersion->submission->training_session_id, $submissionVersion->submission->user_id])
+            ->with('status', 'Activity score saved.');
     }
 
     public function storeSecondReader(StoreSecondReaderScoreRequest $request, SubmissionVersion $submissionVersion): RedirectResponse

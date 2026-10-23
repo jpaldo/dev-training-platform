@@ -6,7 +6,7 @@
         $labelClasses = 'text-sm font-extrabold';
         $textClasses = 'm-0 leading-relaxed text-muted';
         $fieldErrorClasses = 'm-0 text-sm text-rose-200';
-        $intro = 'Upload your video to your own Google Drive first, then choose it here. The app keeps a link to the file, not the video.';
+        $intro = 'Upload your video to your own Google Drive first, then choose it here. The app keeps a link to the file, not the video.'.($shareHint === null ? '' : ' '.$shareHint);
     @endphp
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -23,6 +23,10 @@
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
             @if(session('status'))
                 <x-ui.alert tone="success" role="status" class="max-w-190">{{ session('status') }}</x-ui.alert>
+            @endif
+
+            @if(session('warning'))
+                <x-ui.alert tone="warning" role="alert" class="max-w-190">{{ session('warning') }}</x-ui.alert>
             @endif
 
             @error('google_drive')

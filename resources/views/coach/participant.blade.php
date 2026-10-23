@@ -89,7 +89,7 @@
                                     @foreach($videoRecordings as $recording)
                                         <li class="grid justify-items-start gap-2 rounded-xl border border-line bg-field px-4 py-3.5">
                                             <strong>Week {{ $recording->week->week_number }}</strong>
-                                            <x-weekly-video-actions :recording="$recording" for-mentor />
+                                            <x-weekly-video-actions :recording="$recording" :share-domain="$shareDomain" for-mentor />
                                         </li>
                                     @endforeach
                                 </ul>

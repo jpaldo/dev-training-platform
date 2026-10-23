@@ -24,6 +24,9 @@ class GoogleDriveConfigurationService
     /** @var array<int, string> */
     public const BASE_SCOPES = ['openid', 'email', 'profile', GoogleDriveConnectionService::DRIVE_FILE_SCOPE];
 
+    /** A plain, lowercase hostname with at least two labels, e.g. `fullscale.io`: no scheme, port, path or `@`. */
+    public const SHARE_DOMAIN_PATTERN = '/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/';
+
     public function getClientId(): ?string
     {
         return $this->value(self::CLIENT_ID) ?? config('services.google_drive.client_id');
@@ -61,6 +64,17 @@ class GoogleDriveConfigurationService
     public function getProjectNumber(): ?string
     {
         return $this->value(self::PROJECT_NUMBER) ?? config('services.google_drive.project_number');
+    }
+
+    /**
+     * The company's Google Workspace domain that chosen weekly videos are shared with (`GOOGLE_DRIVE_SHARE_DOMAIN`),
+     * trimmed and lowercased, or null when it is unset or not a plain hostname such as `fullscale.io`.
+     */
+    public function getShareDomain(): ?string
+    {
+        $domain = strtolower(trim((string) config('services.google_drive.share_domain')));
+
+        return preg_match(self::SHARE_DOMAIN_PATTERN, $domain) === 1 ? $domain : null;
     }
 
     /** @return array<int, string> */

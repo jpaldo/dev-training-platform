@@ -186,6 +186,26 @@ class CoachParticipantPageTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/<iframe[^>]*\ssrc=/', $html);
     }
 
+    public function test_the_weekly_video_card_shows_each_videos_sharing_state_with_the_configured_domain(): void
+    {
+        config()->set('services.google_drive.share_domain', 'fullscale.io');
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        $program = Program::factory()->create();
+        $sharedWeek = TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 2]);
+        $unsharedWeek = TrainingWeek::factory()->for($program)->create(['week_number' => 3, 'position' => 3]);
+        WeeklyVideoRecording::factory()->for($participant, 'participant')->for($sharedWeek, 'week')->shared()->create(['chosen_at' => now()->subDay()]);
+        WeeklyVideoRecording::factory()->for($participant, 'participant')->for($unsharedWeek, 'week')->create(['chosen_at' => now()]);
+
+        $this->actingAs($coach)->get(route('coach.participants.show', $participant))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '<strong>Week 3</strong>',
+                'Not shared yet. Ask the participant to share it in Google Drive.',
+                '<strong>Week 2</strong>',
+                '>Shared with fullscale.io</p>',
+            ], false);
+    }
+
     public function test_participant_page_query_count_does_not_grow_with_submissions_videos_and_attendance(): void
     {
         $this->assertSame($this->participantPageQueryCount(1), $this->participantPageQueryCount(3));

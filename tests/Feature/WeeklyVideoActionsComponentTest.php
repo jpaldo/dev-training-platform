@@ -14,6 +14,8 @@ class WeeklyVideoActionsComponentTest extends TestCase
 
     private const MENTOR_HELP = 'Video not opening? It may have been deleted, moved to the trash or unshared in the participant\'s Google Drive. Ask them to choose it again.';
 
+    private const NOT_SHARED = 'Not shared yet. Ask the participant to share it in Google Drive.';
+
     public function test_it_renders_the_video_details_an_open_in_drive_link_a_lazy_preview_and_the_participant_help_line(): void
     {
         $recording = WeeklyVideoRecording::factory()->create([
@@ -54,6 +56,43 @@ class WeeklyVideoActionsComponentTest extends TestCase
         $this->blade('<x-weekly-video-actions :recording="$recording" for-mentor />', ['recording' => $recording])
             ->assertSee(self::MENTOR_HELP, false)
             ->assertDontSee(self::PARTICIPANT_HELP, false);
+    }
+
+    public function test_the_mentor_version_shows_that_a_shared_video_is_shared_with_the_domain(): void
+    {
+        $recording = WeeklyVideoRecording::factory()->shared()->create();
+
+        $this->blade('<x-weekly-video-actions :recording="$recording" share-domain="fullscale.io" for-mentor />', ['recording' => $recording])
+            ->assertSeeInOrder(['data-resource-preview', '>Shared with fullscale.io</p>', self::MENTOR_HELP], false)
+            ->assertDontSee(self::NOT_SHARED);
+    }
+
+    public function test_the_mentor_version_of_a_shared_video_without_a_configured_domain_names_the_company_workspace(): void
+    {
+        $recording = WeeklyVideoRecording::factory()->shared()->create();
+
+        $this->blade('<x-weekly-video-actions :recording="$recording" for-mentor />', ['recording' => $recording])
+            ->assertSee("Shared with the company's Google Workspace")
+            ->assertDontSee(self::NOT_SHARED);
+    }
+
+    public function test_the_mentor_version_asks_for_a_share_when_the_video_is_not_shared_even_with_a_configured_domain(): void
+    {
+        $recording = WeeklyVideoRecording::factory()->create();
+
+        $this->blade('<x-weekly-video-actions :recording="$recording" share-domain="fullscale.io" for-mentor />', ['recording' => $recording])
+            ->assertSee(self::NOT_SHARED)
+            ->assertDontSee('Shared with');
+    }
+
+    public function test_the_participant_version_shows_no_sharing_state(): void
+    {
+        $recording = WeeklyVideoRecording::factory()->shared()->create();
+
+        $this->blade('<x-weekly-video-actions :recording="$recording" share-domain="fullscale.io" />', ['recording' => $recording])
+            ->assertDontSee('data-weekly-video-sharing', false)
+            ->assertDontSee('Shared with')
+            ->assertDontSee(self::NOT_SHARED);
     }
 
     public function test_the_slot_adds_actions_next_to_open_in_drive_and_a_video_without_a_size_shows_only_the_chosen_date(): void

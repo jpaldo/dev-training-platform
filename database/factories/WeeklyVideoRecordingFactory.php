@@ -14,7 +14,8 @@ use Illuminate\Support\Str;
 class WeeklyVideoRecordingFactory extends Factory
 {
     /**
-     * Define the model's default state: a participant's MP4 for a week, chosen now from their own Google Drive.
+     * Define the model's default state: a participant's MP4 for a week, chosen now from their own Google Drive and
+     * not shared yet.
      *
      * @return array<string, mixed>
      */
@@ -32,6 +33,19 @@ class WeeklyVideoRecordingFactory extends Factory
             'drive_modified_at' => now()->subDay(),
             'notes' => null,
             'chosen_at' => now(),
+            'drive_permission_id' => null,
+            'shared_at' => null,
         ];
+    }
+
+    /**
+     * A video the app shared with the company's Google Workspace domain when it was chosen.
+     */
+    public function shared(): static
+    {
+        return $this->state(fn (): array => [
+            'drive_permission_id' => fake()->numerify('####################'),
+            'shared_at' => now(),
+        ]);
     }
 }

@@ -30,7 +30,8 @@ class WeeklyVideoRecordingController extends Controller
 
     /**
      * Record the video the participant chose from their Google Drive with the Picker. A file the app cannot use goes
-     * back to the page with the reason on `drive_file_id` and the entered notes.
+     * back to the page with the reason on `drive_file_id` and the entered notes; a kept choice that could not be
+     * shared adds a `warning` flash saying how to share it by hand.
      */
     public function store(StoreWeeklyVideoRecordingRequest $request, TrainingWeek $trainingWeek, WeeklyVideoRecordingService $videos): RedirectResponse
     {
@@ -38,11 +39,13 @@ class WeeklyVideoRecordingController extends Controller
         $user = $request->user();
 
         try {
-            $videos->choose($user, $trainingWeek, $request->safe()->only(['drive_file_id', 'resource_key', 'notes']));
+            $recording = $videos->choose($user, $trainingWeek, $request->safe()->only(['drive_file_id', 'resource_key', 'notes']));
         } catch (RuntimeException $exception) {
             return back()->withErrors(['drive_file_id' => $exception->getMessage()])->withInput();
         }
 
-        return redirect()->route('training.video-recording.edit', $trainingWeek)->with('status', 'Video chosen from Google Drive.');
+        return redirect()->route('training.video-recording.edit', $trainingWeek)
+            ->with('status', 'Video chosen from Google Drive.')
+            ->with('warning', $videos->sharingWarning($recording));
     }
 }

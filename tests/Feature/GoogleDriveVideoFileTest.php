@@ -23,6 +23,12 @@ class GoogleDriveVideoFileTest extends TestCase
 
     private const UNAVAILABLE_MESSAGE = 'The app could not open that file in your Google Drive. Choose it again, or reconnect Google Drive on your profile.';
 
+    private const PERMISSIONS_URL = 'https://www.googleapis.com/drive/v3/files/video-file-1/permissions';
+
+    private const SHARE_FAILED_MESSAGE = 'The app could not share that video in your Google Drive.';
+
+    private const REMOVAL_FAILED_MESSAGE = 'The app could not stop sharing the earlier video in your Google Drive.';
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -184,6 +190,157 @@ class GoogleDriveVideoFileTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_sharing_with_the_domain_sends_one_view_only_link_permission_and_returns_its_id(): void
+    {
+        $connection = $this->connection();
+        Http::preventStrayRequests();
+        Http::fake([self::PERMISSIONS_URL.'*' => Http::response(['kind' => 'drive#permission', 'id' => '04512345678901234567k', 'type' => 'domain', 'role' => 'reader'])]);
+
+        $permissionId = app(GoogleDriveService::class)->shareWithDomain($connection, 'video-file-1', '0-resource-key', 'fullscale.io');
+
+        $this->assertSame('04512345678901234567k', $permissionId);
+        Http::assertSentCount(1);
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+            && $request->url() === self::PERMISSIONS_URL.'?supportsAllDrives=true'
+            && $request->data() === ['type' => 'domain', 'role' => 'reader', 'domain' => 'fullscale.io', 'allowFileDiscovery' => false]
+            && $request->hasHeader('Authorization', 'Bearer token')
+            && $request->hasHeader('X-Goog-Drive-Resource-Keys', 'video-file-1/0-resource-key'));
+    }
+
+    public function test_a_refused_share_is_logged_without_the_token_and_throws(): void
+    {
+        $connection = $this->connection();
+        Log::spy();
+        Http::preventStrayRequests();
+        Http::fake([self::PERMISSIONS_URL.'*' => Http::response(['error' => ['code' => 403, 'errors' => [['reason' => 'insufficientFilePermissions']]]], 403)]);
+
+        $this->assertSame(self::SHARE_FAILED_MESSAGE, $this->shareRefusalMessage($connection, 'video-file-1', 'fullscale.io'));
+
+        Log::shouldHaveReceived('warning')->once()->with('Google Drive video share failed.', [
+            'operation' => 'permissions.create',
+            'file_id_suffix' => 'file-1',
+            'http_status' => 403,
+            'google_reason' => 'insufficientFilePermissions',
+        ]);
+    }
+
+    /**
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function unusablePermissionAnswers(): array
+    {
+        return [
+            'no id' => [['kind' => 'drive#permission']],
+            'id with a path' => [['id' => '../files/other']],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $answer
+     */
+    #[DataProvider('unusablePermissionAnswers')]
+    public function test_a_share_answer_without_a_usable_permission_id_throws(array $answer): void
+    {
+        $connection = $this->connection();
+        Log::spy();
+        Http::preventStrayRequests();
+        Http::fake([self::PERMISSIONS_URL.'*' => Http::response($answer)]);
+
+        $this->assertSame(self::SHARE_FAILED_MESSAGE, $this->shareRefusalMessage($connection, 'video-file-1', 'fullscale.io'));
+
+        Log::shouldHaveReceived('warning')->once()->with('Google Drive video share failed.', [
+            'operation' => 'permissions.create',
+            'file_id_suffix' => 'file-1',
+            'http_status' => null,
+            'google_reason' => null,
+        ]);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function malformedShareTargets(): array
+    {
+        return [
+            'file id with a path' => ['../files', 'fullscale.io'],
+            'empty domain' => ['video-file-1', ''],
+            'domain with a scheme' => ['video-file-1', 'https://fullscale.io'],
+            'domain with a path' => ['video-file-1', 'fullscale.io/videos'],
+            'email address' => ['video-file-1', 'admin@fullscale.io'],
+            'single label' => ['video-file-1', 'localhost'],
+            'empty label' => ['video-file-1', 'fullscale..io'],
+            'uppercase' => ['video-file-1', 'FullScale.io'],
+        ];
+    }
+
+    #[DataProvider('malformedShareTargets')]
+    public function test_a_malformed_file_id_or_domain_is_not_shared_and_sends_nothing(string $fileId, string $domain): void
+    {
+        $connection = $this->connection();
+        Http::preventStrayRequests();
+        Http::fake();
+
+        $this->assertSame(self::SHARE_FAILED_MESSAGE, $this->shareRefusalMessage($connection, $fileId, $domain));
+
+        Http::assertNothingSent();
+    }
+
+    public function test_removing_a_permission_deletes_it_from_the_file(): void
+    {
+        $connection = $this->connection();
+        Http::preventStrayRequests();
+        Http::fake([self::PERMISSIONS_URL.'/*' => Http::response(status: 204)]);
+
+        app(GoogleDriveService::class)->removePermission($connection, 'video-file-1', '04512345678901234567k');
+
+        Http::assertSentCount(1);
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
+            && $request->url() === self::PERMISSIONS_URL.'/04512345678901234567k?supportsAllDrives=true'
+            && $request->hasHeader('Authorization', 'Bearer token'));
+    }
+
+    public function test_a_refused_permission_removal_is_logged_without_the_token_and_throws(): void
+    {
+        $connection = $this->connection();
+        Log::spy();
+        Http::preventStrayRequests();
+        Http::fake([self::PERMISSIONS_URL.'/*' => Http::response(['error' => ['code' => 404, 'errors' => [['reason' => 'notFound']]]], 404)]);
+
+        $this->assertSame(self::REMOVAL_FAILED_MESSAGE, $this->removalRefusalMessage($connection, 'video-file-1', '04512345678901234567k'));
+
+        Log::shouldHaveReceived('warning')->once()->with('Google Drive video permission removal failed.', [
+            'operation' => 'permissions.delete',
+            'file_id_suffix' => 'file-1',
+            'http_status' => 404,
+            'google_reason' => 'notFound',
+        ]);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function malformedPermissionTargets(): array
+    {
+        return [
+            'file id with a path' => ['../files', '04512345678901234567k'],
+            'permission id with a path' => ['video-file-1', '../../other-file'],
+            'permission id with a query' => ['video-file-1', 'anyone?fields=*'],
+            'empty permission id' => ['video-file-1', ''],
+        ];
+    }
+
+    #[DataProvider('malformedPermissionTargets')]
+    public function test_a_malformed_file_or_permission_id_is_not_removed_and_sends_nothing(string $fileId, string $permissionId): void
+    {
+        $connection = $this->connection();
+        Http::preventStrayRequests();
+        Http::fake();
+
+        $this->assertSame(self::REMOVAL_FAILED_MESSAGE, $this->removalRefusalMessage($connection, $fileId, $permissionId));
+
+        Http::assertNothingSent();
+    }
+
     /**
      * @param  array<string, mixed>  $attributes
      */
@@ -230,5 +387,27 @@ class GoogleDriveVideoFileTest extends TestCase
         }
 
         $this->fail('The Drive video lookup should have been refused.');
+    }
+
+    private function shareRefusalMessage(GoogleDriveConnection $connection, string $fileId, string $domain): string
+    {
+        try {
+            app(GoogleDriveService::class)->shareWithDomain($connection, $fileId, null, $domain);
+        } catch (RuntimeException $exception) {
+            return $exception->getMessage();
+        }
+
+        $this->fail('The Drive video share should have been refused.');
+    }
+
+    private function removalRefusalMessage(GoogleDriveConnection $connection, string $fileId, string $permissionId): string
+    {
+        try {
+            app(GoogleDriveService::class)->removePermission($connection, $fileId, $permissionId);
+        } catch (RuntimeException $exception) {
+            return $exception->getMessage();
+        }
+
+        $this->fail('The Drive permission removal should have been refused.');
     }
 }

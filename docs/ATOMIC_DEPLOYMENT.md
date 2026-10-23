@@ -98,13 +98,21 @@ held QA training data, skip steps 2 and 3.
      (`/admin/settings/google-drive`: **Settings → Manage Google Settings →
      Manage OAuth / Drive Configuration**); a value saved there wins over
      `.env`.
+   - In the shared `.env` only (the admin page does not set it):
+     `GOOGLE_DRIVE_SHARE_DOMAIN`, the company's Google Workspace domain as a
+     plain hostname (for example `fullscale.io`). Choosing a video shares it
+     view only with everyone at that domain who has the link, so mentors and
+     admins can open it. Without it, videos are saved but not shared, and
+     participants are asked to share them by hand.
    - Verify with **Test Google Configuration** on that page (it checks that
      the client ID, secret and redirect URI are set, not the Picker key).
      After deploying and seeding (step 6), sign in as a test participant,
      connect Google Drive from the profile and choose a video on a week's
      **Choose Weekly Video** page: the migrations delete every participant
      account and the running version cannot choose a video, so this check
-     only works on the new release.
+     only works on the new release. The page must not show the "could not be
+     shared" warning, and in Google Drive the video's sharing must list the
+     company domain as Viewer.
 
    Weekly videos are no longer uploaded, so they need no PHP upload limit.
    Evidence files still do: PHP's `upload_max_filesize` and `post_max_size`

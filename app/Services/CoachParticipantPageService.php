@@ -17,13 +17,15 @@ class CoachParticipantPageService
 {
     public function __construct(
         private readonly CoachGateOverviewService $gateOverview,
+        private readonly GoogleDriveConfigurationService $googleDrive,
     ) {}
 
     /**
      * Everything the coach participant page renders: the viewer's access level, the submission and weekly video rows,
-     * the Gate rows, the attendance summary and the page tabs.
+     * the Gate rows, the attendance summary and the page tabs. `shareDomain` is the Google Workspace domain the
+     * weekly videos are shared with (null when none is configured).
      *
-     * @return array{participant: User, access: string, canManage: bool, submissions: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion}>, videoRecordings: Collection<int, WeeklyVideoRecording>, gates: Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int}>, attendance: array{completed_sessions: int, total_hours: float, active_session: ?AttendanceSession}, tabs: list<array{key: string, label: string}>, selectedTab: string}
+     * @return array{participant: User, access: string, canManage: bool, submissions: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion}>, videoRecordings: Collection<int, WeeklyVideoRecording>, shareDomain: ?string, gates: Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int}>, attendance: array{completed_sessions: int, total_hours: float, active_session: ?AttendanceSession}, tabs: list<array{key: string, label: string}>, selectedTab: string}
      */
     public function showData(User $viewer, User $participant): array
     {
@@ -40,6 +42,7 @@ class CoachParticipantPageService
             'canManage' => $canManage,
             'submissions' => $this->submissionRows($participant),
             'videoRecordings' => $participant->weeklyVideoRecordings->sortByDesc('chosen_at')->values(),
+            'shareDomain' => $this->googleDrive->getShareDomain(),
             'gates' => $this->gateRows($participant),
             'attendance' => $this->attendanceSummary($participant),
             'tabs' => [

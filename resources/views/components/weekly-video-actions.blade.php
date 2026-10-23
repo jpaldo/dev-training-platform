@@ -4,8 +4,10 @@
     open. The app keeps no copy of the video, so there is no player or download, and the page never reads Drive (Q6),
     so the help line explains what to do when the file has gone. The help line speaks to the participant, or with
     `for-mentor` to the mentor. The slot holds more actions next to "Open in Drive" (the participant's Change Video).
+    The mentor version also says whether the app shared the video with the company's Google Workspace domain
+    (`share-domain`, the configured domain; null names no domain).
 --}}
-@props(['recording', 'forMentor' => false])
+@props(['recording', 'forMentor' => false, 'shareDomain' => null])
 
 <div id="weekly-video-actions-{{ $recording->id }}" class="grid w-full min-w-0 grid-cols-1 gap-3" data-weekly-video-actions>
     <div class="grid min-w-0 gap-1">
@@ -21,6 +23,14 @@
     </div>
 
     <x-drive-preview :preview-url="$recording->drivePreviewUrl()" :title="$recording->name" />
+
+    @if($forMentor)
+        @if($recording->isShared())
+            <p class="text-sm font-bold text-emerald-200" data-weekly-video-sharing>Shared with {{ $shareDomain ?? "the company's Google Workspace" }}</p>
+        @else
+            <p class="text-sm font-bold text-amber-200" data-weekly-video-sharing>Not shared yet. Ask the participant to share it in Google Drive.</p>
+        @endif
+    @endif
 
     <p class="text-sm/relaxed text-muted">
         @if($forMentor)

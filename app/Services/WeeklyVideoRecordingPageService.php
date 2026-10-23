@@ -17,13 +17,15 @@ class WeeklyVideoRecordingPageService
      * Everything the Weekly Video Recording page renders: the participant's chosen Google Drive video for the week, the
      * participant's Google Drive state (`unavailable` while Drive cannot connect, `not_connected` or `connected`) with
      * the connect link, which brings the participant back to this page, and the Picker settings and label. The Picker form is replaced by a locked message once the participant has
-     * passed one of the week's active Gates. The page never reads Google Drive.
+     * passed one of the week's active Gates. `shareHint` says who a chosen video is shared with (null without a share
+     * domain, when nothing is shared). The page never reads Google Drive.
      *
-     * @return array{trainingWeek: TrainingWeek, recording: ?WeeklyVideoRecording, isLocked: bool, storeUrl: string, backUrl: string, driveState: string, connectUrl: string, picker: array{api_key: ?string, app_id: ?string, token_url: string, unavailable_message: ?string}, pickerLabel: string}
+     * @return array{trainingWeek: TrainingWeek, recording: ?WeeklyVideoRecording, isLocked: bool, storeUrl: string, backUrl: string, driveState: string, connectUrl: string, picker: array{api_key: ?string, app_id: ?string, token_url: string, unavailable_message: ?string}, pickerLabel: string, shareHint: ?string}
      */
     public function editData(TrainingWeek $week, User $user): array
     {
         $recording = WeeklyVideoRecording::query()->where('user_id', $user->id)->where('training_week_id', $week->id)->first();
+        $shareDomain = $this->googleDrive->getShareDomain();
 
         return [
             'trainingWeek' => $week,
@@ -39,6 +41,9 @@ class WeeklyVideoRecordingPageService
             'connectUrl' => route('profile.google-drive.connect', ['return_to' => route('training.video-recording.edit', $week, absolute: false)]),
             'picker' => $this->googleDrive->pickerSettings('video'),
             'pickerLabel' => $recording ? 'Choose a Different Video' : 'Choose Video from Google Drive',
+            'shareHint' => $shareDomain === null
+                ? null
+                : "Choosing a video shares it, view only, with everyone at {$shareDomain} who has the link, so your mentor can watch it.",
         ];
     }
 }

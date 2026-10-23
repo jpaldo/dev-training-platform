@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\GoogleDriveConnection;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -12,6 +13,13 @@ use Illuminate\Support\Facades\Log;
 class GoogleDriveService
 {
     private const VIDEO_UNAVAILABLE_MESSAGE = 'The app could not open that file in your Google Drive. Choose it again, or reconnect Google Drive on your profile.';
+
+    private const VIDEO_SHARE_FAILED_MESSAGE = 'The app could not share that video in your Google Drive.';
+
+    private const PERMISSION_REMOVAL_FAILED_MESSAGE = 'The app could not stop sharing the earlier video in your Google Drive.';
+
+    /** A Drive file or permission ID, safe to put in a request path. */
+    private const DRIVE_ID_PATTERN = '/^[A-Za-z0-9_-]+$/';
 
     public function __construct(private readonly GoogleDriveConnectionService $connections) {}
 
@@ -138,26 +146,17 @@ class GoogleDriveService
      */
     public function videoFile(GoogleDriveConnection $connection, string $fileId, ?string $resourceKey = null): array
     {
-        if (preg_match('/^[A-Za-z0-9_-]+$/', $fileId) !== 1) {
+        if (preg_match(self::DRIVE_ID_PATTERN, $fileId) !== 1) {
             throw new \RuntimeException(self::VIDEO_UNAVAILABLE_MESSAGE);
         }
 
         try {
-            $request = Http::withToken($this->connections->accessToken($connection))->acceptJson()->timeout(15);
-            if (filled($resourceKey)) {
-                $request = $request->withHeaders(['X-Goog-Drive-Resource-Keys' => "{$fileId}/{$resourceKey}"]);
-            }
-            $file = $request->get("https://www.googleapis.com/drive/v3/files/{$fileId}", [
+            $file = $this->videoRequest($connection, $fileId, $resourceKey)->get("https://www.googleapis.com/drive/v3/files/{$fileId}", [
                 'fields' => 'id,name,mimeType,size,createdTime,modifiedTime,trashed,ownedByMe,resourceKey',
                 'supportsAllDrives' => 'true',
             ])->throw()->json();
         } catch (\Throwable $exception) {
-            Log::warning('Google Drive video lookup failed.', [
-                'operation' => 'files.get',
-                'file_id_suffix' => substr($fileId, -6),
-                'http_status' => $exception instanceof RequestException ? $exception->response->status() : null,
-                'google_reason' => $exception instanceof RequestException ? data_get($exception->response->json(), 'error.errors.0.reason') : null,
-            ]);
+            $this->logVideoFailure('Google Drive video lookup failed.', 'files.get', $fileId, $exception);
 
             throw new \RuntimeException(self::VIDEO_UNAVAILABLE_MESSAGE, previous: $exception);
         }
@@ -184,6 +183,85 @@ class GoogleDriveService
             'modified_at' => filled($file['modifiedTime'] ?? null) ? CarbonImmutable::parse($file['modifiedTime']) : null,
             'resource_key' => $resourceKey ?: ($file['resourceKey'] ?? null),
         ];
+    }
+
+    /**
+     * Share a video the participant chose, view only, with everyone in the company's Google Workspace domain who has
+     * the link (`allowFileDiscovery: false` keeps it out of their Drive search), and return the Drive permission's ID.
+     *
+     * @throws \RuntimeException when the file ID or the domain is malformed (nothing is sent), or Drive refuses the
+     *                           share or answers without a usable permission ID (logged without the token).
+     */
+    public function shareWithDomain(GoogleDriveConnection $connection, string $fileId, ?string $resourceKey, string $domain): string
+    {
+        if (preg_match(self::DRIVE_ID_PATTERN, $fileId) !== 1 || preg_match(GoogleDriveConfigurationService::SHARE_DOMAIN_PATTERN, $domain) !== 1) {
+            throw new \RuntimeException(self::VIDEO_SHARE_FAILED_MESSAGE);
+        }
+
+        try {
+            $permissionId = $this->videoRequest($connection, $fileId, $resourceKey)->post("https://www.googleapis.com/drive/v3/files/{$fileId}/permissions?supportsAllDrives=true", [
+                'type' => 'domain',
+                'role' => 'reader',
+                'domain' => $domain,
+                'allowFileDiscovery' => false,
+            ])->throw()->json('id');
+
+            if (! is_string($permissionId) || preg_match(self::DRIVE_ID_PATTERN, $permissionId) !== 1) {
+                throw new \UnexpectedValueException('Google Drive did not return a usable permission ID.');
+            }
+        } catch (\Throwable $exception) {
+            $this->logVideoFailure('Google Drive video share failed.', 'permissions.create', $fileId, $exception);
+
+            throw new \RuntimeException(self::VIDEO_SHARE_FAILED_MESSAGE, previous: $exception);
+        }
+
+        return $permissionId;
+    }
+
+    /**
+     * Remove a permission the app created on a participant's video, such as the domain share of a video they replaced.
+     *
+     * @throws \RuntimeException when an ID is malformed (nothing is sent) or Drive refuses the removal (logged without
+     *                           the token).
+     */
+    public function removePermission(GoogleDriveConnection $connection, string $fileId, string $permissionId): void
+    {
+        if (preg_match(self::DRIVE_ID_PATTERN, $fileId) !== 1 || preg_match(self::DRIVE_ID_PATTERN, $permissionId) !== 1) {
+            throw new \RuntimeException(self::PERMISSION_REMOVAL_FAILED_MESSAGE);
+        }
+
+        try {
+            $this->videoRequest($connection, $fileId)->delete("https://www.googleapis.com/drive/v3/files/{$fileId}/permissions/{$permissionId}?supportsAllDrives=true")->throw();
+        } catch (\Throwable $exception) {
+            $this->logVideoFailure('Google Drive video permission removal failed.', 'permissions.delete', $fileId, $exception);
+
+            throw new \RuntimeException(self::PERMISSION_REMOVAL_FAILED_MESSAGE, previous: $exception);
+        }
+    }
+
+    /**
+     * A JSON request on a participant's video with their (refreshed) token, a 15-second timeout and, when given, the
+     * file's resource key.
+     */
+    private function videoRequest(GoogleDriveConnection $connection, string $fileId, ?string $resourceKey = null): PendingRequest
+    {
+        $request = Http::withToken($this->connections->accessToken($connection))->acceptJson()->timeout(15);
+
+        return filled($resourceKey) ? $request->withHeaders(['X-Goog-Drive-Resource-Keys' => "{$fileId}/{$resourceKey}"]) : $request;
+    }
+
+    /**
+     * Log a failed call on a participant's video with only the file ID's last six characters, the HTTP status and
+     * Google's reason: never the token.
+     */
+    private function logVideoFailure(string $message, string $operation, string $fileId, \Throwable $exception): void
+    {
+        Log::warning($message, [
+            'operation' => $operation,
+            'file_id_suffix' => substr($fileId, -6),
+            'http_status' => $exception instanceof RequestException ? $exception->response->status() : null,
+            'google_reason' => $exception instanceof RequestException ? data_get($exception->response->json(), 'error.errors.0.reason') : null,
+        ]);
     }
 
     /** @return array<int, array{id?: string, name?: string, mimeType?: string}> */

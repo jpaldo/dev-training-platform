@@ -15,6 +15,7 @@ use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -24,6 +25,8 @@ class WeeklyVideoRecordingTest extends TestCase
     use RefreshDatabase;
 
     private const DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files/*';
+
+    private const PERMISSIONS_URL = 'https://www.googleapis.com/drive/v3/files/*/permissions*';
 
     protected function setUp(): void
     {
@@ -108,6 +111,205 @@ class WeeklyVideoRecordingTest extends TestCase
         $this->assertSame('Week 1 retake.mov', $recording->name);
         $this->assertSame('video/quicktime', $recording->mime_type);
         $this->assertSame('Earlier notes', $recording->notes);
+    }
+
+    public function test_choosing_a_video_shares_it_view_only_with_the_company_domain(): void
+    {
+        config()->set('services.google_drive.share_domain', 'fullscale.io');
+        [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
+        Http::fake([
+            self::PERMISSIONS_URL => Http::response(['id' => 'domain-permission-1']),
+            self::DRIVE_FILES_URL => Http::response(self::driveVideo()),
+        ]);
+        $this->freezeSecond();
+
+        $this->actingAs($participant)
+            ->post(route('training.video-recording.store', $week), ['drive_file_id' => 'video-file-1', 'resource_key' => '0-abcKey'])
+            ->assertRedirect(route('training.video-recording.edit', $week))
+            ->assertSessionHas('status', 'Video chosen from Google Drive.')
+            ->assertSessionMissing('warning');
+
+        $recording = WeeklyVideoRecording::query()->sole();
+        $this->assertSame('domain-permission-1', $recording->drive_permission_id);
+        $this->assertTrue($recording->shared_at->equalTo(now()));
+        $permissionRequests = Http::recorded(fn (Request $request): bool => str_contains($request->url(), '/permissions'));
+        $this->assertCount(1, $permissionRequests);
+        [$request] = $permissionRequests->first();
+        $this->assertSame('POST', $request->method());
+        $this->assertSame('https://www.googleapis.com/drive/v3/files/video-file-1/permissions?supportsAllDrives=true', $request->url());
+        $this->assertSame(['type' => 'domain', 'role' => 'reader', 'domain' => 'fullscale.io', 'allowFileDiscovery' => false], $request->data());
+        $this->assertTrue($request->hasHeader('X-Goog-Drive-Resource-Keys', 'video-file-1/0-abcKey'));
+
+        $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
+            ->assertOk()
+            ->assertSee('Choosing a video shares it, view only, with everyone at fullscale.io who has the link, so your mentor can watch it.');
+    }
+
+    public function test_the_configured_share_domain_is_trimmed_and_lowercased(): void
+    {
+        config()->set('services.google_drive.share_domain', ' FullScale.IO ');
+        [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
+        Http::fake([
+            self::PERMISSIONS_URL => Http::response(['id' => 'domain-permission-1']),
+            self::DRIVE_FILES_URL => Http::response(self::driveVideo()),
+        ]);
+
+        $this->actingAs($participant)->post(route('training.video-recording.store', $week), ['drive_file_id' => 'video-file-1']);
+
+        Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/permissions') && $request['domain'] === 'fullscale.io');
+    }
+
+    public function test_replacing_a_shared_video_shares_the_new_file_then_removes_the_old_files_permission(): void
+    {
+        config()->set('services.google_drive.share_domain', 'fullscale.io');
+        [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
+        WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->shared()->create([
+            'drive_file_id' => 'earlier-video',
+            'drive_permission_id' => 'earlier-permission',
+        ]);
+        Http::fake([
+            self::PERMISSIONS_URL => Http::sequence()
+                ->push(['id' => 'new-permission'])
+                ->push(null, 204),
+            self::DRIVE_FILES_URL => Http::response(self::driveVideo(['id' => 'video-file-2'])),
+        ]);
+
+        $this->actingAs($participant)
+            ->post(route('training.video-recording.store', $week), ['drive_file_id' => 'video-file-2'])
+            ->assertSessionMissing('warning');
+
+        $recording = WeeklyVideoRecording::query()->sole();
+        $this->assertSame('video-file-2', $recording->drive_file_id);
+        $this->assertSame('new-permission', $recording->drive_permission_id);
+        $this->assertNotNull($recording->shared_at);
+        Http::assertSentInOrder([
+            fn (Request $request): bool => $request->method() === 'GET' && str_starts_with($request->url(), 'https://www.googleapis.com/drive/v3/files/video-file-2?'),
+            fn (Request $request): bool => $request->method() === 'POST' && $request->url() === 'https://www.googleapis.com/drive/v3/files/video-file-2/permissions?supportsAllDrives=true',
+            fn (Request $request): bool => $request->method() === 'DELETE' && $request->url() === 'https://www.googleapis.com/drive/v3/files/earlier-video/permissions/earlier-permission?supportsAllDrives=true',
+        ]);
+        Http::assertSentCount(3);
+    }
+
+    public function test_a_failed_removal_of_the_old_permission_keeps_the_new_shared_choice(): void
+    {
+        config()->set('services.google_drive.share_domain', 'fullscale.io');
+        [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
+        WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->shared()->create(['drive_file_id' => 'earlier-video']);
+        Http::fake([
+            self::PERMISSIONS_URL => Http::sequence()
+                ->push(['id' => 'new-permission'])
+                ->push(['error' => ['code' => 404, 'errors' => [['reason' => 'notFound']]]], 404),
+            self::DRIVE_FILES_URL => Http::response(self::driveVideo(['id' => 'video-file-2'])),
+        ]);
+
+        $this->actingAs($participant)
+            ->post(route('training.video-recording.store', $week), ['drive_file_id' => 'video-file-2'])
+            ->assertRedirect(route('training.video-recording.edit', $week))
+            ->assertSessionHasNoErrors()
+            ->assertSessionMissing('warning');
+
+        $recording = WeeklyVideoRecording::query()->sole();
+        $this->assertSame('video-file-2', $recording->drive_file_id);
+        $this->assertSame('new-permission', $recording->drive_permission_id);
+        $this->assertNotNull($recording->shared_at);
+    }
+
+    public function test_choosing_the_same_video_again_shares_it_and_keeps_its_permission(): void
+    {
+        config()->set('services.google_drive.share_domain', 'fullscale.io');
+        [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
+        WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->shared()->create([
+            'drive_file_id' => 'video-file-1',
+            'drive_permission_id' => 'domain-permission-1',
+        ]);
+        Http::fake([
+            self::PERMISSIONS_URL => Http::response(['id' => 'domain-permission-1']),
+            self::DRIVE_FILES_URL => Http::response(self::driveVideo()),
+        ]);
+
+        $this->actingAs($participant)->post(route('training.video-recording.store', $week), ['drive_file_id' => 'video-file-1']);
+
+        $this->assertSame('domain-permission-1', WeeklyVideoRecording::query()->sole()->drive_permission_id);
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST');
+        Http::assertNotSent(fn (Request $request): bool => $request->method() === 'DELETE');
+    }
+
+    public function test_a_refused_share_keeps_the_choice_unshared_and_warns_the_participant(): void
+    {
+        config()->set('services.google_drive.share_domain', 'fullscale.io');
+        [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
+        WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->shared()->create([
+            'drive_file_id' => 'earlier-video',
+            'drive_permission_id' => 'earlier-permission',
+        ]);
+        Http::fake([
+            'https://www.googleapis.com/drive/v3/files/video-file-2/permissions*' => Http::response(['error' => ['code' => 403, 'errors' => [['reason' => 'insufficientFilePermissions']]]], 403),
+            self::PERMISSIONS_URL => Http::response(null, 204),
+            self::DRIVE_FILES_URL => Http::response(self::driveVideo(['id' => 'video-file-2'])),
+        ]);
+        $warning = 'Your video is saved, but it could not be shared. In Google Drive, share it with everyone at fullscale.io as Viewer.';
+
+        $this->actingAs($participant)
+            ->post(route('training.video-recording.store', $week), ['drive_file_id' => 'video-file-2'])
+            ->assertRedirect(route('training.video-recording.edit', $week))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', 'Video chosen from Google Drive.')
+            ->assertSessionHas('warning', $warning);
+
+        $recording = WeeklyVideoRecording::query()->sole();
+        $this->assertSame('video-file-2', $recording->drive_file_id);
+        $this->assertNull($recording->drive_permission_id);
+        $this->assertNull($recording->shared_at);
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE'
+            && $request->url() === 'https://www.googleapis.com/drive/v3/files/earlier-video/permissions/earlier-permission?supportsAllDrives=true');
+
+        $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
+            ->assertOk()
+            ->assertSee($warning);
+    }
+
+    /**
+     * @return array<string, array{?string}>
+     */
+    public static function unusableShareDomains(): array
+    {
+        return [
+            'unset' => [null],
+            'empty' => [''],
+            'not a plain hostname' => ['https://fullscale.io'],
+        ];
+    }
+
+    #[DataProvider('unusableShareDomains')]
+    public function test_without_a_share_domain_the_choice_is_kept_unshared_and_no_permission_is_requested(?string $domain): void
+    {
+        config()->set('services.google_drive.share_domain', $domain);
+        [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
+        Log::spy();
+        Http::fake([self::DRIVE_FILES_URL => Http::response(self::driveVideo())]);
+
+        $this->actingAs($participant)
+            ->post(route('training.video-recording.store', $week), ['drive_file_id' => 'video-file-1'])
+            ->assertSessionHas('status', 'Video chosen from Google Drive.')
+            ->assertSessionHas('warning', 'Your video is saved, but it could not be shared. In Google Drive, share it with your mentor as Viewer.');
+
+        $recording = WeeklyVideoRecording::query()->sole();
+        $this->assertNull($recording->drive_permission_id);
+        $this->assertNull($recording->shared_at);
+        Http::assertSentCount(1);
+        Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), '/permissions'));
+        Log::shouldHaveReceived('warning')->once()->with('Weekly video not shared: no Google Workspace share domain is configured.', ['weekly_video_recording_id' => $recording->id]);
+
+        $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
+            ->assertOk()
+            ->assertDontSee('Choosing a video shares it');
     }
 
     /**

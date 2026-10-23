@@ -42,6 +42,7 @@ return [
         'redirect_uri' => env('GOOGLE_REDIRECT_URI'),
         'picker_api_key' => env('GOOGLE_PICKER_API_KEY'),
         'project_number' => env('GOOGLE_CLOUD_PROJECT_NUMBER'),
+        'share_domain' => env('GOOGLE_DRIVE_SHARE_DOMAIN'),
         'scopes' => ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/drive.file'],
     ],
 

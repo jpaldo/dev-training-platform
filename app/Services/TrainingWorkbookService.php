@@ -28,7 +28,7 @@ class TrainingWorkbookService
             $sheets[] = [$sheetName, $this->activityRows($participant, $activity)];
         }
         if ($sheets === []) {
-            $sheets[] = ['Activities', [['Participant', 'QA Path', 'Week', 'Activity']]];
+            $sheets[] = ['Activities', [['Participant', 'Week', 'Activity']]];
         }
 
         return $this->xlsx($sheets);
@@ -39,7 +39,7 @@ class TrainingWorkbookService
         $requirements = $activity->requirements()->where('requirement_type', 'submission_field')->orderBy('position')->get()->filter(fn (ActivityRequirement $r): bool => ! ($r->configuration['deprecated'] ?? false));
         $allRequirements = $activity->requirements()->where('requirement_type', 'submission_field')->orderBy('position')->get();
         $fields = $requirements->mapWithKeys(fn (ActivityRequirement $r): array => [$r->configuration['key'] => $r->configuration['label'] ?? $r->title]);
-        $headers = ['Participant', 'QA Path', 'Week', 'Activity', 'Submission ID', 'Attempt', 'Submission Version', 'Submission Status', 'Submitted At', 'Participant Notes', ...$fields->values()->all()];
+        $headers = ['Participant', 'Week', 'Activity', 'Submission ID', 'Attempt', 'Submission Version', 'Submission Status', 'Submitted At', 'Participant Notes', ...$fields->values()->all()];
         $submission = ActivitySubmission::query()
             ->where('user_id', $participant->id)
             ->where('activity_id', $activity->id)
@@ -56,7 +56,7 @@ class TrainingWorkbookService
         $headers = array_merge($headers, $historicalFields->values()->all());
         $row = array_fill(0, count($headers), null);
         if ($version) {
-            $values = [$participant->name, $participant->trainingPathLabel(), $activity->week->week_number, $activity->title, $version->submission->id, $version->submission->attempt_number, $version->version_number, $version->submission->status->value, $version->submitted_at, $version->participant_note];
+            $values = [$participant->name, $activity->week->week_number, $activity->title, $version->submission->id, $version->submission->attempt_number, $version->version_number, $version->submission->status->value, $version->submitted_at, $version->participant_note];
             foreach ($fields as $key => $label) {
                 $values[] = $version->field_values[$key] ?? null;
             }

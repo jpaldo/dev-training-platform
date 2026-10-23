@@ -39,18 +39,18 @@ class ScoringOverviewPageTest extends TestCase
             'aria-label="Filter participants"',
             '>W2</th>', '>W2 Completion</th>', '>W3</th>', '>W3 Completion</th>', '>W4</th>', '>W4 Completion</th>',
             '>Overall</th>', '>Completion</th>', '>Assigned Coach</th>',
-            '>Ada Automation</strong>', 'ada@example.com', '>Automation</td>',
+            '>Ada Automation</strong>', 'ada@example.com',
             '>83</strong>', 'Proficient', '1 / 2 (50%)',
             '—', '0 / 1 (0%)',
             '—', '0 / 1 (0%)',
             '>83</td>', '1 / 4 (25%)', 'Coach Carter, Mia Mentor',
             'href="'.route('coach.scoring.participant', $ada).'"', '>View Scoring</a>',
-            '>Ben Both</strong>', 'ben@example.com', '>Automation / Manual</td>',
+            '>Ben Both</strong>', 'ben@example.com',
             '—', '0 / 2 (0%)', '—', '0 / 1 (0%)', '—', '0 / 1 (0%)',
             '>—</td>', '0 / 4 (0%)', 'Unassigned',
             'href="'.route('coach.scoring.participant', $ben).'"', '>View Scoring</a>',
         ], false);
-        $response->assertDontSee('from-brand to-brand-deep', false)->assertDontSee('No participants match these filters.');
+        $response->assertDontSee('from-brand to-brand-deep', false)->assertDontSee('No participants match these filters.')->assertDontSee('QA Path')->assertDontSee('Automation / Manual');
     }
 
     public function test_week_one_scores_appear_in_the_overview_and_the_week_filter_offers_week_one(): void
@@ -83,17 +83,16 @@ class ScoringOverviewPageTest extends TestCase
         $coach->assignedParticipants()->attach($assigned->id);
         $this->score($assigned, $activities[2][0], 83, 'Proficient');
         $this->score($unassigned, $activities[2][0], 84, 'Proficient');
-        $filters = ['search' => 'Ada', 'path' => 'automation', 'week' => 2, 'score_status' => 'scored', 'band' => 'Proficient', 'assigned_to_me' => 1];
+        $filters = ['search' => 'Ada', 'week' => 2, 'score_status' => 'scored', 'band' => 'Proficient', 'assigned_to_me' => 1];
 
         $this->actingAs($coach)->get(route('coach.scoring.index', $filters))
             ->assertOk()
             ->assertSee('name="search" value="Ada"', false)
-            ->assertSee('<option value="automation" selected>Automation</option>', false)
             ->assertSee('<option value="2" selected>Week 2</option>', false)
             ->assertSee('<option value="scored" selected>Scored</option>', false)
             ->assertSee('<option value="Proficient" selected>Proficient</option>', false)
             ->assertSee('name="assigned_to_me" value="1" checked', false)
-            ->assertDontSee('<option value="manual" selected>', false)
+            ->assertDontSee('name="path"', false)
             ->assertSee('>Ada Assigned</strong>', false)
             ->assertDontSee('>Ada Unassigned</strong>', false)
             ->assertDontSee('>Ada Manual</strong>', false);
@@ -134,13 +133,13 @@ class ScoringOverviewPageTest extends TestCase
         }
         $coach = User::factory()->create(['role' => 'coach']);
 
-        $this->actingAs($coach)->get(route('coach.scoring.index', ['path' => 'manual']))
+        $this->actingAs($coach)->get(route('coach.scoring.index', ['search' => 'Participant']))
             ->assertOk()
             ->assertSee('>Participant 25</strong>', false)
             ->assertDontSee('>Participant 26</strong>', false)
-            ->assertSee('path=manual&amp;page=2', false);
+            ->assertSee('search=Participant&amp;page=2', false);
 
-        $this->actingAs($coach)->get(route('coach.scoring.index', ['path' => 'manual', 'page' => 2]))
+        $this->actingAs($coach)->get(route('coach.scoring.index', ['search' => 'Participant', 'page' => 2]))
             ->assertOk()
             ->assertSee('>Participant 26</strong>', false)
             ->assertDontSee('>Participant 25</strong>', false);
@@ -149,14 +148,28 @@ class ScoringOverviewPageTest extends TestCase
     public function test_an_empty_result_shows_a_notice_instead_of_the_table(): void
     {
         $this->program();
-        User::factory()->create(['name' => 'Manual Person', 'training_path' => 'manual']);
+        User::factory()->create(['name' => 'Some Person']);
 
         $this->actingAs(User::factory()->create(['role' => 'coach']))
-            ->get(route('coach.scoring.index', ['path' => 'automation']))
+            ->get(route('coach.scoring.index', ['search' => 'Nobody']))
             ->assertOk()
             ->assertSee('No participants match these filters.')
             ->assertDontSee('data-scoring-row', false)
             ->assertDontSee('<table', false);
+    }
+
+    public function test_an_old_path_filter_is_ignored(): void
+    {
+        $this->program();
+        User::factory()->create(['name' => 'Mia Manual', 'training_path' => 'manual']);
+        User::factory()->create(['name' => 'Abe Automation', 'training_path' => 'automation']);
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))
+            ->get(route('coach.scoring.index', ['path' => 'automation']))
+            ->assertOk()
+            ->assertSessionHasNoErrors()
+            ->assertSee('>Mia Manual</strong>', false)
+            ->assertSee('>Abe Automation</strong>', false);
     }
 
     public function test_the_table_scrolls_inside_a_positioned_region_so_its_screen_reader_only_header_cannot_widen_the_page(): void

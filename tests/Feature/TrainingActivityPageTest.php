@@ -37,6 +37,8 @@ class TrainingActivityPageTest extends TestCase
                 'id="activity-tab-requirements"',
                 'id="activity-tab-submission"',
             ], false)
+            ->assertSee('>Requirements for this activity</h2>', false)
+            ->assertDontSee('QA</h2>', false)
             ->assertDontSee('activity-tab-validation-lab', false);
     }
 

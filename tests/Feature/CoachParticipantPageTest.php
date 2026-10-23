@@ -45,14 +45,15 @@ class CoachParticipantPageTest extends TestCase
             ->assertDontSee('Peer Mock Interview Requirement');
     }
 
-    public function test_heading_shows_the_shared_training_path_label(): void
+    public function test_heading_does_not_show_a_training_path(): void
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         $participant->update(['training_path' => 'automation_manual']);
 
         $this->actingAs($coach)->get(route('coach.participants.show', $participant))
             ->assertOk()
-            ->assertSee(e($participant->email).' · Automation / Manual', false);
+            ->assertSee(e($participant->email).'</p>', false)
+            ->assertDontSee('Automation / Manual');
     }
 
     #[DataProvider('viewerAccess')]

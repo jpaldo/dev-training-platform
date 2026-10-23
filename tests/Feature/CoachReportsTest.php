@@ -15,7 +15,7 @@ class CoachReportsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_progress_report_uses_friendly_paths_and_mentor_filter(): void
+    public function test_progress_report_uses_the_mentor_filter_and_shows_no_path(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Mentor Ely']);
@@ -23,7 +23,7 @@ class CoachReportsTest extends TestCase
         $participant->assignedCoaches()->attach($coach->id);
 
         $this->actingAs($coach)->get(route('coach.reports', ['mentor' => $coach->id]))
-            ->assertOk()->assertSee('Automation / Manual')->assertSee('Mentor Ely')->assertSee('Gates Passed')->assertSee('Total Participants');
+            ->assertOk()->assertDontSee('Automation / Manual')->assertSee('Combined Path')->assertSee('Mentor Ely')->assertSee('Gates Passed')->assertSee('Total Participants');
     }
 
     public function test_admin_can_view_missing_submissions_and_participants_cannot(): void
@@ -100,7 +100,7 @@ class CoachReportsTest extends TestCase
         ]))->assertOk()->assertSee($missingActivity->title)->assertDontSee($submittedActivity->title);
     }
 
-    public function test_missing_report_supports_combined_path_mentor_and_csv_filters(): void
+    public function test_missing_report_supports_mentor_category_and_csv_filters(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
         $admin = User::factory()->create(['role' => 'admin', 'name' => 'Mentor Ely']);
@@ -108,19 +108,17 @@ class CoachReportsTest extends TestCase
         $participant->assignedCoaches()->attach($admin->id);
 
         $response = $this->actingAs($admin)->get(route('coach.reports.missing-submissions', [
-            'path' => 'automation_manual',
             'mentor' => $admin->id,
             'category' => 'activities',
             'status' => 'not_submitted',
         ]));
-        $response->assertOk()->assertSee('Automation / Manual')->assertSee('Mentor Ely')->assertSee('Combined QA');
+        $response->assertOk()->assertDontSee('Automation / Manual')->assertSee('Mentor Ely')->assertSee('Combined QA');
 
         $csv = $this->actingAs($admin)->get(route('coach.reports.missing-submissions.export', [
-            'path' => 'automation_manual',
             'mentor' => $admin->id,
             'category' => 'activities',
         ]))->streamedContent();
-        $this->assertStringContainsString('Participant,"Employee ID",Email,"QA Path",Mentor,Category', $csv);
+        $this->assertStringContainsString('Participant,"Employee ID",Email,Mentor,Category', $csv);
         $this->assertStringContainsString(',Expected,Submitted,Missing,Evidences,Status'."\n", $csv);
         $this->assertStringNotContainsString('Log Date', $csv);
         $this->assertStringContainsString('Combined QA', $csv);

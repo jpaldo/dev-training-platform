@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Collection;
 class ScoringReportService
 {
     /**
-     * @param  array{participant?: int|string|null, path?: ?string, week?: int|string|null, activity?: int|string|null, assigned_coach?: int|string|null, score_status?: ?string, band?: ?string, from?: ?string, to?: ?string}  $filters
+     * @param  array{participant?: int|string|null, week?: int|string|null, activity?: int|string|null, assigned_coach?: int|string|null, score_status?: ?string, band?: ?string, from?: ?string, to?: ?string}  $filters
      * @return Builder<SubmissionVersion>
      */
     public function versions(array $filters): Builder
@@ -20,7 +20,6 @@ class ScoringReportService
         return SubmissionVersion::query()->where('status', '!=', SubmissionStatus::Draft)
             ->with(['submission.participant.assignedCoaches', 'submission.activity.week', 'publishedActivityScore.scorer', 'publishedActivityScore.secondReader', 'publishedActivityScore.dimensions'])
             ->when($filters['participant'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('submission', fn (Builder $s): Builder => $s->where('user_id', $v)))
-            ->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->whereHas('submission.participant', fn (Builder $p): Builder => $p->where('training_path', $v)))
             ->when($filters['week'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('submission.activity.week', fn (Builder $w): Builder => $w->where('week_number', $v)))
             ->when($filters['activity'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('submission', fn (Builder $s): Builder => $s->where('activity_id', $v)))
             ->when($filters['assigned_coach'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('submission.participant.assignedCoaches', fn (Builder $c): Builder => $c->whereKey($v)))
@@ -32,7 +31,7 @@ class ScoringReportService
     }
 
     /**
-     * @param  array{participant?: int|string|null, path?: ?string, week?: int|string|null, activity?: int|string|null, assigned_coach?: int|string|null, score_status?: ?string, band?: ?string, from?: ?string, to?: ?string}  $filters
+     * @param  array{participant?: int|string|null, week?: int|string|null, activity?: int|string|null, assigned_coach?: int|string|null, score_status?: ?string, band?: ?string, from?: ?string, to?: ?string}  $filters
      * @return Collection<int, User>
      */
     public function participants(array $filters): Collection
@@ -41,7 +40,6 @@ class ScoringReportService
             ->where('role', UserRole::Participant)
             ->with('assignedCoaches')
             ->when($filters['participant'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereKey($v))
-            ->when($filters['path'] ?? null, fn (Builder $q, string $v): Builder => $q->where('training_path', $v))
             ->when($filters['assigned_coach'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('assignedCoaches', fn (Builder $c): Builder => $c->whereKey($v)))
             ->get();
     }

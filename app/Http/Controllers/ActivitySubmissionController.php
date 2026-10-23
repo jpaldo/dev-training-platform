@@ -34,7 +34,7 @@ class ActivitySubmissionController extends Controller
             'trainingWeek' => $trainingWeek,
             'activity' => $activity,
             'submissionVersion' => $submissionVersion,
-            ...$pages->showData($user, $activity, $submissionVersion),
+            ...$pages->showData($activity, $submissionVersion),
         ]);
     }
 

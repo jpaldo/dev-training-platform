@@ -54,21 +54,20 @@ class CoachProgressReportPageTest extends TestCase
                 'At Risk', '>1</dd>',
                 'At-risk participants',
                 '>Riley Risk</th>',
-                '>Automation / Manual</span>',
                 '>'.e($revision->activity->title).': Needs revision · '.e($failedGate->gate->title).': Failed</td>',
                 'Participant progress',
                 '2 participant(s)',
                 '>Riley Risk</strong>', '>riley@example.test</span>',
-                '>Automation / Manual</span>',
                 '>Admin Blake, Coach Avery</td>',
                 '>1</td>', '>1</td>',
                 '>Sam Steady</strong>', '>sam@example.test</span>',
-                '>Manual</span>',
                 '>Not assigned</td>',
                 '>1</td>', '>0</td>',
             ], false)
             ->assertDontSee('No current at-risk participants.')
-            ->assertDontSee('No participants match the selected filters.');
+            ->assertDontSee('No participants match the selected filters.')
+            ->assertDontSee('Training Path')
+            ->assertDontSee('Automation / Manual');
 
         $this->assertSame(1, preg_match('/aria-label="Reports">(.*?)<\/nav>/s', $response->getContent(), $reportNav));
         $this->assertSame(1, substr_count($reportNav[1], 'aria-current="page"'));
@@ -81,23 +80,23 @@ class CoachProgressReportPageTest extends TestCase
         $activity = Activity::factory()->create();
         $participants = User::factory()->count(26)
             ->sequence(fn (Sequence $sequence): array => ['name' => sprintf('Page Person %02d', $sequence->index + 1)])
-            ->create(['training_path' => 'automation']);
+            ->create();
         $mentor->assignedParticipants()->attach($participants->modelKeys());
         $participants->each(fn (User $participant): ActivitySubmission => ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'failed']));
-        User::factory()->create(['name' => 'Page Manual', 'training_path' => 'manual'])->assignedCoaches()->attach($mentor->id);
-        User::factory()->create(['name' => 'Page Unassigned', 'training_path' => 'automation']);
-        $filters = ['search' => 'Page', 'path' => 'automation', 'mentor' => $mentor->id];
+        User::factory()->create(['name' => 'Other Mentee'])->assignedCoaches()->attach($mentor->id);
+        User::factory()->create(['name' => 'Page Unassigned']);
+        $filters = ['search' => 'Page', 'mentor' => $mentor->id];
 
         $firstPage = $this->actingAs($mentor)->get(route('coach.reports', $filters))
             ->assertOk()
             ->assertSee('value="Page"', false)
-            ->assertSee('<option value="automation" selected>Automation</option>', false)
+            ->assertDontSee('name="path"', false)
             ->assertSee('<option value="'.$mentor->id.'" selected>Mentor Ely</option>', false)
             ->assertSee('href="'.e(route('coach.reports.export', [...$filters, 'type' => 'progress'])).'"', false)
             ->assertSee('26 participant(s)')
             ->assertSee(e(route('coach.reports', [...$filters, 'risk_page' => 2])), false)
             ->assertSee(e(route('coach.reports', [...$filters, 'page' => 2])), false)
-            ->assertDontSee('Page Manual')
+            ->assertDontSee('Other Mentee')
             ->assertDontSee('Page Unassigned');
 
         $this->assertSame(25, substr_count($firstPage->getContent(), 'data-at-risk-row'));
@@ -110,6 +109,34 @@ class CoachProgressReportPageTest extends TestCase
 
         $this->assertSame(1, substr_count($secondRiskPage->getContent(), 'data-at-risk-row'));
         $this->assertSame(25, substr_count($secondRiskPage->getContent(), 'data-participant-row'));
+    }
+
+    public function test_an_old_path_filter_is_ignored_by_the_report_and_its_exports(): void
+    {
+        User::factory()->create(['name' => 'Mia Manual', 'training_path' => 'manual']);
+        User::factory()->create(['name' => 'Abe Automation', 'training_path' => 'automation']);
+        $coach = User::factory()->create(['role' => 'coach']);
+
+        $this->actingAs($coach)->get(route('coach.reports', ['path' => 'automation']))
+            ->assertOk()
+            ->assertSessionHasNoErrors()
+            ->assertSee('>Mia Manual</strong>', false)
+            ->assertSee('>Abe Automation</strong>', false);
+
+        $csv = $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'progress', 'path' => 'automation']))
+            ->assertOk()
+            ->assertSessionHasNoErrors()
+            ->streamedContent();
+        $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
+
+        $this->assertSame(['Name', 'Employee ID', 'Email', 'Submissions', 'Gate evaluations'], $rows[0]);
+        $this->assertEqualsCanonicalizing(['Mia Manual', 'Abe Automation'], array_column(array_slice($rows, 1), 0));
+
+        foreach (['reviews', 'gates', 'risk'] as $type) {
+            $this->actingAs($coach)->get(route('coach.reports.export', ['type' => $type, 'path' => 'automation']))
+                ->assertOk()
+                ->assertSessionHasNoErrors();
+        }
     }
 
     public function test_report_without_participants_shows_both_notices(): void

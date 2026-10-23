@@ -35,15 +35,6 @@
                 </select>
             </div>
             <div class="grid min-w-0 gap-2">
-                <label for="missing-path" class="{{ $labelClasses }}">QA Path</label>
-                <select id="missing-path" name="path" class="{{ $controlClasses }}">
-                    <option value="">All paths</option>
-                    @foreach($pathOptions as $option)
-                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="grid min-w-0 gap-2">
                 <label for="missing-mentor" class="{{ $labelClasses }}">Mentor</label>
                 <select id="missing-mentor" name="mentor" class="{{ $controlClasses }}">
                     <option value="">All mentors</option>
@@ -111,7 +102,6 @@
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">QA Path</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Mentor</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Category</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Week</th>
@@ -132,9 +122,6 @@
                                             <span class="wrap-break-word text-muted">{{ $row['participant_email'] }}</span>
                                         </span>
                                     </th>
-                                    <td class="{{ $cellClasses }}">
-                                        <x-ui.badge class="whitespace-nowrap">{{ $row['path'] }}</x-ui.badge>
-                                    </td>
                                     <td class="{{ $cellClasses }} wrap-break-word">{{ $row['mentor'] }}</td>
                                     <td class="{{ $cellClasses }}">{{ $row['category'] }}</td>
                                     <td class="{{ $cellClasses }} whitespace-nowrap">{{ $row['week'] }}</td>

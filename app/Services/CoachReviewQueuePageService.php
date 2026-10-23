@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\SubmissionStatus;
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
@@ -21,12 +20,12 @@ class CoachReviewQueuePageService
 
     /**
      * Everything the coach review queue renders: the filter values and options (the active program's weeks
-     * and their activities, the paths, the queue statuses and the participants), whether a filter is applied with the
+     * and their activities, the queue statuses and the participants), whether a filter is applied with the
      * matching empty-state text, and the matching submissions, newest first, with a link to review their latest
      * version. The page has no single main action, so every button is secondary.
      *
-     * @param  array{status?: ?string, participant?: int|string|null, week?: int|string|null, activity?: int|string|null, path?: ?string}  $filters
-     * @return array{weekOptions: list<array{value: string, label: string, is_selected: bool}>, activityOptions: list<array{value: string, label: string, is_selected: bool}>, pathOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, participantOptions: list<array{value: string, label: string, is_selected: bool}>, isFiltered: bool, emptyMessage: string, items: LengthAwarePaginator<int, array{participant_name: string, week_number: int, activity_title: string, status: string, status_tone: string, review_url: ?string}>}
+     * @param  array{status?: ?string, participant?: int|string|null, week?: int|string|null, activity?: int|string|null}  $filters
+     * @return array{weekOptions: list<array{value: string, label: string, is_selected: bool}>, activityOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, participantOptions: list<array{value: string, label: string, is_selected: bool}>, isFiltered: bool, emptyMessage: string, items: LengthAwarePaginator<int, array{participant_name: string, week_number: int, activity_title: string, status: string, status_tone: string, review_url: ?string}>}
      */
     public function indexData(array $filters): array
     {
@@ -39,7 +38,6 @@ class CoachReviewQueuePageService
                 $filters['week'] ?? null,
             ),
             'activityOptions' => $this->options($this->activityLabels($weeks), $filters['activity'] ?? null),
-            'pathOptions' => $this->options(collect(TrainingPath::options()), $filters['path'] ?? null),
             'statusOptions' => $this->options(
                 collect([...SubmissionStatus::awaitingReview(), SubmissionStatus::NeedsRevision])
                     ->mapWithKeys(fn (SubmissionStatus $status): array => [$status->value => $status->label()]),

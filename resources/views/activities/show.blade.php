@@ -37,7 +37,7 @@
 
             <x-ui.tab-panel name="requirements" :selected="$selectedTab" id-prefix="activity">
                 <x-ui.card class="grid gap-4">
-                    <h2 class="m-0 text-xl font-extrabold">Requirements for {{ $user->trainingPathLabel() }} QA</h2>
+                    <h2 class="m-0 text-xl font-extrabold">Requirements for this activity</h2>
                     @if($requirements->isNotEmpty())
                         <ul class="m-0 grid list-none gap-3 p-0">
                             @foreach ($requirements as $requirement)

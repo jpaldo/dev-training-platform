@@ -21,7 +21,6 @@ class MissingSubmissionReportService
         $participants = User::query()
             ->where('role', UserRole::Participant)
             ->when($filters['participant'] ?? null, fn (Builder $query, int|string $value): Builder => $query->whereKey($value))
-            ->when($filters['path'] ?? null, fn (Builder $query, string $value): Builder => $query->where('training_path', $value))
             ->when($filters['mentor'] ?? null, fn (Builder $query, int|string $value): Builder => $query->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($value)))
             ->with([
                 'assignedCoaches:id,name',
@@ -76,7 +75,6 @@ class MissingSubmissionReportService
             'participant_name' => $participant->name,
             'employee_id' => $participant->employee_id,
             'email' => $participant->email,
-            'path' => $participant->trainingPathLabel(),
             'mentor' => $mentor,
             'category' => $category,
             'week' => "Week {$week}",

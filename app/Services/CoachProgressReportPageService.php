@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\TrainingPath;
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -28,9 +27,9 @@ class CoachProgressReportPageService
      * `risk_page` and the participant progress rows (both 25 per page, query string kept). The page has no single
      * main action, so every button is secondary.
      *
-     * @param  array{search?: string|null, path?: string|null, mentor?: int|string|null}  $filters
+     * @param  array{search?: string|null, mentor?: int|string|null}  $filters
      * @param  array<array-key, mixed>  $query
-     * @return array{exportUrl: string, search: string, pathOptions: list<array{value: string, label: string, is_selected: bool}>, mentorOptions: list<array{value: string, label: string, is_selected: bool}>, stats: list<array{label: string, value: int}>, atRiskRows: LengthAwarePaginator<int, array{participant_name: string, path: string, reasons: string}>, participantRows: LengthAwarePaginator<int, array{name: string, email: string, path: string, mentors: string, submission_count: int, gate_count: int}>}
+     * @return array{exportUrl: string, search: string, mentorOptions: list<array{value: string, label: string, is_selected: bool}>, stats: list<array{label: string, value: int}>, atRiskRows: LengthAwarePaginator<int, array{participant_name: string, reasons: string}>, participantRows: LengthAwarePaginator<int, array{name: string, email: string, mentors: string, submission_count: int, gate_count: int}>}
      */
     public function indexData(array $filters, array $query, int $atRiskPage): array
     {
@@ -41,13 +40,6 @@ class CoachProgressReportPageService
         return [
             'exportUrl' => route('coach.reports.export', array_merge($query, ['type' => 'progress'])),
             'search' => (string) ($filters['search'] ?? ''),
-            'pathOptions' => collect(TrainingPath::cases())
-                ->map(fn (TrainingPath $path): array => [
-                    'value' => $path->value,
-                    'label' => $path->label(),
-                    'is_selected' => ($filters['path'] ?? '') === $path->value,
-                ])
-                ->all(),
             'mentorOptions' => $this->reports->mentors()
                 ->map(fn (User $mentor): array => [
                     'value' => (string) $mentor->id,
@@ -64,7 +56,6 @@ class CoachProgressReportPageService
                 ->withQueryString()
                 ->through(fn (User $participant): array => [
                     'participant_name' => $participant->name,
-                    'path' => $participant->trainingPathLabel(),
                     'reasons' => implode(' · ', $this->reports->atRiskReasons($participant)),
                 ]),
             'participantRows' => $this->reports->participants($filters)
@@ -76,17 +67,16 @@ class CoachProgressReportPageService
     }
 
     /**
-     * One participant progress row: name, email, path label, assigned mentor names (or "Not assigned") and the
+     * One participant progress row: name, email, assigned mentor names (or "Not assigned") and the
      * participant's submission count and passed Gate evaluation count.
      *
-     * @return array{name: string, email: string, path: string, mentors: string, submission_count: int, gate_count: int}
+     * @return array{name: string, email: string, mentors: string, submission_count: int, gate_count: int}
      */
     private function participantRow(User $participant): array
     {
         return [
             'name' => $participant->name,
             'email' => $participant->email,
-            'path' => $participant->trainingPathLabel(),
             'mentors' => $participant->assignedCoaches->pluck('name')->filter()->join(', ') ?: 'Not assigned',
             'submission_count' => $participant->activity_submissions_count,
             'gate_count' => $participant->passed_gate_evaluations_count,

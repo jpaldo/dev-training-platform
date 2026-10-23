@@ -45,11 +45,11 @@ class CoachOperationsTest extends TestCase
     {
         $this->seedProgram();
         $coach = User::factory()->create(['role' => 'coach']);
-        User::factory()->create(['training_path' => 'automation']);
+        User::factory()->create();
         $this->actingAs($coach)->get(route('coach.dashboard'))->assertOk();
-        $this->actingAs($coach)->get(route('coach.participants', ['path' => 'automation']))->assertOk();
+        $this->actingAs($coach)->get(route('coach.participants'))->assertOk();
         $this->actingAs($coach)->get(route('coach.reports'))->assertOk();
-        $this->actingAs($coach)->get(route('coach.reports.export', ['path' => 'automation']))->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
+        $this->actingAs($coach)->get(route('coach.reports.export'))->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
     }
 
     public function test_assigned_coach_can_view_weekly_video_from_participant_detail(): void
@@ -114,10 +114,9 @@ class CoachOperationsTest extends TestCase
         AttendanceSession::create(['user_id' => $automation->id, 'check_in_at' => now()->subHours(2), 'check_out_at' => now()->subHour(), 'total_seconds' => 3600]);
 
         $response = $this->actingAs($coach)->get(route('coach.participants'));
-        $response->assertOk()->assertSee('<table', false)->assertSee('Manual QA')->assertSee('Automation QA')->assertSee('Open Drive')->assertSee('target="_blank"', false)->assertSee('rel="noopener noreferrer"', false)->assertSee('CHECKED IN')->assertSee('CHECKED OUT')->assertSee('Not provided')->assertSee('Inspect');
+        $response->assertOk()->assertSee('<table', false)->assertDontSee('Manual QA')->assertDontSee('Automation QA')->assertSee('Open Drive')->assertSee('target="_blank"', false)->assertSee('rel="noopener noreferrer"', false)->assertSee('CHECKED IN')->assertSee('CHECKED OUT')->assertSee('Not provided')->assertSee('Inspect');
         $this->actingAs($coach)->get(route('coach.participants', ['search' => 'Manual Tester']))->assertOk()->assertSee('<strong class="wrap-break-word">Manual Tester</strong>', false)->assertDontSee('<strong class="wrap-break-word">Automation Tester</strong>', false);
         $this->actingAs($coach)->get(route('coach.participants', ['search' => 'automation@example.test']))->assertOk()->assertSee('Automation Tester');
-        $this->actingAs($coach)->get(route('coach.participants', ['path' => 'manual']))->assertOk()->assertSee('Manual Tester');
     }
 
     public function test_participant_list_shows_google_drive_status_to_coaches_and_admins_without_participant_controls(): void
@@ -146,14 +145,14 @@ class CoachOperationsTest extends TestCase
     {
         $this->seedProgram();
         $coach = User::factory()->create(['role' => 'coach']);
-        $participants = User::factory()->count(26)->create(['training_path' => 'manual']);
+        $participants = User::factory()->count(26)->create();
         AttendanceSession::create(['user_id' => $participants->last()->id, 'check_in_at' => now()->subHour(), 'check_out_at' => now(), 'total_seconds' => 3600]);
 
-        $firstPage = $this->actingAs($coach)->get(route('coach.participants', ['path' => 'manual']));
+        $firstPage = $this->actingAs($coach)->get(route('coach.participants', ['search' => 'example']));
         $firstPage->assertOk()->assertSee('of 26 participants')->assertDontSee('Daily Logs');
-        $firstPage->assertSee('name="path"', false)->assertSee('Manual QA');
+        $firstPage->assertSee('value="example"', false)->assertSee(e(route('coach.participants', ['search' => 'example', 'page' => 2])), false)->assertDontSee('name="path"', false);
 
-        $this->actingAs($coach)->get(route('coach.participants', ['path' => 'manual', 'page' => 2]))
+        $this->actingAs($coach)->get(route('coach.participants', ['search' => 'example', 'page' => 2]))
             ->assertOk()->assertSee($participants->last()->name);
     }
 
@@ -171,7 +170,7 @@ class CoachOperationsTest extends TestCase
         $response = $this->actingAs($coach)->get(route('coach.gates'));
         $response->assertOk()->assertSee('<table', false)->assertSee('Week 1')->assertSee('Week 2')->assertSee('Week 4')->assertSee('Gate Manual')->assertSee('Gate Automation')->assertSee('PASSED')->assertSee('Criteria')->assertSee('Video')->assertSee('Review Gate');
         $this->actingAs($coach)->get(route('coach.gates', ['search' => 'Gate Manual']))->assertOk()->assertSee('Gate Manual')->assertDontSee('Gate Automation');
-        $this->actingAs($coach)->get(route('coach.gates', ['week' => 1, 'path' => 'manual', 'status' => 'passed']))->assertOk()->assertSee('Gate Manual')->assertDontSee('Gate Automation');
+        $this->actingAs($coach)->get(route('coach.gates', ['week' => 1, 'status' => 'passed']))->assertOk()->assertSee('Gate Manual')->assertDontSee('Gate Automation');
         $this->actingAs($manual)->get(route('coach.gates'))->assertForbidden();
     }
 
@@ -284,8 +283,8 @@ class CoachOperationsTest extends TestCase
         $this->assertCount(2, $rows);
         $this->assertSame(['Participant', 'Employee ID'], array_slice($rows[0], 0, 2));
         $this->assertSame([$participant->name, 'EMP-3001'], array_slice($rows[1], 0, 2));
-        $this->assertSame('Decision', $rows[0][8]);
-        $this->assertSame('needs_revision', $rows[1][8]);
+        $this->assertSame(['Participant', 'Employee ID', 'Week', 'Activity', 'Status', 'Version', 'Submitted', 'Decision', 'Reviewed'], $rows[0]);
+        $this->assertSame('needs_revision', $rows[1][7]);
     }
 
     public function test_progress_export_prints_each_participants_employee_id_after_the_name(): void
@@ -301,7 +300,7 @@ class CoachOperationsTest extends TestCase
         $this->assertEqualsCanonicalizing([['Ada', 'EMP-5001', 'ada@example.com'], ['Ben', '', 'ben@example.com']], array_map(fn (array $row): array => array_slice($row, 0, 3), array_slice($rows, 1)));
     }
 
-    public function test_gate_export_applies_participant_week_status_and_path_filters(): void
+    public function test_gate_export_applies_participant_week_and_status_filters(): void
     {
         $this->seedProgram();
         $coach = User::factory()->create(['role' => 'coach']);
@@ -312,13 +311,13 @@ class CoachOperationsTest extends TestCase
         $w2 = $program->weeks()->where('week_number', 2)->first()->gates()->first();
         GateEvaluation::create(['training_gate_id' => $w1->id, 'user_id' => $manual->id, 'status' => 'passed', 'evaluated_at' => now()]);
         GateEvaluation::create(['training_gate_id' => $w2->id, 'user_id' => $automation->id, 'status' => 'failed', 'evaluated_at' => now()]);
-        $response = $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'gates', 'participant' => $manual->id, 'week' => 1, 'status' => 'passed', 'path' => 'manual']));
+        $response = $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'gates', 'participant' => $manual->id, 'week' => 1, 'status' => 'passed']));
         $response->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
         $this->assertStringContainsString($manual->name, $response->streamedContent());
         $this->assertStringContainsString(',1,"'.$w1->title.'",passed,', $response->streamedContent());
         $this->assertStringNotContainsString($automation->name, $response->streamedContent());
         $rows = array_map(str_getcsv(...), explode("\n", trim($response->streamedContent())));
-        $this->assertSame(['Participant', 'Employee ID'], array_slice($rows[0], 0, 2));
+        $this->assertSame(['Participant', 'Employee ID', 'Week', 'Gate', 'Status', 'Evaluated', 'Reviewer'], $rows[0]);
         $this->assertSame([$manual->name, 'EMP-4001'], array_slice($rows[1], 0, 2));
     }
 

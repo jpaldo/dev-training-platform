@@ -73,9 +73,9 @@ class ActivitySubmissionPageService
      * Data for a submitted version: the status summary, the labelled answers, the evidence, the coach reviews with the
      * published score and its dimension rows, and the submitted version history.
      *
-     * @return array{pathLabel: string, statusLabel: string, statusTone: string, responses: Collection<int|string, array{label: string, value: mixed, text: mixed}>, evidenceItems: Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, reviewRows: list<array{decision_label: string, tone: string, comments: ?string}>, finalScore: ?ActivityScore, dimensionRows: list<array{dimension: string, points: int, evidence_reasoning: string}>, isAwaitingRevision: bool, versionRows: list<array{version: SubmissionVersion, status_label: string, tone: string, is_current: bool}>}
+     * @return array{statusLabel: string, statusTone: string, responses: Collection<int|string, array{label: string, value: mixed, text: mixed}>, evidenceItems: Collection<int, array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, reviewRows: list<array{decision_label: string, tone: string, comments: ?string}>, finalScore: ?ActivityScore, dimensionRows: list<array{dimension: string, points: int, evidence_reasoning: string}>, isAwaitingRevision: bool, versionRows: list<array{version: SubmissionVersion, status_label: string, tone: string, is_current: bool}>}
      */
-    public function showData(User $participant, Activity $activity, SubmissionVersion $version): array
+    public function showData(Activity $activity, SubmissionVersion $version): array
     {
         $configured = collect($this->workflow->fieldDefinitions($activity))->mapWithKeys(fn (array $field): array => [$field['key'] => $field['label']])->all();
         $responses = collect($version->field_values ?? [])->map(fn (mixed $value, int|string $key): array => [
@@ -87,7 +87,6 @@ class ActivitySubmissionPageService
         $versions = $version->submission->versions;
 
         return [
-            'pathLabel' => $version->submission->participant->trainingPathLabel(),
             'statusLabel' => $version->status->label(),
             'statusTone' => $version->status->tone(),
             'responses' => $responses,

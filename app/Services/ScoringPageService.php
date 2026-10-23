@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivityScore;
@@ -100,8 +99,8 @@ class ScoringPageService
      * filter values and options and the matching participants with the score and completion of every active week of
      * the program and overall. The page has no single main action, so every button is secondary.
      *
-     * @param  array{search?: ?string, path?: ?string, week?: int|string|null, activity?: int|string|null, score_status?: ?string, band?: ?string, assigned_to_me?: bool|int|string|null}  $filters
-     * @return array{hasActiveProgram: bool, criteriaUrl: string, reportsUrl: string, search: string, pathOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, scoreStatusOptions: list<array{value: string, label: string, is_selected: bool}>, bandOptions: list<array{value: string, label: string, is_selected: bool}>, isAssignedToMe: bool, weekNumbers: list<int>, participants: LengthAwarePaginator<int, array{name: string, email: string, path: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, coach_names: string, scoring_url: string}>}
+     * @param  array{search?: ?string, week?: int|string|null, activity?: int|string|null, score_status?: ?string, band?: ?string, assigned_to_me?: bool|int|string|null}  $filters
+     * @return array{hasActiveProgram: bool, criteriaUrl: string, reportsUrl: string, search: string, weekOptions: list<array{value: string, label: string, is_selected: bool}>, scoreStatusOptions: list<array{value: string, label: string, is_selected: bool}>, bandOptions: list<array{value: string, label: string, is_selected: bool}>, isAssignedToMe: bool, weekNumbers: list<int>, participants: LengthAwarePaginator<int, array{name: string, email: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, coach_names: string, scoring_url: string}>}
      */
     public function indexData(User $viewer, array $filters): array
     {
@@ -114,7 +113,6 @@ class ScoringPageService
             'criteriaUrl' => route('coach.scoring.criteria'),
             'reportsUrl' => route('coach.scoring.reports'),
             'search' => (string) ($filters['search'] ?? ''),
-            'pathOptions' => $this->options(TrainingPath::options(), $filters['path'] ?? null),
             'weekOptions' => $this->weekOptions($filters['week'] ?? null),
             'scoreStatusOptions' => $this->options(self::SCORE_STATUS_OPTIONS, $filters['score_status'] ?? null),
             'bandOptions' => $this->options(self::BAND_OPTIONS, $filters['band'] ?? null),
@@ -129,7 +127,7 @@ class ScoringPageService
      * is), the overall score and completion, and per scored week its average, completion and the activity rows with
      * the link to score (or view the score of) each submitted version.
      *
-     * @return array{hasActiveProgram: bool, participantName: string, participantEmail: string, path: string, stats: list<array{label: string, value: string, note: ?string}>, weeks: list<array{number: int, heading: string, detail: string, rows: list<array{activity: string, score: string, band: string, status: string, action: ?array{label: string, url: string}}>}>}
+     * @return array{hasActiveProgram: bool, participantName: string, participantEmail: string, stats: list<array{label: string, value: string, note: ?string}>, weeks: list<array{number: int, heading: string, detail: string, rows: list<array{activity: string, score: string, band: string, status: string, action: ?array{label: string, url: string}}>}>}
      */
     public function participantData(User $participant): array
     {
@@ -140,7 +138,6 @@ class ScoringPageService
             'hasActiveProgram' => $program !== null,
             'participantName' => $participant->name,
             'participantEmail' => $participant->email,
-            'path' => $participant->trainingPathLabel(),
             'stats' => [
                 ['label' => 'OVERALL SCORE', 'value' => ($summary['average'] ?? '—').' / 100', 'note' => null],
                 [
@@ -205,9 +202,9 @@ class ScoringPageService
      * options, the scoring completion counts of the submitted versions matching the filters and their score-band
      * distribution. The page has no single main action, so every button is secondary.
      *
-     * @param  array{participant?: int|string|null, path?: ?string, week?: int|string|null, activity?: int|string|null, assigned_coach?: int|string|null, score_status?: ?string, band?: ?string, from?: ?string, to?: ?string}  $filters
+     * @param  array{participant?: int|string|null, week?: int|string|null, activity?: int|string|null, assigned_coach?: int|string|null, score_status?: ?string, band?: ?string, from?: ?string, to?: ?string}  $filters
      * @param  array<array-key, mixed>  $query
-     * @return array{scoresExportUrl: string, participantSummaryExportUrl: string, pathOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, scoreStatusOptions: list<array{value: string, label: string, is_selected: bool}>, bandOptions: list<array{value: string, label: string, is_selected: bool}>, stats: list<array{label: string, value: string}>, bandRows: list<array{band: string, count: int}>}
+     * @return array{scoresExportUrl: string, participantSummaryExportUrl: string, weekOptions: list<array{value: string, label: string, is_selected: bool}>, scoreStatusOptions: list<array{value: string, label: string, is_selected: bool}>, bandOptions: list<array{value: string, label: string, is_selected: bool}>, stats: list<array{label: string, value: string}>, bandRows: list<array{band: string, count: int}>}
      */
     public function reportsData(array $filters, array $query): array
     {
@@ -217,7 +214,6 @@ class ScoringPageService
         return [
             'scoresExportUrl' => route('coach.reports.scores', $query),
             'participantSummaryExportUrl' => route('coach.reports.participant-summary', $query),
-            'pathOptions' => $this->options(TrainingPath::options(), $filters['path'] ?? null),
             'weekOptions' => $this->weekOptions($filters['week'] ?? null),
             'scoreStatusOptions' => $this->options(self::SCORE_STATUS_OPTIONS, $filters['score_status'] ?? null),
             'bandOptions' => $this->options(self::BAND_OPTIONS, $filters['band'] ?? null),
@@ -231,7 +227,7 @@ class ScoringPageService
     /**
      * The scoring completion page: the completion counts of the submitted versions matching the filters.
      *
-     * @param  array{participant?: int|string|null, path?: ?string, week?: int|string|null, activity?: int|string|null, assigned_coach?: int|string|null, score_status?: ?string, band?: ?string, from?: ?string, to?: ?string}  $filters
+     * @param  array{participant?: int|string|null, week?: int|string|null, activity?: int|string|null, assigned_coach?: int|string|null, score_status?: ?string, band?: ?string, from?: ?string, to?: ?string}  $filters
      * @return array{stats: list<array{label: string, value: string}>}
      */
     public function completionData(array $filters): array
@@ -295,7 +291,6 @@ class ScoringPageService
     {
         return User::query()
             ->where('role', UserRole::Participant)
-            ->when($filters['path'] ?? null, fn (Builder $query, string $path): Builder => $query->where('training_path', $path))
             ->when($filters['search'] ?? null, fn (Builder $query, string $search): Builder => $query->where(
                 fn (Builder $searchQuery): Builder => $searchQuery->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"),
             ))
@@ -327,14 +322,13 @@ class ScoringPageService
      * completion, the overall average and completion, the assigned coaches and the link to the participant's scoring.
      *
      * @param  array{weeks: \Illuminate\Support\Collection<int, array{completed: int, total: int, average: ?int}>, completed: int, total: int, average: ?int}  $summary  the participant's ScoringService summary
-     * @return array{name: string, email: string, path: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, coach_names: string, scoring_url: string}
+     * @return array{name: string, email: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, coach_names: string, scoring_url: string}
      */
     private function overviewRow(User $participant, array $summary): array
     {
         return [
             'name' => $participant->name,
             'email' => $participant->email,
-            'path' => $participant->trainingPathLabel(),
             'weeks' => $summary['weeks']
                 ->map(fn (array $week): array => [
                     'average' => $week['average'],

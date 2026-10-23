@@ -21,7 +21,7 @@ class SubmissionVersionPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_summary_shows_the_version_status_path_and_responses(): void
+    public function test_summary_shows_the_version_status_and_responses(): void
     {
         [$participant, $week, $activity] = $this->activityFixture();
         $version = $this->submittedVersion($participant, $activity, 'submitted', [
@@ -32,13 +32,12 @@ class SubmissionVersionPageTest extends TestCase
 
         $this->actingAs($participant)->get(route('training.submission.show', [$week, $activity, $version]))
             ->assertOk()
-            ->assertSee($activity->title.' · Manual QA')
             ->assertSeeInOrder(['Status</dt>', '>Submitted</span>', 'Submission version</dt>', '>1</dd>', 'Participant note', 'Checked on staging only.'], false)
             ->assertSeeInOrder(['Activity responses', 'Finding', 'Login fails on retry', 'Checks', '&quot;source&quot;: &quot;ok&quot;', 'Prompt / output history', 'Prompt 1', 'Generate cases', 'AI Output 1', 'Case list'], false)
             ->assertDontSee('submission-main-action', false);
     }
 
-    public function test_summary_shows_the_shared_label_of_an_automation_manual_path(): void
+    public function test_summary_does_not_show_a_training_path(): void
     {
         [$participant, $week, $activity] = $this->activityFixture();
         $participant->update(['training_path' => 'automation_manual']);
@@ -46,7 +45,8 @@ class SubmissionVersionPageTest extends TestCase
 
         $this->actingAs($participant)->get(route('training.submission.show', [$week, $activity, $version]))
             ->assertOk()
-            ->assertSee($activity->title.' · Automation / Manual QA');
+            ->assertSee(e($activity->title).'</p>', false)
+            ->assertDontSee('Automation / Manual');
     }
 
     public function test_evidence_rows_distinguish_links_and_text_evidence(): void

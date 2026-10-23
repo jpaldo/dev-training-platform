@@ -21,19 +21,10 @@
 
         <x-ui.report-nav current="progress" />
 
-        <x-ui.card as="form" method="GET" action="{{ route('coach.reports') }}" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_repeat(2,minmax(0,1fr))_auto_auto] lg:items-end" aria-label="Progress filters">
+        <x-ui.card as="form" method="GET" action="{{ route('coach.reports') }}" class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_auto] lg:items-end" aria-label="Progress filters">
             <div class="grid min-w-0 gap-2 md:col-span-2 lg:col-span-1">
                 <label for="report-search" class="{{ $labelClasses }}">Participant</label>
                 <input id="report-search" name="search" value="{{ $search }}" placeholder="Name or email" class="{{ $controlClasses }}">
-            </div>
-            <div class="grid min-w-0 gap-2">
-                <label for="report-path" class="{{ $labelClasses }}">Training Path</label>
-                <select id="report-path" name="path" class="{{ $controlClasses }}">
-                    <option value="">All paths</option>
-                    @foreach($pathOptions as $option)
-                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
-                    @endforeach
-                </select>
             </div>
             <div class="grid min-w-0 gap-2">
                 <label for="report-mentor" class="{{ $labelClasses }}">Mentor</label>
@@ -70,7 +61,6 @@
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Training Path</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Reasons</th>
                             </tr>
                         </thead>
@@ -78,9 +68,6 @@
                             @foreach($atRiskRows as $row)
                                 <tr data-at-risk-row>
                                     <th scope="row" class="{{ $cellClasses }} wrap-break-word">{{ $row['participant_name'] }}</th>
-                                    <td class="{{ $cellClasses }}">
-                                        <x-ui.badge class="whitespace-nowrap">{{ $row['path'] }}</x-ui.badge>
-                                    </td>
                                     <td class="{{ $cellClasses }} wrap-break-word">{{ $row['reasons'] }}</td>
                                 </tr>
                             @endforeach
@@ -106,7 +93,6 @@
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Training Path</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Mentor</th>
                                 <th scope="col" class="{{ $headerCellClasses }} text-right">Submissions</th>
                                 <th scope="col" class="{{ $headerCellClasses }} text-right">Gates</th>
@@ -121,9 +107,6 @@
                                             <span class="wrap-break-word text-muted">{{ $row['email'] }}</span>
                                         </span>
                                     </th>
-                                    <td class="{{ $cellClasses }}">
-                                        <x-ui.badge class="whitespace-nowrap">{{ $row['path'] }}</x-ui.badge>
-                                    </td>
                                     <td class="{{ $cellClasses }} wrap-break-word">{{ $row['mentors'] }}</td>
                                     <td class="{{ $cellClasses }} text-right tabular-nums">{{ $row['submission_count'] }}</td>
                                     <td class="{{ $cellClasses }} text-right tabular-nums">{{ $row['gate_count'] }}</td>

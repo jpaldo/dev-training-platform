@@ -20,16 +20,7 @@
             </div>
         </header>
 
-        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]" aria-label="Scoring report filters">
-            <div class="grid min-w-0 gap-2">
-                <label for="report-path" class="{{ $labelClasses }}">QA Path</label>
-                <select id="report-path" name="path" class="{{ $controlClasses }}">
-                    <option value="">All</option>
-                    @foreach($pathOptions as $option)
-                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
-                    @endforeach
-                </select>
-            </div>
+        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end lg:grid-cols-[repeat(3,minmax(0,1fr))_auto]" aria-label="Scoring report filters">
             <div class="grid min-w-0 gap-2">
                 <label for="report-week" class="{{ $labelClasses }}">Week</label>
                 <select id="report-week" name="week" class="{{ $controlClasses }}">

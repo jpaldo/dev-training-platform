@@ -21,9 +21,9 @@ class MissingSubmissionReportController extends Controller
 
         return response()->streamDownload(function () use ($rows): void {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Participant', 'Employee ID', 'Email', 'QA Path', 'Mentor', 'Category', 'Week', 'Requirement', 'Expected', 'Submitted', 'Missing', 'Evidences', 'Status']);
+            fputcsv($out, ['Participant', 'Employee ID', 'Email', 'Mentor', 'Category', 'Week', 'Requirement', 'Expected', 'Submitted', 'Missing', 'Evidences', 'Status']);
             foreach ($rows as $row) {
-                fputcsv($out, [$row['participant_name'], $row['employee_id'], $row['email'], $row['path'], $row['mentor'], $row['category'], $row['week'], $row['requirement'], $row['expected'], $row['submitted'], $row['missing'], $row['evidences'], $row['status']]);
+                fputcsv($out, [$row['participant_name'], $row['employee_id'], $row['email'], $row['mentor'], $row['category'], $row['week'], $row['requirement'], $row['expected'], $row['submitted'], $row['missing'], $row['evidences'], $row['status']]);
             }
             fclose($out);
         }, 'missing-submissions.csv', ['Content-Type' => 'text/csv']);

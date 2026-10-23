@@ -4,7 +4,6 @@ namespace App\Http\Requests;
 
 use App\Enums\GateEvaluationStatus;
 use App\Enums\SubmissionStatus;
-use App\Enums\TrainingPath;
 use App\Models\TrainingWeek;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -30,7 +29,6 @@ class FilterReviewQueueRequest extends FormRequest
         return [
             'week' => ['nullable', 'integer', Rule::exists(TrainingWeek::class, 'week_number')],
             'activity' => ['nullable', 'integer'],
-            'path' => ['nullable', Rule::enum(TrainingPath::class)],
             'status' => ['nullable', Rule::in([...SubmissionStatus::awaitingReview(), SubmissionStatus::NeedsRevision, GateEvaluationStatus::NotReady, GateEvaluationStatus::Failed, GateEvaluationStatus::Passed])],
             'participant' => ['nullable', 'integer'],
         ];

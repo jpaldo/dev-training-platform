@@ -10,7 +10,7 @@
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>SCORING · PARTICIPANT</x-ui.eyebrow>
             <x-ui.page-title>{{ $participantName }}</x-ui.page-title>
-            <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $participantEmail }} · {{ $path }}</p>
+            <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $participantEmail }}</p>
         </header>
 
         @unless($hasActiveProgram)

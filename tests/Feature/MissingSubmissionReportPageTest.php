@@ -46,13 +46,15 @@ class MissingSubmissionReportPageTest extends TestCase
                 'Missing Activities', '>1</dd>',
                 'Missing Video Recordings', '>1</dd>',
                 'Actionable missing requirements', '2 row(s)',
-                'href="'.e(route('coach.participants.show', $ada)).'"', '>Ada Alpha</a>', '>ada@example.test</span>', '>Automation / Manual</span>',
+                'href="'.e(route('coach.participants.show', $ada)).'"', '>Ada Alpha</a>', '>ada@example.test</span>',
                 '>Admin Blake, Coach Avery</td>', '>Video Recording</td>', '>Week 2</td>', '<strong>Weekly Video Recording</strong>',
                 '>1</td>', '>0</td>', '>1</td>', '>0</td>', '>Not Uploaded</span>',
                 '>Ada Alpha</a>', '>Activities</td>', '>Week 2</td>', '<strong>Explore checkout</strong>',
                 '>1</td>', '>0</td>', '>1</td>', '>0</td>', '>Not Submitted</span>',
             ], false)
             ->assertDontSee('No missing submissions found for the selected filters.')
+            ->assertDontSee('QA Path')
+            ->assertDontSee('Automation / Manual')
             ->assertDontSee('Daily Log')
             ->assertDontSee('General Training')
             ->assertDontSee('Log Date');
@@ -74,12 +76,10 @@ class MissingSubmissionReportPageTest extends TestCase
         $mentor = User::factory()->create(['role' => 'coach', 'name' => 'Mentor Ely']);
         $participants = User::factory()->count(26)
             ->sequence(fn (Sequence $sequence): array => ['name' => sprintf('Page Person %02d', $sequence->index + 1)])
-            ->create(['training_path' => 'automation']);
+            ->create();
         $mentor->assignedParticipants()->attach($participants->modelKeys());
-        $manual = User::factory()->create(['name' => 'Page Manual', 'training_path' => 'manual']);
-        $manual->assignedCoaches()->attach($mentor->id);
+        User::factory()->create(['name' => 'Page Unassigned']);
         $filters = [
-            'path' => 'automation',
             'mentor' => $mentor->id,
             'category' => 'activities',
             'week' => 2,
@@ -89,7 +89,7 @@ class MissingSubmissionReportPageTest extends TestCase
 
         $firstPage = $this->actingAs($mentor)->get(route('coach.reports.missing-submissions', $filters))
             ->assertOk()
-            ->assertSee('<option value="automation" selected>Automation</option>', false)
+            ->assertDontSee('name="path"', false)
             ->assertSee('<option value="'.$mentor->id.'" selected>Mentor Ely</option>', false)
             ->assertSee('<option value="activities" selected>Activities</option>', false)
             ->assertSee('<option value="2" selected>Week 2</option>', false)
@@ -99,7 +99,7 @@ class MissingSubmissionReportPageTest extends TestCase
             ->assertSeeInOrder(['Participants With Missing Requirements', '>26</dd>', 'Missing Activities', '>26</dd>', 'Missing Video Recordings', '>0</dd>'], false)
             ->assertSee('26 row(s)')
             ->assertSee(e(route('coach.reports.missing-submissions', [...$filters, 'page' => 2])), false)
-            ->assertDontSee('Page Manual</a>', false);
+            ->assertDontSee('Page Unassigned</a>', false);
 
         $this->assertSame(25, substr_count($firstPage->getContent(), 'data-missing-row'));
 
@@ -108,6 +108,30 @@ class MissingSubmissionReportPageTest extends TestCase
             ->assertSee('>Page Person 26</a>', false);
 
         $this->assertSame(1, substr_count($secondPage->getContent(), 'data-missing-row'));
+    }
+
+    public function test_an_old_path_filter_is_ignored_by_the_report_and_its_export(): void
+    {
+        $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);
+        Activity::factory()->for($week, 'week')->create(['title' => 'Explore checkout']);
+        User::factory()->create(['name' => 'Mia Manual', 'training_path' => 'manual']);
+        User::factory()->create(['name' => 'Abe Automation', 'training_path' => 'automation']);
+        $coach = User::factory()->create(['role' => 'coach']);
+
+        $this->actingAs($coach)->get(route('coach.reports.missing-submissions', ['path' => 'automation']))
+            ->assertOk()
+            ->assertSessionHasNoErrors()
+            ->assertSee('>Mia Manual</a>', false)
+            ->assertSee('>Abe Automation</a>', false);
+
+        $csv = $this->actingAs($coach)->get(route('coach.reports.missing-submissions.export', ['path' => 'automation']))
+            ->assertOk()
+            ->assertSessionHasNoErrors()
+            ->streamedContent();
+        $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
+
+        $this->assertSame(['Participant', 'Employee ID', 'Email', 'Mentor', 'Category', 'Week', 'Requirement', 'Expected', 'Submitted', 'Missing', 'Evidences', 'Status'], $rows[0]);
+        $this->assertEqualsCanonicalizing(['Mia Manual', 'Abe Automation'], array_column(array_slice($rows, 1), 0));
     }
 
     public function test_week_one_requirements_are_listed_and_the_week_filter_offers_every_week_of_the_program(): void

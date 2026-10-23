@@ -76,7 +76,7 @@ class CoachReviewQueuePageTest extends TestCase
             ->assertDontSee('>Revision 1</h2>', false);
     }
 
-    public function test_filter_form_offers_the_active_programs_weeks_activities_paths_statuses_and_participants(): void
+    public function test_filter_form_offers_the_active_programs_weeks_activities_statuses_and_participants(): void
     {
         $coach = User::factory()->create(['role' => 'coach']);
         $program = Program::factory()->create();
@@ -90,19 +90,19 @@ class CoachReviewQueuePageTest extends TestCase
         $participant = User::factory()->create(['name' => 'Zed Participant']);
         User::factory()->create(['name' => 'Amy Participant']);
 
-        $response = $this->actingAs($coach)->get(route('coach.reviews', ['week' => 3, 'activity' => $charter->id, 'path' => 'automation', 'status' => 'under_review', 'participant' => $participant->id]))
+        $response = $this->actingAs($coach)->get(route('coach.reviews', ['week' => 3, 'activity' => $charter->id, 'status' => 'under_review', 'participant' => $participant->id]))
             ->assertOk()
             ->assertSeeInOrder([
                 'action="'.route('coach.reviews').'"', 'aria-label="Filter submissions"',
                 'for="review-participant"', '<option value="">All participants</option>', '>Amy Participant</option>', '<option value="'.$participant->id.'" selected>Zed Participant</option>',
                 'for="review-week"', '<option value="">All weeks</option>', '<option value="1" >Week 1</option>', '<option value="2" >Week 2</option>', '<option value="3" selected>Week 3</option>',
                 'for="review-activity"', '<option value="'.$checklist->id.'" >Week 2 · Validation checklist</option>', '<option value="'.$charter->id.'" selected>Week 3 · Exploratory charter</option>',
-                'for="review-path"', '<option value="manual" >Manual</option>', '<option value="automation" selected>Automation</option>', '<option value="automation_manual" >Automation / Manual</option>',
                 'for="review-status"', '<option value="submitted" >Submitted</option>', '<option value="resubmitted" >Resubmitted</option>', '<option value="under_review" selected>Under review</option>', '<option value="needs_revision" >Needs revision</option>',
                 '>Filter</button>', 'href="'.route('coach.reviews').'"', '>Clear</a>',
                 'No submissions match the selected filters.',
             ], false)
             ->assertDontSee('Week 4</option>', false)
+            ->assertDontSee('for="review-path"', false)
             ->assertDontSee('Retired activity')
             ->assertDontSee('Later program activity')
             ->assertDontSee('No submissions to review.');
@@ -132,7 +132,7 @@ class CoachReviewQueuePageTest extends TestCase
             ->assertDontSee('>Tom WeekTwo</h2>', false);
     }
 
-    public function test_week_activity_path_and_participant_filters_narrow_the_queue(): void
+    public function test_week_activity_and_participant_filters_narrow_the_queue_and_an_old_path_filter_is_ignored(): void
     {
         $coach = User::factory()->create(['role' => 'coach']);
         $weekTwoActivity = Activity::factory()->for(TrainingWeek::factory()->state(['week_number' => 2]), 'week')->create();
@@ -149,7 +149,7 @@ class CoachReviewQueuePageTest extends TestCase
         $this->actingAs($coach)->get(route('coach.reviews', ['activity' => $weekTwoActivity->id]))
             ->assertOk()->assertSee('>Manual Two</h2>', false)->assertSee('>Automation Two</h2>', false)->assertDontSee('>Manual Three</h2>', false);
         $this->actingAs($coach)->get(route('coach.reviews', ['path' => 'automation']))
-            ->assertOk()->assertSee('>Automation Two</h2>', false)->assertDontSee('>Manual Two</h2>', false)->assertDontSee('>Manual Three</h2>', false);
+            ->assertOk()->assertSessionHasNoErrors()->assertSee('>Automation Two</h2>', false)->assertSee('>Manual Two</h2>', false)->assertSee('>Manual Three</h2>', false)->assertDontSee('>Clear</a>', false);
         $this->actingAs($coach)->get(route('coach.reviews', ['participant' => $manualTwo->user_id]))
             ->assertOk()->assertSee('>Manual Two</h2>', false)->assertDontSee('>Automation Two</h2>', false)->assertDontSee('>Manual Three</h2>', false);
         $this->actingAs($coach)->get(route('coach.reviews', ['participant' => $automation->user_id, 'week' => 3]))

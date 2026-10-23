@@ -237,7 +237,7 @@ class ScoringTest extends TestCase
     public function test_scoring_reports_and_filters_are_available_to_coaches(): void
     {
         [$participant, $coach, $version] = $this->fixture();
-        $this->actingAs($coach)->get(route('coach.scoring.reports', ['path' => 'automation']))->assertOk()->assertSee('Scoring reports');
+        $this->actingAs($coach)->get(route('coach.scoring.reports'))->assertOk()->assertSee('Scoring reports');
         $this->actingAs($coach)->get(route('coach.reports.scores', ['participant' => $participant->id]))->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8')->assertDownload('activity-scores.csv');
         $this->actingAs($coach)->get(route('coach.reports.participant-summary'))->assertOk()->assertDownload('participant-score-summary.csv');
     }

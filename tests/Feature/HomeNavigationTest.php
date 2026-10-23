@@ -151,11 +151,9 @@ class HomeNavigationTest extends TestCase
         $this->actingAs($participant)->get(route('training.gates.show', [$week1, $gate]))->assertOk()->assertSee($gate->criteria->first()->title)->assertSee('Awaiting Review');
     }
 
-    public function test_combined_training_path_is_displayed_and_receives_both_path_requirements(): void
+    public function test_combined_training_path_is_eligible_for_both_path_requirements(): void
     {
-        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['training_path' => 'automation_manual']);
-        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('Automation / Manual');
         $this->assertSame([TrainingPath::Manual, TrainingPath::Automation, TrainingPath::AutomationManual], $participant->eligibleTrainingPaths());
     }
 

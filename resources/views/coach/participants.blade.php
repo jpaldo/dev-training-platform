@@ -22,19 +22,10 @@
             <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
         @endif
 
-        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] md:items-end" aria-label="Filter participants">
+        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end" aria-label="Filter participants">
             <div class="grid min-w-0 gap-2">
                 <label for="participant-search" class="{{ $labelClasses }}">Search participant or email</label>
                 <input id="participant-search" name="search" value="{{ $search }}" placeholder="Search participant or email…" class="{{ $controlClasses }}">
-            </div>
-            <div class="grid min-w-0 gap-2">
-                <label for="participant-path" class="{{ $labelClasses }}">QA Path</label>
-                <select id="participant-path" name="path" class="{{ $controlClasses }}">
-                    <option value="">All paths</option>
-                    @foreach($pathOptions as $option)
-                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
-                    @endforeach
-                </select>
             </div>
             <x-ui.button variant="secondary" type="submit">Filter</x-ui.button>
         </x-ui.card>
@@ -47,7 +38,6 @@
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">QA Path</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Assigned Coach</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Training Drive</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Google Drive</th>
@@ -66,7 +56,6 @@
                                             <span class="wrap-break-word text-muted">{{ $participant['email'] }}</span>
                                         </span>
                                     </th>
-                                    <td class="{{ $cellClasses }}">{{ $participant['path'] }}</td>
                                     <td class="{{ $cellClasses }}">
                                         <span class="grid justify-items-start gap-1">
                                             @if($participant['access_label'])

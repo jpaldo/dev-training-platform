@@ -2,10 +2,8 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\TrainingPath;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class FilterAttendanceSessionsRequest extends FormRequest
 {
@@ -28,7 +26,6 @@ class FilterAttendanceSessionsRequest extends FormRequest
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
             'participant' => ['nullable', 'integer'],
-            'path' => ['nullable', Rule::enum(TrainingPath::class)],
             'status' => ['nullable', 'in:active,completed'],
         ];
     }

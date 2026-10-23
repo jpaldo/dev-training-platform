@@ -27,7 +27,7 @@
         <header class="grid gap-2">
             <x-ui.eyebrow>PARTICIPANT DASHBOARD</x-ui.eyebrow>
             <x-ui.page-title>{{ $program?->name ?? 'No active program' }}</x-ui.page-title>
-            <p class="m-0 text-muted">{{ $user->name }} · {{ $user->trainingPathLabel() }} QA · Start at Week 2.</p>
+            <p class="m-0 text-muted">{{ $user->name }} · Start at Week 2.</p>
         </header>
 
         @unless($program)
@@ -60,10 +60,6 @@
             <div class="grid min-w-0 grow basis-44 content-start gap-1.5">
                 <span class="text-xs font-black tracking-[0.1em] text-muted uppercase">Mentor</span>
                 <span class="font-extrabold wrap-anywhere">{{ $user->assignedCoaches->pluck('name')->join(', ') ?: 'Not assigned' }}</span>
-            </div>
-            <div class="grid min-w-0 grow basis-44 content-start gap-1.5">
-                <span class="text-xs font-black tracking-[0.1em] text-muted uppercase">Training path</span>
-                <span class="font-extrabold wrap-anywhere">{{ $user->trainingPathLabel() }}</span>
             </div>
             @if($notificationSummary['next'])
                 <x-ui.alert class="grid min-w-0 grow basis-64 content-start justify-items-start gap-2 p-4">

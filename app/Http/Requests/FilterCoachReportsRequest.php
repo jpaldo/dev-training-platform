@@ -2,10 +2,8 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\TrainingPath;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class FilterCoachReportsRequest extends FormRequest
 {
@@ -26,7 +24,6 @@ class FilterCoachReportsRequest extends FormRequest
     {
         return [
             'search' => ['nullable', 'string', 'max:100'],
-            'path' => ['nullable', Rule::enum(TrainingPath::class)],
             'mentor' => ['nullable', 'integer'],
         ];
     }

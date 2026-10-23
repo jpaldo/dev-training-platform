@@ -41,15 +41,6 @@
                 </select>
             </div>
             <div class="grid min-w-0 gap-2">
-                <label for="review-path" class="{{ $labelClasses }}">QA Path</label>
-                <select id="review-path" name="path" class="{{ $controlClasses }}">
-                    <option value="">All paths</option>
-                    @foreach($pathOptions as $option)
-                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="grid min-w-0 gap-2">
                 <label for="review-status" class="{{ $labelClasses }}">Status</label>
                 <select id="review-status" name="status" class="{{ $controlClasses }}">
                     <option value="">All statuses</option>

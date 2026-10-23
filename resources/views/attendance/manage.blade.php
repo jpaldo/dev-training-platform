@@ -20,7 +20,7 @@
         </x-ui.main-action>
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
-            <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto] xl:items-end" aria-label="Filter attendance">
+            <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end" aria-label="Filter attendance">
                 <div class="grid min-w-0 gap-2">
                     <label for="attendance-date-from" class="{{ $labelClasses }}">From</label>
                     <input id="attendance-date-from" type="date" name="date_from" value="{{ $dateFrom }}" class="{{ $controlClasses }}">
@@ -34,15 +34,6 @@
                     <select id="attendance-participant" name="participant" class="{{ $controlClasses }}">
                         <option value="">All participants</option>
                         @foreach($participantOptions as $option)
-                            <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="grid min-w-0 gap-2">
-                    <label for="attendance-path" class="{{ $labelClasses }}">QA Path</label>
-                    <select id="attendance-path" name="path" class="{{ $controlClasses }}">
-                        <option value="">All paths</option>
-                        @foreach($pathOptions as $option)
                             <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
                         @endforeach
                     </select>
@@ -70,7 +61,6 @@
                             <thead>
                                 <tr>
                                     <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                                    <th scope="col" class="{{ $headerCellClasses }}">QA Path</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">Check in</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">Check out</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">Total hours</th>
@@ -86,7 +76,6 @@
                                                 <span class="wrap-break-word text-muted">{{ $session['participant_email'] }}</span>
                                             </span>
                                         </td>
-                                        <td class="{{ $cellClasses }} whitespace-nowrap">{{ $session['path'] }}</td>
                                         <td class="{{ $cellClasses }} whitespace-nowrap">{{ $session['check_in'] }}</td>
                                         <td class="{{ $cellClasses }} whitespace-nowrap">{{ $session['check_out'] }}</td>
                                         <td class="{{ $cellClasses }} whitespace-nowrap">{{ $session['total_hours'] }}</td>

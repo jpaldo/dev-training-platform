@@ -12,7 +12,7 @@
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>ADMIN · USERS</x-ui.eyebrow>
             <x-ui.page-title>{{ $title }}</x-ui.page-title>
-            <p class="m-0 leading-relaxed text-muted">Choose a friendly Access Type; the existing role and QA path are assigned automatically.</p>
+            <p class="m-0 leading-relaxed text-muted">Choose a friendly Access Type; the role is assigned automatically.</p>
         </header>
 
         <x-ui.main-action id="admin-user-main-action">

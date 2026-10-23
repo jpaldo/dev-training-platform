@@ -29,7 +29,6 @@ class ScoringReportsPageTest extends TestCase
             'href="'.route('coach.reports.scores').'"', '>Activity Scores CSV</a>',
             'href="'.route('coach.reports.participant-summary').'"', '>Participant Summary CSV</a>',
             'aria-label="Scoring report filters"',
-            'for="report-path"', '>QA Path</label>', '<option value="">All</option>', '>Manual</option>', '>Automation</option>', '>Automation / Manual</option>',
             'for="report-week"', '>Week</label>', '>Week 2</option>', '>Week 3</option>', '>Week 4</option>',
             'for="report-status"', '>Score status</label>', '>Scored</option>', '>Unscored</option>',
             'for="report-band"', '>Performance band</label>', '>Exemplary</option>', '>Minimal</option>',
@@ -45,23 +44,21 @@ class ScoringReportsPageTest extends TestCase
             '>Minimal</th>', '>0</td>',
             '>Not Scored</th>', '>2</td>',
         ], false);
-        $response->assertDontSee('from-brand to-brand-deep', false);
+        $response->assertDontSee('from-brand to-brand-deep', false)->assertDontSee('QA Path')->assertDontSee('name="path"', false);
     }
 
     public function test_filters_keep_their_values_narrow_the_counts_and_carry_over_to_the_exports(): void
     {
         $this->submittedVersions();
-        $filters = ['path' => 'automation', 'week' => 2, 'score_status' => 'scored', 'band' => 'Proficient'];
+        $filters = ['week' => 2, 'score_status' => 'scored', 'band' => 'Proficient'];
 
         $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.scoring.reports', $filters))
             ->assertOk()
             ->assertSee('href="'.e(route('coach.reports.scores', $filters)).'"', false)
             ->assertSee('href="'.e(route('coach.reports.participant-summary', $filters)).'"', false)
-            ->assertSee('<option value="automation" selected>Automation</option>', false)
             ->assertSee('<option value="2" selected>Week 2</option>', false)
             ->assertSee('<option value="scored" selected>Scored</option>', false)
             ->assertSee('<option value="Proficient" selected>Proficient</option>', false)
-            ->assertDontSee('<option value="manual" selected>', false)
             ->assertSeeInOrder([
                 '>COMPLETED ACTIVITIES</dt>', '>1</dd>',
                 '>SCORED ACTIVITIES</dt>', '>1</dd>',
@@ -77,7 +74,7 @@ class ScoringReportsPageTest extends TestCase
         $this->submittedVersions();
         $coach = User::factory()->create(['role' => 'coach']);
 
-        $this->actingAs($coach)->get(route('coach.reports.scoring-completion', ['path' => 'automation']))
+        $this->actingAs($coach)->get(route('coach.reports.scoring-completion', ['week' => 2]))
             ->assertOk()
             ->assertSeeInOrder([
                 'SCORING COMPLETION',
@@ -94,6 +91,25 @@ class ScoringReportsPageTest extends TestCase
                 '>SCORED ACTIVITIES</dt>', '>0</dd>',
                 '>SCORING COMPLETION</dt>', '>0%</dd>',
             ], false);
+    }
+
+    public function test_an_old_path_filter_is_ignored_by_the_pages_and_the_exports(): void
+    {
+        $this->submittedVersions();
+        $coach = User::factory()->create(['role' => 'coach']);
+
+        foreach (['coach.scoring.reports', 'coach.reports.scoring-completion'] as $routeName) {
+            $this->actingAs($coach)->get(route($routeName, ['path' => 'automation']))
+                ->assertOk()
+                ->assertSessionHasNoErrors()
+                ->assertSeeInOrder(['>COMPLETED ACTIVITIES</dt>', '>3</dd>', '>SCORED ACTIVITIES</dt>', '>1</dd>'], false);
+        }
+
+        $scores = $this->actingAs($coach)->get(route('coach.reports.scores', ['path' => 'automation']))->assertOk()->assertSessionHasNoErrors()->streamedContent();
+        $summary = $this->actingAs($coach)->get(route('coach.reports.participant-summary', ['path' => 'automation']))->assertOk()->assertSessionHasNoErrors()->streamedContent();
+
+        $this->assertCount(4, explode("\n", trim($scores)));
+        $this->assertCount(3, explode("\n", trim($summary)));
     }
 
     public function test_a_draft_score_is_matched_by_the_unscored_filter_and_not_by_the_scored_or_band_filters(): void
@@ -123,9 +139,10 @@ class ScoringReportsPageTest extends TestCase
     }
 
     /**
-     * A program of Weeks 2 to 4 (Week 4 without activities) with three submitted versions and one draft: an
-     * Automation QA participant with a published Proficient score in Week 2 and a draft Developing score in Week 3,
-     * and a Manual QA participant with an unscored Week 2 version and a draft version (never counted).
+     * A program of Weeks 2 to 4 (Week 4 without activities) with three submitted versions and one draft: a
+     * participant (with the former Automation path) with a published Proficient score in Week 2 and a draft Developing
+     * score in Week 3, and a participant (with the former Manual path) with an unscored Week 2 version and a draft
+     * version (never counted).
      */
     private function submittedVersions(): void
     {

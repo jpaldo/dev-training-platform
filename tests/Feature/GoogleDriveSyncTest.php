@@ -116,9 +116,10 @@ class GoogleDriveSyncTest extends TestCase
         $this->assertSame(1, substr_count($contentTypes, '/xl/worksheets/sheet'));
         $this->assertSame(1, substr_count($sheet, '<row '));
         $this->assertStringContainsString('>Participant</t>', $sheet);
+        $this->assertStringNotContainsString('QA Path', $sheet);
     }
 
-    public function test_participant_week_workbook_contains_no_internal_scoring_columns(): void
+    public function test_participant_week_workbook_contains_no_internal_scoring_or_path_columns(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['training_path' => 'manual']);
@@ -143,6 +144,8 @@ class GoogleDriveSyncTest extends TestCase
         $this->assertStringNotContainsString('Total Score', $xml);
         $this->assertStringNotContainsString('>D1<', $xml);
         $this->assertStringNotContainsString('Score Band', $xml);
+        $this->assertStringNotContainsString('QA Path', $xml);
+        $this->assertStringNotContainsString('>Manual</t>', $xml);
     }
 
     public function test_week_workbook_prefers_the_latest_submitted_version_over_a_newer_revision_draft(): void

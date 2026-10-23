@@ -42,7 +42,7 @@ class CoachGateReviewPageTest extends TestCase
             ->assertSeeInOrder([
                 'WEEK 2 · GATE REVIEW',
                 e($gate->title),
-                'Participant: '.e($participant->name),
+                'Participant: '.e($participant->name).'</p>',
                 'id="gate-review-main-action"',
                 'form="gate-review-form"',
                 'Save Gate Evaluation',

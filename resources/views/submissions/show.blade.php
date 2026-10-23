@@ -15,7 +15,7 @@
         </header>
 
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-label="Submission summary">
-            <p class="m-0 text-muted">{{ $activity->title }} · {{ $pathLabel }} QA</p>
+            <p class="m-0 text-muted">{{ $activity->title }}</p>
             <dl class="m-0 grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div class="grid content-start justify-items-start gap-1">
                     <dt class="text-xs font-bold tracking-[0.08em] text-subtle uppercase">Status</dt>

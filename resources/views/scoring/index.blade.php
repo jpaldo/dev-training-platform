@@ -26,19 +26,10 @@
             <x-ui.alert tone="warning" role="status">No training program is active yet.</x-ui.alert>
         @endunless
 
-        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto_auto]" aria-label="Filter participants">
+        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto_auto]" aria-label="Filter participants">
             <div class="grid min-w-0 gap-2 sm:col-span-2 xl:col-span-1">
                 <label for="score-search" class="{{ $labelClasses }}">Search participant</label>
                 <input id="score-search" name="search" value="{{ $search }}" placeholder="Name or email" class="{{ $controlClasses }}">
-            </div>
-            <div class="grid min-w-0 gap-2">
-                <label for="score-path" class="{{ $labelClasses }}">QA Path</label>
-                <select id="score-path" name="path" class="{{ $controlClasses }}">
-                    <option value="">All paths</option>
-                    @foreach($pathOptions as $option)
-                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
-                    @endforeach
-                </select>
             </div>
             <div class="grid min-w-0 gap-2">
                 <label for="score-week" class="{{ $labelClasses }}">Week</label>
@@ -82,7 +73,6 @@
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">QA Path</th>
                                 @foreach($weekNumbers as $weekNumber)
                                     <th scope="col" class="{{ $headerCellClasses }}">W{{ $weekNumber }}</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">W{{ $weekNumber }} Completion</th>
@@ -102,7 +92,6 @@
                                             <span class="wrap-break-word text-muted">{{ $participant['email'] }}</span>
                                         </span>
                                     </th>
-                                    <td class="{{ $cellClasses }}">{{ $participant['path'] }}</td>
                                     @foreach($participant['weeks'] as $week)
                                         <td class="{{ $cellClasses }}">
                                             @if($week['average'] !== null)

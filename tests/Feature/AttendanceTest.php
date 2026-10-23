@@ -69,7 +69,7 @@ class AttendanceTest extends TestCase
         $this->actingAs($participant)->post(route('participant.attendance.check-in'), ['return_to' => '//evil.example.test/phish'])->assertRedirect(route('participant.attendance.index'));
     }
 
-    public function test_coach_and_admin_can_filter_and_export_participant_attendance(): void
+    public function test_coach_and_admin_can_filter_and_export_participant_attendance_and_an_old_path_filter_is_ignored(): void
     {
         $manual = User::factory()->create(['training_path' => 'manual']);
         $automation = User::factory()->create(['training_path' => 'automation']);
@@ -78,7 +78,10 @@ class AttendanceTest extends TestCase
         AttendanceSession::create(['user_id' => $manual->id, 'check_in_at' => now()->subHours(2), 'check_out_at' => now(), 'total_seconds' => 7200]);
         AttendanceSession::create(['user_id' => $automation->id, 'check_in_at' => now()->subHour(), 'check_out_at' => null]);
 
-        $this->actingAs($coach)->get(route('coach.attendance.index', ['path' => 'automation']))->assertOk()->assertSee($automation->name);
+        $this->actingAs($coach)->get(route('coach.attendance.index', ['path' => 'automation']))->assertOk()->assertSessionHasNoErrors()->assertSee($manual->name)->assertSee($automation->name);
+        $csv = $this->actingAs($coach)->get(route('coach.attendance.export', ['path' => 'automation']))->assertOk()->assertSessionHasNoErrors()->streamedContent();
+        $this->assertStringContainsString($manual->email, $csv);
+        $this->assertStringContainsString($automation->email, $csv);
         $this->actingAs($coach)->get(route('coach.attendance.export', ['status' => 'active']))->assertDownload('attendance.csv');
         $this->actingAs($admin)->get(route('admin.attendance.index'))->assertOk()->assertSee($manual->name)->assertSee($automation->name);
         $this->actingAs($admin)->get(route('admin.attendance.export'))->assertDownload('attendance.csv');
@@ -104,10 +107,9 @@ class AttendanceTest extends TestCase
 
         $rows = array_values(array_filter(explode("\n", $csv)));
         $this->assertCount(2, $rows);
-        $this->assertSame(['Participant', 'Employee ID', 'Email'], array_slice(str_getcsv($rows[0]), 0, 3));
+        $this->assertSame(['Participant', 'Employee ID', 'Email', 'Date', 'Check-in', 'Check-out', 'Total Hours', 'Session Status'], str_getcsv($rows[0]));
         $this->assertSame([$participant->name, 'EMP-1001', $participant->email], array_slice(str_getcsv($rows[1]), 0, 3));
         $this->assertStringContainsString($participant->email, $rows[1]);
-        $this->assertStringContainsString('"Automation / Manual"', $rows[1]);
         $this->assertStringContainsString('2026-09-10', $rows[1]);
         $this->assertStringContainsString('Checked out', $rows[1]);
     }

@@ -59,7 +59,6 @@ class CoachGateBoardPageTest extends TestCase
                 'One row per participant and training Gate',
                 '>Week 2</strong>', '>Release readiness</span>',
                 'href="'.route('coach.participants.show', $awaiting).'"', '>Ada Awaiting</a>', '>ada@example.test</span>',
-                '>Automation</td>',
                 'border-accent text-cyan-200 whitespace-nowrap">AWAITING REVIEW</span>',
                 '>0 / 2</span>', '>criteria met</span>',
                 'href="'.route('training.video-recording.view', [$week, $awaitingRecording]).'"', '>Awaiting Review</a>',
@@ -72,7 +71,6 @@ class CoachGateBoardPageTest extends TestCase
                 '>2 blockers</strong>',
                 'href="'.route('training.coach.gates.show', [$week, $notReady, $gate]).'"', '>Review Gate</a>',
                 '>Pat Passed</a>',
-                '>Manual</td>',
                 'border-emerald-400 text-emerald-200 whitespace-nowrap">PASSED</span>',
                 '>2 / 2</span>',
                 'href="'.route('training.video-recording.view', [$week, $passedRecording]).'"', '>✓ Uploaded</a>',
@@ -80,7 +78,9 @@ class CoachGateBoardPageTest extends TestCase
                 'href="'.route('training.coach.gates.show', [$week, $passed, $gate]).'"', '>View Gate</a>',
             ], false)
             ->assertDontSee('No Gate rows match these filters.')
-            ->assertDontSee('Daily Logs');
+            ->assertDontSee('Daily Logs')
+            ->assertDontSee('QA Path')
+            ->assertDontSee('name="path"', false);
     }
 
     public function test_a_gate_without_a_weekly_video_criterion_shows_the_video_as_not_required_and_no_video_blocker(): void
@@ -105,19 +105,18 @@ class CoachGateBoardPageTest extends TestCase
         TrainingGate::factory()->for($week, 'week')->create();
         Activity::factory()->for($week, 'week')->create(['position' => 1]);
         TrainingGate::factory()->for(TrainingWeek::factory()->state(['week_number' => 3]), 'week')->create(['title' => 'Week three gate']);
-        User::factory()->count(26)->sequence(fn (Sequence $sequence): array => ['name' => 'Page Person '.($sequence->index + 1)])->create(['training_path' => 'manual']);
-        User::factory()->create(['name' => 'Page Automation', 'training_path' => 'automation']);
-        $filters = ['search' => 'Page', 'week' => 2, 'path' => 'manual', 'status' => 'not_ready'];
+        User::factory()->count(26)->sequence(fn (Sequence $sequence): array => ['name' => 'Page Person '.($sequence->index + 1)])->create();
+        User::factory()->create(['name' => 'Other Person']);
+        $filters = ['search' => 'Page', 'week' => 2, 'status' => 'not_ready'];
         $coach = User::factory()->create(['role' => 'coach']);
 
         $firstPage = $this->actingAs($coach)->get(route('coach.gates', $filters))
             ->assertOk()
             ->assertSee('value="Page"', false)
             ->assertSee('<option value="2" selected>Week 2</option>', false)
-            ->assertSee('<option value="manual" selected>Manual</option>', false)
             ->assertSee('<option value="not_ready" selected>Not Ready</option>', false)
             ->assertSee('>26</dd>', false)
-            ->assertDontSee('Page Automation')
+            ->assertDontSee('Other Person')
             ->assertDontSee('Week three gate')
             ->assertSee(e(route('coach.gates', [...$filters, 'page' => 2])), false);
 
@@ -126,6 +125,21 @@ class CoachGateBoardPageTest extends TestCase
         $secondPage = $this->actingAs($coach)->get(route('coach.gates', [...$filters, 'page' => 2]))->assertOk();
 
         $this->assertSame(1, substr_count($secondPage->getContent(), 'data-gate-row'));
+    }
+
+    public function test_an_old_path_filter_is_ignored(): void
+    {
+        TrainingGate::factory()->for(TrainingWeek::factory()->state(['week_number' => 2]), 'week')->create();
+        User::factory()->create(['name' => 'Mia Manual', 'training_path' => 'manual']);
+        User::factory()->create(['name' => 'Abe Automation', 'training_path' => 'automation']);
+
+        $response = $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.gates', ['path' => 'automation']))
+            ->assertOk()
+            ->assertSessionHasNoErrors()
+            ->assertSee('Mia Manual')
+            ->assertSee('Abe Automation');
+
+        $this->assertSame(2, substr_count($response->getContent(), 'data-gate-row'));
     }
 
     public function test_week_one_gates_are_listed_and_the_week_filter_offers_every_week_of_the_program(): void

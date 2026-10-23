@@ -119,22 +119,20 @@ class AttendancePagesTest extends TestCase
                 'name="date_to" value=""',
                 '<option value="'.$manual->id.'" >Ana Manual</option>',
                 '<option value="'.$automation->id.'" selected>Ben Automation</option>',
-                '<option value="manual" >Manual</option>',
-                '<option value="automation" >Automation</option>',
-                '<option value="automation_manual" >Automation / Manual</option>',
                 '<option value="active" selected>Checked in</option>',
                 '<option value="completed" >Checked out</option>',
                 'Filter',
                 'Attendance sessions',
                 'Ben Automation',
                 $automation->email,
-                '>Automation</td>',
                 'Sep 10, 2026 · 8:00 AM',
                 '—',
                 'CHECKED IN',
             ], false)
             ->assertDontSee('ADMIN · ATTENDANCE')
-            ->assertDontSee(route('admin.attendance.export'));
+            ->assertDontSee(route('admin.attendance.export'))
+            ->assertDontSee('name="path"', false)
+            ->assertDontSee('QA Path');
 
         $this->assertSame(1, substr_count($response->getContent(), 'data-attendance-row'));
         $this->assertSame(1, substr_count($response->getContent(), 'Export CSV'));
@@ -152,17 +150,16 @@ class AttendancePagesTest extends TestCase
                 'ADMIN · ATTENDANCE',
                 'href="'.route('admin.attendance.export').'"',
                 $participant->name,
-                '>Automation / Manual</td>',
                 'Sep 9, 2026 · 9:00 AM',
                 'Sep 9, 2026 · 11:30 AM',
                 '2.50',
                 'CHECKED OUT',
             ], false);
 
-        $response = $this->actingAs($admin)->get(route('admin.attendance.index', ['path' => 'automation']))
+        $response = $this->actingAs($admin)->get(route('admin.attendance.index', ['status' => 'active']))
             ->assertOk()
-            ->assertSee('href="'.e(route('admin.attendance.export', ['path' => 'automation'])).'"', false)
-            ->assertSee('<option value="automation" selected>Automation</option>', false)
+            ->assertSee('href="'.e(route('admin.attendance.export', ['status' => 'active'])).'"', false)
+            ->assertSee('<option value="active" selected>Checked in</option>', false)
             ->assertSee('No attendance sessions match these filters.');
 
         $this->assertStringNotContainsString('data-attendance-row', $response->getContent());

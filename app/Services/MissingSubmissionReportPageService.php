@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\TrainingWeek;
 use App\Models\User;
@@ -36,9 +35,9 @@ class MissingSubmissionReportPageService
      * values and options, the summary counts of the rows with their labels, the total row count and the rows of the requested page (25 per page, query string kept). The page
      * has no single main action, so every button is secondary.
      *
-     * @param  array{participant?: int|string|null, path?: string|null, mentor?: int|string|null, category?: string|null, week?: int|string|null, requirement?: string|null, status?: string|null}  $filters
+     * @param  array{participant?: int|string|null, mentor?: int|string|null, category?: string|null, week?: int|string|null, requirement?: string|null, status?: string|null}  $filters
      * @param  array<array-key, mixed>  $query
-     * @return array{exportUrl: string, participantOptions: list<array{value: string, label: string, is_selected: bool}>, pathOptions: list<array{value: string, label: string, is_selected: bool}>, mentorOptions: list<array{value: string, label: string, is_selected: bool}>, categoryOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, requirement: string, stats: list<array{label: string, value: int}>, rowCount: int, missingRows: LengthAwarePaginator<int, array{participant_name: string, participant_email: string, participant_url: string, path: string, mentor: string, category: string, week: string, requirement: string, expected: int, submitted: int, missing: int, evidences: int, status: string}>}
+     * @return array{exportUrl: string, participantOptions: list<array{value: string, label: string, is_selected: bool}>, mentorOptions: list<array{value: string, label: string, is_selected: bool}>, categoryOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, requirement: string, stats: list<array{label: string, value: int}>, rowCount: int, missingRows: LengthAwarePaginator<int, array{participant_name: string, participant_email: string, participant_url: string, mentor: string, category: string, week: string, requirement: string, expected: int, submitted: int, missing: int, evidences: int, status: string}>}
      */
     public function indexData(array $filters, array $query, int $page): array
     {
@@ -62,10 +61,6 @@ class MissingSubmissionReportPageService
             'participantOptions' => $this->modelOptions(
                 User::query()->where('role', UserRole::Participant)->orderBy('name')->get(['id', 'name']),
                 $filters['participant'] ?? null,
-            ),
-            'pathOptions' => $this->options(
-                TrainingPath::options(),
-                $filters['path'] ?? null,
             ),
             'mentorOptions' => $this->modelOptions(
                 User::query()->whereIn('role', [UserRole::Coach, UserRole::Admin])->orderBy('name')->get(['id', 'name']),
@@ -94,7 +89,6 @@ class MissingSubmissionReportPageService
                     'participant_name' => $row['participant_name'],
                     'participant_email' => $row['email'],
                     'participant_url' => route('coach.participants.show', $row['participant']),
-                    'path' => $row['path'],
                     'mentor' => $row['mentor'],
                     'category' => $row['category'],
                     'week' => $row['week'],

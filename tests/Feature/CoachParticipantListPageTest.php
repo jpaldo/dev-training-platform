@@ -40,7 +40,7 @@ class CoachParticipantListPageTest extends TestCase
                 'COACH · PARTICIPANTS',
                 'aria-label="Filter participants"',
                 'Participant training overview',
-                '>Ada Assigned</strong>', 'Manual QA', 'Assigned to me', 'Coach Carter',
+                '>Ada Assigned</strong>', 'Assigned to me', 'Coach Carter',
                 'href="https://drive.google.com/drive/folders/ada" target="_blank" rel="noopener noreferrer"', 'Open Drive ↗',
                 '>Connected<', 'Account connected',
                 'CHECKED IN', 'Mar 10 · 2:00 PM', 'elapsed',
@@ -51,6 +51,8 @@ class CoachParticipantListPageTest extends TestCase
                 'Showing 1–3 of 3 participants',
             ], false)
             ->assertDontSee('Admin access')
+            ->assertDontSee('Manual QA')
+            ->assertDontSee('QA Path')
             ->assertDontSee('Daily Logs')
             ->assertDontSee('Assign reciprocal partners');
     }
@@ -70,17 +72,31 @@ class CoachParticipantListPageTest extends TestCase
 
     public function test_filters_keep_their_values_and_an_empty_result_shows_a_notice_instead_of_the_table(): void
     {
-        User::factory()->create(['name' => 'Manual Person', 'training_path' => 'manual']);
+        User::factory()->create(['name' => 'Some Person']);
 
         $this->actingAs(User::factory()->create(['role' => 'coach']))
-            ->get(route('coach.participants', ['search' => 'Nobody', 'path' => 'automation']))
+            ->get(route('coach.participants', ['search' => 'Nobody']))
             ->assertOk()
             ->assertSee('name="search" value="Nobody"', false)
-            ->assertSee('<option value="automation" selected>Automation</option>', false)
-            ->assertDontSee('<option value="manual" selected>', false)
+            ->assertDontSee('name="path"', false)
             ->assertSee('No participants match these filters.')
             ->assertDontSee('data-participant-row', false)
-            ->assertDontSee('>Manual Person</strong>', false);
+            ->assertDontSee('>Some Person</strong>', false);
+    }
+
+    public function test_an_old_path_filter_is_ignored(): void
+    {
+        User::factory()->create(['name' => 'Mia Manual', 'training_path' => 'manual']);
+        User::factory()->create(['name' => 'Abe Automation', 'training_path' => 'automation']);
+
+        $response = $this->actingAs(User::factory()->create(['role' => 'coach']))
+            ->get(route('coach.participants', ['path' => 'automation']))
+            ->assertOk()
+            ->assertSessionHasNoErrors()
+            ->assertSee('>Mia Manual</strong>', false)
+            ->assertSee('>Abe Automation</strong>', false);
+
+        $this->assertSame(2, substr_count($response->getContent(), 'data-participant-row'));
     }
 
     public function test_rows_count_submissions_and_gate_evaluations_without_loading_them(): void

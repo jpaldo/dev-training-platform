@@ -129,7 +129,7 @@ class EmptyTrainingDataTest extends TestCase
         $rows = array_map(str_getcsv(...), array_filter(explode("\n", $csv)));
         $this->assertCount(2, $rows);
         $this->assertSame(['Ada Lovelace', 'EMP-000001', 'ada@example.com'], array_slice($rows[1], 0, 3));
-        $this->assertSame(['0', '0', '0', '', '', '', '', 'Not Scored', ''], array_slice($rows[1], 5));
+        $this->assertSame(['0', '0', '0', '', '', '', '', 'Not Scored', ''], array_slice($rows[1], 4));
     }
 
     public function test_pages_do_not_show_the_notice_while_a_program_is_active(): void

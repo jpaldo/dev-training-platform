@@ -24,7 +24,7 @@
             </dl>
         </section>
 
-        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto] lg:items-end" aria-label="Filter Gates">
+        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_repeat(2,minmax(0,1fr))_auto] lg:items-end" aria-label="Filter Gates">
             <div class="grid min-w-0 gap-2">
                 <label for="gate-search" class="{{ $labelClasses }}">Search participant</label>
                 <input id="gate-search" name="search" value="{{ $search }}" placeholder="Name or email…" class="{{ $controlClasses }}">
@@ -34,15 +34,6 @@
                 <select id="gate-week" name="week" class="{{ $controlClasses }}">
                     <option value="">All weeks</option>
                     @foreach($weekOptions as $option)
-                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="grid min-w-0 gap-2">
-                <label for="gate-path" class="{{ $labelClasses }}">QA Path</label>
-                <select id="gate-path" name="path" class="{{ $controlClasses }}">
-                    <option value="">All paths</option>
-                    @foreach($pathOptions as $option)
                         <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
                     @endforeach
                 </select>
@@ -67,7 +58,6 @@
                         <tr>
                             <th scope="col" class="{{ $headerCellClasses }}">Gate</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                            <th scope="col" class="{{ $headerCellClasses }}">QA Path</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Status</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Criteria</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Video</th>
@@ -90,7 +80,6 @@
                                         <span class="wrap-break-word text-muted">{{ $row['participant_email'] }}</span>
                                     </span>
                                 </td>
-                                <td class="{{ $cellClasses }} whitespace-nowrap">{{ $row['path'] }}</td>
                                 <td class="{{ $cellClasses }}">
                                     <x-ui.badge :tone="$row['status_tone']" class="whitespace-nowrap">{{ $row['status_label'] }}</x-ui.badge>
                                 </td>

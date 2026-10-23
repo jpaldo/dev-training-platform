@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\AttendanceSession;
 use App\Models\User;
@@ -49,9 +48,9 @@ class AttendancePageService
      * Everything the coach / admin attendance page renders: the filter options with the selected values and
      * the matching sessions, newest first. The main action is Export CSV for the same filters.
      *
-     * @param  array{date_from?: ?string, date_to?: ?string, participant?: int|string|null, path?: ?string, status?: ?string}  $filters
+     * @param  array{date_from?: ?string, date_to?: ?string, participant?: int|string|null, status?: ?string}  $filters
      * @param  array<string, mixed>  $query  The current query string, kept on the export link.
-     * @return array{areaLabel: string, dateFrom: string, dateTo: string, participantOptions: list<array{value: string, label: string, is_selected: bool}>, pathOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, sessions: LengthAwarePaginator<int, array{participant_name: string, participant_email: string, path: string, check_in: string, check_out: string, total_hours: string, is_open: bool, status: string}>, exportUrl: string}
+     * @return array{areaLabel: string, dateFrom: string, dateTo: string, participantOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, sessions: LengthAwarePaginator<int, array{participant_name: string, participant_email: string, check_in: string, check_out: string, total_hours: string, is_open: bool, status: string}>, exportUrl: string}
      */
     public function manageData(array $filters, array $query, bool $isAdmin): array
     {
@@ -68,7 +67,6 @@ class AttendancePageService
                     'is_selected' => (string) ($filters['participant'] ?? '') === (string) $participant->id,
                 ])
                 ->all(),
-            'pathOptions' => $this->options(TrainingPath::options(), $filters['path'] ?? null),
             'statusOptions' => $this->options(self::STATUS_OPTIONS, $filters['status'] ?? null),
             'sessions' => $this->filteredSessions($filters)
                 ->latest('check_in_at')
@@ -77,7 +75,6 @@ class AttendancePageService
                 ->through(fn (AttendanceSession $session): array => [
                     'participant_name' => $session->participant->name,
                     'participant_email' => $session->participant->email,
-                    'path' => $session->participant->trainingPathLabel(),
                     'check_in' => $session->check_in_at->format('M j, Y · g:i A'),
                     'check_out' => $session->check_out_at?->format('M j, Y · g:i A') ?? '—',
                     'total_hours' => number_format($session->totalHours(), 2),
@@ -92,16 +89,14 @@ class AttendancePageService
      * Participant attendance sessions matching the coach / admin filters, with their participant loaded.
      * Shared by the attendance page and its CSV export.
      *
-     * @param  array{date_from?: ?string, date_to?: ?string, participant?: int|string|null, path?: ?string, status?: ?string}  $filters
+     * @param  array{date_from?: ?string, date_to?: ?string, participant?: int|string|null, status?: ?string}  $filters
      * @return Builder<AttendanceSession>
      */
     public function filteredSessions(array $filters): Builder
     {
         return AttendanceSession::query()
             ->with('participant')
-            ->whereHas('participant', function (Builder $query) use ($filters): void {
-                $query->where('role', UserRole::Participant)->when($filters['path'] ?? null, fn (Builder $q, string $path): Builder => $q->where('training_path', $path));
-            })
+            ->whereHas('participant', fn (Builder $query): Builder => $query->where('role', UserRole::Participant))
             ->when($filters['date_from'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('check_in_at', '>=', $date))
             ->when($filters['date_to'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('check_in_at', '<=', $date))
             ->when($filters['participant'] ?? null, fn (Builder $query, int|string $id): Builder => $query->where('user_id', $id))

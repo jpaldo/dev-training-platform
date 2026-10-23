@@ -47,6 +47,16 @@ class ActivitySubmission extends Model
     }
 
     /**
+     * Whether a mentor or admin sent the handed-in attempt back for changes: it needs revision, or the participant has
+     * started its revision draft (a draft attempt that was handed in before). A retry attempt or a first draft is not
+     * reopened.
+     */
+    public function isReopened(): bool
+    {
+        return $this->needsRevision() || ($this->isDraft() && $this->submitted_at !== null);
+    }
+
+    /**
      * Whether the participant handed the attempt in and it was neither sent back nor failed.
      */
     public function isHandedIn(): bool

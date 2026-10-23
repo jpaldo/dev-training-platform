@@ -25,10 +25,12 @@ class TrainingWeekPageService
      * read only with each required item's review status and, for participants, the link to the Gate page) and, for
      * participants in a week that asks for it, the Weekly Video Recording state. A participant's main action is Choose
      * Weekly Video while such a week has no video chosen yet; in a week that does not ask for the video it is the link
-     * to the Gate page (then not repeated on the Gate card), or none without a Gate. The Gate and video links stay
-     * within the session. A participant's Back link opens the week's tab on the session page.
+     * to the Gate page (then not repeated on the Gate card), or none without a Gate. Once the session has ended
+     * (`TrainingSession::acceptsWork()`), there is no Choose Weekly Video action and no Change Video link
+     * (`changeVideoUrl` null). The Gate and video links stay within the session. A participant's Back link opens the
+     * week's tab on the session page.
      *
-     * @return array{trainingWeek: TrainingWeek, activities: list<array{position: int, title: string, description: ?string, url: string}>, gate: ?array{title: string, status_label: string, status_tone: string, criteria: list<array{title: string, description: ?string, is_met: bool, status_label: string, status_tone: string}>, url: ?string}, showsWeeklyVideo: bool, videoRecording: ?WeeklyVideoRecording, mainAction: ?array{label: string, url: string}, changeVideoUrl: string, backUrl: string}
+     * @return array{trainingWeek: TrainingWeek, activities: list<array{position: int, title: string, description: ?string, url: string}>, gate: ?array{title: string, status_label: string, status_tone: string, criteria: list<array{title: string, description: ?string, is_met: bool, status_label: string, status_tone: string}>, url: ?string}, showsWeeklyVideo: bool, videoRecording: ?WeeklyVideoRecording, mainAction: ?array{label: string, url: string}, changeVideoUrl: ?string, backUrl: string}
      */
     public function showData(TrainingSession $trainingSession, TrainingWeek $week, User $user): array
     {
@@ -42,11 +44,11 @@ class TrainingWeekPageService
         $videoRecording = $showsWeeklyVideo
             ? WeeklyVideoRecording::query()->where('training_session_id', $trainingSession->id)->where('user_id', $user->id)->where('training_week_id', $week->id)->first()
             : null;
-        $videoUrl = route('training.video-recording.edit', [$trainingSession, $week]);
+        $videoUrl = $trainingSession->acceptsWork() ? route('training.video-recording.edit', [$trainingSession, $week]) : null;
         $gate = $this->gateSummary($trainingSession, $week, $user, $isParticipant);
         $mainAction = null;
         if ($showsWeeklyVideo && ! $videoRecording) {
-            $mainAction = ['label' => 'Choose Weekly Video →', 'url' => $videoUrl];
+            $mainAction = $videoUrl !== null ? ['label' => 'Choose Weekly Video →', 'url' => $videoUrl] : null;
         } elseif (! $showsWeeklyVideo && isset($gate['url'])) {
             $mainAction = ['label' => 'View Gate →', 'url' => $gate['url']];
             $gate['url'] = null;

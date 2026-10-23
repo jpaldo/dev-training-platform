@@ -35,10 +35,12 @@ class ParticipantDashboardService
     /**
      * Build the rows of the session's weeks, in week order, for the membership's participant, with their activity
      * progress in the session attached: each week's pass and access state, its activity progress and its Weekly Video
-     * Recording come from the session. A week is available only while it is open, even once completed, and otherwise
-     * carries the message its tab shows (`SessionWeekState::lockedMessage()`); a week locked by an earlier incomplete
-     * review also carries that week's number and, until the participant hands in new work there, the titles of the
-     * review's missing checklist items. An available week shows its Weekly Video Recording only when it asks for one.
+     * Recording come from the session. A week is available only while it is viewable (open, even once completed, or
+     * any week once the session has ended) and otherwise carries the message its tab shows
+     * (`SessionWeekState::lockedMessage()`); a week locked by an earlier incomplete review also carries that week's
+     * number and, until the participant hands in new work there, the titles of the review's missing checklist items. An
+     * available week shows its Weekly Video Recording only when it asks for one. Once the session has ended, an
+     * activity's action is View unless its latest attempt was reopened (`TrainingSession::acceptsWork()`).
      * The current week is the latest open week of an active session (`WeekProgressionService::currentWeekId()`). Built
      * with a fixed number of queries.
      *
@@ -67,14 +69,14 @@ class ParticipantDashboardService
             ->keyBy('training_week_id');
         $this->attachActivityProgress($participant, $trainingSession, $sessionWeeks);
         $missingItems = $this->missingChecklistItems(
-            $weekStates->first(fn (SessionWeekState $state): bool => $state->isLocked() && ! $state->awaitingVerification)?->lockingReviewId,
+            $weekStates->first(fn (SessionWeekState $state): bool => $this->showsMissingItems($state))?->lockingReviewId,
         );
 
         $currentWeekId = $this->progression->currentWeekId($trainingSession, $weekStates);
 
         return $sessionWeeks->map(function (TrainingWeek $week) use ($weekStates, $videoRecordings, $missingItems, $currentWeekId, $activeAttendance): array {
             $weekState = $weekStates->get($week->id);
-            $available = $weekState->isOpen();
+            $available = $weekState->isViewable();
             $week->weekly_video_recording = $videoRecordings->get($week->id);
             $isCurrent = $week->id === $currentWeekId;
 
@@ -82,9 +84,9 @@ class ParticipantDashboardService
                 'week' => $week,
                 'passed' => $weekState->passed,
                 'available' => $available,
-                'locked_message' => $weekState->lockedMessage(),
-                'locked_by_week_number' => $weekState->lockedByWeekNumber,
-                'missing_items' => $weekState->isLocked() && ! $weekState->awaitingVerification ? $missingItems : [],
+                'locked_message' => $available ? null : $weekState->lockedMessage(),
+                'locked_by_week_number' => $available ? null : $weekState->lockedByWeekNumber,
+                'missing_items' => $this->showsMissingItems($weekState) ? $missingItems : [],
                 'shows_weekly_video' => $available && $week->asksForWeeklyVideo(),
                 'is_current' => $isCurrent,
                 'attendance_required' => $isCurrent && ! $activeAttendance,
@@ -130,6 +132,15 @@ class ParticipantDashboardService
     }
 
     /**
+     * Whether the week's locked panel lists the missing checklist items of the review that locks it: while it is locked
+     * and cannot be viewed (the session has not ended) and the participant has no new work there since the review.
+     */
+    private function showsMissingItems(SessionWeekState $state): bool
+    {
+        return $state->isLocked() && ! $state->isViewable() && ! $state->awaitingVerification;
+    }
+
+    /**
      * The titles of the required checklist items the review marked not met, in checklist order; none without a review.
      *
      * @return list<string>
@@ -152,8 +163,9 @@ class ParticipantDashboardService
     }
 
     /**
-     * Attach the participant's latest submission in the session with its status label, badge tone and next action, the
-     * attempts and the published score to every activity. Only the attempts within the session count.
+     * Attach the participant's latest submission in the session with its status label, badge tone and next action (View
+     * once the session no longer accepts work on it), the attempts and the published score to every activity. Only the
+     * attempts within the session count.
      *
      * @param  Collection<int, TrainingWeek>  $weeks  weeks with their activities loaded
      */
@@ -175,7 +187,9 @@ class ParticipantDashboardService
                 $activity->participant_attempts = $attempts->values();
                 $activity->participant_status_label = $activity->participant_submission?->status->label() ?? 'Not Started';
                 $activity->participant_status_tone = $activity->participant_submission?->status->tone() ?? 'neutral';
-                $activity->participant_action = $this->activityAction($activity->participant_submission?->status);
+                $activity->participant_action = $trainingSession->acceptsWork($activity->participant_submission)
+                    ? $this->activityAction($activity->participant_submission?->status)
+                    : 'View';
                 $activity->participant_score = $activity->participant_submission?->versions->sortByDesc('version_number')->first(fn (SubmissionVersion $version): bool => $version->publishedActivityScore !== null)?->publishedActivityScore;
                 $activity->participant_score_max = $activity->scoringMaximum();
             }

@@ -8,8 +8,9 @@ use Carbon\CarbonInterface;
 /**
  * Where one week of a training session stands for one participant: whether they can open it (with the date it opens
  * on, and the earlier week whose incomplete review locks it, that review's id and whether the participant handed in new
- * work in that week since the review), and whether they completed it (every Gate of the week has a completed review in
- * the session). Built by `WeekProgressionService`.
+ * work in that week since the review), whether they completed it (every Gate of the week has a completed review in the
+ * session), and whether the session has ended, which makes every week viewable, read only. Built by
+ * `WeekProgressionService`.
  */
 class SessionWeekState
 {
@@ -21,7 +22,17 @@ class SessionWeekState
         public readonly bool $passed,
         public readonly ?int $lockingReviewId,
         public readonly bool $awaitingVerification,
+        public readonly bool $sessionCompleted,
     ) {}
+
+    /**
+     * Whether the participant can view the week: while it is open, and every week once the session has ended (PAR-5;
+     * no date or review lock applies then, and `TrainingSession::acceptsWork()` decides what they can still change).
+     */
+    public function isViewable(): bool
+    {
+        return $this->isOpen() || $this->sessionCompleted;
+    }
 
     /**
      * Whether the participant can open the week: its date has come and no earlier week locks it.

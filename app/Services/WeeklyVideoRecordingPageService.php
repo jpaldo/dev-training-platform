@@ -18,12 +18,13 @@ class WeeklyVideoRecordingPageService
      * Everything the Weekly Video Recording page renders for the week in the session: the participant's chosen Google
      * Drive video for the week in that session, the participant's Google Drive state (`unavailable` while Drive cannot
      * connect, `not_connected` or `connected`) with the connect link, which brings the participant back to this page,
-     * and the Picker settings and label. The Picker form posts within the session and is replaced by a locked message
-     * once the participant has passed one of the week's active Gates in the session. `shareHint` says who a chosen
+     * and the Picker settings and label. The Picker form posts within the session and is replaced by a message once the
+     * session has ended (`acceptsWork` false, `TrainingSession::acceptsWork()`) or, before that, a locked message once
+     * the participant has passed one of the week's active Gates in the session. `shareHint` says who a chosen
      * video is shared with (null without a share domain, when nothing is shared). Back goes to the week in the session.
      * The page never reads Google Drive.
      *
-     * @return array{trainingWeek: TrainingWeek, recording: ?WeeklyVideoRecording, isLocked: bool, storeUrl: string, backUrl: string, driveState: string, connectUrl: string, picker: array{api_key: ?string, app_id: ?string, token_url: string, unavailable_message: ?string}, pickerLabel: string, shareHint: ?string}
+     * @return array{trainingWeek: TrainingWeek, recording: ?WeeklyVideoRecording, acceptsWork: bool, isLocked: bool, storeUrl: string, backUrl: string, driveState: string, connectUrl: string, picker: array{api_key: ?string, app_id: ?string, token_url: string, unavailable_message: ?string}, pickerLabel: string, shareHint: ?string}
      */
     public function editData(TrainingSession $trainingSession, TrainingWeek $week, User $user): array
     {
@@ -37,6 +38,7 @@ class WeeklyVideoRecordingPageService
         return [
             'trainingWeek' => $week,
             'recording' => $recording,
+            'acceptsWork' => $trainingSession->acceptsWork(),
             'isLocked' => $this->progression->hasPassedActiveGate($user, $trainingSession, $week),
             'storeUrl' => route('training.video-recording.store', [$trainingSession, $week]),
             'backUrl' => route('training.weeks.show', [$trainingSession, $week]),

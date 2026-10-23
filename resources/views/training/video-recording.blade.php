@@ -48,7 +48,9 @@
                     <p class="{{ $textClasses }}">Record your actual work for this week. Show the work product, evidence reviewed, validation steps, issues identified, and final conclusion.</p>
                 @endif
 
-                @if($isLocked)
+                @if(! $acceptsWork)
+                    <p class="{{ $textClasses }}" data-session-ended>This training session has ended.</p>
+                @elseif($isLocked)
                     <p class="{{ $textClasses }}">This recording is locked because the Gate has been completed.</p>
                 @elseif($driveState === 'unavailable')
                     <p class="{{ $textClasses }}">Google Drive is not available yet. Ask an administrator.</p>

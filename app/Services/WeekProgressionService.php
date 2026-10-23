@@ -7,6 +7,7 @@ use App\Enums\TrainingSessionStatus;
 use App\Enums\UserRole;
 use App\Enums\WeekAccessState;
 use App\Models\Activity;
+use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
@@ -28,8 +29,9 @@ use Illuminate\Support\Facades\Date;
  * incomplete review (`GateEvaluationStatus::incompleteReviews()`): that locks every later week until the review becomes
  * completed. Once the participant hands in work in the locking week after that review (latestWorkSinceReviews()), the
  * locked weeks wait for the mentor to verify it, still locked. A participant passes a week once every Gate of the week
- * has a completed (`Passed`) review in the session. Coaches and admins open every week. Work in another session never
- * counts.
+ * has a completed (`Passed`) review in the session. Coaches and admins open every week. Once the session has ended,
+ * the participant views every week, read only: they can only work on an attempt a mentor reopened
+ * (`TrainingSession::acceptsWork()`, ensureSessionAcceptsWork()). Work in another session never counts.
  */
 class WeekProgressionService
 {
@@ -55,7 +57,7 @@ class WeekProgressionService
 
     /**
      * Whether the user can open the week of the session: coaches and admins always, a participant while the week is
-     * open for them (see weekStates()).
+     * viewable for them (open, or any week once the session has ended; see weekStates()).
      */
     public function canAccessWeek(User $user, TrainingSession $trainingSession, TrainingWeek $week): bool
     {
@@ -66,7 +68,7 @@ class WeekProgressionService
             return false;
         }
 
-        return $this->weekStates($user, $trainingSession)->get($week->id)?->isOpen() ?? false;
+        return $this->weekStates($user, $trainingSession)->get($week->id)?->isViewable() ?? false;
     }
 
     /**
@@ -229,8 +231,8 @@ class WeekProgressionService
     }
 
     /**
-     * Refuse a participant a week of the session that is not open for them, with the message its tab shows (when it
-     * opens, or which week locks it).
+     * Refuse a participant a week of the session they cannot view (not open, and the session has not ended), with the
+     * message its tab shows (when it opens, or which week locks it).
      *
      * @throws AuthorizationException
      */
@@ -241,7 +243,7 @@ class WeekProgressionService
         }
 
         $state = $user->role === UserRole::Participant ? $this->weekStates($user, $trainingSession)->get($week->id) : null;
-        if ($state?->isOpen()) {
+        if ($state?->isViewable()) {
             return;
         }
 
@@ -276,11 +278,7 @@ class WeekProgressionService
             return false;
         }
 
-        $submission = $activity->submissions()
-            ->where('training_session_id', $trainingSession->id)
-            ->where('user_id', $user->id)
-            ->latest('attempt_number')
-            ->first();
+        $submission = $this->latestAttempt($user, $trainingSession, $activity);
 
         return ! $submission || $submission->isDraft() || $submission->needsRevision();
     }
@@ -296,10 +294,33 @@ class WeekProgressionService
             && ! $activity->submissions()->where('training_session_id', $trainingSession->id)->where('user_id', $user->id)->exists();
     }
 
+    /**
+     * Refuse the participant work on the activity in the session: once the session has ended, unless their latest
+     * attempt there was reopened (ensureSessionAcceptsWork()), and while they must check in first.
+     *
+     * @throws AuthorizationException
+     */
     public function ensureCanEditActivity(User $user, TrainingSession $trainingSession, TrainingWeek $week, Activity $activity): void
     {
+        $this->ensureSessionAcceptsWork($user, $trainingSession, $activity);
         if ($this->requiresAttendanceForActivity($user, $trainingSession, $week, $activity)) {
             abort(403, 'Please check in to continue editing this activity.');
+        }
+    }
+
+    /**
+     * Refuse the participant's write with "This training session has ended." once the session has ended
+     * (`TrainingSession::acceptsWork()`): with an activity, unless their latest attempt at it in the session was
+     * reopened by a mentor or admin; without one (the weekly video, recovery requests), always.
+     *
+     * @throws AuthorizationException
+     */
+    public function ensureSessionAcceptsWork(User $user, TrainingSession $trainingSession, ?Activity $activity = null): void
+    {
+        $attempt = $activity !== null && $trainingSession->isCompleted() ? $this->latestAttempt($user, $trainingSession, $activity) : null;
+
+        if (! $trainingSession->acceptsWork($attempt)) {
+            throw new AuthorizationException(TrainingSession::ENDED_MESSAGE);
         }
     }
 
@@ -317,6 +338,7 @@ class WeekProgressionService
     private function sessionWeekStates(TrainingSession $trainingSession, int $userId, Collection $weeks, Collection $gatesByWeek, ?GateEvaluation $lockingReview, Collection $latestWork): Collection
     {
         $today = today();
+        $sessionCompleted = $trainingSession->isCompleted();
         $lockingWeekNumber = $lockingReview?->gate->week->week_number;
         $awaitingVerification = $lockingReview !== null && $latestWork->has($lockingReview->id);
         $states = collect();
@@ -337,6 +359,7 @@ class WeekProgressionService
                 passed: $this->isPassed($gatesByWeek->get($week->id, collect()), $trainingSession->id, $userId),
                 lockingReviewId: $isLocked ? $lockingReview->id : null,
                 awaitingVerification: $isLocked && $awaitingVerification,
+                sessionCompleted: $sessionCompleted,
             ));
         }
 
@@ -365,6 +388,18 @@ class WeekProgressionService
         }
 
         return null;
+    }
+
+    /**
+     * The participant's latest attempt at the activity in the session, if any.
+     */
+    private function latestAttempt(User $user, TrainingSession $trainingSession, Activity $activity): ?ActivitySubmission
+    {
+        return $activity->submissions()
+            ->where('training_session_id', $trainingSession->id)
+            ->where('user_id', $user->id)
+            ->latest('attempt_number')
+            ->first();
     }
 
     /**

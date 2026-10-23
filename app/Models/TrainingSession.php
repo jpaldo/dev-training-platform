@@ -24,6 +24,11 @@ class TrainingSession extends Model
     use HasFactory;
 
     /**
+     * Why a participant's write is refused once the session has ended (see acceptsWork()).
+     */
+    public const ENDED_MESSAGE = 'This training session has ended.';
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
@@ -109,6 +114,17 @@ class TrainingSession extends Model
     public function isCompleted(): bool
     {
         return $this->status() === TrainingSessionStatus::Completed;
+    }
+
+    /**
+     * Whether a participant can still hand in work in the session (drafts, submissions, revisions, evidence, the weekly
+     * video and recovery requests): always until the session ends; once it has ended, only on an attempt a mentor or
+     * admin reopened (`ActivitySubmission::isReopened()`). Without an attempt, whether the session still accepts any
+     * new work.
+     */
+    public function acceptsWork(?ActivitySubmission $attempt = null): bool
+    {
+        return ! $this->isCompleted() || ($attempt?->isReopened() ?? false);
     }
 
     /**

@@ -97,7 +97,9 @@
                     </p>
                     @if($videoRecording)
                         <x-weekly-video-actions :recording="$videoRecording">
-                            <x-ui.button variant="secondary" :href="$changeVideoUrl">Change Video</x-ui.button>
+                            @if($changeVideoUrl)
+                                <x-ui.button variant="secondary" :href="$changeVideoUrl">Change Video</x-ui.button>
+                            @endif
                         </x-weekly-video-actions>
                     @endif
                 </x-ui.card>

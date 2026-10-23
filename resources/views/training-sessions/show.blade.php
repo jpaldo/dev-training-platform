@@ -8,6 +8,9 @@
         @if($isTrainingComplete)
             <x-ui.alert tone="success">Training complete — every week completed.</x-ui.alert>
         @endif
+        @unless($acceptsWork)
+            <x-ui.alert role="status" data-session-ended>This training session has ended. You can still view every week, your submissions and your scores. If your mentor sends an activity back for revision, you can revise and resubmit it.</x-ui.alert>
+        @endunless
 
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>TRAINING SESSION</x-ui.eyebrow>
@@ -136,9 +139,11 @@
                                         <span class="text-sm text-muted">{{ $item['week']->weekly_video_recording ? 'Chosen' : 'Not chosen' }}</span>
                                         @if($item['week']->weekly_video_recording)
                                             <x-weekly-video-actions :recording="$item['week']->weekly_video_recording">
-                                                <x-ui.button variant="secondary" :href="route('training.video-recording.edit', [$trainingSession, $item['week']])">Change Video</x-ui.button>
+                                                @if($acceptsWork)
+                                                    <x-ui.button variant="secondary" :href="route('training.video-recording.edit', [$trainingSession, $item['week']])">Change Video</x-ui.button>
+                                                @endif
                                             </x-weekly-video-actions>
-                                        @else
+                                        @elseif($acceptsWork)
                                             <div class="flex flex-wrap items-center gap-2.5">
                                                 <x-ui.button variant="secondary" :href="route('training.video-recording.edit', [$trainingSession, $item['week']])">Choose Video</x-ui.button>
                                             </div>

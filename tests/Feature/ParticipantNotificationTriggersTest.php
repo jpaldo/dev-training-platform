@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Jobs\GenerateParticipantNotificationsJob;
+use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\GateCriterion;
 use App\Models\SubmissionEvidence;
@@ -46,6 +47,65 @@ class ParticipantNotificationTriggersTest extends TestCase
         ])->assertRedirect(route('profile.show'));
 
         $this->assertQueuedOneSyncFor(User::where('email', 'registered@example.test')->sole());
+    }
+
+    public function test_registering_with_a_training_ticked_raises_that_trainings_notifications(): void
+    {
+        $week = TrainingWeek::factory()->create(['week_number' => 1, 'position' => 1]);
+        $activity = Activity::factory()->for($week, 'week')->create();
+        $session = TrainingSession::factory()->forWeek($week)->create();
+
+        $this->post(route('register.store'), [
+            'employee_id' => 'FS-3002',
+            'first_name' => 'Joining',
+            'last_name' => 'Participant',
+            'email' => 'joining@example.test',
+            'job_role' => 'developer',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'training_session_ids' => [(string) $session->id],
+        ])->assertRedirect(route('profile.show'));
+
+        $participant = User::where('email', 'joining@example.test')->sole();
+        $this->assertTrue($participant->participantNotifications()->active()->where('key', "session:{$session->id}:week:{$week->id}:activity:{$activity->id}:incomplete")->exists());
+    }
+
+    public function test_joining_a_session_queues_a_sync(): void
+    {
+        $participant = User::factory()->create();
+        $session = TrainingSession::factory()->create();
+
+        $this->assertWriteQueuesOneSyncFor($participant, fn (): mixed => $this->actingAs($participant)
+            ->post(route('training.sessions.join', $session))
+            ->assertRedirect(route('training.sessions.show', $session)));
+    }
+
+    public function test_an_admin_adding_participants_queues_a_sync_for_each(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $session = TrainingSession::factory()->create();
+        $participants = User::factory()->count(2)->create();
+        Queue::fake();
+
+        $this->actingAs($admin)
+            ->post(route('admin.sessions.participants.store', $session), ['user_ids' => $participants->map(fn (User $participant): string => (string) $participant->id)->all()])
+            ->assertSessionHasNoErrors();
+
+        Queue::assertPushed(GenerateParticipantNotificationsJob::class, 2);
+        foreach ($participants as $participant) {
+            Queue::assertPushed(GenerateParticipantNotificationsJob::class, fn (GenerateParticipantNotificationsJob $job): bool => $job->participantId === $participant->id);
+        }
+    }
+
+    public function test_an_admin_removing_a_participant_queues_a_sync(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $participant = User::factory()->create();
+        $session = TrainingSession::factory()->withParticipants($participant)->create();
+
+        $this->assertWriteQueuesOneSyncFor($participant, fn (): mixed => $this->actingAs($admin)
+            ->delete(route('admin.sessions.participants.destroy', [$session, $participant]))
+            ->assertRedirect());
     }
 
     public function test_promoting_a_user_to_participant_queues_a_sync(): void

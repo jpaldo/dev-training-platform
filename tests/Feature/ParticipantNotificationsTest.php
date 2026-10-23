@@ -7,11 +7,14 @@ use App\Enums\ParticipantNotificationType;
 use App\Enums\ReviewDecision;
 use App\Jobs\GenerateParticipantNotificationsJob;
 use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
+use App\Models\EvidenceRequirement;
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\ParticipantNotification;
 use App\Models\Program;
+use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
@@ -21,7 +24,9 @@ use App\Models\User;
 use App\Models\WeeklyVideoRecording;
 use App\Services\ParticipantNotificationService;
 use Database\Seeders\L4TrainingProgramSeeder;
+use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -63,14 +68,14 @@ class ParticipantNotificationsTest extends TestCase
         $activity = $week->activities()->where('position', 1)->firstOrFail();
         ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'needs_revision']);
 
-        $this->joinSession($participant, $week->program);
+        $session = $this->joinSession($participant, $week->program);
         app(ParticipantNotificationService::class)->sync($participant);
 
-        $revision = $participant->participantNotifications()->where('key', "week:{$week->id}:activity:{$activity->id}:revision")->firstOrFail();
+        $revision = $participant->participantNotifications()->where('key', "session:{$session->id}:week:{$week->id}:activity:{$activity->id}:revision")->firstOrFail();
         $this->assertSame(ParticipantNotificationType::NeedsRevision, $revision->type);
         $this->assertSame(ParticipantNotificationPriority::High, $revision->priority);
         $this->assertNull($revision->resolved_at);
-        $review = $participant->participantNotifications()->where('key', "week:{$week->id}:activity:{$activity->id}:review")->firstOrFail();
+        $review = $participant->participantNotifications()->where('key', "session:{$session->id}:week:{$week->id}:activity:{$activity->id}:review")->firstOrFail();
         $this->assertSame(ParticipantNotificationType::AwaitingReview, $review->type);
         $this->assertSame(ParticipantNotificationPriority::Normal, $review->priority);
         $this->assertNotNull($review->resolved_at);
@@ -87,12 +92,12 @@ class ParticipantNotificationsTest extends TestCase
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
         $review = SubmissionReview::factory()->for($version, 'submissionVersion')->create(['decision' => $decision]);
 
-        $this->joinSession($participant, $week->program);
+        $session = $this->joinSession($participant, $week->program);
         app(ParticipantNotificationService::class)->sync($participant);
 
-        $revision = $participant->participantNotifications()->where('key', "week:{$week->id}:activity:{$activity->id}:revision")->firstOrFail();
+        $revision = $participant->participantNotifications()->where('key', "session:{$session->id}:week:{$week->id}:activity:{$activity->id}:revision")->firstOrFail();
         $this->assertSame($isRevisionRequired, $revision->resolved_at === null);
-        $this->assertSame($isApprovedEvent, $participant->participantNotifications()->where('key', "event:review:{$review->id}")->where('type', ParticipantNotificationType::ActivityApproved)->exists());
+        $this->assertSame($isApprovedEvent, $participant->participantNotifications()->where('key', "session:{$session->id}:event:review:{$review->id}")->where('type', ParticipantNotificationType::ActivityApproved)->exists());
     }
 
     /**
@@ -123,10 +128,10 @@ class ParticipantNotificationsTest extends TestCase
         ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'failed', 'attempt_number' => 1]);
         ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $status, 'attempt_number' => 2]);
 
-        $this->joinSession($participant, $week->program);
+        $session = $this->joinSession($participant, $week->program);
         app(ParticipantNotificationService::class)->sync($participant);
 
-        $reminderKeys = collect(['incomplete', 'draft', 'revision', 'review'])->mapWithKeys(fn (string $reminder): array => ["week:{$week->id}:activity:{$activity->id}:{$reminder}" => $reminder]);
+        $reminderKeys = collect(['incomplete', 'draft', 'revision', 'review'])->mapWithKeys(fn (string $reminder): array => ["session:{$session->id}:week:{$week->id}:activity:{$activity->id}:{$reminder}" => $reminder]);
         $this->assertSame($activeReminders, $participant->participantNotifications()->active()->whereIn('key', $reminderKeys->keys())->orderBy('id')->pluck('key')->map(fn (string $key): string => $reminderKeys[$key])->all());
     }
 
@@ -162,10 +167,10 @@ class ParticipantNotificationsTest extends TestCase
             ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $statuses[$index % count($statuses)]]);
         }
 
-        $this->joinSession($participant, $week->program);
+        $session = $this->joinSession($participant, $week->program);
         app(ParticipantNotificationService::class)->sync($participant);
 
-        $this->assertSame($isVideoReminderActive, $participant->participantNotifications()->active()->where('key', "week:{$week->id}:video")->exists());
+        $this->assertSame($isVideoReminderActive, $participant->participantNotifications()->active()->where('key', "session:{$session->id}:week:{$week->id}:video")->exists());
     }
 
     /**
@@ -194,13 +199,13 @@ class ParticipantNotificationsTest extends TestCase
             return $week;
         });
         GateEvaluation::factory()->for($weeks[2]->gates()->sole(), 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
-        $this->joinSession($participant, $program);
+        $session = $this->joinSession($participant, $program);
 
         app(ParticipantNotificationService::class)->sync($participant);
 
-        $this->assertTrue($participant->participantNotifications()->active()->where('key', "week:{$weeks[2]->id}:video")->exists());
-        $this->assertTrue($participant->participantNotifications()->where('key', "week:{$weeks[3]->id}:activity:{$weeks[3]->activities()->sole()->id}:incomplete")->exists());
-        $this->assertFalse($participant->participantNotifications()->active()->where('key', "week:{$weeks[3]->id}:video")->exists());
+        $this->assertTrue($participant->participantNotifications()->active()->where('key', "session:{$session->id}:week:{$weeks[2]->id}:video")->exists());
+        $this->assertTrue($participant->participantNotifications()->where('key', "session:{$session->id}:week:{$weeks[3]->id}:activity:{$weeks[3]->activities()->sole()->id}:incomplete")->exists());
+        $this->assertFalse($participant->participantNotifications()->active()->where('key', "session:{$session->id}:week:{$weeks[3]->id}:video")->exists());
     }
 
     public function test_an_unready_week_raises_the_requirements_reminder_and_a_completed_week_the_completed_event(): void
@@ -210,11 +215,11 @@ class ParticipantNotificationsTest extends TestCase
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => GateCriterion::TYPE_DELIVERABLE]);
         Activity::factory()->for($week, 'week')->create();
-        $this->joinSession($participant, $week->program);
+        $session = $this->joinSession($participant, $week->program);
 
         app(ParticipantNotificationService::class)->sync($participant);
 
-        $reminder = $participant->participantNotifications()->active()->where('key', "week:{$week->id}:gate")->sole();
+        $reminder = $participant->participantNotifications()->active()->where('key', "session:{$session->id}:week:{$week->id}:gate")->sole();
         $this->assertSame(ParticipantNotificationType::GateIncomplete, $reminder->type);
         $this->assertSame('Week 2 requirements incomplete', $reminder->title);
         $this->assertSame('You still have requirements to complete before your mentor can mark Week 2 completed.', $reminder->body);
@@ -222,14 +227,14 @@ class ParticipantNotificationsTest extends TestCase
         $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
         app(ParticipantNotificationService::class)->sync($participant);
 
-        $completed = $participant->participantNotifications()->active()->where('key', "event:gate:{$evaluation->id}")->sole();
+        $completed = $participant->participantNotifications()->active()->where('key', "session:{$session->id}:event:gate:{$evaluation->id}")->sole();
         $this->assertSame(ParticipantNotificationType::GatePassed, $completed->type);
         $this->assertSame('Week 2 completed', $completed->title);
         $this->assertSame('Your mentor marked Week 2 completed.', $completed->body);
-        $this->assertFalse($participant->participantNotifications()->active()->where('key', "week:{$week->id}:gate")->exists());
+        $this->assertFalse($participant->participantNotifications()->active()->where('key', "session:{$session->id}:week:{$week->id}:gate")->exists());
     }
 
-    public function test_activity_and_week_notifications_link_through_the_participants_session_and_a_week_without_one_is_skipped(): void
+    public function test_activity_and_week_notifications_link_through_the_participants_session_and_a_participant_in_no_session_gets_none(): void
     {
         $member = User::factory()->create();
         $outsider = User::factory()->create();
@@ -242,10 +247,97 @@ class ParticipantNotificationsTest extends TestCase
         app(ParticipantNotificationService::class)->sync($member);
         app(ParticipantNotificationService::class)->sync($outsider);
 
-        $incompleteKey = "week:{$week->id}:activity:{$activity->id}:incomplete";
+        $incompleteKey = "session:{$session->id}:week:{$week->id}:activity:{$activity->id}:incomplete";
         $this->assertSame(route('training.activities.show', [$session, $week, $activity]), $member->participantNotifications()->where('key', $incompleteKey)->sole()->action_url);
-        $this->assertSame(route('training.weeks.show', [$session, $week]), $member->participantNotifications()->where('key', "event:gate:{$evaluation->id}")->sole()->action_url);
-        $this->assertFalse($outsider->participantNotifications()->where('key', 'like', "week:{$week->id}:%")->exists());
+        $this->assertSame(route('training.weeks.show', [$session, $week]), $member->participantNotifications()->where('key', "session:{$session->id}:event:gate:{$evaluation->id}")->sole()->action_url);
+        $this->assertFalse($outsider->participantNotifications()->exists());
+    }
+
+    public function test_a_participant_in_two_sessions_gets_separate_notifications_linking_within_each_session(): void
+    {
+        $participant = User::factory()->create();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
+        $openActivity = Activity::factory()->for($week, 'week')->create(['position' => 1]);
+        $draftActivity = Activity::factory()->for($week, 'week')->create(['position' => 2]);
+        $activeSession = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $upcomingSession = TrainingSession::factory()->forWeek($week)->upcoming()->withParticipants($participant)->create();
+        ActivitySubmission::factory()->for($activeSession)->for($draftActivity)->for($participant, 'participant')->create(['status' => 'draft']);
+
+        app(ParticipantNotificationService::class)->sync($participant);
+
+        $activeLinks = $participant->participantNotifications()->active()->pluck('action_url', 'key')->all();
+        foreach ([$activeSession, $upcomingSession] as $session) {
+            $this->assertSame(route('training.activities.show', [$session, $week, $openActivity]), $activeLinks["session:{$session->id}:week:{$week->id}:activity:{$openActivity->id}:incomplete"]);
+        }
+        $this->assertSame(route('training.submission.edit', [$activeSession, $week, $draftActivity]), $activeLinks["session:{$activeSession->id}:week:{$week->id}:activity:{$draftActivity->id}:draft"]);
+        $this->assertArrayNotHasKey("session:{$activeSession->id}:week:{$week->id}:activity:{$draftActivity->id}:incomplete", $activeLinks);
+        $this->assertSame(route('training.activities.show', [$upcomingSession, $week, $draftActivity]), $activeLinks["session:{$upcomingSession->id}:week:{$week->id}:activity:{$draftActivity->id}:incomplete"]);
+        $this->assertArrayNotHasKey("session:{$upcomingSession->id}:week:{$week->id}:activity:{$draftActivity->id}:draft", $activeLinks);
+    }
+
+    public function test_removing_the_participant_from_a_session_resolves_that_sessions_notifications(): void
+    {
+        $participant = User::factory()->create();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
+        $activity = Activity::factory()->for($week, 'week')->create();
+        $leftSession = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $keptSession = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        app(ParticipantNotificationService::class)->sync($participant);
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->delete(route('admin.sessions.participants.destroy', [$leftSession, $participant]))
+            ->assertRedirect();
+
+        $leftNotifications = $participant->participantNotifications()->where('key', 'like', "session:{$leftSession->id}:%")->get();
+        $this->assertNotEmpty($leftNotifications);
+        $this->assertTrue($leftNotifications->every(fn (ParticipantNotification $notification): bool => $notification->resolved_at !== null));
+        $this->assertTrue($participant->participantNotifications()->active()->where('key', "session:{$keptSession->id}:week:{$week->id}:activity:{$activity->id}:incomplete")->exists());
+    }
+
+    public function test_a_completed_session_raises_no_notifications_and_its_active_ones_are_resolved(): void
+    {
+        $participant = User::factory()->create();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
+        $activity = Activity::factory()->for($week, 'week')->create();
+        $session = TrainingSession::factory()->forWeek($week)->completed()->withParticipants($participant)->create();
+        $reminder = ParticipantNotification::factory()->for($participant, 'participant')->create(['key' => "session:{$session->id}:week:{$week->id}:activity:{$activity->id}:incomplete"]);
+
+        app(ParticipantNotificationService::class)->sync($participant);
+
+        $this->assertNotNull($reminder->fresh()->resolved_at);
+        $this->assertSame(1, $participant->participantNotifications()->count());
+    }
+
+    public function test_notifications_stored_without_their_session_are_replaced_by_per_session_ones(): void
+    {
+        $participant = User::factory()->create();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
+        $activity = Activity::factory()->for($week, 'week')->create();
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $oldReminder = ParticipantNotification::factory()->for($participant, 'participant')->create([
+            'key' => "week:{$week->id}:activity:{$activity->id}:incomplete",
+            'action_url' => url("/training/weeks/{$week->id}/activities/{$activity->id}"),
+        ]);
+        $oldEvent = ParticipantNotification::factory()->for($participant, 'participant')->create([
+            'key' => 'event:review:1',
+            'type' => ParticipantNotificationType::ActivityApproved,
+            'action_url' => url("/training/weeks/{$week->id}/activities/{$activity->id}/submission"),
+            'resolved_at' => now(),
+        ]);
+
+        app(ParticipantNotificationService::class)->sync($participant);
+
+        $this->assertModelMissing($oldReminder);
+        $this->assertModelMissing($oldEvent);
+        $this->assertSame(
+            route('training.activities.show', [$session, $week, $activity]),
+            $participant->participantNotifications()->active()->where('key', "session:{$session->id}:week:{$week->id}:activity:{$activity->id}:incomplete")->sole()->action_url,
+        );
+    }
+
+    public function test_the_sync_reads_with_a_fixed_number_of_queries_whatever_the_weeks_and_activities(): void
+    {
+        $this->assertSame($this->repeatedSyncQueryCount(1), $this->repeatedSyncQueryCount(3));
     }
 
     public function test_week_one_work_raises_the_activity_video_and_gate_reminders(): void
@@ -266,15 +358,15 @@ class ParticipantNotificationsTest extends TestCase
         app(ParticipantNotificationService::class)->sync($participant);
 
         $activeKeys = $participant->participantNotifications()->active()->pluck('key');
-        $this->assertContains("week:{$weeks[1]->id}:activity:{$openActivity->id}:incomplete", $activeKeys);
-        $this->assertContains("week:{$weeks[1]->id}:activity:{$submittedActivity->id}:review", $activeKeys);
-        $this->assertContains("week:{$weeks[1]->id}:gate", $activeKeys);
-        $this->assertNotContains("week:{$weeks[1]->id}:video", $activeKeys);
+        $this->assertContains("session:{$session->id}:week:{$weeks[1]->id}:activity:{$openActivity->id}:incomplete", $activeKeys);
+        $this->assertContains("session:{$session->id}:week:{$weeks[1]->id}:activity:{$submittedActivity->id}:review", $activeKeys);
+        $this->assertContains("session:{$session->id}:week:{$weeks[1]->id}:gate", $activeKeys);
+        $this->assertNotContains("session:{$session->id}:week:{$weeks[1]->id}:video", $activeKeys);
 
         ActivitySubmission::factory()->for($participant, 'participant')->for($openActivity)->create(['status' => 'submitted']);
         app(ParticipantNotificationService::class)->sync($participant);
 
-        $videoReminder = $participant->participantNotifications()->active()->where('key', "week:{$weeks[1]->id}:video")->sole();
+        $videoReminder = $participant->participantNotifications()->active()->where('key', "session:{$session->id}:week:{$weeks[1]->id}:video")->sole();
         $this->assertSame(ParticipantNotificationType::MissingVideo, $videoReminder->type);
         $this->assertSame('Weekly Video Recording missing', $videoReminder->title);
         $this->assertSame('Choose your Week 1 video from Google Drive.', $videoReminder->body);
@@ -283,7 +375,7 @@ class ParticipantNotificationsTest extends TestCase
         WeeklyVideoRecording::factory()->for($participant, 'participant')->for($weeks[1], 'week')->create();
         app(ParticipantNotificationService::class)->sync($participant);
 
-        $this->assertFalse($participant->participantNotifications()->active()->where('key', "week:{$weeks[1]->id}:video")->exists());
+        $this->assertFalse($participant->participantNotifications()->active()->where('key', "session:{$session->id}:week:{$weeks[1]->id}:video")->exists());
     }
 
     public function test_dashboard_next_action_skips_notifications_awaiting_review(): void
@@ -309,6 +401,48 @@ class ParticipantNotificationsTest extends TestCase
         $foreign = ParticipantNotification::factory()->create(['user_id' => $other->id]);
         $this->actingAs($participant)->get(route('participant.notifications'))->assertOk()->assertSee('Next');
         $this->actingAs($participant)->post(route('participant.notifications.read', $foreign))->assertNotFound();
+    }
+
+    /**
+     * Build a program with the given number of weeks, each with that many activities, a weekly video Gate and every
+     * kind of participant work in two sessions, sync once, and count the queries of a second sync, which changes
+     * nothing.
+     */
+    private function repeatedSyncQueryCount(int $rows): int
+    {
+        $participant = User::factory()->create();
+        $program = Program::factory()->create();
+        $sessions = TrainingSession::factory()->count(2)->for($program)->withParticipants($participant)->create(['weeks_count' => 4]);
+
+        foreach (range(1, $rows) as $position) {
+            $week = TrainingWeek::factory()->for($program)->create(['week_number' => $position, 'position' => $position]);
+            $gate = TrainingGate::factory()->for($week, 'week')->create();
+            GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
+            $activities = Activity::factory()->count($rows)->for($week, 'week')->sequence(fn (Sequence $sequence): array => ['position' => $sequence->index + 1])->create();
+
+            foreach ($sessions as $session) {
+                GateEvaluation::factory()->for($gate, 'gate')->for($session)->for($participant, 'participant')->create(['status' => 'passed']);
+                WeeklyVideoRecording::factory()->for($session)->for($participant, 'participant')->for($week, 'week')->create();
+
+                foreach ($activities as $activity) {
+                    $evidenceRequirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create())->create();
+                    $submission = ActivitySubmission::factory()->for($session)->for($activity)->for($participant, 'participant')->create(['status' => 'approved']);
+                    $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'approved']);
+                    SubmissionEvidence::factory()->for($version, 'submissionVersion')->for($evidenceRequirement, 'evidenceRequirement')->create();
+                    SubmissionReview::factory()->for($version, 'submissionVersion')->create(['decision' => ReviewDecision::Approved]);
+                }
+            }
+        }
+
+        $service = app(ParticipantNotificationService::class);
+        $service->sync($participant);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $service->sync($participant->fresh());
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
     }
 
     /**

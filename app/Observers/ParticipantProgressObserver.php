@@ -9,6 +9,7 @@ use App\Models\GateEvaluation;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSessionParticipant;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
 use Illuminate\Database\Eloquent\Builder;
@@ -18,6 +19,8 @@ use Illuminate\Database\Eloquent\Model;
  * Queues a participant notification sync whenever a record that ParticipantNotificationService::sync() reads changes,
  * so page views only read notifications. Coach writes (reviews, Gate evaluations) queue the sync for the participant
  * they affect, and a new participant gets their first notifications without waiting for the hourly catch-up run.
+ * Joining a training session (or being added to one) and being removed from one queue the sync too, so the session's
+ * notifications are raised, or resolved, straight away.
  * The job is unique per participant until it starts processing, so a request that writes several records
  * queues one sync.
  */
@@ -29,11 +32,12 @@ class ParticipantProgressObserver
     }
 
     /**
-     * A user update only feeds the sync when it makes the user a participant; profile and login changes do not.
+     * A user update only feeds the sync when it makes the user a participant; profile and login changes do not. A
+     * session membership feeds it by existing, so updating one does not.
      */
     public function updated(Model $model): void
     {
-        if ($model instanceof User && ! $model->wasChanged('role')) {
+        if ($model instanceof TrainingSessionParticipant || ($model instanceof User && ! $model->wasChanged('role'))) {
             return;
         }
 
@@ -64,7 +68,8 @@ class ParticipantProgressObserver
             $model instanceof User => $model->role === UserRole::Participant ? $model->id : null,
             $model instanceof ActivitySubmission,
             $model instanceof WeeklyVideoRecording,
-            $model instanceof GateEvaluation => $model->user_id,
+            $model instanceof GateEvaluation,
+            $model instanceof TrainingSessionParticipant => $model->user_id,
             $model instanceof SubmissionVersion => $this->submissionOwnerId($model->activity_submission_id),
             $model instanceof SubmissionReview,
             $model instanceof SubmissionEvidence => $this->versionOwnerId($model->submission_version_id),

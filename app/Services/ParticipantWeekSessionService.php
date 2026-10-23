@@ -8,10 +8,10 @@ use App\Models\User;
 use Illuminate\Support\Collection;
 
 /**
- * Picks the training session a participant opens a week in for the callers that do not carry a session yet: the
- * participant notifications (until 9.9) and the Gates on the coach participant page (until 10.5). The session page,
- * and the week, activity, submission, Gate and weekly video pages under it, carry their session, so these callers read
- * the week's progress from, and link to it through, one of the participant's sessions.
+ * Picks the training session a participant opens a week in for the one caller that does not carry a session yet: the
+ * Gates on the coach participant page (CoachGateOverviewService, until 10.5). The session page, the pages under it and
+ * the participant notifications carry their session, so this caller reads the week's progress from, and links to it
+ * through, one of the participant's sessions.
  */
 class ParticipantWeekSessionService
 {

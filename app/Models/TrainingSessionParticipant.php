@@ -2,13 +2,17 @@
 
 namespace App\Models;
 
+use App\Observers\ParticipantProgressObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
 /**
  * A participant's membership of a training session (`training_session_participants`). Removing a participant deletes
- * the row; their work keeps its session, so adding them again restores access.
+ * the row; their work keeps its session, so adding them again restores access. Joining and leaving queue the
+ * participant's notification sync (ParticipantProgressObserver).
  */
+#[ObservedBy([ParticipantProgressObserver::class])]
 class TrainingSessionParticipant extends Pivot
 {
     /**

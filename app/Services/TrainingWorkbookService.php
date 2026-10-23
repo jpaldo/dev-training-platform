@@ -6,57 +6,71 @@ use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
+use App\Models\TrainingWeek;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use ZipArchive;
 
 class TrainingWorkbookService
 {
     /**
-     * Build the participant's workbook for a week: one sheet per active activity of that week number, or a header-only
-     * Activities sheet when the week has none, so the file is always a valid workbook.
+     * Build the participant's workbook for one week of a training session: one sheet per active activity of the week,
+     * each with the participant's latest attempt in that session, or a header-only Activities sheet when the week has
+     * none, so the file is always a valid workbook. A fixed number of queries, whatever the number of activities.
      */
-    public function forWeek(User $participant, int $weekNumber): string
+    public function forWeek(User $participant, TrainingSession $session, TrainingWeek $week): string
     {
-        $activities = Activity::query()->with('week')->whereHas('week', fn (Builder $q): Builder => $q->where('week_number', $weekNumber))->where('is_active', true)->orderBy('position')->get();
+        $activities = $week->activities()
+            ->where('is_active', true)
+            ->orderBy('position')
+            ->with(['requirements' => fn (Relation $query): Relation => $query->where('requirement_type', 'submission_field')->orderBy('position')])
+            ->get();
+        $latestAttempts = ActivitySubmission::query()
+            ->where('training_session_id', $session->id)
+            ->where('user_id', $participant->id)
+            ->whereIn('activity_id', $activities->modelKeys())
+            ->with(['versions' => fn (Relation $query): Relation => $query->orderByDesc('version_number')])
+            ->orderByDesc('attempt_number')
+            ->get()
+            ->unique('activity_id')
+            ->keyBy('activity_id');
         $sheets = [];
         $usedNames = [];
         foreach ($activities as $activity) {
             $sheetName = $this->uniqueSheetName($activity->title, $usedNames);
             $usedNames[] = $sheetName;
-            $sheets[] = [$sheetName, $this->activityRows($participant, $activity)];
+            $sheets[] = [$sheetName, $this->activityRows($participant, $week, $activity, $latestAttempts->get($activity->id))];
         }
         if ($sheets === []) {
-            $sheets[] = ['Activities', [['Participant', 'Week', 'Activity']]];
+            $sheets[] = ['Activities', [['Participant', 'Employee ID', 'Week', 'Activity']]];
         }
 
         return $this->xlsx($sheets);
     }
 
-    private function activityRows(User $participant, Activity $activity): array
+    /**
+     * The header row and the participant's row of one activity sheet: the latest submitted version of the attempt (or
+     * its newest draft), with the answers of the activity's current fields and of retired fields that version answered.
+     *
+     * @return array{0: list<string>, 1: list<mixed>}
+     */
+    private function activityRows(User $participant, TrainingWeek $week, Activity $activity, ?ActivitySubmission $submission): array
     {
-        $requirements = $activity->requirements()->where('requirement_type', 'submission_field')->orderBy('position')->get()->filter(fn (ActivityRequirement $r): bool => ! ($r->configuration['deprecated'] ?? false));
-        $allRequirements = $activity->requirements()->where('requirement_type', 'submission_field')->orderBy('position')->get();
-        $fields = $requirements->mapWithKeys(fn (ActivityRequirement $r): array => [$r->configuration['key'] => $r->configuration['label'] ?? $r->title]);
-        $headers = ['Participant', 'Week', 'Activity', 'Submission ID', 'Attempt', 'Submission Version', 'Submission Status', 'Submitted At', 'Participant Notes', ...$fields->values()->all()];
-        $submission = ActivitySubmission::query()
-            ->where('user_id', $participant->id)
-            ->where('activity_id', $activity->id)
-            ->with(['activity.week', 'versions' => fn (Relation $query): Relation => $query->orderByDesc('version_number')])
-            ->latest('attempt_number')
-            ->first();
+        $allRequirements = $activity->requirements;
+        $requirements = $allRequirements->filter(fn (ActivityRequirement $requirement): bool => ! ($requirement->configuration['deprecated'] ?? false));
+        $fields = $requirements->mapWithKeys(fn (ActivityRequirement $requirement): array => [$requirement->configuration['key'] => $requirement->configuration['label'] ?? $requirement->title]);
+        $headers = ['Participant', 'Employee ID', 'Week', 'Activity', 'Submission ID', 'Attempt', 'Submission Version', 'Submission Status', 'Submitted At', 'Participant Notes', ...$fields->values()->all()];
         $version = $submission?->versions->first(fn (SubmissionVersion $candidate): bool => ! $candidate->isDraft())
             ?? $submission?->versions->first();
-        $version?->setRelation('submission', $submission);
         $historicalFields = collect();
         if ($version) {
             $historicalFields = $allRequirements->filter(fn (ActivityRequirement $requirement): bool => ($requirement->configuration['deprecated'] ?? false) && array_key_exists($requirement->configuration['key'], $version->field_values ?? []))->mapWithKeys(fn (ActivityRequirement $requirement): array => [$requirement->configuration['key'] => $requirement->configuration['label'] ?? $requirement->title]);
         }
         $headers = array_merge($headers, $historicalFields->values()->all());
         $row = array_fill(0, count($headers), null);
-        if ($version) {
-            $values = [$participant->name, $activity->week->week_number, $activity->title, $version->submission->id, $version->submission->attempt_number, $version->version_number, $version->submission->status->value, $version->submitted_at, $version->participant_note];
+        if ($submission && $version) {
+            $values = [$participant->name, $participant->employee_id, $week->week_number, $activity->title, $submission->id, $submission->attempt_number, $version->version_number, $submission->status->value, $version->submitted_at, $version->participant_note];
             foreach ($fields as $key => $label) {
                 $values[] = $version->field_values[$key] ?? null;
             }

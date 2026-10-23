@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A dated run of a program: its weeks 1 to `weeks_count`, from `starts_on` to `ends_on` (inclusive). Its status is
@@ -50,6 +51,11 @@ class TrainingSession extends Model
             ->using(TrainingSessionParticipant::class)
             ->withPivot(['joined_at', 'added_by'])
             ->withTimestamps();
+    }
+
+    public function resources(): HasMany
+    {
+        return $this->hasMany(TrainingSessionResource::class);
     }
 
     /**

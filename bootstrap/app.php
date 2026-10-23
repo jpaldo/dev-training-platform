@@ -1,7 +1,9 @@
 <?php
 
+use App\Enums\TrainingSessionResourceType;
 use App\Http\Middleware\EnsureEmployeeIdIsSet;
 use App\Http\Middleware\EnsureUserHasRole;
+use App\Http\Requests\StoreTrainingSessionResourceRequest;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -36,6 +38,12 @@ return Application::configure(basePath: dirname(__DIR__))
                 return redirect()->back()->withErrors([
                     'video' => 'The video must not exceed 350 MB.',
                 ]);
+            }
+
+            if ($request->isMethod('post') && $request->is('admin/sessions/*/resources')) {
+                return redirect()->to(route('admin.sessions.show', $request->segment(3)).'#resources')
+                    ->withInput(['type' => TrainingSessionResourceType::File->value])
+                    ->withErrors(['file' => StoreTrainingSessionResourceRequest::maxFileSizeMessage()], 'resources');
             }
 
             return null;

@@ -9,6 +9,7 @@ use App\Http\Controllers\AdminInterviewSchedulingController;
 use App\Http\Controllers\AdminSettingsController;
 use App\Http\Controllers\AdminTrainingSessionController;
 use App\Http\Controllers\AdminTrainingSessionParticipantController;
+use App\Http\Controllers\AdminTrainingSessionResourceController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AuthenticatedSessionController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\ScoringReportController;
 use App\Http\Controllers\SubmissionEvidenceController;
 use App\Http\Controllers\SummaryExportController;
 use App\Http\Controllers\TrainingActivityController;
+use App\Http\Controllers\TrainingSessionResourceController;
 use App\Http\Controllers\TrainingSyncController;
 use App\Http\Controllers\TrainingWeekController;
 use App\Http\Controllers\WeeklyVideoRecordingController;
@@ -106,6 +108,9 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::put('/sessions/{trainingSession}', [AdminTrainingSessionController::class, 'update'])->name('sessions.update');
         Route::post('/sessions/{trainingSession}/participants', [AdminTrainingSessionParticipantController::class, 'store'])->name('sessions.participants.store');
         Route::delete('/sessions/{trainingSession}/participants/{participant}', [AdminTrainingSessionParticipantController::class, 'destroy'])->scopeBindings()->name('sessions.participants.destroy');
+        Route::post('/sessions/{trainingSession}/resources', [AdminTrainingSessionResourceController::class, 'store'])->name('sessions.resources.store');
+        Route::put('/sessions/{trainingSession}/resources/{resource}', [AdminTrainingSessionResourceController::class, 'update'])->scopeBindings()->name('sessions.resources.update');
+        Route::delete('/sessions/{trainingSession}/resources/{resource}', [AdminTrainingSessionResourceController::class, 'destroy'])->scopeBindings()->name('sessions.resources.destroy');
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');
         Route::post('/users', [AdminUserController::class, 'store'])->name('users.store');
@@ -154,6 +159,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
     Route::post('/markdown/preview', MarkdownPreviewController::class)->name('markdown.preview');
 
     Route::prefix('training')->name('training.')->group(function () {
+        Route::get('/sessions/{trainingSession}/resources/{resource}', [TrainingSessionResourceController::class, 'show'])->scopeBindings()->name('sessions.resources.show');
         Route::get('/weeks/{trainingWeek}', [TrainingWeekController::class, 'show'])->name('weeks.show');
         Route::get('/weeks/{trainingWeek}/activities/{activity}', [TrainingActivityController::class, 'show'])->name('activities.show');
         Route::middleware('role:participant')->group(function () {

@@ -178,7 +178,7 @@ class CoachParticipantPageTest extends TestCase
             $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
             SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 1, 'status' => 'submitted']);
             SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 2, 'status' => 'submitted']);
-            WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create(['original_filename' => "week-{$position}.mp4"]);
+            WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create(['name' => "week-{$position}.mp4"]);
             AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subDays($position)->subHours(8), 'check_out_at' => now()->subDays($position), 'total_seconds' => 28800]);
         }
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subHour()]);

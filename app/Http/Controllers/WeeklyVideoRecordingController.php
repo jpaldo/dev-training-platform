@@ -5,15 +5,13 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreWeeklyVideoRecordingRequest;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\WeeklyVideoRecording;
 use App\Services\WeeklyVideoRecordingPageService;
+use App\Services\WeeklyVideoRecordingService;
 use App\Services\WeekProgressionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use RuntimeException;
 
 class WeeklyVideoRecordingController extends Controller
 {
@@ -30,56 +28,21 @@ class WeeklyVideoRecordingController extends Controller
         return view('training.video-recording', $page->editData($trainingWeek, $user));
     }
 
-    public function store(StoreWeeklyVideoRecordingRequest $request, TrainingWeek $trainingWeek): RedirectResponse
+    /**
+     * Record the video the participant chose from their Google Drive with the Picker. A file the app cannot use goes
+     * back to the page with the reason on `drive_file_id` and the entered notes.
+     */
+    public function store(StoreWeeklyVideoRecordingRequest $request, TrainingWeek $trainingWeek, WeeklyVideoRecordingService $videos): RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
-        $recording = WeeklyVideoRecording::query()->where('user_id', $user->id)->where('training_week_id', $trainingWeek->id)->first();
-        $data = $request->validated();
 
-        $file = $request->file('video');
-        if (! $file) {
-            throw ValidationException::withMessages(['video' => 'Please upload a valid video file.']);
-        }
-        $oldPath = $recording?->path;
-        $path = $file->store('weekly-video/'.$user->id.'/'.$trainingWeek->id, 'local');
-        $recording = WeeklyVideoRecording::updateOrCreate(
-            ['user_id' => $user->id, 'training_week_id' => $trainingWeek->id],
-            ['disk' => 'local', 'path' => $path, 'original_filename' => $file->getClientOriginalName(), 'mime_type' => $file->getMimeType() ?: 'application/octet-stream', 'size_bytes' => $file->getSize(), 'notes' => $data['notes'] ?? $recording?->notes, 'uploaded_at' => now()]
-        );
-        if ($oldPath && $oldPath !== $path) {
-            Storage::disk('local')->delete($oldPath);
+        try {
+            $videos->choose($user, $trainingWeek, $request->safe()->only(['drive_file_id', 'resource_key', 'notes']));
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['drive_file_id' => $exception->getMessage()])->withInput();
         }
 
-        return redirect()->route('training.video-recording.edit', $trainingWeek)->with('status', 'Video recording uploaded.');
-    }
-
-    public function view(Request $request, TrainingWeek $trainingWeek, WeeklyVideoRecording $weeklyVideoRecording): StreamedResponse
-    {
-        $this->authorizeRecording($request, $trainingWeek, $weeklyVideoRecording);
-
-        return Storage::disk($weeklyVideoRecording->disk)->response(
-            $weeklyVideoRecording->path,
-            $weeklyVideoRecording->original_filename,
-            ['Content-Type' => $weeklyVideoRecording->mime_type],
-            'inline'
-        );
-    }
-
-    public function download(Request $request, TrainingWeek $trainingWeek, WeeklyVideoRecording $weeklyVideoRecording): StreamedResponse
-    {
-        $this->authorizeRecording($request, $trainingWeek, $weeklyVideoRecording);
-
-        return Storage::disk($weeklyVideoRecording->disk)->download($weeklyVideoRecording->path, $weeklyVideoRecording->original_filename, ['Content-Type' => $weeklyVideoRecording->mime_type]);
-    }
-
-    private function authorizeRecording(Request $request, TrainingWeek $trainingWeek, WeeklyVideoRecording $weeklyVideoRecording): void
-    {
-        $user = $request->user();
-        abort_unless($user instanceof User, 403);
-        abort_unless($weeklyVideoRecording->training_week_id === $trainingWeek->id, 404);
-        $owner = $weeklyVideoRecording->participant;
-        abort_unless($user->id === $owner->id || ($user->isCoachOrAdmin() && $user->canManageParticipant($owner)), 403);
-        abort_unless(Storage::disk($weeklyVideoRecording->disk)->exists($weeklyVideoRecording->path), 404);
+        return redirect()->route('training.video-recording.edit', $trainingWeek)->with('status', 'Video chosen from Google Drive.');
     }
 }

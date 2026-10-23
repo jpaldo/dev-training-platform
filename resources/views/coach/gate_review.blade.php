@@ -86,7 +86,7 @@
                                             <p id="criterion-{{ $item['id'] }}-description" class="m-0 text-sm/relaxed text-muted">{{ $item['description'] }}</p>
                                         @endif
                                         @if($item['video_url'])
-                                            <x-ui.button variant="secondary" :href="$item['video_url']">View Video</x-ui.button>
+                                            <x-ui.button variant="secondary" :href="$item['video_url']" target="_blank" rel="noopener noreferrer">View Video<span class="sr-only"> (opens Google Drive in a new tab)</span></x-ui.button>
                                         @endif
                                     </div>
                                 </li>

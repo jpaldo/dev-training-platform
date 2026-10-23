@@ -97,7 +97,7 @@ class TrainingWeekPageTest extends TestCase
                 'Missing',
                 'Status:',
                 'Uploaded',
-                route('training.video-recording.view', [$week, $recording]),
+                $recording->driveViewUrl(),
                 'Replace Video',
             ], false)
             ->assertDontSee('week-main-action')

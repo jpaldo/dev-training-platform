@@ -88,9 +88,9 @@
                                 <ul class="m-0 grid list-none gap-3 p-0">
                                     @foreach($videoRecordings as $recording)
                                         <li class="grid justify-items-start gap-2 rounded-xl border border-line bg-field px-4 py-3.5">
-                                            <strong class="min-w-0 wrap-anywhere">Week {{ $recording->week->week_number }} · {{ $recording->original_filename }}</strong>
-                                            <p class="m-0 text-sm text-muted">{{ number_format($recording->size_bytes / 1048576, 1) }} MB · {{ $recording->uploaded_at?->format('M j, Y g:i A') }}</p>
-                                            <x-weekly-video-actions :recording="$recording" :week="$recording->week" />
+                                            <strong class="min-w-0 wrap-anywhere">Week {{ $recording->week->week_number }} · {{ $recording->name }}</strong>
+                                            <p class="m-0 text-sm text-muted">{{ $recording->detailsLabel() }}</p>
+                                            <x-weekly-video-actions :recording="$recording" />
                                         </li>
                                     @endforeach
                                 </ul>

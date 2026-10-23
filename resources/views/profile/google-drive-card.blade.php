@@ -93,7 +93,7 @@
                         variant="secondary"
                         :disabled="$picker['unavailable_message'] !== null"
                         :data-drive-picker="$picker['is_enabled']"
-                        data-token-url="{{ route('profile.google-drive.picker-token') }}"
+                        data-token-url="{{ $picker['token_url'] }}"
                         data-save-url="{{ route('profile.google-drive.destination') }}"
                         data-api-key="{{ $picker['api_key'] }}"
                         data-app-id="{{ $picker['app_id'] }}"

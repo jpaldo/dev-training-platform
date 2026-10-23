@@ -145,7 +145,7 @@ class GateReadinessService
         $recordings = $weekIds === [] ? collect() : WeeklyVideoRecording::query()
             ->whereIn('user_id', $participantIds)
             ->whereIn('training_week_id', $weekIds)
-            ->latest('uploaded_at')
+            ->latest('chosen_at')
             ->get()
             ->unique(fn (WeeklyVideoRecording $recording): string => $recording->user_id.':'.$recording->training_week_id)
             ->keyBy(fn (WeeklyVideoRecording $recording): string => $recording->user_id.':'.$recording->training_week_id);
@@ -171,7 +171,7 @@ class GateReadinessService
                     $criterionEvaluation?->isMet() === true => 'met',
                     default => 'awaiting_review',
                 },
-                'url' => $recording ? route('training.video-recording.view', [$gate->training_week_id, $recording]) : null,
+                'url' => $recording?->driveViewUrl(),
                 'criterion' => $criterion,
                 'recording' => $recording,
             ]];

@@ -39,7 +39,7 @@ class CoachParticipantPageService
             },
             'canManage' => $canManage,
             'submissions' => $this->submissionRows($participant),
-            'videoRecordings' => $participant->weeklyVideoRecordings->sortByDesc('uploaded_at')->values(),
+            'videoRecordings' => $participant->weeklyVideoRecordings->sortByDesc('chosen_at')->values(),
             'gates' => $this->gateRows($participant),
             'attendance' => $this->attendanceSummary($participant),
             'tabs' => [

@@ -203,7 +203,7 @@
                                     <span class="text-sm text-muted">{{ $item['week']->weekly_video_recording ? 'Uploaded' : 'Not uploaded' }}</span>
                                     <div class="flex flex-wrap items-center gap-2.5">
                                         @if($item['week']->weekly_video_recording)
-                                            <x-weekly-video-actions :recording="$item['week']->weekly_video_recording" :week="$item['week']" />
+                                            <x-weekly-video-actions :recording="$item['week']->weekly_video_recording" />
                                             <x-ui.button variant="secondary" :href="route('training.video-recording.edit', $item['week'])">Replace Video</x-ui.button>
                                         @else
                                             <x-ui.button variant="secondary" :href="route('training.video-recording.edit', $item['week'])">Upload Video</x-ui.button>

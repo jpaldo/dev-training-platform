@@ -175,8 +175,6 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::get('/evidence/{submissionEvidence}/download', [SubmissionEvidenceController::class, 'download'])->name('evidence.download');
         Route::get('/evidence/{submissionEvidence}/view', [SubmissionEvidenceController::class, 'view'])->name('evidence.view');
         Route::get('/evidence/{submissionEvidence}/preview', [SubmissionEvidenceController::class, 'preview'])->name('evidence.preview');
-        Route::get('/weeks/{trainingWeek}/video-recording/{weeklyVideoRecording}/view', [WeeklyVideoRecordingController::class, 'view'])->name('video-recording.view');
-        Route::get('/weeks/{trainingWeek}/video-recording/{weeklyVideoRecording}/download', [WeeklyVideoRecordingController::class, 'download'])->name('video-recording.download');
         Route::middleware('role:coach,admin')->prefix('coach')->name('coach.')->group(function () {
             Route::get('/weeks/{trainingWeek}/participants/{participant}/gates/{trainingGate}', [GateReviewController::class, 'show'])->name('gates.show');
             Route::post('/weeks/{trainingWeek}/participants/{participant}/gates/{trainingGate}', [GateReviewController::class, 'update'])->name('gates.update');

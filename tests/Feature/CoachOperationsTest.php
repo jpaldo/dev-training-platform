@@ -20,8 +20,6 @@ use App\Models\User;
 use App\Models\WeeklyVideoRecording;
 use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
@@ -52,9 +50,8 @@ class CoachOperationsTest extends TestCase
         $this->actingAs($coach)->get(route('coach.reports.export'))->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
     }
 
-    public function test_assigned_coach_can_view_weekly_video_from_participant_detail(): void
+    public function test_assigned_coach_can_open_the_weekly_video_in_drive_from_participant_detail(): void
     {
-        Storage::fake('local');
         $program = Program::factory()->create(['is_active' => true]);
         $week = TrainingWeek::factory()->for($program)->create([
             'week_number' => 2,
@@ -65,43 +62,34 @@ class CoachOperationsTest extends TestCase
         $participant = User::factory()->create(['role' => 'participant']);
         $coach = User::factory()->create(['role' => 'coach']);
         $coach->assignedParticipants()->attach($participant->id);
-
-        $this->actingAs($participant)
-            ->post(route('training.video-recording.store', $week), [
-                'video' => UploadedFile::fake()->create('week-2.mp4', 100, 'video/mp4'),
-            ])
-            ->assertRedirect();
-        $recording = WeeklyVideoRecording::firstOrFail();
-        $previewUrl = route('training.video-recording.view', [$week, $recording]);
-        $downloadUrl = route('training.video-recording.download', [$week, $recording]);
+        $recording = WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create([
+            'drive_file_id' => 'drive-video-2',
+            'name' => 'week-2.mp4',
+            'size_bytes' => 1572864,
+            'chosen_at' => '2026-10-22 09:30:00',
+        ]);
+        $driveUrl = $recording->driveViewUrl();
 
         $this->actingAs($coach)
             ->get(route('coach.participants.show', $participant))
             ->assertOk()
-            ->assertSee('Weekly Video Recording')
-            ->assertSee('Preview Video')
-            ->assertSee('Download Video')
-            ->assertSee('week-2.mp4')
-            ->assertSee($previewUrl, false)
-            ->assertSee($downloadUrl, false)
-            ->assertSee('<dialog', false)
-            ->assertSee('<video', false);
-        $previewResponse = $this->actingAs($coach)->get($previewUrl);
-        $previewResponse->assertOk()->assertHeader('content-type', 'video/mp4');
-        $this->assertStringStartsWith('inline;', (string) $previewResponse->headers->get('content-disposition'));
-        $downloadResponse = $this->actingAs($coach)->get($downloadUrl);
-        $downloadResponse->assertOk();
-        $this->assertStringStartsWith('attachment;', (string) $downloadResponse->headers->get('content-disposition'));
+            ->assertSeeInOrder([
+                'Weekly Video Recording',
+                'Week 2 · week-2.mp4',
+                '1.5 MB · chosen Oct 22, 2026 9:30 AM',
+                'href="'.$driveUrl.'" target="_blank" rel="noopener noreferrer"',
+                '>Open in Drive<',
+            ], false)
+            ->assertDontSee('<dialog', false)
+            ->assertDontSee('<video', false)
+            ->assertDontSee('Download Video');
 
         $unassignedCoach = User::factory()->create(['role' => 'coach']);
         $this->actingAs($unassignedCoach)
             ->get(route('coach.participants.show', $participant))
             ->assertOk()
-            ->assertDontSee($previewUrl, false)
-            ->assertDontSee($downloadUrl, false)
+            ->assertDontSee($driveUrl, false)
             ->assertDontSee('week-2.mp4');
-        $this->actingAs($unassignedCoach)->get($previewUrl)->assertForbidden();
-        $this->actingAs($unassignedCoach)->get($downloadUrl)->assertForbidden();
     }
 
     public function test_participant_list_is_a_searchable_table_with_drive_and_attendance(): void

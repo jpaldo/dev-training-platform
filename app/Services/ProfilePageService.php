@@ -35,15 +35,14 @@ class ProfilePageService
      * latest sync and folder actions (the sync button is disabled while a sync is running, and the folder picker
      * button, with the reason, while the Picker is not configured or Google Drive cannot connect).
      *
-     * @return array{state: string, connection: ?array{account_label: string, connected_at_label: ?string, folder_state: string, folder_name: ?string, legacy_folder_label: string}, sync: ?array{status_label: string, last_successful_sync_label: ?string, error: ?string, failed_components: ?list<array{name: string, message: ?string}>, status_url: ?string}, can_sync: bool, sync_button_label: string, picker: array{unavailable_message: ?string, label: string, api_key: ?string, app_id: ?string, is_enabled: bool}}
+     * @return array{state: string, connection: ?array{account_label: string, connected_at_label: ?string, folder_state: string, folder_name: ?string, legacy_folder_label: string}, sync: ?array{status_label: string, last_successful_sync_label: ?string, error: ?string, failed_components: ?list<array{name: string, message: ?string}>, status_url: ?string}, can_sync: bool, sync_button_label: string, picker: array{api_key: ?string, app_id: ?string, token_url: string, unavailable_message: ?string, label: string, is_enabled: bool}}
      */
     private function googleDrive(User $participant): array
     {
         $connection = $participant->googleDriveConnection;
         $canConnect = $this->configuration->canConnect();
-        $apiKey = $this->configuration->getPickerApiKey();
-        $appId = $this->configuration->getProjectNumber();
-        $isPickerConfigured = filled($apiKey) && filled($appId);
+        $picker = $this->configuration->pickerSettings('folder');
+        $isPickerConfigured = filled($picker['api_key']) && filled($picker['app_id']);
         $hasPickerFolder = $connection?->destination_source === 'picker' && filled($connection->drive_folder_id);
         $canSync = $isPickerConfigured && $hasPickerFolder;
         $latestSync = GoogleDriveSync::query()->where('user_id', $participant->id)->latest('id')->first();
@@ -65,14 +64,8 @@ class ProfilePageService
                 default => 'CHOOSE GOOGLE DRIVE FOLDER',
             },
             'picker' => [
-                'unavailable_message' => match (true) {
-                    ! $isPickerConfigured => 'Google Drive folder selection is not configured. Please contact an administrator.',
-                    ! $canConnect => 'Google Drive folder selection is unavailable because Google Drive cannot connect right now. Please contact an administrator.',
-                    default => null,
-                },
+                ...$picker,
                 'label' => $connection?->destination_source === 'picker' ? 'Change Folder' : 'Choose Google Drive Folder',
-                'api_key' => $apiKey,
-                'app_id' => $appId,
                 'is_enabled' => $connection !== null && $canConnect,
             ],
         ];

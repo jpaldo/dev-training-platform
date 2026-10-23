@@ -3,10 +3,10 @@
 @section('content')
     @php
         $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
-        $fileClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-raised file:px-3 file:py-1.5 file:font-sans file:font-bold file:text-white focus-visible:outline-3 focus-visible:outline-accent/50';
         $labelClasses = 'text-sm font-extrabold';
-        $hintClasses = 'm-0 text-sm/relaxed text-muted';
+        $textClasses = 'm-0 leading-relaxed text-muted';
         $fieldErrorClasses = 'm-0 text-sm text-rose-200';
+        $intro = 'Upload your video to your own Google Drive first, then choose it here. The app keeps a link to the file, not the video.';
     @endphp
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -29,38 +29,31 @@
                 <h2 id="video-recording-title" class="m-0 text-xl font-extrabold">Video Recording</h2>
 
                 @if($recording)
-                    <div class="grid gap-1.5">
-                        <p class="m-0 wrap-anywhere"><strong>Uploaded</strong> · {{ $recording->original_filename }}</p>
-                        <p class="m-0 text-sm text-muted">{{ $recordingDetails }}</p>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-3">
-                        <x-weekly-video-actions :recording="$recording" :week="$trainingWeek" :show-download="false" preview-label="View Video" />
-                        <span class="text-sm text-muted">Upload a replacement below if needed.</span>
+                    <div class="grid justify-items-start gap-3">
+                        <p class="m-0 wrap-anywhere"><strong>Chosen</strong> · {{ $recordingDetails }}</p>
+                        <x-weekly-video-actions :recording="$recording" />
                     </div>
                 @else
-                    <p class="m-0 leading-relaxed text-muted">Record your actual work for this week. Show the work product, evidence reviewed, validation steps, issues identified, and final conclusion.</p>
+                    <p class="{{ $textClasses }}">Record your actual work for this week. Show the work product, evidence reviewed, validation steps, issues identified, and final conclusion.</p>
                 @endif
 
                 @if($isLocked)
-                    <p class="m-0 leading-relaxed text-muted">This recording is locked because the Gate has been completed.</p>
+                    <p class="{{ $textClasses }}">This recording is locked because the Gate has been completed.</p>
+                @elseif($driveState === 'unavailable')
+                    <p class="{{ $textClasses }}">Google Drive is not available yet. Ask an administrator.</p>
+                @elseif($driveState === 'not_connected')
+                    <div class="grid justify-items-start gap-3">
+                        <p class="{{ $textClasses }}">{{ $recording ? 'Connect Google Drive to choose a different video.' : $intro }}</p>
+                        <x-ui.button :href="$connectUrl">Connect Google Drive</x-ui.button>
+                    </div>
                 @else
-                    {{-- The form is short, so its submit (the page's single main action) stays at the end of the form. --}}
-                    <form method="POST" action="{{ $storeUrl }}" enctype="multipart/form-data" class="m-0 grid grid-cols-1 gap-5" data-weekly-video-form data-max-bytes="{{ $maxBytes }}" data-max-size-message="{{ $maxSizeMessage }}">
+                    {{-- The Picker (initializeGoogleDrivePicker in resources/js/app.js) fills the hidden inputs and submits the form. --}}
+                    <form method="POST" action="{{ $storeUrl }}" class="m-0 grid grid-cols-1 gap-5" data-weekly-video-form>
                         @csrf
+                        <input type="hidden" name="drive_file_id" value="">
+                        <input type="hidden" name="resource_key" value="">
 
-                        <div class="grid min-w-0 gap-2">
-                            <label for="video" class="{{ $labelClasses }}">Video File *</label>
-                            {{-- The size check before upload is initializeWeeklyVideoSizeLimit in resources/js/app.js. --}}
-                            <input id="video" name="video" type="file" accept="video/*" required data-weekly-video-input aria-describedby="video-hint" class="{{ $fileClasses }}">
-                            <div id="video-hint" class="grid gap-1">
-                                <p class="{{ $hintClasses }}">Upload a video file · maximum {{ $maxSizeLabel }}</p>
-                                <p class="{{ $hintClasses }}">Common video formats are supported.</p>
-                            </div>
-                            <p class="{{ $fieldErrorClasses }}" role="alert" data-weekly-video-size-error hidden>{{ $maxSizeMessage }}</p>
-                            @error('video')
-                                <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
-                            @enderror
-                        </div>
+                        <p class="{{ $textClasses }}">{{ $intro }}</p>
 
                         <div class="grid min-w-0 gap-2">
                             <label for="notes" class="{{ $labelClasses }}">Notes <span class="font-normal text-muted">(optional)</span></label>
@@ -70,8 +63,26 @@
                             @enderror
                         </div>
 
-                        <x-ui.button type="submit" class="justify-self-start">{{ $submitLabel }}</x-ui.button>
+                        @error('drive_file_id')
+                            <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
+                        @enderror
+
+                        <x-ui.button
+                            :disabled="$picker['unavailable_message'] !== null"
+                            :data-drive-picker="$picker['unavailable_message'] === null"
+                            data-drive-picker-kind="video"
+                            data-token-url="{{ $picker['token_url'] }}"
+                            data-api-key="{{ $picker['api_key'] }}"
+                            data-app-id="{{ $picker['app_id'] }}"
+                            class="justify-self-start disabled:cursor-not-allowed disabled:opacity-55"
+                        >{{ $pickerLabel }}</x-ui.button>
+
+                        <x-ui.alert tone="error" role="alert" data-drive-picker-error :hidden="$picker['unavailable_message'] === null">{{ $picker['unavailable_message'] }}</x-ui.alert>
                     </form>
+
+                    @if($picker['unavailable_message'] === null)
+                        <script src="https://apis.google.com/js/api.js" async defer></script>
+                    @endif
                 @endif
             </x-ui.card>
         </div>

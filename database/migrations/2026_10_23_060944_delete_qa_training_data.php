@@ -96,7 +96,8 @@ return new class extends Migration
     }
 
     /**
-     * The local files referenced by evidence, weekly videos and Validation Lab records, grouped by disk.
+     * The local files referenced by evidence, weekly videos and Validation Lab records, grouped by disk. A table
+     * without a `path` column is skipped: from 8.12, `weekly_video_recordings` holds Google Drive files, not uploads.
      *
      * @return array<string, list<string>>
      */
@@ -105,7 +106,7 @@ return new class extends Migration
         $files = collect();
 
         foreach (['submission_evidence', 'weekly_video_recordings'] as $table) {
-            if (Schema::hasTable($table)) {
+            if (Schema::hasColumn($table, 'path')) {
                 $files = $files->concat(
                     DB::table($table)->whereNotNull('path')->get(['disk', 'path'])
                         ->map(fn (object $file): array => ['disk' => $file->disk, 'path' => $file->path]),

@@ -77,7 +77,7 @@ class GateReadinessTest extends TestCase
         $recording = $this->uploadWeeklyVideo($participant, $weekTwo);
         $awaiting = $service->weeklyVideo($participant, $gateTwo);
         $this->assertSame('awaiting_review', $awaiting['status']);
-        $this->assertSame(route('training.video-recording.view', [$weekTwo, $recording]), $awaiting['url']);
+        $this->assertSame($recording->driveViewUrl(), $awaiting['url']);
         $this->assertTrue($awaiting['recording']->is($recording));
         $this->assertArrayNotHasKey('weekly_video', $service->readiness($participant, $gateTwo));
 

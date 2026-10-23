@@ -61,7 +61,7 @@ class CoachGateBoardPageTest extends TestCase
                 'href="'.route('coach.participants.show', $awaiting).'"', '>Ada Awaiting</a>', '>ada@example.test</span>',
                 'border-accent text-cyan-200 whitespace-nowrap">AWAITING REVIEW</span>',
                 '>0 / 2</span>', '>criteria met</span>',
-                'href="'.route('training.video-recording.view', [$week, $awaitingRecording]).'"', '>Awaiting Review</a>',
+                'href="'.$awaitingRecording->driveViewUrl().'" target="_blank" rel="noopener noreferrer"', '>Awaiting Review<span class="sr-only"> (opens Google Drive in a new tab)</span></a>',
                 '>—</span>',
                 'href="'.route('training.coach.gates.show', [$week, $awaiting, $gate]).'"', '>Review Gate</a>',
                 '>Nell Notready</a>',
@@ -73,7 +73,7 @@ class CoachGateBoardPageTest extends TestCase
                 '>Pat Passed</a>',
                 'border-emerald-400 text-emerald-200 whitespace-nowrap">COMPLETED</span>',
                 '>2 / 2</span>',
-                'href="'.route('training.video-recording.view', [$week, $passedRecording]).'"', '>✓ Uploaded</a>',
+                'href="'.$passedRecording->driveViewUrl().'" target="_blank" rel="noopener noreferrer"', '>✓ Uploaded<span class="sr-only"> (opens Google Drive in a new tab)</span></a>',
                 '>—</span>',
                 'href="'.route('training.coach.gates.show', [$week, $passed, $gate]).'"', '>View Gate</a>',
             ], false)

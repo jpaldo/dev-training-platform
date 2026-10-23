@@ -4,13 +4,17 @@ namespace Tests\Feature;
 
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
+use App\Models\GoogleDriveConnection;
 use App\Models\Program;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
+use Closure;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -19,262 +23,197 @@ class WeeklyVideoRecordingTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_participant_can_upload_a_private_week_video_recording(): void
-    {
-        Storage::fake('local');
-        [$participant, $week] = $this->week();
+    private const DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files/*';
 
-        $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
-            ->assertOk()
-            ->assertSee('Video Recording')
-            ->assertSee('Upload Video Recording')
-            ->assertSee('maximum 350 MB')
-            ->assertSee('accept="video/*"', false)
-            ->assertSee('data-weekly-video-form', false)
-            ->assertSee('data-max-bytes="367001600"', false)
-            ->assertSee('The video must not exceed 350 MB.', false);
-        $this->actingAs($participant)->post(route('training.video-recording.store', $week), ['video' => UploadedFile::fake()->create('week-2.mp4', 100, 'video/mp4')])->assertRedirect(route('training.video-recording.edit', $week));
-        $recording = WeeklyVideoRecording::firstOrFail();
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config()->set('services.google_drive.enabled', true);
+        config()->set('services.google_drive.client_id', 'client-id');
+        config()->set('services.google_drive.client_secret', 'client-secret');
+        config()->set('services.google_drive.redirect_uri', 'http://localhost/profile/google-drive/callback');
+        Http::preventStrayRequests();
+        Storage::fake('local');
+    }
+
+    public function test_participant_chooses_an_owned_video_from_google_drive(): void
+    {
+        [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
+        Http::fake([self::DRIVE_FILES_URL => Http::response(self::driveVideo())]);
+        $this->freezeSecond();
+
+        $this->actingAs($participant)
+            ->post(route('training.video-recording.store', $week), ['drive_file_id' => 'video-file-1', 'notes' => 'Walkthrough of the API'])
+            ->assertRedirect(route('training.video-recording.edit', $week))
+            ->assertSessionHas('status', 'Video chosen from Google Drive.');
+
+        $recording = WeeklyVideoRecording::query()->sole();
         $this->assertSame($participant->id, $recording->user_id);
-        Storage::disk('local')->assertExists($recording->path);
-        $this->actingAs($participant)->get(route('training.video-recording.download', [$week, $recording]))->assertOk();
-    }
-
-    public function test_participant_video_actions_are_available_on_week_and_dashboard_pages(): void
-    {
-        Storage::fake('local');
-        [$participant, $week] = $this->week();
-
-        $this->actingAs($participant)->post(route('training.video-recording.store', $week), [
-            'video' => UploadedFile::fake()->create('week-2.mp4', 100, 'video/mp4'),
-        ])->assertRedirect();
-        $recording = WeeklyVideoRecording::firstOrFail();
-        $previewUrl = route('training.video-recording.view', [$week, $recording]);
-        $downloadUrl = route('training.video-recording.download', [$week, $recording]);
-
-        foreach ([route('training.weeks.show', $week), route('dashboard')] as $pageUrl) {
-            $this->actingAs($participant)->get($pageUrl)
-                ->assertOk()
-                ->assertSee('Preview Video')
-                ->assertSee('Download Video')
-                ->assertSee('Replace Video')
-                ->assertSee($previewUrl, false)
-                ->assertSee($downloadUrl, false)
-                ->assertSee('<dialog', false)
-                ->assertSee('<video', false);
-        }
-    }
-
-    public function test_recording_page_opens_inline_video_preview_in_a_modal(): void
-    {
-        Storage::fake('local');
-        [$participant, $week] = $this->week();
-
-        $this->actingAs($participant)->post(route('training.video-recording.store', $week), [
-            'video' => UploadedFile::fake()->create('week-2.mp4', 100, 'video/mp4'),
-        ])->assertRedirect();
-        $recording = WeeklyVideoRecording::firstOrFail();
-        $previewUrl = route('training.video-recording.view', [$week, $recording]);
-        $downloadUrl = route('training.video-recording.download', [$week, $recording]);
+        $this->assertSame($week->id, $recording->training_week_id);
+        $this->assertSame('video-file-1', $recording->drive_file_id);
+        $this->assertNull($recording->drive_resource_key);
+        $this->assertSame('Week 1 demo.mp4', $recording->name);
+        $this->assertSame('video/mp4', $recording->mime_type);
+        $this->assertSame(73400320, $recording->size_bytes);
+        $this->assertSame('2026-10-20 08:15:30', $recording->drive_created_at->toDateTimeString());
+        $this->assertSame('2026-10-21 09:45:00', $recording->drive_modified_at->toDateTimeString());
+        $this->assertSame('Walkthrough of the API', $recording->notes);
+        $this->assertTrue($recording->chosen_at->equalTo(now()));
+        Http::assertSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://www.googleapis.com/drive/v3/files/video-file-1?')
+            && $request->hasHeader('Authorization', 'Bearer token'));
+        $this->assertSame([], Storage::disk('local')->allFiles());
 
         $this->actingAs($participant)->get(route('training.video-recording.edit', $week))
             ->assertOk()
-            ->assertSee('View Video')
-            ->assertSee($previewUrl, false)
-            ->assertSee('<dialog', false)
-            ->assertSee('<video', false)
-            ->assertDontSee($downloadUrl, false)
-            ->assertDontSee('Download Video');
+            ->assertSee('Week 1 demo.mp4')
+            ->assertSee('href="https://drive.google.com/file/d/video-file-1/view" target="_blank" rel="noopener noreferrer"', false)
+            ->assertSee('>Open in Drive<', false);
     }
 
-    public function test_video_preview_is_inline_and_private(): void
+    public function test_the_resource_key_is_kept_and_carried_into_the_drive_link(): void
     {
-        Storage::fake('local');
         [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
+        Http::fake([self::DRIVE_FILES_URL => Http::response(self::driveVideo())]);
 
-        $this->actingAs($participant)->post(route('training.video-recording.store', $week), [
-            'video' => UploadedFile::fake()->create('week-2.mp4', 100, 'video/mp4'),
-        ])->assertRedirect();
-        $recording = WeeklyVideoRecording::firstOrFail();
-        $previewUrl = route('training.video-recording.view', [$week, $recording]);
-        $downloadUrl = route('training.video-recording.download', [$week, $recording]);
+        $this->actingAs($participant)
+            ->post(route('training.video-recording.store', $week), ['drive_file_id' => 'video-file-1', 'resource_key' => '0-abcKey'])
+            ->assertRedirect();
 
-        $previewResponse = $this->actingAs($participant)->get($previewUrl);
-        $previewResponse->assertOk()->assertHeader('content-type', 'video/mp4');
-        $this->assertStringStartsWith('inline;', (string) $previewResponse->headers->get('content-disposition'));
+        $recording = WeeklyVideoRecording::query()->sole();
+        $this->assertSame('0-abcKey', $recording->drive_resource_key);
+        $this->assertSame('https://drive.google.com/file/d/video-file-1/view?resourcekey=0-abcKey', $recording->driveViewUrl());
+        $this->assertSame('https://drive.google.com/file/d/video-file-1/preview?resourcekey=0-abcKey', $recording->drivePreviewUrl());
+        Http::assertSent(fn (Request $request): bool => $request->hasHeader('X-Goog-Drive-Resource-Keys', 'video-file-1/0-abcKey'));
+    }
 
-        $downloadResponse = $this->actingAs($participant)->get($downloadUrl);
-        $downloadResponse->assertOk()->assertHeader('content-type', 'video/mp4');
-        $this->assertStringStartsWith('attachment;', (string) $downloadResponse->headers->get('content-disposition'));
-
-        $otherParticipant = User::factory()->create();
-        $unassignedCoach = User::factory()->create(['role' => 'coach']);
-        $this->actingAs($otherParticipant)->get($previewUrl)->assertForbidden();
-        $this->actingAs($unassignedCoach)->get($previewUrl)->assertForbidden();
-
-        $assignedCoach = User::factory()->create(['role' => 'coach']);
-        $assignedCoach->assignedParticipants()->attach($participant->id);
-        $this->actingAs($assignedCoach)->get($previewUrl)->assertOk();
-        $this->actingAs(User::factory()->create(['role' => 'admin']))->get($previewUrl)->assertOk();
-
-        $otherWeek = TrainingWeek::factory()->for($week->program)->create([
-            'week_number' => 3,
-            'position' => 2,
-            'is_active' => true,
+    public function test_choosing_another_video_replaces_the_earlier_choice_and_keeps_its_notes(): void
+    {
+        [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
+        $earlier = WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create([
+            'drive_file_id' => 'earlier-video',
+            'notes' => 'Earlier notes',
         ]);
-        $this->actingAs($participant)->get(route('training.video-recording.view', [$otherWeek, $recording]))->assertNotFound();
+        Http::fake([self::DRIVE_FILES_URL => Http::response(self::driveVideo(['id' => 'video-file-2', 'name' => 'Week 1 retake.mov', 'mimeType' => 'video/quicktime']))]);
 
-        Storage::disk('local')->delete($recording->path);
-        $this->actingAs($participant)->get($previewUrl)->assertNotFound();
+        $this->actingAs($participant)
+            ->post(route('training.video-recording.store', $week), ['drive_file_id' => 'video-file-2'])
+            ->assertRedirect(route('training.video-recording.edit', $week));
+
+        $recording = WeeklyVideoRecording::query()->sole();
+        $this->assertSame($earlier->id, $recording->id);
+        $this->assertSame('video-file-2', $recording->drive_file_id);
+        $this->assertSame('Week 1 retake.mov', $recording->name);
+        $this->assertSame('video/quicktime', $recording->mime_type);
+        $this->assertSame('Earlier notes', $recording->notes);
     }
 
-    public function test_other_participant_cannot_download_a_recording(): void
-    {
-        Storage::fake('local');
-        [$participant, $week] = $this->week();
-        $this->actingAs($participant)->post(route('training.video-recording.store', $week), ['video' => UploadedFile::fake()->create('week-2.webm', 100, 'video/webm')]);
-        $other = User::factory()->create();
-        $this->actingAs($other)->get(route('training.video-recording.download', [$week, WeeklyVideoRecording::firstOrFail()]))->assertForbidden();
-    }
-
-    #[DataProvider('videoFileProvider')]
-    public function test_supported_video_formats_are_accepted(string $extension, string $mime): void
-    {
-        [$participant, $week] = $this->week();
-
-        $this->actingAs($participant)->post(route('training.video-recording.store', $week), [
-            'video' => UploadedFile::fake()->create('recording.'.$extension, 100, $mime),
-        ])->assertRedirect();
-
-        $this->assertDatabaseHas('weekly_video_recordings', ['original_filename' => 'recording.'.$extension]);
-    }
-
-    public static function videoFileProvider(): array
+    /**
+     * @return array<string, array{Closure(): PromiseInterface, string}>
+     */
+    public static function unusableFiles(): array
     {
         return [
-            ['mp4', 'video/mp4'], ['mov', 'video/quicktime'], ['webm', 'video/webm'], ['m4v', 'video/x-m4v'],
-            ['avi', 'video/x-msvideo'], ['mkv', 'video/x-matroska'], ['mpg', 'video/mpeg'], ['mpeg', 'video/mpeg'],
-            ['3gp', 'video/3gpp'], ['3g2', 'video/3gpp2'], ['ogv', 'video/ogg'], ['ogg', 'video/ogg'],
-            ['mts', 'video/mp2t'], ['m2ts', 'video/mp2t'], ['ts', 'video/mp2t'], ['vob', 'video/mpeg'],
-            ['wmv', 'video/x-ms-wmv'], ['flv', 'video/x-flv'], ['f4v', 'video/x-f4v'],
+            'not a video' => [fn () => Http::response(self::driveVideo(['mimeType' => 'application/pdf'])), 'The file you chose is not a video. Choose a video file.'],
+            'trashed' => [fn () => Http::response(self::driveVideo(['trashed' => true])), 'That video is in your Google Drive trash. Choose another video.'],
+            'not owned' => [fn () => Http::response(self::driveVideo(['ownedByMe' => false])), 'Choose a video from your own Google Drive.'],
+            'not found' => [fn () => Http::response(['error' => ['errors' => [['reason' => 'notFound']]]], 404), 'The app could not open that file in your Google Drive. Choose it again, or reconnect Google Drive on your profile.'],
         ];
     }
 
-    #[DataProvider('videoSizeProvider')]
-    public function test_weekly_video_size_boundary_is_350_mb(int $sizeKb, bool $accepted): void
-    {
-        Storage::fake('local');
-        [$participant, $week] = $this->week();
-
-        $response = $this->actingAs($participant)->post(route('training.video-recording.store', $week), [
-            'video' => UploadedFile::fake()->create('boundary.mp4', $sizeKb, 'video/mp4'),
-        ]);
-
-        if ($accepted) {
-            $response->assertRedirect();
-            $this->assertDatabaseHas('weekly_video_recordings', ['original_filename' => 'boundary.mp4']);
-        } else {
-            $response->assertSessionHasErrors('video');
-            $this->assertDatabaseCount('weekly_video_recordings', 0);
-        }
-    }
-
-    public static function videoSizeProvider(): array
-    {
-        return [[1, true], [358399, true], [358400, true], [358401, false]];
-    }
-
-    public function test_weekly_video_limit_is_independent_from_general_evidence_limit(): void
-    {
-        $this->assertSame(358400, config('training.weekly_video_max_kb'));
-        $this->assertSame(307200, config('training.evidence_max_kb'));
-    }
-
-    public function test_non_video_formats_are_rejected_for_weekly_recording(): void
+    /**
+     * @param  Closure(): PromiseInterface  $response
+     */
+    #[DataProvider('unusableFiles')]
+    public function test_an_unusable_file_shows_its_reason_and_changes_nothing(Closure $response, string $message): void
     {
         [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
+        WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create(['drive_file_id' => 'earlier-video']);
+        $before = WeeklyVideoRecording::query()->sole()->getAttributes();
+        Http::fake([self::DRIVE_FILES_URL => $response()]);
+        $editUrl = route('training.video-recording.edit', $week);
 
-        $this->actingAs($participant)->post(route('training.video-recording.store', $week), [
-            'video' => UploadedFile::fake()->create('notes.txt', 20, 'text/plain'),
-        ])->assertSessionHasErrors('video');
+        $this->actingAs($participant)
+            ->from($editUrl)
+            ->post(route('training.video-recording.store', $week), ['drive_file_id' => 'video-file-1'])
+            ->assertRedirect($editUrl)
+            ->assertSessionHasErrors(['drive_file_id' => $message]);
+
+        $this->assertSame($before, WeeklyVideoRecording::query()->sole()->getAttributes());
     }
 
-    public function test_image_content_renamed_as_mp4_is_rejected(): void
+    public function test_choosing_without_a_google_drive_connection_asks_to_connect_and_sends_nothing(): void
     {
         [$participant, $week] = $this->week();
+        Http::fake();
 
-        $this->actingAs($participant)->post(route('training.video-recording.store', $week), [
-            'video' => UploadedFile::fake()->create('renamed.mp4', 100, 'image/png'),
-        ])->assertSessionHasErrors('video');
-        $this->assertDatabaseCount('weekly_video_recordings', 0);
+        $this->actingAs($participant)
+            ->post(route('training.video-recording.store', $week), ['drive_file_id' => 'video-file-1'])
+            ->assertSessionHasErrors(['drive_file_id' => 'Connect Google Drive before choosing your video.']);
+
+        $this->assertDatabaseEmpty('weekly_video_recordings');
+        Http::assertNothingSent();
     }
 
-    public function test_real_webm_container_bytes_are_accepted(): void
+    public function test_a_missing_drive_file_id_asks_to_choose_a_video(): void
     {
         [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
+        Http::fake();
 
-        $webm = UploadedFile::fake()->createWithContent(
-            'recording.webm',
-            hex2bin('1A45DFA39F4286810142F7810142F2810442F381084282847765626D4287810242858102')
-        );
+        $this->actingAs($participant)
+            ->post(route('training.video-recording.store', $week), ['notes' => 'Notes only'])
+            ->assertSessionHasErrors(['drive_file_id' => 'Choose a video from Google Drive.']);
 
-        $this->assertSame('video/webm', $webm->getMimeType());
-
-        $this->actingAs($participant)->post(route('training.video-recording.store', $week), [
-            'video' => $webm,
-        ])->assertRedirect();
-
-        $this->assertDatabaseHas('weekly_video_recordings', ['original_filename' => 'recording.webm']);
+        $this->assertDatabaseEmpty('weekly_video_recordings');
+        Http::assertNothingSent();
     }
 
-    public function test_genuine_webm_with_generic_server_mime_uses_container_fallback(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function malformedFileIds(): array
     {
-        [$participant, $week] = $this->week();
-        $path = tempnam(sys_get_temp_dir(), 'qa-webm-');
-        file_put_contents($path, hex2bin('1A45DFA39F4286810142F7810142F2810442F381084282847765626D4287810242858102'));
-
-        $webm = new class($path, 'recording.webm', 'application/octet-stream', null, true) extends UploadedFile
-        {
-            public function getMimeType(): ?string
-            {
-                return 'application/octet-stream';
-            }
-        };
-
-        try {
-            $this->actingAs($participant)->post(route('training.video-recording.store', $week), [
-                'video' => $webm,
-            ])->assertRedirect();
-        } finally {
-            @unlink($path);
-        }
-
-        $this->assertDatabaseHas('weekly_video_recordings', ['original_filename' => 'recording.webm']);
+        return [
+            'path traversal' => ['../video-file-1'],
+            'query string' => ['video-file-1?alt=media'],
+            'space' => ['video file'],
+            'too long' => [str_repeat('a', 256)],
+        ];
     }
 
-    public function test_non_video_content_with_video_extensions_is_rejected(): void
+    #[DataProvider('malformedFileIds')]
+    public function test_a_malformed_drive_file_id_fails_validation_without_a_drive_request(string $fileId): void
     {
         [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
+        Http::fake();
 
-        foreach (['renamed.png.mp4' => 'image/png', 'renamed.png.webm' => 'image/png', 'notes.webm' => 'text/plain', 'document.mp4' => 'application/pdf'] as $filename => $mime) {
-            $this->actingAs($participant)->post(route('training.video-recording.store', $week), [
-                'video' => UploadedFile::fake()->create($filename, 20, $mime),
-            ])->assertSessionHasErrors('video');
-        }
+        $this->actingAs($participant)
+            ->post(route('training.video-recording.store', $week), ['drive_file_id' => $fileId])
+            ->assertSessionHasErrors('drive_file_id');
 
-        $this->assertDatabaseCount('weekly_video_recordings', 0);
+        $this->assertDatabaseEmpty('weekly_video_recordings');
+        Http::assertNothingSent();
     }
 
-    public function test_upload_to_a_week_locked_after_gate_completion_is_rejected_before_validation(): void
+    public function test_choosing_for_a_week_locked_after_gate_completion_is_rejected_before_validation(): void
     {
         [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
         GateEvaluation::factory()->for($week->gates()->firstOrFail(), 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+        Http::fake();
 
         $this->actingAs($participant)->post(route('training.video-recording.store', $week), [])->assertStatus(422);
-        $this->assertDatabaseCount('weekly_video_recordings', 0);
+
+        $this->assertDatabaseEmpty('weekly_video_recordings');
+        Http::assertNothingSent();
     }
 
-    public function test_upload_to_an_inaccessible_week_is_forbidden_before_validation(): void
+    public function test_choosing_for_an_inaccessible_week_is_forbidden_before_validation(): void
     {
         [$participant, $week] = $this->week();
         $nextWeek = TrainingWeek::factory()->for($week->program)->create(['week_number' => 3, 'position' => 2, 'is_active' => true]);
@@ -283,16 +222,49 @@ class WeeklyVideoRecordingTest extends TestCase
         $this->actingAs($participant)->post(route('training.video-recording.store', $nextWeek), [])->assertForbidden();
     }
 
-    public function test_upload_to_a_week_whose_checklist_has_no_video_item_is_not_found_before_validation(): void
+    public function test_choosing_for_a_week_whose_checklist_has_no_video_item_is_not_found_before_validation(): void
     {
-        Storage::fake('local');
         [$participant, $week] = $this->week();
+        $this->connectDrive($participant);
         $week->gates()->firstOrFail()->criteria()->update(['criterion_type' => 'deliverable']);
+        Http::fake();
 
-        $this->actingAs($participant)->post(route('training.video-recording.store', $week), [
-            'video' => UploadedFile::fake()->create('week-2.mp4', 100, 'video/mp4'),
-        ])->assertNotFound();
-        $this->assertDatabaseCount('weekly_video_recordings', 0);
+        $this->actingAs($participant)
+            ->post(route('training.video-recording.store', $week), ['drive_file_id' => 'video-file-1'])
+            ->assertNotFound();
+
+        $this->assertDatabaseEmpty('weekly_video_recordings');
+        Http::assertNothingSent();
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function nonParticipantRoles(): array
+    {
+        return ['coach' => ['coach'], 'admin' => ['admin']];
+    }
+
+    #[DataProvider('nonParticipantRoles')]
+    public function test_coaches_and_admins_cannot_choose_a_video(string $role): void
+    {
+        [, $week] = $this->week();
+        Http::fake();
+
+        $this->actingAs(User::factory()->create(['role' => $role]))
+            ->post(route('training.video-recording.store', $week), ['drive_file_id' => 'video-file-1'])
+            ->assertForbidden();
+
+        $this->assertDatabaseEmpty('weekly_video_recordings');
+    }
+
+    public function test_the_old_video_view_and_download_paths_are_gone(): void
+    {
+        [$participant, $week] = $this->week();
+        $recording = WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create();
+
+        $this->actingAs($participant)->get("/training/weeks/{$week->id}/video-recording/{$recording->id}/view")->assertNotFound();
+        $this->actingAs($participant)->get("/training/weeks/{$week->id}/video-recording/{$recording->id}/download")->assertNotFound();
     }
 
     /**
@@ -313,5 +285,38 @@ class WeeklyVideoRecordingTest extends TestCase
     {
         $gate = TrainingGate::factory()->for($week, 'week')->create(['is_active' => true]);
         GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_video']);
+    }
+
+    private function connectDrive(User $participant): GoogleDriveConnection
+    {
+        return GoogleDriveConnection::create([
+            'user_id' => $participant->id,
+            'google_account_id' => 'account',
+            'google_email' => 'participant@gmail.com',
+            'access_token' => 'token',
+            'token_expires_at' => now()->addHour(),
+            'connected_at' => now(),
+        ]);
+    }
+
+    /**
+     * Google Drive's `files.get` answer for an owned, untrashed MP4, with any field overridden.
+     *
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private static function driveVideo(array $overrides = []): array
+    {
+        return [
+            'id' => 'video-file-1',
+            'name' => 'Week 1 demo.mp4',
+            'mimeType' => 'video/mp4',
+            'size' => '73400320',
+            'createdTime' => '2026-10-20T08:15:30.000Z',
+            'modifiedTime' => '2026-10-21T09:45:00.000Z',
+            'trashed' => false,
+            'ownedByMe' => true,
+            ...$overrides,
+        ];
     }
 }

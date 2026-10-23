@@ -112,8 +112,8 @@ class ParticipantGatePageTest extends TestCase
                 'Your Gate is ready for Mentor review. A Mentor/Admin must record the official result.',
                 'Status:',
                 'AWAITING REVIEW',
-                'href="'.route('training.video-recording.view', [$week, $recording]).'"',
-                'View Video ↗',
+                'href="'.$recording->driveViewUrl().'" target="_blank" rel="noopener noreferrer"',
+                '>View Video ↗<span class="sr-only"> (opens Google Drive in a new tab)</span></a>',
             ], false)
             ->assertDontSee('gate-main-action')
             ->assertDontSee('Upload Video Recording');

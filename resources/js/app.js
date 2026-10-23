@@ -464,15 +464,17 @@ const initializeInterviewRegistrationFields = () => {
 };
 
 /**
- * On the profile page, open the Google Drive Picker from the `[data-drive-picker]` button (rendered only while Google
- * Drive can connect; the page loads `apis.google.com/js/api.js` alongside it) so the participant can choose an export
- * folder: fetch a short-lived token from `data-token-url`, show the folder picker over a backdrop, and post the chosen
- * folder to `data-save-url`. Problems are shown in `[data-drive-picker-error]`.
+ * Open the Google Drive Picker from the `[data-drive-picker]` button (rendered only while Google Drive can connect; the
+ * page loads `apis.google.com/js/api.js` alongside it): fetch a short-lived token from `data-token-url` and show the
+ * picker over a backdrop. Its `data-drive-picker-kind` says what the participant chooses:
+ * - `folder` (the default, on the profile page): an export folder, posted to `data-save-url`;
+ * - `video` (on the weekly video page): a video they own, whose ID and resource key go into the hidden `drive_file_id`
+ *   and `resource_key` inputs of the button's form, which is then submitted.
+ * Problems are shown in `[data-drive-picker-error]`.
  */
 const initializeGoogleDrivePicker = () => {
     const button = document.querySelector('[data-drive-picker]');
     const error = document.querySelector('[data-drive-picker-error]');
-    const unavailableMessage = 'Google Drive folder selection could not be opened. Please try again.';
 
     const showError = (message) => {
         if (error) {
@@ -485,9 +487,12 @@ const initializeGoogleDrivePicker = () => {
         return;
     }
 
+    const kind = button.dataset.drivePickerKind === 'video' ? 'video' : 'folder';
+    const unavailableMessage = `Google Drive ${kind} selection could not be opened. Please try again.`;
+
     if (!button.dataset.apiKey || !button.dataset.appId) {
         button.disabled = true;
-        showError('Google Drive folder selection is not configured. Please contact an administrator.');
+        showError(`Google Drive ${kind} selection is not configured. Please contact an administrator.`);
 
         return;
     }
@@ -548,6 +553,15 @@ const initializeGoogleDrivePicker = () => {
         form.submit();
     };
 
+    const submitVideo = (video) => {
+        const form = button.closest('form');
+
+        form.elements.namedItem('drive_file_id').value = video.id;
+        form.elements.namedItem('resource_key').value = video.resourceKey || '';
+        button.disabled = true;
+        form.submit();
+    };
+
     const openPicker = (accessToken) => {
         const { picker } = window.google ?? {};
 
@@ -573,12 +587,14 @@ const initializeGoogleDrivePicker = () => {
             button.disabled = false;
         };
 
-        const view = new picker.DocsView(picker.ViewId.FOLDERS)
-            .setIncludeFolders(true)
-            .setSelectFolderEnabled(true)
-            .setMimeTypes('application/vnd.google-apps.folder');
+        const view = kind === 'video'
+            ? new picker.DocsView(picker.ViewId.DOCS_VIDEOS).setOwnedByMe(true)
+            : new picker.DocsView(picker.ViewId.FOLDERS)
+                .setIncludeFolders(true)
+                .setSelectFolderEnabled(true)
+                .setMimeTypes('application/vnd.google-apps.folder');
 
-        const folderPicker = new picker.PickerBuilder()
+        const drivePicker = new picker.PickerBuilder()
             .setDeveloperKey(button.dataset.apiKey)
             .setAppId(button.dataset.appId)
             .setOAuthToken(accessToken)
@@ -593,7 +609,12 @@ const initializeGoogleDrivePicker = () => {
                 }
 
                 cleanup();
-                submitFolder(data.docs[0]);
+
+                if (kind === 'video') {
+                    submitVideo(data.docs[0]);
+                } else {
+                    submitFolder(data.docs[0]);
+                }
             })
             .build();
 
@@ -603,7 +624,7 @@ const initializeGoogleDrivePicker = () => {
             }
         });
         observer.observe(document.body, { childList: true, subtree: true });
-        folderPicker.setVisible(true);
+        drivePicker.setVisible(true);
     };
 
     loadPicker();
@@ -822,76 +843,6 @@ const initializeEvidencePreviews = () => {
 };
 
 /**
- * In each `[data-weekly-video-actions]` group, open the weekly video preview `<dialog>` from the
- * `[data-weekly-video-preview]` button: load its `data-video-url` into the player and focus the close button. Closing
- * (the close button, Escape or a click on the backdrop) stops and unloads the video and returns focus to where it was.
- */
-const initializeWeeklyVideoPreviews = () => {
-    document.querySelectorAll('[data-weekly-video-actions]').forEach((root) => {
-        const open = root.querySelector('[data-weekly-video-preview]');
-        const dialog = root.querySelector('[data-weekly-video-dialog]');
-        const close = root.querySelector('[data-weekly-video-close]');
-        const player = root.querySelector('[data-weekly-video-player]');
-
-        if (!open || !dialog || !close || !player) {
-            return;
-        }
-
-        let previousFocus;
-
-        open.addEventListener('click', () => {
-            previousFocus = document.activeElement;
-            player.src = open.dataset.videoUrl;
-            dialog.showModal();
-            close.focus();
-        });
-        close.addEventListener('click', () => dialog.close());
-        dialog.addEventListener('close', () => {
-            player.pause();
-            player.removeAttribute('src');
-            player.load();
-            previousFocus?.focus();
-        });
-        dialog.addEventListener('click', (event) => {
-            if (event.target === dialog) {
-                dialog.close();
-            }
-        });
-    });
-};
-
-/**
- * On each `[data-weekly-video-form]`, check the chosen `[data-weekly-video-input]` file against the form's
- * `data-max-bytes` before upload: show `[data-weekly-video-size-error]`, mark the input invalid with the form's
- * `data-max-size-message` and block the submit while the file is too large.
- */
-const initializeWeeklyVideoSizeLimit = () => {
-    document.querySelectorAll('[data-weekly-video-form]').forEach((form) => {
-        const input = form.querySelector('[data-weekly-video-input]');
-        const error = form.querySelector('[data-weekly-video-size-error]');
-        const maxBytes = Number(form.dataset.maxBytes || 0);
-        const maxSizeMessage = form.dataset.maxSizeMessage || '';
-        const validate = () => {
-            const tooLarge = Boolean(input?.files?.[0] && input.files[0].size > maxBytes);
-
-            if (error) {
-                error.hidden = !tooLarge;
-            }
-            input?.setCustomValidity(tooLarge ? maxSizeMessage : '');
-
-            return !tooLarge;
-        };
-
-        input?.addEventListener('change', validate);
-        form.addEventListener('submit', (event) => {
-            if (!validate()) {
-                event.preventDefault();
-            }
-        });
-    });
-};
-
-/**
  * On each `[data-session-end-date]` form, fill `[data-session-ends-on]` with the last day of the session's last week
  * (start date + weeks × 7 − 1 days) whenever `[data-session-starts-on]` or `[data-session-weeks-count]` changes and
  * both hold a valid value. The admin can still change the end date; the server checks it.
@@ -962,8 +913,6 @@ const initializePage = () => {
     initializeGoogleDrivePicker();
     initializeGoogleDriveSyncStatus();
     initializeEvidencePreviews();
-    initializeWeeklyVideoPreviews();
-    initializeWeeklyVideoSizeLimit();
     initializeSessionEndDate();
     initializeResourcePreviews();
 };

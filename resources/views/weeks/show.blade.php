@@ -97,7 +97,7 @@
                     </p>
                     @if($videoRecording)
                         <div class="flex flex-wrap items-center gap-2.5">
-                            <x-weekly-video-actions :recording="$videoRecording" :week="$trainingWeek" />
+                            <x-weekly-video-actions :recording="$videoRecording" />
                             <x-ui.button variant="secondary" :href="$replaceVideoUrl">Replace Video</x-ui.button>
                         </div>
                     @endif

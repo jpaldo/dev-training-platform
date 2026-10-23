@@ -52,7 +52,7 @@
                         <x-ui.badge :tone="$weeklyVideo['status_tone']">{{ $weeklyVideo['status_label'] }}</x-ui.badge>
                     </p>
                     @if($weeklyVideo['url'])
-                        <x-ui.button variant="secondary" :href="$weeklyVideo['url']">View Video ↗</x-ui.button>
+                        <x-ui.button variant="secondary" :href="$weeklyVideo['url']" target="_blank" rel="noopener noreferrer">View Video ↗<span class="sr-only"> (opens Google Drive in a new tab)</span></x-ui.button>
                     @else
                         <p class="m-0 leading-relaxed text-muted">Upload a video recording of your work for this week.</p>
                     @endif

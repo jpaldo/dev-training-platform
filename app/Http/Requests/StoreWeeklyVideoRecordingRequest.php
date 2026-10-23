@@ -4,7 +4,6 @@ namespace App\Http\Requests;
 
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Services\EvidenceFilePolicy;
 use App\Services\WeekProgressionService;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -33,14 +32,16 @@ class StoreWeeklyVideoRecordingRequest extends FormRequest
     }
 
     /**
-     * Get the validation rules that apply to the request.
+     * Get the validation rules that apply to the request: the Google Drive file ID and resource key the Picker
+     * returned, and the optional notes.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'video' => array_merge(['required'], app(EvidenceFilePolicy::class)->videoRules()),
+            'drive_file_id' => ['required', 'string', 'max:255', 'regex:/^[A-Za-z0-9_-]+$/'],
+            'resource_key' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:5000'],
         ];
     }
@@ -53,7 +54,7 @@ class StoreWeeklyVideoRecordingRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'video.max' => app(EvidenceFilePolicy::class)->videoMaxSizeMessage(),
+            'drive_file_id.required' => 'Choose a video from Google Drive.',
         ];
     }
 }

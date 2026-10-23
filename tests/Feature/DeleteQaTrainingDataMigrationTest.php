@@ -24,8 +24,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
 
     private const EVIDENCE_PATH = 'evidence/1/1/report.pdf';
 
-    private const VIDEO_PATH = 'weekly-video/1/1/week-2.mp4';
-
     /**
      * Every table that holds per-participant training data.
      */
@@ -112,14 +110,13 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
     {
         Storage::fake('local');
         Storage::disk('local')->put(self::EVIDENCE_PATH, 'evidence');
-        Storage::disk('local')->put(self::VIDEO_PATH, 'video');
         Storage::disk('local')->put('public-interview/booking.pdf', 'kept');
         $this->createQaProgram();
         $this->seedTrainingRecords(User::factory()->create(), User::factory()->create(['role' => UserRole::Coach]));
 
         $this->migration()->up();
 
-        Storage::disk('local')->assertMissing([self::EVIDENCE_PATH, self::VIDEO_PATH]);
+        Storage::disk('local')->assertMissing(self::EVIDENCE_PATH);
         Storage::disk('local')->assertExists('public-interview/booking.pdf');
     }
 
@@ -193,9 +190,8 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         DB::table('weekly_video_recordings')->insert([
             'user_id' => $participant->id,
             'training_week_id' => $week->id,
-            'disk' => 'local',
-            'path' => self::VIDEO_PATH,
-            'original_filename' => 'week-2.mp4',
+            'drive_file_id' => 'week-2-video',
+            'name' => 'week-2.mp4',
             'mime_type' => 'video/mp4',
             'size_bytes' => 5,
         ]);

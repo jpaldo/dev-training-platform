@@ -6,6 +6,7 @@ use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
 
 /**
  * @extends Factory<WeeklyVideoRecording>
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class WeeklyVideoRecordingFactory extends Factory
 {
     /**
-     * Define the model's default state: a participant's MP4 for a week, uploaded now to the local disk.
+     * Define the model's default state: a participant's MP4 for a week, chosen now from their own Google Drive.
      *
      * @return array<string, mixed>
      */
@@ -22,15 +23,15 @@ class WeeklyVideoRecordingFactory extends Factory
         return [
             'user_id' => User::factory(),
             'training_week_id' => TrainingWeek::factory(),
-            'disk' => 'local',
-            'path' => 'weekly-video/'.fake()->uuid().'.mp4',
-            'original_filename' => fake()->slug(3).'.mp4',
+            'drive_file_id' => Str::random(33),
+            'drive_resource_key' => null,
+            'name' => fake()->slug(3).'.mp4',
             'mime_type' => 'video/mp4',
             'size_bytes' => fake()->numberBetween(1048576, 104857600),
+            'drive_created_at' => now()->subDay(),
+            'drive_modified_at' => now()->subDay(),
             'notes' => null,
-            'uploaded_at' => now(),
-            'drive_file_id' => null,
-            'drive_destination_folder_id' => null,
+            'chosen_at' => now(),
         ];
     }
 }

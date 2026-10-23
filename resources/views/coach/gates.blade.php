@@ -91,7 +91,7 @@
                                 </td>
                                 <td class="{{ $cellClasses }} whitespace-nowrap">
                                     @if($row['video']['url'])
-                                        <a href="{{ $row['video']['url'] }}" class="{{ $linkClasses }}">{{ $row['video']['label'] }}</a>
+                                        <a href="{{ $row['video']['url'] }}" target="_blank" rel="noopener noreferrer" class="{{ $linkClasses }}">{{ $row['video']['label'] }}<span class="sr-only"> (opens Google Drive in a new tab)</span></a>
                                     @else
                                         <span class="text-muted">{{ $row['video']['label'] }}</span>
                                     @endif

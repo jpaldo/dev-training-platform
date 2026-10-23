@@ -131,6 +131,30 @@ class GoogleDriveConfigurationService
         }
     }
 
+    /**
+     * What a participant page needs to open the Google Picker for a `folder` (the profile) or a `video` (the weekly
+     * video page): the browser API key, the project number as app ID, the URL of the short-lived token, and why the
+     * Picker cannot open (null when it can): it is not configured, or Google Drive cannot connect.
+     *
+     * @return array{api_key: ?string, app_id: ?string, token_url: string, unavailable_message: ?string}
+     */
+    public function pickerSettings(string $selection): array
+    {
+        $apiKey = $this->getPickerApiKey();
+        $appId = $this->getProjectNumber();
+
+        return [
+            'api_key' => $apiKey,
+            'app_id' => $appId,
+            'token_url' => route('profile.google-drive.picker-token'),
+            'unavailable_message' => match (true) {
+                blank($apiKey) || blank($appId) => "Google Drive {$selection} selection is not configured. Please contact an administrator.",
+                ! $this->canConnect() => "Google Drive {$selection} selection is unavailable because Google Drive cannot connect right now. Please contact an administrator.",
+                default => null,
+            },
+        ];
+    }
+
     public function validateConfiguration(): array
     {
         $missing = [];

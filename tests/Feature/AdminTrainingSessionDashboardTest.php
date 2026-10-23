@@ -78,7 +78,7 @@ class AdminTrainingSessionDashboardTest extends TestCase
                 'Ben Cruz', 'EMP-0002', 'Project Manager (PM)', '10 Nov 2026',
                 'Cara Reyes', '—', '—', '11 Nov 2026',
             ])
-            ->assertDontSee('Olive Outsider');
+            ->assertDontSee('>Olive Outsider</th>', false);
     }
 
     public function test_the_activities_tab_lists_the_active_activities_of_the_session_weeks_in_week_order(): void

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\Program;
 use App\Models\TrainingSession;
@@ -41,11 +42,12 @@ class AdminTrainingSessionPageService
     /**
      * Everything the session dashboard renders: the header facts (title, program, date range, weeks, status) with the
      * Edit link, and one tab each for the overview, participants, mentors, activities and resources, whose labels carry
-     * live counts. Participants are read in one query with their membership; activities are the active activities of
-     * the session's weeks. Mentors (10.2) and resources (8.6) have no tables yet, so their tabs count 0 and show their
+     * live counts. Participants are read in one query with their membership, each with a Remove link; the add form
+     * offers the active participants not in the session (one more query). Activities are the active activities of the
+     * session's weeks. Mentors (10.2) and resources (8.6) have no tables yet, so their tabs count 0 and show their
      * empty states.
      *
-     * @return array{title: string, program: string, dateRange: string, weeksLabel: string, statusLabel: string, statusTone: string, editUrl: string, indexUrl: string, tabs: list<array{key: string, label: string}>, selectedTab: string, participants: list<array{name: string, employee_id: string, job_role: string, joined_on: string}>, activities: list<array{week: string, title: string}>}
+     * @return array{title: string, program: string, dateRange: string, weeksLabel: string, statusLabel: string, statusTone: string, editUrl: string, indexUrl: string, tabs: list<array{key: string, label: string}>, selectedTab: string, participants: list<array{name: string, employee_id: string, job_role: string, joined_on: string, remove_url: string}>, addParticipants: array{url: string, size: int, options: list<array{value: string, label: string}>}, activities: list<array{week: string, title: string}>}
      */
     public function showData(TrainingSession $trainingSession): array
     {
@@ -72,6 +74,7 @@ class AdminTrainingSessionPageService
             ],
             'selectedTab' => 'overview',
             'participants' => $participants,
+            'addParticipants' => $this->addParticipantsForm($trainingSession),
             'activities' => $activities,
         ];
     }
@@ -157,7 +160,7 @@ class AdminTrainingSessionPageService
      * The session's participants by name, read in one query with their membership. A missing employee ID or job role
      * shows as a dash.
      *
-     * @return list<array{name: string, employee_id: string, job_role: string, joined_on: string}>
+     * @return list<array{name: string, employee_id: string, job_role: string, joined_on: string, remove_url: string}>
      */
     private function participantRows(TrainingSession $trainingSession): array
     {
@@ -171,8 +174,38 @@ class AdminTrainingSessionPageService
                 'employee_id' => $participant->employee_id ?? '—',
                 'job_role' => $participant->job_role?->label() ?? '—',
                 'joined_on' => $participant->pivot->joined_at->format('j M Y'),
+                'remove_url' => route('admin.sessions.participants.destroy', [$trainingSession, $participant]),
             ])
             ->all();
+    }
+
+    /**
+     * The add participants form: every active participant who is not in the session yet, by name, listed as
+     * "Name (Employee ID)".
+     *
+     * @return array{url: string, size: int, options: list<array{value: string, label: string}>}
+     */
+    private function addParticipantsForm(TrainingSession $trainingSession): array
+    {
+        $candidates = User::query()
+            ->select(['id', 'name', 'employee_id'])
+            ->where('role', UserRole::Participant)
+            ->where('is_active', true)
+            ->whereDoesntHave('trainingSessions', fn (Builder $sessions): Builder => $sessions->whereKey($trainingSession->id))
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get();
+
+        return [
+            'url' => route('admin.sessions.participants.store', $trainingSession),
+            'size' => max(3, min(8, $candidates->count())),
+            'options' => $candidates
+                ->map(fn (User $candidate): array => [
+                    'value' => (string) $candidate->id,
+                    'label' => $candidate->name.' ('.($candidate->employee_id ?? 'no employee ID').')',
+                ])
+                ->all(),
+        ];
     }
 
     /**

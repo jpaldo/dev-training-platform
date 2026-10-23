@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AdminAuditLog;
 use App\Models\TrainingSession;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -67,6 +68,43 @@ class TrainingSessionService
             ]);
 
             return $session;
+        });
+    }
+
+    /**
+     * Add the participants to the session, joined now and added by the admin, and record `session_participant_added`
+     * for each of them. Returns the number added.
+     *
+     * @param  list<int>  $participantIds
+     */
+    public function addParticipants(TrainingSession $session, array $participantIds, User $admin): int
+    {
+        return DB::transaction(function () use ($session, $participantIds, $admin): int {
+            $participants = User::query()->whereKey($participantIds)->get();
+            $membership = ['joined_at' => now(), 'added_by' => $admin->id];
+
+            $session->participants()->attach($participants->mapWithKeys(fn (User $participant): array => [$participant->id => $membership])->all());
+
+            $participants->each(fn (User $participant): AdminAuditLog => $this->audit->record($admin, 'session_participant_added', $participant, [
+                'training_session_id' => $session->id,
+            ]));
+
+            return $participants->count();
+        });
+    }
+
+    /**
+     * Remove the participant from the session and record `session_participant_removed`. Only the membership row is
+     * deleted: their work keeps its session, so adding them again restores access to it.
+     */
+    public function removeParticipant(TrainingSession $session, User $participant, User $admin): void
+    {
+        DB::transaction(function () use ($session, $participant, $admin): void {
+            $session->participants()->detach($participant->id);
+
+            $this->audit->record($admin, 'session_participant_removed', $participant, [
+                'training_session_id' => $session->id,
+            ]);
         });
     }
 

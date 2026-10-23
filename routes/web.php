@@ -8,6 +8,7 @@ use App\Http\Controllers\AdminGoogleDriveController;
 use App\Http\Controllers\AdminInterviewSchedulingController;
 use App\Http\Controllers\AdminSettingsController;
 use App\Http\Controllers\AdminTrainingSessionController;
+use App\Http\Controllers\AdminTrainingSessionParticipantController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AuthenticatedSessionController;
@@ -103,6 +104,8 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::get('/sessions/{trainingSession}', [AdminTrainingSessionController::class, 'show'])->name('sessions.show');
         Route::get('/sessions/{trainingSession}/edit', [AdminTrainingSessionController::class, 'edit'])->name('sessions.edit');
         Route::put('/sessions/{trainingSession}', [AdminTrainingSessionController::class, 'update'])->name('sessions.update');
+        Route::post('/sessions/{trainingSession}/participants', [AdminTrainingSessionParticipantController::class, 'store'])->name('sessions.participants.store');
+        Route::delete('/sessions/{trainingSession}/participants/{participant}', [AdminTrainingSessionParticipantController::class, 'destroy'])->scopeBindings()->name('sessions.participants.destroy');
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');
         Route::post('/users', [AdminUserController::class, 'store'])->name('users.store');

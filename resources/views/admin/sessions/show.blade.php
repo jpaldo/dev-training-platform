@@ -5,6 +5,8 @@
         $headerCellClasses = 'border-b border-line px-3.5 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase max-sm:px-2.5';
         $cellClasses = 'border-b border-line px-3.5 py-3.5 text-left align-middle max-sm:px-2.5 max-sm:py-3';
         $tableRegionClasses = 'relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50';
+        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
+        $participantErrors = $errors->getBag('participants');
     @endphp
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -47,15 +49,50 @@
                 <x-ui.tab-panel name="participants" :selected="$selectedTab" id-prefix="session">
                     <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="session-participants-title">
                         <h2 id="session-participants-title" class="text-xl font-extrabold">Participants</h2>
+
+                        @if($addParticipants['options'] !== [])
+                            <form method="POST" action="{{ $addParticipants['url'] }}" class="grid grid-cols-1 gap-3 rounded-xl border border-line bg-surface-sunken p-4" aria-labelledby="session-add-participants-title">
+                                @csrf
+                                <h3 id="session-add-participants-title" class="text-base font-extrabold">Add participants</h3>
+                                <div class="grid min-w-0 grid-cols-1 gap-2">
+                                    <label for="session-participant-ids" class="text-sm font-extrabold">Name (Employee ID)</label>
+                                    <p id="session-participant-ids-hint" class="text-sm/relaxed text-muted">Active participants who are not in this session. Hold Ctrl (Cmd on a Mac) to choose more than one.</p>
+                                    <select
+                                        id="session-participant-ids"
+                                        name="user_ids[]"
+                                        multiple
+                                        required
+                                        size="{{ $addParticipants['size'] }}"
+                                        aria-describedby="session-participant-ids-hint{{ $participantErrors->any() ? ' session-participant-ids-error' : '' }}"
+                                        @if($participantErrors->any()) aria-invalid="true" @endif
+                                        class="{{ $controlClasses }}"
+                                    >
+                                        @foreach($addParticipants['options'] as $option)
+                                            <option value="{{ $option['value'] }}" @selected(in_array($option['value'], (array) old('user_ids', []), true))>{{ $option['label'] }}</option>
+                                        @endforeach
+                                    </select>
+                                    @if($participantErrors->any())
+                                        <p id="session-participant-ids-error" class="text-sm text-rose-200" role="alert">{{ $participantErrors->first() }}</p>
+                                    @endif
+                                </div>
+                                <div>
+                                    <x-ui.button variant="secondary" type="submit">Add Participants</x-ui.button>
+                                </div>
+                            </form>
+                        @else
+                            <p class="text-sm/relaxed text-muted">Every active participant is already in this session.</p>
+                        @endif
+
                         @if($participants !== [])
                             <div class="{{ $tableRegionClasses }}" role="region" aria-labelledby="session-participants-title" tabindex="0">
-                                <table class="w-full min-w-140 border-collapse text-sm" aria-labelledby="session-participants-title">
+                                <table class="w-full min-w-160 border-collapse text-sm" aria-labelledby="session-participants-title">
                                     <thead>
                                         <tr>
                                             <th scope="col" class="{{ $headerCellClasses }}">Name</th>
                                             <th scope="col" class="{{ $headerCellClasses }}">Employee ID</th>
                                             <th scope="col" class="{{ $headerCellClasses }}">Job role</th>
                                             <th scope="col" class="{{ $headerCellClasses }}">Joined</th>
+                                            <th scope="col" class="{{ $headerCellClasses }}">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -65,6 +102,13 @@
                                                 <td class="{{ $cellClasses }} whitespace-nowrap tabular-nums">{{ $participant['employee_id'] }}</td>
                                                 <td class="{{ $cellClasses }} text-muted">{{ $participant['job_role'] }}</td>
                                                 <td class="{{ $cellClasses }} whitespace-nowrap">{{ $participant['joined_on'] }}</td>
+                                                <td class="{{ $cellClasses }}">
+                                                    <form method="POST" action="{{ $participant['remove_url'] }}" data-confirm="Remove {{ $participant['name'] }} from this session? Their work is kept.">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <x-ui.button variant="secondary" type="submit" aria-label="Remove {{ $participant['name'] }}">Remove</x-ui.button>
+                                                    </form>
+                                                </td>
                                             </tr>
                                         @endforeach
                                     </tbody>

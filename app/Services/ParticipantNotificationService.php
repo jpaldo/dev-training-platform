@@ -12,7 +12,6 @@ use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\ParticipantNotification;
 use App\Models\Program;
-use App\Models\TrainingGate;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
 use Illuminate\Database\Eloquent\Collection;
@@ -33,7 +32,7 @@ class ParticipantNotificationService
             return;
         }
 
-        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $q): Relation => $q->where('is_active', true)->with(['activities' => fn (Relation $a): Relation => $a->where('is_active', true)->orderBy('position'), 'gates' => fn (Relation $g): Relation => $g->with(['criteria' => fn (Relation $c): Relation => $c->weeklyVideo()])])])->first();
+        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $q): Relation => $q->where('is_active', true)->withAsksForWeeklyVideo()->with(['activities' => fn (Relation $a): Relation => $a->where('is_active', true)->orderBy('position'), 'gates'])])->first();
         if (! $program) {
             return;
         }
@@ -66,7 +65,7 @@ class ParticipantNotificationService
 
                 return in_array($status, [...SubmissionStatus::handedIn(), SubmissionStatus::UnderReview], true);
             });
-            $requiresVideo = $week->gates->contains(fn (TrainingGate $gate): bool => $gate->is_active && $gate->criteria->isNotEmpty());
+            $requiresVideo = $week->asksForWeeklyVideo();
             $videoMissing = $requiresVideo && $allSubmitted && ! WeeklyVideoRecording::query()->where('user_id', $participant->id)->where('training_week_id', $week->id)->exists();
             $this->state($participant, "week:{$week->id}:video", ParticipantNotificationType::MissingVideo, 'Weekly Video Recording missing', "Upload your Week {$week->week_number} Video Recording to complete the weekly requirements.", route('training.video-recording.edit', $week), $videoMissing);
 

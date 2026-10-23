@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\TrainingGateFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -33,5 +34,16 @@ class TrainingGate extends Model
     public function evaluations(): HasMany
     {
         return $this->hasMany(GateEvaluation::class);
+    }
+
+    /**
+     * Limit the query to active Gates with a weekly video checklist item: the Gates that make their week ask for the
+     * Weekly Video Recording.
+     */
+    public function scopeAsksForWeeklyVideo(Builder $query): Builder
+    {
+        return $query
+            ->where('is_active', true)
+            ->whereHas('criteria', fn (Builder $criteria): Builder => $criteria->weeklyVideo());
     }
 }

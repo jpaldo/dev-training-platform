@@ -17,8 +17,12 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WeeklyVideoRecordingController extends Controller
 {
+    /**
+     * The Weekly Video Recording page; a week whose checklist does not ask for the video answers 404.
+     */
     public function edit(Request $request, TrainingWeek $trainingWeek, WeekProgressionService $progression, WeeklyVideoRecordingPageService $page): View
     {
+        abort_unless($trainingWeek->asksForWeeklyVideo(), 404);
         /** @var User $user */
         $user = $request->user();
         $progression->ensureCanAccessWeek($user, $trainingWeek);

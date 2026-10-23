@@ -8,11 +8,13 @@ use App\Enums\SubmissionStatus;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
+use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\GoogleDriveConnection;
 use App\Models\Program;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -59,6 +61,7 @@ class CoachOperationsTest extends TestCase
             'position' => 1,
             'is_active' => true,
         ]);
+        GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => 'weekly_video']);
         $participant = User::factory()->create(['role' => 'participant']);
         $coach = User::factory()->create(['role' => 'coach']);
         $coach->assignedParticipants()->attach($participant->id);

@@ -9,6 +9,7 @@ use App\Services\GoogleDriveReadinessService;
 use App\Services\ParticipantDashboardService;
 use App\Services\ParticipantNotificationService;
 use App\Services\WeekProgressionService;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -20,7 +21,7 @@ class ParticipantDashboardController extends Controller
         $user = $request->user();
         $user->load('assignedCoaches');
         $lifecycle->reconcileStale($user->id);
-        $program = Program::query()->where('is_active', true)->with(['weeks.activities'])->orderBy('id')->first();
+        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $weeks): Relation => $weeks->withAsksForWeeklyVideo(), 'weeks.activities'])->orderBy('id')->first();
         $activeAttendance = $user->attendanceSessions()->whereNull('check_out_at')->latest('check_in_at')->first();
         $weeks = $program ? $dashboard->weeks($user, $program, $activeAttendance) : collect();
 

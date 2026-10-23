@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\TrainingGate;
@@ -171,20 +172,43 @@ class WeeklyVideoRecordingPageTest extends TestCase
         $participant = User::factory()->create();
         ['week' => $week] = $this->weekFixture();
         $nextWeek = TrainingWeek::factory()->for($week->program)->create(['week_number' => 3, 'position' => 2, 'is_active' => true]);
+        $this->addVideoGate($nextWeek);
 
         $this->actingAs($participant)->get(route('training.video-recording.edit', $nextWeek))->assertForbidden();
     }
 
+    public function test_page_is_not_found_for_a_week_whose_checklist_has_no_video_item(): void
+    {
+        $participant = User::factory()->create();
+        ['week' => $week, 'gate' => $gate] = $this->weekFixture();
+        $gate->criteria()->update(['criterion_type' => 'deliverable']);
+        $url = route('training.video-recording.edit', $week);
+
+        $this->actingAs($participant)->get($url)->assertNotFound();
+
+        $gate->update(['is_active' => false]);
+        GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week')->create(['is_active' => false]), 'gate')->create(['criterion_type' => 'weekly_video']);
+
+        $this->actingAs($participant)->get($url)->assertNotFound();
+    }
+
     /**
-     * An active Week 2 (the first week of an active program) with one active Gate.
+     * An active Week 2 (the first week of an active program) with one active Gate that has a weekly video item.
      *
      * @return array{week: TrainingWeek, gate: TrainingGate}
      */
     private function weekFixture(): array
     {
         $week = TrainingWeek::factory()->for(Program::factory()->create(['is_active' => true]))->create(['week_number' => 2, 'position' => 1, 'is_active' => true]);
-        $gate = TrainingGate::factory()->for($week, 'week')->create(['is_active' => true, 'position' => 1]);
 
-        return ['week' => $week, 'gate' => $gate];
+        return ['week' => $week, 'gate' => $this->addVideoGate($week)];
+    }
+
+    private function addVideoGate(TrainingWeek $week): TrainingGate
+    {
+        $gate = TrainingGate::factory()->for($week, 'week')->create(['is_active' => true, 'position' => 1]);
+        GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_video']);
+
+        return $gate;
     }
 }

@@ -121,6 +121,53 @@ class TrainingWeekPageTest extends TestCase
             ->assertDontSee('NOT READY');
     }
 
+    public function test_only_a_week_whose_checklist_has_a_video_item_shows_the_video_card_and_upload(): void
+    {
+        $participant = User::factory()->create();
+        $program = Program::factory()->create();
+        [$weekOne, $weekTwo, $weekThree] = collect([1, 2, 3])
+            ->map(fn (int $number): TrainingWeek => TrainingWeek::factory()->for($program)->create(['week_number' => $number, 'position' => $number]))
+            ->all();
+        $weekOneGate = TrainingGate::factory()->for($weekOne, 'week')->create();
+        GateCriterion::factory()->for($weekOneGate, 'gate')->create(['criterion_type' => 'deliverable']);
+        $weekTwoGate = TrainingGate::factory()->for($weekTwo, 'week')->create();
+        GateCriterion::factory()->for($weekTwoGate, 'gate')->create(['criterion_type' => 'weekly_video']);
+        foreach ([$weekOneGate, $weekTwoGate] as $gate) {
+            GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+        }
+
+        $weekOnePage = $this->actingAs($participant)->get(route('training.weeks.show', $weekOne))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="week-main-action"',
+                'href="'.route('training.gates.show', [$weekOne, $weekOneGate]).'"',
+                'View Gate →',
+                e($weekOneGate->title),
+            ], false)
+            ->assertDontSee('WEEKLY REQUIREMENT')
+            ->assertDontSee('Upload Video Recording')
+            ->assertDontSee(route('training.video-recording.edit', $weekOne), false);
+        $this->assertSame(1, substr_count($weekOnePage->getContent(), 'href="'.route('training.gates.show', [$weekOne, $weekOneGate]).'"'));
+
+        $this->actingAs($participant)->get(route('training.weeks.show', $weekTwo))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="week-main-action"',
+                'href="'.route('training.video-recording.edit', $weekTwo).'"',
+                'Upload Video Recording →',
+                'WEEKLY REQUIREMENT',
+                'Video Recording',
+                'Not uploaded',
+            ], false);
+
+        $this->actingAs($participant)->get(route('training.weeks.show', $weekThree))
+            ->assertOk()
+            ->assertDontSee('week-main-action')
+            ->assertDontSee('WEEKLY REQUIREMENT')
+            ->assertDontSee('Upload Video Recording')
+            ->assertDontSee(route('training.video-recording.edit', $weekThree), false);
+    }
+
     public function test_coach_sees_the_gate_not_ready_without_a_view_gate_link(): void
     {
         $coach = User::factory()->create(['role' => 'coach']);
@@ -183,8 +230,8 @@ class TrainingWeekPageTest extends TestCase
     }
 
     /**
-     * A Week 2 with one Gate (the given number of required criteria plus one optional criterion) and the given number
-     * of active activities.
+     * A Week 2 with one Gate (the given number of required criteria, the first of them the weekly video item, plus one
+     * optional criterion) and the given number of active activities.
      *
      * @return array{week: TrainingWeek, gate: TrainingGate, criteria: Collection<int, GateCriterion>, activities: Collection<int, Activity>}
      */
@@ -193,7 +240,10 @@ class TrainingWeekPageTest extends TestCase
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 2]);
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         $criteria = collect(range(1, $rows))
-            ->map(fn (int $position): GateCriterion => GateCriterion::factory()->for($gate, 'gate')->create(['position' => $position]));
+            ->map(fn (int $position): GateCriterion => GateCriterion::factory()->for($gate, 'gate')->create([
+                'criterion_type' => $position === 1 ? 'weekly_video' : 'activity_completion',
+                'position' => $position,
+            ]));
         GateCriterion::factory()->for($gate, 'gate')->create(['title' => 'Optional stretch goal', 'is_required' => false, 'position' => 10]);
         $activities = collect(range(1, $rows))
             ->map(fn (int $position): Activity => Activity::factory()->for($week, 'week')->create(['position' => $position]));

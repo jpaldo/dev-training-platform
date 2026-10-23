@@ -132,6 +132,38 @@ class ParticipantDashboardControllerTest extends TestCase
             ], false);
     }
 
+    public function test_only_the_panel_of_a_week_whose_checklist_has_a_video_item_shows_the_video_row(): void
+    {
+        $participant = User::factory()->create(['training_path' => 'manual']);
+        $program = Program::factory()->create();
+        [$weekOne, $weekTwo, $weekThree] = collect([1, 2, 3])
+            ->map(fn (int $number): TrainingWeek => TrainingWeek::factory()->for($program)->create(['week_number' => $number, 'position' => $number]))
+            ->all();
+        $weekOneGate = TrainingGate::factory()->for($weekOne, 'week')->create();
+        GateCriterion::factory()->for($weekOneGate, 'gate')->create(['criterion_type' => 'deliverable']);
+        $weekTwoGate = TrainingGate::factory()->for($weekTwo, 'week')->create();
+        GateCriterion::factory()->for($weekTwoGate, 'gate')->create(['criterion_type' => 'weekly_video']);
+        foreach ([$weekOneGate, $weekTwoGate] as $gate) {
+            GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::Passed]);
+        }
+
+        $html = $this->actingAs($participant)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'aria-label="Week 2 progress"',
+                '>Video Recording</h3>',
+                'Not uploaded',
+                'href="'.route('training.video-recording.edit', $weekTwo).'"',
+                '>Upload Video</',
+                'aria-label="Week 3 progress"',
+            ], false)
+            ->assertDontSee(route('training.video-recording.edit', $weekOne), false)
+            ->assertDontSee(route('training.video-recording.edit', $weekThree), false)
+            ->getContent();
+
+        $this->assertSame(1, substr_count($html, '>Video Recording</h3>'));
+    }
+
     public function test_week_panels_show_no_daily_log_progress(): void
     {
         $participant = User::factory()->create(['training_path' => 'manual']);

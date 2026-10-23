@@ -20,10 +20,11 @@ class TrainingWeekPageService
     /**
      * Everything the week page renders: the week's active activities, a summary of its first Gate (the user's Gate
      * status, the required criteria with their review status and, for participants, the link to the Gate page) and,
-     * for participants, the Weekly Video Recording state. The main action (Upload Video Recording) is offered only to
-     * a participant with no video yet.
+     * for participants in a week that asks for it, the Weekly Video Recording state. A participant's main action is
+     * Upload Video Recording while such a week has no video yet; in a week that does not ask for the video it is the
+     * link to the Gate page (then not repeated on the Gate card), or none without a Gate.
      *
-     * @return array{trainingWeek: TrainingWeek, activities: list<array{position: int, title: string, description: ?string, url: string}>, gate: ?array{title: string, status_label: string, status_tone: string, criteria: list<array{title: string, status_label: string, status_tone: string}>, url: ?string}, showsWeeklyVideo: bool, videoRecording: ?WeeklyVideoRecording, uploadVideoUrl: ?string, replaceVideoUrl: string, backUrl: string}
+     * @return array{trainingWeek: TrainingWeek, activities: list<array{position: int, title: string, description: ?string, url: string}>, gate: ?array{title: string, status_label: string, status_tone: string, criteria: list<array{title: string, status_label: string, status_tone: string}>, url: ?string}, showsWeeklyVideo: bool, videoRecording: ?WeeklyVideoRecording, mainAction: ?array{label: string, url: string}, replaceVideoUrl: string, backUrl: string}
      */
     public function showData(TrainingWeek $week, User $user): array
     {
@@ -33,10 +34,19 @@ class TrainingWeekPageService
             'gates' => fn (Relation $query): Relation => $query->orderBy('position')->with('criteria'),
         ]);
         $isParticipant = $user->hasAnyRole(UserRole::Participant);
-        $videoRecording = $isParticipant
+        $showsWeeklyVideo = $isParticipant && $week->asksForWeeklyVideo();
+        $videoRecording = $showsWeeklyVideo
             ? WeeklyVideoRecording::query()->where('user_id', $user->id)->where('training_week_id', $week->id)->first()
             : null;
         $videoUrl = route('training.video-recording.edit', $week);
+        $gate = $this->gateSummary($week, $user, $isParticipant);
+        $mainAction = null;
+        if ($showsWeeklyVideo && ! $videoRecording) {
+            $mainAction = ['label' => 'Upload Video Recording →', 'url' => $videoUrl];
+        } elseif (! $showsWeeklyVideo && isset($gate['url'])) {
+            $mainAction = ['label' => 'View Gate →', 'url' => $gate['url']];
+            $gate['url'] = null;
+        }
 
         return [
             'trainingWeek' => $week,
@@ -49,10 +59,10 @@ class TrainingWeekPageService
                 ])
                 ->values()
                 ->all(),
-            'gate' => $this->gateSummary($week, $user, $isParticipant),
-            'showsWeeklyVideo' => $isParticipant,
+            'gate' => $gate,
+            'showsWeeklyVideo' => $showsWeeklyVideo,
             'videoRecording' => $videoRecording,
-            'uploadVideoUrl' => $isParticipant && ! $videoRecording ? $videoUrl : null,
+            'mainAction' => $mainAction,
             'replaceVideoUrl' => $videoUrl,
             'backUrl' => $isParticipant ? route('dashboard') : route('profile.show'),
         ];

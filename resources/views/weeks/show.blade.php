@@ -14,9 +14,9 @@
             @endif
         </header>
 
-        @if($uploadVideoUrl)
+        @if($mainAction)
             <x-ui.main-action id="week-main-action">
-                <x-ui.button :href="$uploadVideoUrl">Upload Video Recording →</x-ui.button>
+                <x-ui.button :href="$mainAction['url']">{{ $mainAction['label'] }}</x-ui.button>
             </x-ui.main-action>
         @endif
 

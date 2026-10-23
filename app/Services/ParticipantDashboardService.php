@@ -21,9 +21,11 @@ class ParticipantDashboardService
     public function __construct(private readonly WeekProgressionService $progression, private readonly GateReadinessService $gateService) {}
 
     /**
-     * Build the dashboard rows for every week of the program, with the participant's activity progress attached.
+     * Build the dashboard rows for every week of the program, with the participant's activity progress attached. An
+     * available week shows its Weekly Video Recording only when it asks for one; the program's weeks are expected to
+     * be loaded with TrainingWeek::withAsksForWeeklyVideo().
      *
-     * @return Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_reason: ?string, is_current: bool, attendance_required: bool}>
+     * @return Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_reason: ?string, shows_weekly_video: bool, is_current: bool, attendance_required: bool}>
      */
     public function weeks(User $user, Program $program, ?AttendanceSession $activeAttendance): Collection
     {
@@ -37,7 +39,13 @@ class ParticipantDashboardService
             $available = $passed || $weekStates[$week->id]['accessible'];
             $week->weekly_video_recording = $videoRecordings->get($week->id);
 
-            return ['week' => $week, 'passed' => $passed, 'available' => $available, 'locked_reason' => $passed ? null : ($available ? null : 'Complete and pass the previous Gate before proceeding.')];
+            return [
+                'week' => $week,
+                'passed' => $passed,
+                'available' => $available,
+                'locked_reason' => $passed ? null : ($available ? null : 'Complete and pass the previous Gate before proceeding.'),
+                'shows_weekly_video' => $available && $week->asksForWeeklyVideo(),
+            ];
         });
         $currentWeek = $weeks->first(fn (array $item): bool => $item['available'] && ! $item['passed']);
         $currentWeekId = $currentWeek['week']->id ?? null;

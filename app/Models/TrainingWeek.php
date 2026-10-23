@@ -50,4 +50,22 @@ class TrainingWeek extends Model
             ->where('is_active', true)
             ->where('program_id', Program::query()->select('id')->where('is_active', true)->orderBy('id')->limit(1));
     }
+
+    /**
+     * Add the `asks_for_weekly_video` attribute that asksForWeeklyVideo() reads, so a list of weeks needs no query
+     * per week.
+     */
+    public function scopeWithAsksForWeeklyVideo(Builder $query): Builder
+    {
+        return $query->withExists(['gates as asks_for_weekly_video' => fn (Builder $gates): Builder => $gates->asksForWeeklyVideo()]);
+    }
+
+    /**
+     * Whether the week asks for the Weekly Video Recording: only when its checklist (an active Gate) has a weekly
+     * video item. Reads the attribute withAsksForWeeklyVideo() adds, otherwise queries.
+     */
+    public function asksForWeeklyVideo(): bool
+    {
+        return $this->asks_for_weekly_video ?? $this->gates()->asksForWeeklyVideo()->exists();
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\TrainingGate;
@@ -277,16 +278,40 @@ class WeeklyVideoRecordingTest extends TestCase
     {
         [$participant, $week] = $this->week();
         $nextWeek = TrainingWeek::factory()->for($week->program)->create(['week_number' => 3, 'position' => 2, 'is_active' => true]);
+        $this->addVideoGate($nextWeek);
 
         $this->actingAs($participant)->post(route('training.video-recording.store', $nextWeek), [])->assertForbidden();
     }
 
+    public function test_upload_to_a_week_whose_checklist_has_no_video_item_is_not_found_before_validation(): void
+    {
+        Storage::fake('local');
+        [$participant, $week] = $this->week();
+        $week->gates()->firstOrFail()->criteria()->update(['criterion_type' => 'deliverable']);
+
+        $this->actingAs($participant)->post(route('training.video-recording.store', $week), [
+            'video' => UploadedFile::fake()->create('week-2.mp4', 100, 'video/mp4'),
+        ])->assertNotFound();
+        $this->assertDatabaseCount('weekly_video_recordings', 0);
+    }
+
+    /**
+     * A participant and the active first week (Week 2) of an active program, whose active Gate has a weekly video item.
+     *
+     * @return array{User, TrainingWeek}
+     */
     private function week(): array
     {
         $program = Program::factory()->create(['is_active' => true]);
         $week = TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 1, 'is_active' => true]);
-        TrainingGate::factory()->for($week, 'week')->create(['is_active' => true]);
+        $this->addVideoGate($week);
 
         return [User::factory()->create(['role' => 'participant']), $week];
+    }
+
+    private function addVideoGate(TrainingWeek $week): void
+    {
+        $gate = TrainingGate::factory()->for($week, 'week')->create(['is_active' => true]);
+        GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_video']);
     }
 }

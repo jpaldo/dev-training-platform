@@ -201,7 +201,7 @@
                                 </div>
                             </x-ui.card>
 
-                            @if($item['available'])
+                            @if($item['shows_weekly_video'])
                                 <x-ui.card padding="p-5" class="grid gap-2.5">
                                     <h3 class="m-0 text-base font-extrabold">Video Recording</h3>
                                     <span class="text-sm text-muted">{{ $item['week']->weekly_video_recording ? 'Uploaded' : 'Not uploaded' }}</span>

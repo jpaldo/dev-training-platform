@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Enums\UserRole;
+use App\Http\Requests\AssignMentorRequest;
 use App\Http\Requests\UpdateTrainingSessionResourceRequest;
 use App\Models\Activity;
+use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\TrainingSession;
 use App\Models\TrainingSessionResource;
@@ -14,6 +16,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Str;
 
 class AdminTrainingSessionPageService
@@ -57,20 +60,24 @@ class AdminTrainingSessionPageService
     /**
      * Everything the session dashboard renders: the header facts (title, program, date range, weeks, status) with the
      * Edit link, and one tab each for the overview, participants, mentors, activities and resources, whose labels carry
-     * live counts. Participants are read in one query with their membership, each with a Remove link; the add form
-     * offers the active participants not in the session (one more query). Mentors are read in one query with their
-     * number of current participants in the session, each with a Remove link whose confirmation warns that those
-     * participants become unassigned; the add form offers the active coaches who are not mentors of the session (one
-     * more query). Activities are the active activities of the session's weeks. Resources are grouped "Whole session",
-     * "Week 1", … (one query), with the form that adds a link.
+     * live counts. Participants are read in one query with their membership, each with their current mentor and a
+     * Remove link; the add form offers the active participants not in the session (one more query). The participants'
+     * mentor assignments in the session, current and ended, are read in one query with their mentors (two queries).
+     * Mentors are read in one query with their number of current participants in the session, each with a Remove link
+     * whose confirmation warns that those participants become unassigned; the add form offers the active coaches who
+     * are not mentors of the session (one more query). Below them, each participant has a select of the session's
+     * mentors and their mentor history. Activities are the active activities of the session's weeks. Resources are
+     * grouped "Whole session", "Week 1", … (one query), with the form that adds a link.
      *
-     * @return array{title: string, program: string, dateRange: string, weeksLabel: string, statusLabel: string, statusTone: string, editUrl: string, indexUrl: string, tabs: list<array{key: string, label: string}>, selectedTab: string, participants: list<array{name: string, employee_id: string, job_role: string, joined_on: string, remove_url: string}>, addParticipants: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentors: list<array{name: string, employee_id: string, current_participant_count: int, remove_url: string, remove_confirmation: string}>, addMentors: array{url: string, size: int, options: list<array{value: string, label: string}>}, activities: list<array{week: string, title: string}>, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, rename_url: string, rename_error_bag: string, remove_url: string}>}>, addResource: array{url: string, weekOptions: list<array{value: string, label: string}>}}
+     * @return array{title: string, program: string, dateRange: string, weeksLabel: string, statusLabel: string, statusTone: string, editUrl: string, indexUrl: string, tabs: list<array{key: string, label: string}>, selectedTab: string, participants: list<array{name: string, employee_id: string, job_role: string, current_mentor: string, joined_on: string, remove_url: string}>, addParticipants: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentors: list<array{id: int, name: string, employee_id: string, current_participant_count: int, remove_url: string, remove_confirmation: string}>, addMentors: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentorAssignments: list<array{participant_id: int, participant_name: string, assign_url: string, error_bag: string, current_mentor_id: string, history: list<string>}>, mentorOptions: list<array{value: string, label: string}>, activities: list<array{week: string, title: string}>, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, rename_url: string, rename_error_bag: string, remove_url: string}>}>, addResource: array{url: string, weekOptions: list<array{value: string, label: string}>}}
      */
     public function showData(TrainingSession $trainingSession): array
     {
         $trainingSession->loadMissing('program:id,name');
         $status = $trainingSession->status();
-        $participants = $this->participantRows($trainingSession);
+        $sessionParticipants = $this->sessionParticipants($trainingSession);
+        $assignmentsByParticipant = $this->mentorAssignmentsByParticipant($trainingSession, $sessionParticipants);
+        $participants = $this->participantRows($trainingSession, $sessionParticipants, $assignmentsByParticipant);
         $mentors = $this->mentorRows($trainingSession);
         $activities = $this->activityRows($trainingSession);
         $resources = $this->resources->tabData($trainingSession, fn (TrainingSessionResource $resource): array => [
@@ -100,6 +107,8 @@ class AdminTrainingSessionPageService
             'addParticipants' => $this->addParticipantsForm($trainingSession),
             'mentors' => $mentors,
             'addMentors' => $this->addMentorsForm($trainingSession),
+            'mentorAssignments' => $this->mentorAssignmentRows($trainingSession, $sessionParticipants, $assignmentsByParticipant),
+            'mentorOptions' => array_map(fn (array $mentor): array => ['value' => (string) $mentor['id'], 'label' => $mentor['name']], $mentors),
             'activities' => $activities,
             'resourceGroups' => $resources['groups'],
             'addResource' => $this->addResourceForm($trainingSession),
@@ -188,26 +197,97 @@ class AdminTrainingSessionPageService
     }
 
     /**
-     * The session's participants by name, read in one query with their membership. A missing employee ID or job role
-     * shows as a dash.
+     * The session's participants by name, read in one query with their membership.
      *
-     * @return list<array{name: string, employee_id: string, job_role: string, joined_on: string, remove_url: string}>
+     * @return Collection<int, User>
      */
-    private function participantRows(TrainingSession $trainingSession): array
+    private function sessionParticipants(TrainingSession $trainingSession): Collection
     {
         return $trainingSession->participants()
             ->select(['users.id', 'users.name', 'users.employee_id', 'users.job_role'])
             ->orderBy('users.name')
             ->orderBy('users.id')
+            ->get();
+    }
+
+    /**
+     * The participants' mentor assignments in the session, current and ended, each with its mentor's name, the earliest
+     * first and keyed by participant ID (two queries).
+     *
+     * @param  Collection<int, User>  $participants
+     * @return SupportCollection<int, Collection<int, MentorAssignment>>
+     */
+    private function mentorAssignmentsByParticipant(TrainingSession $trainingSession, Collection $participants): SupportCollection
+    {
+        return $trainingSession->mentorAssignments()
+            ->select(['id', 'training_session_id', 'participant_id', 'mentor_id', 'started_at', 'ended_at'])
+            ->whereIn('participant_id', $participants->modelKeys())
+            ->with('mentor:id,name')
+            ->orderBy('started_at')
+            ->orderBy('id')
             ->get()
+            ->groupBy('participant_id');
+    }
+
+    /**
+     * One row per participant. A missing employee ID or job role shows as a dash, and a participant without a current
+     * mentor as "Not assigned".
+     *
+     * @param  Collection<int, User>  $participants
+     * @param  SupportCollection<int, Collection<int, MentorAssignment>>  $assignmentsByParticipant
+     * @return list<array{name: string, employee_id: string, job_role: string, current_mentor: string, joined_on: string, remove_url: string}>
+     */
+    private function participantRows(TrainingSession $trainingSession, Collection $participants, SupportCollection $assignmentsByParticipant): array
+    {
+        return $participants
             ->map(fn (User $participant): array => [
                 'name' => $participant->name,
                 'employee_id' => $participant->employee_id ?? '—',
                 'job_role' => $participant->job_role?->label() ?? '—',
+                'current_mentor' => $this->currentAssignment($assignmentsByParticipant, $participant)?->mentor->name ?? 'Not assigned',
                 'joined_on' => $participant->pivot->joined_at->format('j M Y'),
                 'remove_url' => route('admin.sessions.participants.destroy', [$trainingSession, $participant]),
             ])
             ->all();
+    }
+
+    /**
+     * One row per participant on the Mentors tab: the form that assigns or changes their mentor, with their current
+     * mentor's ID ("" when none), and their mentor history, the earliest first, e.g. ["Ana Reyes, 9 Nov – 23 Nov",
+     * "Ben Lim, since 23 Nov"].
+     *
+     * @param  Collection<int, User>  $participants
+     * @param  SupportCollection<int, Collection<int, MentorAssignment>>  $assignmentsByParticipant
+     * @return list<array{participant_id: int, participant_name: string, assign_url: string, error_bag: string, current_mentor_id: string, history: list<string>}>
+     */
+    private function mentorAssignmentRows(TrainingSession $trainingSession, Collection $participants, SupportCollection $assignmentsByParticipant): array
+    {
+        return $participants
+            ->map(fn (User $participant): array => [
+                'participant_id' => $participant->id,
+                'participant_name' => $participant->name,
+                'assign_url' => route('admin.sessions.assignments.update', [$trainingSession, $participant]),
+                'error_bag' => AssignMentorRequest::errorBagFor($participant),
+                'current_mentor_id' => (string) $this->currentAssignment($assignmentsByParticipant, $participant)?->mentor_id,
+                'history' => $assignmentsByParticipant->get($participant->id, new Collection)
+                    ->map(fn (MentorAssignment $assignment): string => $assignment->ended_at === null
+                        ? "{$assignment->mentor->name}, since {$assignment->started_at->format('j M')}"
+                        : "{$assignment->mentor->name}, {$assignment->started_at->format('j M')} – {$assignment->ended_at->format('j M')}")
+                    ->values()
+                    ->all(),
+            ])
+            ->all();
+    }
+
+    /**
+     * The participant's current assignment among the prepared assignments, or null when they have no mentor.
+     *
+     * @param  SupportCollection<int, Collection<int, MentorAssignment>>  $assignmentsByParticipant
+     */
+    private function currentAssignment(SupportCollection $assignmentsByParticipant, User $participant): ?MentorAssignment
+    {
+        return $assignmentsByParticipant->get($participant->id, new Collection)
+            ->first(fn (MentorAssignment $assignment): bool => $assignment->ended_at === null);
     }
 
     /**
@@ -234,7 +314,7 @@ class AdminTrainingSessionPageService
      * The session's mentors by name, read in one query with their number of current participants in the session. A
      * missing employee ID shows as a dash.
      *
-     * @return list<array{name: string, employee_id: string, current_participant_count: int, remove_url: string, remove_confirmation: string}>
+     * @return list<array{id: int, name: string, employee_id: string, current_participant_count: int, remove_url: string, remove_confirmation: string}>
      */
     private function mentorRows(TrainingSession $trainingSession): array
     {
@@ -246,6 +326,7 @@ class AdminTrainingSessionPageService
             ->orderBy('users.id')
             ->get()
             ->map(fn (User $mentor): array => [
+                'id' => $mentor->id,
                 'name' => $mentor->name,
                 'employee_id' => $mentor->employee_id ?? '—',
                 'current_participant_count' => (int) $mentor->current_participant_count,

@@ -87,12 +87,13 @@
 
                         @if($participants !== [])
                             <div class="{{ $tableRegionClasses }}" role="region" aria-labelledby="session-participants-title" tabindex="0">
-                                <table class="w-full min-w-160 border-collapse text-sm" aria-labelledby="session-participants-title">
+                                <table class="w-full min-w-180 border-collapse text-sm" aria-labelledby="session-participants-title">
                                     <thead>
                                         <tr>
                                             <th scope="col" class="{{ $headerCellClasses }}">Name</th>
                                             <th scope="col" class="{{ $headerCellClasses }}">Employee ID</th>
                                             <th scope="col" class="{{ $headerCellClasses }}">Job role</th>
+                                            <th scope="col" class="{{ $headerCellClasses }}">Mentor</th>
                                             <th scope="col" class="{{ $headerCellClasses }}">Joined</th>
                                             <th scope="col" class="{{ $headerCellClasses }}">Actions</th>
                                         </tr>
@@ -103,6 +104,7 @@
                                                 <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">{{ $participant['name'] }}</th>
                                                 <td class="{{ $cellClasses }} whitespace-nowrap tabular-nums">{{ $participant['employee_id'] }}</td>
                                                 <td class="{{ $cellClasses }} text-muted">{{ $participant['job_role'] }}</td>
+                                                <td class="{{ $cellClasses }} wrap-break-word">{{ $participant['current_mentor'] }}</td>
                                                 <td class="{{ $cellClasses }} whitespace-nowrap">{{ $participant['joined_on'] }}</td>
                                                 <td class="{{ $cellClasses }}">
                                                     <form method="POST" action="{{ $participant['remove_url'] }}" data-confirm="Remove {{ $participant['name'] }} from this session? Their work is kept.">
@@ -191,6 +193,87 @@
                         @else
                             <p class="text-muted">No mentors in this session yet.</p>
                         @endif
+
+                        <section class="grid min-w-0 grid-cols-1 gap-3" aria-labelledby="session-assign-mentors-title">
+                            <h3 id="session-assign-mentors-title" class="text-base font-extrabold">Participants' mentors</h3>
+
+                            @if($mentorAssignments === [])
+                                <p class="text-sm/relaxed text-muted">Add participants to the session to assign their mentors.</p>
+                            @else
+                                @if($mentorOptions === [])
+                                    <p class="text-sm/relaxed text-muted">Add mentors to the session to assign them to participants.</p>
+                                @endif
+
+                                <div class="{{ $tableRegionClasses }}" role="region" aria-labelledby="session-assign-mentors-title" tabindex="0">
+                                    <table class="w-full min-w-160 border-collapse text-sm" aria-labelledby="session-assign-mentors-title">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
+                                                <th scope="col" class="{{ $headerCellClasses }}">Mentor</th>
+                                                <th scope="col" class="{{ $headerCellClasses }}">History</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($mentorAssignments as $assignment)
+                                                @php
+                                                    $assignErrors = $errors->getBag($assignment['error_bag']);
+                                                    $selectedMentorId = $assignErrors->any() ? (string) old('mentor_id') : $assignment['current_mentor_id'];
+                                                    $selectId = 'session-mentor-for-'.$assignment['participant_id'];
+                                                @endphp
+                                                <tr data-assignment-row>
+                                                    <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">{{ $assignment['participant_name'] }}</th>
+                                                    <td class="{{ $cellClasses }}">
+                                                        @if($mentorOptions !== [])
+                                                            <form method="POST" action="{{ $assignment['assign_url'] }}" class="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                                                                @csrf
+                                                                @method('PUT')
+                                                                <label for="{{ $selectId }}" class="sr-only">Mentor for {{ $assignment['participant_name'] }}</label>
+                                                                <select
+                                                                    id="{{ $selectId }}"
+                                                                    name="mentor_id"
+                                                                    required
+                                                                    @if($assignErrors->any()) aria-invalid="true" aria-describedby="{{ $selectId }}-error" @endif
+                                                                    class="{{ $controlClasses }}"
+                                                                >
+                                                                    @if($assignment['current_mentor_id'] === '')
+                                                                        <option value="" @selected($selectedMentorId === '')>Not assigned</option>
+                                                                    @endif
+                                                                    @foreach($mentorOptions as $option)
+                                                                        <option value="{{ $option['value'] }}" @selected($selectedMentorId === $option['value'])>{{ $option['label'] }}</option>
+                                                                    @endforeach
+                                                                </select>
+                                                                <div>
+                                                                    <x-ui.button variant="secondary" type="submit" aria-label="Save mentor for {{ $assignment['participant_name'] }}">Save</x-ui.button>
+                                                                </div>
+                                                                @if($assignErrors->any())
+                                                                    <p id="{{ $selectId }}-error" class="text-sm text-rose-200 sm:col-span-2" role="alert">{{ $assignErrors->first('mentor_id') }}</p>
+                                                                @endif
+                                                            </form>
+                                                        @else
+                                                            <span class="text-muted">Not assigned</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="{{ $cellClasses }}">
+                                                        @if($assignment['history'] !== [])
+                                                            <details class="min-w-0">
+                                                                <summary class="inline-block cursor-pointer list-none rounded-lg text-sm font-extrabold text-accent underline-offset-3 hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent/50 [&::-webkit-details-marker]:hidden" aria-label="Mentor history for {{ $assignment['participant_name'] }}">Show history ({{ count($assignment['history']) }})</summary>
+                                                                <ol class="mt-2 grid grid-cols-1 gap-1 text-muted">
+                                                                    @foreach($assignment['history'] as $entry)
+                                                                        <li>{{ $entry }}</li>
+                                                                    @endforeach
+                                                                </ol>
+                                                            </details>
+                                                        @else
+                                                            <span class="text-muted">No mentor yet</span>
+                                                        @endif
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @endif
+                        </section>
                     </x-ui.card>
                 </x-ui.tab-panel>
 

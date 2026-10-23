@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\JobRole;
 use App\Models\Activity;
+use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
@@ -111,7 +112,7 @@ class AdminTrainingSessionDashboardTest extends TestCase
         $this->actingAs($admin)->get(route('admin.sessions.show', 999))->assertNotFound();
     }
 
-    public function test_query_count_does_not_grow_with_participants_and_activities(): void
+    public function test_query_count_does_not_grow_with_participants_mentors_assignments_and_activities(): void
     {
         $this->assertSame($this->dashboardQueryCount(1), $this->dashboardQueryCount(4));
     }
@@ -135,8 +136,9 @@ class AdminTrainingSessionDashboardTest extends TestCase
     }
 
     /**
-     * Create a 2-week session with the given number of participants and of activities in each week, and count the
-     * queries of an admin's dashboard request after a warm-up request.
+     * Create a 2-week session with the given number of participants, of mentors and of activities in each week, each
+     * participant with an ended and a current mentor assignment, and count the queries of an admin's dashboard request
+     * after a warm-up request.
      */
     private function dashboardQueryCount(int $count): int
     {
@@ -145,7 +147,14 @@ class AdminTrainingSessionDashboardTest extends TestCase
         Activity::factory()->for($this->week($program, 1), 'week')->count($count)->create();
         Activity::factory()->for($this->week($program, 2), 'week')->count($count)->create();
         $session = $this->twoWeekSession($program);
-        $session->participants()->attach(User::factory()->count($count)->create(), ['joined_at' => now()]);
+        $participants = User::factory()->count($count)->create();
+        $mentors = User::factory()->count($count)->create(['role' => 'coach']);
+        $session->participants()->attach($participants, ['joined_at' => now()]);
+        $session->mentors()->attach($mentors);
+        foreach ($participants as $index => $participant) {
+            MentorAssignment::factory()->for($session)->ended()->create(['participant_id' => $participant->id, 'mentor_id' => $mentors[$index]->id]);
+            MentorAssignment::factory()->for($session)->create(['participant_id' => $participant->id, 'mentor_id' => $mentors[$index]->id]);
+        }
 
         $this->actingAs($admin)->get(route('admin.sessions.show', $session))->assertOk();
         DB::flushQueryLog();

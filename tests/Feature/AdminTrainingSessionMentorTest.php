@@ -201,17 +201,176 @@ class AdminTrainingSessionMentorTest extends TestCase
         $session = TrainingSession::factory()->withMentors($mentor)->create();
         $candidate = User::factory()->create(['role' => 'coach']);
 
+        $participant = User::factory()->create();
+        $session->participants()->attach($participant, ['joined_at' => now()]);
+        $assignUrl = route('admin.sessions.assignments.update', [$session, $participant]);
+
         $this->post(route('admin.sessions.mentors.store', $session), ['user_ids' => [$candidate->id]])->assertRedirect(route('login'));
         $this->delete(route('admin.sessions.mentors.destroy', [$session, $mentor]))->assertRedirect(route('login'));
+        $this->put($assignUrl, ['mentor_id' => $mentor->id])->assertRedirect(route('login'));
 
         foreach (['participant', 'coach'] as $role) {
             $user = User::factory()->create(['role' => $role]);
 
             $this->actingAs($user)->post(route('admin.sessions.mentors.store', $session), ['user_ids' => [$candidate->id]])->assertForbidden();
             $this->actingAs($user)->delete(route('admin.sessions.mentors.destroy', [$session, $mentor]))->assertForbidden();
+            $this->actingAs($user)->put($assignUrl, ['mentor_id' => $mentor->id])->assertForbidden();
         }
 
         $this->assertSame([$mentor->id], $session->mentors()->pluck('users.id')->all());
+        $this->assertDatabaseCount('mentor_assignments', 0);
+        $this->assertDatabaseCount('admin_audit_logs', 0);
+    }
+
+    public function test_admin_assigns_a_mentor_then_changes_it_and_the_tabs_show_the_current_mentor_and_the_history(): void
+    {
+        $this->travelTo('2026-11-09 09:00:00');
+        $admin = User::factory()->create(['role' => 'admin']);
+        $ana = User::factory()->create(['role' => 'coach', 'name' => 'Ana Reyes']);
+        $ben = User::factory()->create(['role' => 'coach', 'name' => 'Ben Lim']);
+        $participant = User::factory()->create(['name' => 'Pat Cruz']);
+        $session = TrainingSession::factory()->withParticipants($participant)->withMentors($ana, $ben)->create();
+        $assignUrl = route('admin.sessions.assignments.update', [$session, $participant]);
+
+        $this->actingAs($admin)
+            ->put($assignUrl, ['mentor_id' => (string) $ana->id])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('admin.sessions.show', $session).'#mentors')
+            ->assertSessionHas('status', 'Ana Reyes now mentors Pat Cruz.');
+
+        $this->travelTo('2026-11-23 10:00:00');
+        $this->actingAs($admin)
+            ->put($assignUrl, ['mentor_id' => (string) $ben->id])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', 'Ben Lim now mentors Pat Cruz.');
+
+        $assignments = MentorAssignment::query()->orderBy('id')->get();
+        $this->assertSame([$ana->id, $ben->id], $assignments->pluck('mentor_id')->all());
+        $this->assertSame('2026-11-23 10:00:00', $assignments[0]->ended_at->toDateTimeString());
+        $this->assertNull($assignments[1]->ended_at);
+        $this->assertSame([$admin->id, $admin->id], $assignments->pluck('assigned_by')->all());
+
+        $audits = AdminAuditLog::query()->orderBy('id')->get();
+        $this->assertSame(['session_mentor_assigned', 'session_mentor_assigned'], $audits->pluck('action')->all());
+        $this->assertSame([$admin->id, $admin->id], $audits->pluck('actor_id')->all());
+        $this->assertSame([$participant->id, $participant->id], $audits->pluck('target_user_id')->all());
+        $this->assertSame(['training_session_id' => $session->id, 'previous_mentor_id' => null, 'mentor_id' => $ana->id], $audits[0]->metadata);
+        $this->assertSame(['training_session_id' => $session->id, 'previous_mentor_id' => $ana->id, 'mentor_id' => $ben->id], $audits[1]->metadata);
+
+        $response = $this->actingAs($admin)
+            ->get(route('admin.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder(['<tr data-participant-row>', 'Pat Cruz', '<td class="', 'Ben Lim</td>'], false)
+            ->assertSee('<form method="POST" action="'.$assignUrl.'"', false)
+            ->assertSee('<label for="session-mentor-for-'.$participant->id.'" class="sr-only">Mentor for Pat Cruz</label>', false)
+            ->assertSee('<option value="'.$ben->id.'" selected>Ben Lim</option>', false)
+            ->assertSee('<option value="'.$ana->id.'" >Ana Reyes</option>', false)
+            ->assertDontSee('>Not assigned<', false)
+            ->assertSeeInOrder(['Show history (2)', '<li>Ana Reyes, 9 Nov – 23 Nov</li>', '<li>Ben Lim, since 23 Nov</li>'], false);
+
+        $participantsTab = Str::betweenFirst($response->getContent(), 'id="session-panel-participants"', 'id="session-panel-mentors"');
+        $this->assertStringNotContainsString('Ana Reyes', $participantsTab);
+    }
+
+    public function test_a_participant_without_a_mentor_shows_as_not_assigned(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $mentor = User::factory()->create(['role' => 'coach', 'name' => 'Mia Mentor']);
+        $participant = User::factory()->create(['name' => 'Pat Cruz']);
+        $session = TrainingSession::factory()->withParticipants($participant)->withMentors($mentor)->create();
+
+        $this->actingAs($admin)
+            ->get(route('admin.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder(['<tr data-participant-row>', 'Pat Cruz', 'Not assigned</td>'], false)
+            ->assertSeeInOrder(['<tr data-assignment-row>', '<option value="" selected>Not assigned</option>', '<option value="'.$mentor->id.'" >Mia Mentor</option>'], false)
+            ->assertSee('No mentor yet');
+    }
+
+    public function test_the_mentors_tab_explains_when_there_are_no_participants_or_no_mentors_to_assign(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $withoutParticipants = TrainingSession::factory()->withMentors(User::factory()->create(['role' => 'coach']))->create();
+        $withoutMentors = TrainingSession::factory()->withParticipants(User::factory()->create())->create();
+
+        $this->actingAs($admin)
+            ->get(route('admin.sessions.show', $withoutParticipants))
+            ->assertOk()
+            ->assertSee('Add participants to the session to assign their mentors.')
+            ->assertDontSee('<tr data-assignment-row>', false);
+
+        $this->actingAs($admin)
+            ->get(route('admin.sessions.show', $withoutMentors))
+            ->assertOk()
+            ->assertSee('Add mentors to the session to assign them to participants.')
+            ->assertSee('<tr data-assignment-row>', false)
+            ->assertDontSee('name="mentor_id"', false);
+    }
+
+    public function test_choosing_the_current_mentor_again_changes_nothing(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $mentor = User::factory()->create(['role' => 'coach', 'name' => 'Mia Mentor']);
+        $participant = User::factory()->create(['name' => 'Pat Cruz']);
+        $session = TrainingSession::factory()->withParticipants($participant)->withMentors($mentor)->create();
+        $assignment = MentorAssignment::factory()->for($session)->create(['participant_id' => $participant->id, 'mentor_id' => $mentor->id]);
+
+        $this->actingAs($admin)
+            ->put(route('admin.sessions.assignments.update', [$session, $participant]), ['mentor_id' => $mentor->id])
+            ->assertRedirect(route('admin.sessions.show', $session).'#mentors')
+            ->assertSessionHas('status', 'Mia Mentor already mentors Pat Cruz.');
+
+        $this->assertSame([$assignment->id], MentorAssignment::query()->pluck('id')->all());
+        $this->assertNull($assignment->fresh()->ended_at);
+        $this->assertDatabaseCount('admin_audit_logs', 0);
+    }
+
+    public function test_choosing_a_coach_who_is_not_a_mentor_of_the_session_or_no_mentor_fails_validation(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $mentor = User::factory()->create(['role' => 'coach']);
+        $otherSessionMentor = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create(['name' => 'Pat Cruz']);
+        $other = User::factory()->create();
+        $session = TrainingSession::factory()->withParticipants($participant, $other)->withMentors($mentor)->create();
+        TrainingSession::factory()->withParticipants($participant)->withMentors($otherSessionMentor)->create();
+        $assignUrl = route('admin.sessions.assignments.update', [$session, $participant]);
+        $errorBag = 'assignMentor'.$participant->id;
+
+        $this->actingAs($admin)
+            ->put($assignUrl, ['mentor_id' => $otherSessionMentor->id])
+            ->assertRedirect(route('admin.sessions.show', $session).'#mentors')
+            ->assertSessionHasErrorsIn($errorBag, ['mentor_id' => 'The selected mentor is not a mentor of this training session.']);
+
+        $this->actingAs($admin)
+            ->followingRedirects()
+            ->put($assignUrl, ['mentor_id' => $otherSessionMentor->id])
+            ->assertOk()
+            ->assertSee('aria-invalid="true" aria-describedby="session-mentor-for-'.$participant->id.'-error"', false)
+            ->assertSee('<p id="session-mentor-for-'.$participant->id.'-error" class="text-sm text-rose-200 sm:col-span-2" role="alert">The selected mentor is not a mentor of this training session.</p>', false)
+            ->assertDontSee('id="session-mentor-for-'.$other->id.'-error"', false);
+
+        $this->actingAs($admin)
+            ->put($assignUrl, ['mentor_id' => ''])
+            ->assertSessionHasErrorsIn($errorBag, ['mentor_id' => 'Choose a mentor.']);
+
+        $this->assertDatabaseCount('mentor_assignments', 0);
+        $this->assertDatabaseCount('admin_audit_logs', 0);
+    }
+
+    public function test_assigning_a_mentor_to_someone_who_is_not_in_the_session_is_not_found(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $mentor = User::factory()->create(['role' => 'coach']);
+        $outsider = User::factory()->create();
+        $session = TrainingSession::factory()->withMentors($mentor)->create();
+        TrainingSession::factory()->withParticipants($outsider)->create();
+
+        $this->actingAs($admin)
+            ->put(route('admin.sessions.assignments.update', [$session, $outsider]), ['mentor_id' => $mentor->id])
+            ->assertNotFound();
+
+        $this->assertDatabaseCount('mentor_assignments', 0);
         $this->assertDatabaseCount('admin_audit_logs', 0);
     }
 }

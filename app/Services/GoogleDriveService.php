@@ -4,11 +4,15 @@ namespace App\Services;
 
 use App\Models\GoogleDriveConnection;
 use App\Models\User;
+use Carbon\CarbonImmutable;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class GoogleDriveService
 {
+    private const VIDEO_UNAVAILABLE_MESSAGE = 'The app could not open that file in your Google Drive. Choose it again, or reconnect Google Drive on your profile.';
+
     public function __construct(private readonly GoogleDriveConnectionService $connections) {}
 
     public function ensureFolder(GoogleDriveConnection $connection, string $name, string $parentId, ?string $existingId = null): string
@@ -123,6 +127,63 @@ class GoogleDriveService
         }
 
         return $createdId;
+    }
+
+    /**
+     * Read the details of a video the participant chose from their own Google Drive.
+     *
+     * @return array{id: string, name: string, mime_type: string, size_bytes: ?int, created_at: ?CarbonImmutable, modified_at: ?CarbonImmutable, resource_key: ?string}
+     *
+     * @throws \RuntimeException with a participant-facing message when the file cannot be read or is not an owned, untrashed video.
+     */
+    public function videoFile(GoogleDriveConnection $connection, string $fileId, ?string $resourceKey = null): array
+    {
+        if (preg_match('/^[A-Za-z0-9_-]+$/', $fileId) !== 1) {
+            throw new \RuntimeException(self::VIDEO_UNAVAILABLE_MESSAGE);
+        }
+
+        try {
+            $request = Http::withToken($this->connections->accessToken($connection))->acceptJson()->timeout(15);
+            if (filled($resourceKey)) {
+                $request = $request->withHeaders(['X-Goog-Drive-Resource-Keys' => "{$fileId}/{$resourceKey}"]);
+            }
+            $file = $request->get("https://www.googleapis.com/drive/v3/files/{$fileId}", [
+                'fields' => 'id,name,mimeType,size,createdTime,modifiedTime,trashed,ownedByMe,resourceKey',
+                'supportsAllDrives' => 'true',
+            ])->throw()->json();
+        } catch (\Throwable $exception) {
+            Log::warning('Google Drive video lookup failed.', [
+                'operation' => 'files.get',
+                'file_id_suffix' => substr($fileId, -6),
+                'http_status' => $exception instanceof RequestException ? $exception->response->status() : null,
+                'google_reason' => $exception instanceof RequestException ? data_get($exception->response->json(), 'error.errors.0.reason') : null,
+            ]);
+
+            throw new \RuntimeException(self::VIDEO_UNAVAILABLE_MESSAGE, previous: $exception);
+        }
+
+        $mimeType = (string) ($file['mimeType'] ?? '');
+        if (! str_starts_with($mimeType, 'video/')) {
+            throw new \RuntimeException('The file you chose is not a video. Choose a video file.');
+        }
+
+        if (($file['trashed'] ?? false) === true) {
+            throw new \RuntimeException('That video is in your Google Drive trash. Choose another video.');
+        }
+
+        if (($file['ownedByMe'] ?? false) !== true) {
+            throw new \RuntimeException('Choose a video from your own Google Drive.');
+        }
+
+        return [
+            'id' => (string) ($file['id'] ?? $fileId),
+            'name' => (string) ($file['name'] ?? ''),
+            'mime_type' => $mimeType,
+            'size_bytes' => is_numeric($file['size'] ?? null) ? (int) $file['size'] : null,
+            'created_at' => filled($file['createdTime'] ?? null) ? CarbonImmutable::parse($file['createdTime']) : null,
+            'modified_at' => filled($file['modifiedTime'] ?? null) ? CarbonImmutable::parse($file['modifiedTime']) : null,
+            'resource_key' => $resourceKey ?: ($file['resourceKey'] ?? null),
+        ];
     }
 
     /** @return array<int, array{id?: string, name?: string, mimeType?: string}> */

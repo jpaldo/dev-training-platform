@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Enums\UserRole;
 use App\Models\Activity;
+use App\Rules\GitHubUrl;
 use App\Support\FieldLimits;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -38,7 +39,13 @@ class StoreSubmissionDraftRequest extends FormRequest
         ];
 
         foreach ($this->fieldConfigurations() as $key => $configuration) {
-            $rules['field_values.'.$key] = ['nullable', 'string', 'max:'.FieldLimits::forField($key, $configuration['type'] ?? 'textarea')];
+            $type = $configuration['type'] ?? 'textarea';
+            $rules['field_values.'.$key] = [
+                'nullable',
+                'string',
+                'max:'.FieldLimits::forField($key, $type),
+                ...($type === 'github_url' ? [new GitHubUrl] : []),
+            ];
         }
 
         return $rules;

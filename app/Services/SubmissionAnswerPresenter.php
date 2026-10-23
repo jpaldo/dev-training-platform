@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ActivityRequirement;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
+use App\Rules\GitHubUrl;
 use App\Support\Markdown;
 use Illuminate\Support\Collection;
 
@@ -24,6 +25,25 @@ class SubmissionAnswerPresenter
             'display' => $this->displayValue($value),
             'markdown' => in_array($key, Markdown::OUTPUT_FIELDS, true),
         ])->filter(fn (array $field): bool => filled($field['value']))->values()->all();
+    }
+
+    /**
+     * The links to show for the version's GitHub link fields (type `github_url`), keyed by field key. A value the
+     * GitHub link rule does not accept (e.g. saved before the field became a GitHub link) gets no link.
+     *
+     * @return array<string, string>
+     */
+    public function fieldLinks(SubmissionVersion $version): array
+    {
+        $version->loadMissing('submission.activity.requirements');
+        $values = $version->field_values ?? [];
+
+        return $version->submission->activity->requirements
+            ->where('requirement_type', 'submission_field')
+            ->filter(fn (ActivityRequirement $requirement): bool => ($requirement->configuration['type'] ?? null) === 'github_url'
+                && GitHubUrl::accepts($values[$requirement->configuration['key'] ?? ''] ?? null))
+            ->mapWithKeys(fn (ActivityRequirement $requirement): array => [$requirement->configuration['key'] => $values[$requirement->configuration['key']]])
+            ->all();
     }
 
     /**

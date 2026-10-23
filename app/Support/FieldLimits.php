@@ -30,7 +30,7 @@ final class FieldLimits
     {
         return match ($type) {
             'text' => self::TEXT,
-            'url' => self::URL,
+            'url', 'github_url' => self::URL,
             default => self::TEXTAREA,
         };
     }

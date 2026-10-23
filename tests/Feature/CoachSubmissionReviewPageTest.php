@@ -166,6 +166,32 @@ class CoachSubmissionReviewPageTest extends TestCase
             ->assertDontSee('Week 4 snapshot');
     }
 
+    public function test_a_github_link_field_shows_as_a_link_opening_in_a_new_tab(): void
+    {
+        [$coach, $version] = $this->assignedCoachWithVersion('submitted', ['deliverable_url' => 'https://github.com/ana/l4/pull/3', 'demo_url' => 'https://example.com/demo']);
+        $this->submissionField($version, 1, ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url']);
+        $this->submissionField($version, 2, ['key' => 'demo_url', 'label' => 'Demo link', 'type' => 'url']);
+
+        $this->actingAs($coach)->get(route('coach.reviews.show', $version))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '>Deliverable link</strong>', '<a href="https://github.com/ana/l4/pull/3" target="_blank" rel="noopener noreferrer"', '>https://github.com/ana/l4/pull/3</a>',
+                '>Demo link</strong>', 'class="formatted-text markdown"', 'https://example.com/demo',
+            ], false)
+            ->assertDontSee('<a href="https://example.com/demo" target="_blank"', false);
+    }
+
+    public function test_a_github_link_field_with_a_non_github_value_is_not_linked(): void
+    {
+        [$coach, $version] = $this->assignedCoachWithVersion('submitted', ['deliverable_url' => 'javascript:alert(1)']);
+        $this->submissionField($version, 1, ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url']);
+
+        $this->actingAs($coach)->get(route('coach.reviews.show', $version))
+            ->assertOk()
+            ->assertSeeInOrder(['>Deliverable link</strong>', 'class="formatted-text markdown"', 'javascript:alert(1)'], false)
+            ->assertDontSee('href="javascript:', false);
+    }
+
     public function test_submission_field_labels_come_from_the_loaded_activity_requirements(): void
     {
         [$coach, $version] = $this->assignedCoachWithVersion('submitted', ['feature_area' => 'Checkout']);
@@ -202,6 +228,16 @@ class CoachSubmissionReviewPageTest extends TestCase
         $coach->assignedParticipants()->attach($version->submission->user_id);
 
         return [$coach, $version];
+    }
+
+    /**
+     * Add a submission field requirement with the given configuration to the version's activity.
+     *
+     * @param  array<string, mixed>  $configuration
+     */
+    private function submissionField(SubmissionVersion $version, int $position, array $configuration): void
+    {
+        ActivityRequirement::factory()->for($version->submission->activity)->create(['requirement_type' => 'submission_field', 'position' => $position, 'configuration' => $configuration]);
     }
 
     /**

@@ -79,6 +79,91 @@ class SubmissionFormPageTest extends TestCase
             ->assertSee('<option value="Reject"', false);
     }
 
+    public function test_a_github_link_field_renders_as_a_url_input_with_the_github_placeholder(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $this->submissionField($activity, 1, ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url', 'required' => true]);
+        $this->submissionField($activity, 2, ['key' => 'demo_url', 'label' => 'Demo link', 'type' => 'url']);
+
+        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))->assertOk()->getContent();
+
+        $this->assertStringContainsString('id="deliverable_url" type="url" name="field_values[deliverable_url]" value="" maxlength="'.FieldLimits::URL.'" placeholder="https://github.com/" required', $html);
+        $this->assertStringContainsString('id="demo_url" type="url" name="field_values[demo_url]" value="" maxlength="'.FieldLimits::URL.'"', $html);
+        $this->assertSame(1, substr_count($html, 'placeholder="https://github.com/"'));
+    }
+
+    public function test_a_github_link_saves_as_a_draft(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $this->submissionField($activity, 1, ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url', 'required' => true]);
+
+        $this->actingAs($participant)
+            ->post(route('training.submission.draft', [$week, $activity]), ['field_values' => ['deliverable_url' => 'https://github.com/ana/l4/pull/3']])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('training.submission.edit', [$week, $activity]));
+
+        $this->assertSame(['deliverable_url' => 'https://github.com/ana/l4/pull/3'], SubmissionVersion::query()->sole()->field_values);
+    }
+
+    #[DataProvider('nonGitHubLinks')]
+    public function test_a_github_link_field_rejects_other_values_on_draft_save(string $value): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $this->submissionField($activity, 1, ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url', 'required' => true]);
+
+        $this->actingAs($participant)
+            ->post(route('training.submission.draft', [$week, $activity]), ['field_values' => ['deliverable_url' => $value]])
+            ->assertSessionHasErrors(['field_values.deliverable_url' => 'Enter a link to your public GitHub repository (https://github.com/…).']);
+
+        $this->assertDatabaseCount('submission_versions', 0);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function nonGitHubLinks(): array
+    {
+        return [
+            'plain http' => ['http://github.com/x'],
+            'another host' => ['https://gitlab.com/x'],
+            'plain text' => ['my repository'],
+        ];
+    }
+
+    public function test_a_plain_url_field_still_accepts_a_link_outside_github(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $this->submissionField($activity, 1, ['key' => 'demo_url', 'label' => 'Demo link', 'type' => 'url']);
+
+        $this->actingAs($participant)
+            ->post(route('training.submission.draft', [$week, $activity]), ['field_values' => ['demo_url' => 'https://gitlab.com/x']])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(['demo_url' => 'https://gitlab.com/x'], SubmissionVersion::query()->sole()->field_values);
+    }
+
+    public function test_submitting_a_draft_with_a_stored_non_github_link_fails(): void
+    {
+        [$participant, $week, $activity] = $this->activityFixture();
+        $this->submissionField($activity, 1, ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url', 'required' => true]);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
+        $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft', 'field_values' => ['deliverable_url' => 'https://gitlab.com/x']]);
+
+        $this->actingAs($participant)
+            ->post(route('training.submission.submit', [$week, $activity, $version]))
+            ->assertSessionHasErrors(['field_values.deliverable_url' => 'Enter a link to your public GitHub repository (https://github.com/…).']);
+
+        $this->assertTrue($version->fresh()->isDraft());
+
+        $version->update(['field_values' => ['deliverable_url' => 'https://github.com/ana/l4/pull/3']]);
+
+        $this->actingAs($participant)
+            ->post(route('training.submission.submit', [$week, $activity, $version]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertFalse($version->fresh()->isDraft());
+    }
+
     public function test_length_limited_fields_use_the_shared_character_counter_and_markdown_fields_without_a_page_script(): void
     {
         [$participant, $week, $activity] = $this->activityFixture();

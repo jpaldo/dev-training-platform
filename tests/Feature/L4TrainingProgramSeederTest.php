@@ -47,7 +47,7 @@ class L4TrainingProgramSeederTest extends TestCase
                 $this->assertTrue($activity->is_active);
                 $this->assertSame(['D1' => 40, 'D2' => 30, 'D3' => 20, 'D4' => 10], array_column($activity->scoringDimensions(), 'max', 'key'));
                 $this->assertSame(
-                    [['deliverable_url', 'url', true], ['notes', 'textarea', false]],
+                    [['deliverable_url', 'github_url', true], ['notes', 'textarea', false]],
                     $activity->requirements->sortBy('position')->map(fn (ActivityRequirement $field): array => [
                         $field->configuration['key'],
                         $field->configuration['type'],

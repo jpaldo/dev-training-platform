@@ -139,7 +139,7 @@ class L4TrainingProgramSeeder extends Seeder
     }
 
     /**
-     * One placeholder activity with a required deliverable link, optional notes and scoring dimensions D1 to D4.
+     * One placeholder activity with a required GitHub deliverable link, optional notes and scoring dimensions D1 to D4.
      *
      * @return array{title: string, description: string, objectives: string, instructions: string, fields: list<array{key: string, label: string, type: string, required: bool, help: string}>, scoring_dimensions: list<array{key: string, label: string, max: int}>}
      */
@@ -154,9 +154,9 @@ class L4TrainingProgramSeeder extends Seeder
                 [
                     'key' => 'deliverable_url',
                     'label' => 'Deliverable link',
-                    'type' => 'url',
+                    'type' => 'github_url',
                     'required' => true,
-                    'help' => 'Paste the link to your deliverable for this activity.',
+                    'help' => 'Paste the GitHub link to your deliverable for this activity.',
                 ],
                 [
                     'key' => 'notes',

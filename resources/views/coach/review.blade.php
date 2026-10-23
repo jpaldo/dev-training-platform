@@ -7,6 +7,7 @@
         $sectionTitleClasses = 'm-0 text-xl font-extrabold';
         $rowClasses = 'grid min-w-0 grid-cols-1 justify-items-start gap-2 rounded-xl border border-line bg-field px-4 py-3.5';
         $formattedClasses = 'w-full min-w-0 rounded-xl bg-surface-sunken p-4';
+        $linkClasses = 'font-bold break-all text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50';
         $hintClasses = 'm-0 text-sm/relaxed text-muted';
         $fieldErrorClasses = 'm-0 text-sm text-rose-200';
     @endphp
@@ -54,9 +55,13 @@
                         @foreach($submittedFields as $field)
                             <li class="{{ $rowClasses }}">
                                 <strong>{{ $field['label'] }}</strong>
-                                <div class="{{ $formattedClasses }}">
-                                    <x-formatted-text :text="$field['text']" />
-                                </div>
+                                @if($field['link'])
+                                    <a href="{{ $field['link'] }}" target="_blank" rel="noopener noreferrer" class="{{ $linkClasses }}">{{ $field['link'] }}</a>
+                                @else
+                                    <div class="{{ $formattedClasses }}">
+                                        <x-formatted-text :text="$field['text']" />
+                                    </div>
+                                @endif
                             </li>
                         @endforeach
                     </ul>

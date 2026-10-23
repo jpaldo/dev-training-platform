@@ -51,7 +51,7 @@ class ScoringPageService
      * dimensions; an activity without dimensions cannot be scored. The single main action is Save / Publish Score.
      *
      * @param  array<string, mixed>|null  $draft  The scoring form values flashed when a suggestion was generated.
-     * @return array{version: SubmissionVersion, activityTitle: string, participantName: string, weekNumber: int, submissionStatus: string, submittedAt: string, answers: list<array{label: string, text: mixed}>, evidenceRows: list<array{title: string, detail: ?string}>, suggestion: ?ActivityScoreSuggestion, suggestionRows: list<array{heading: string, feedback: mixed, evidence_basis: mixed}>, evidenceProcessing: list<string>, suggestionData: ?array{dimensions: mixed, overall_feedback: ?string}, aiStatus: string, isAiConfigured: bool, canManage: bool, canScore: bool, rubricSummary: ?string, scoreMaximum: int, scoreFields: list<array{key: string, label: string, max: int, evidence_id: string, points_id: string, points: mixed, evidence_reasoning: mixed}>, overallFeedback: mixed, previousAverage: ?int, score: ?ActivityScore, canManageSecondReader: bool, readers: Collection<int, User>}
+     * @return array{version: SubmissionVersion, activityTitle: string, participantName: string, weekNumber: int, submissionStatus: string, submittedAt: string, answers: list<array{label: string, text: mixed, link: ?string}>, evidenceRows: list<array{title: string, detail: ?string}>, suggestion: ?ActivityScoreSuggestion, suggestionRows: list<array{heading: string, feedback: mixed, evidence_basis: mixed}>, evidenceProcessing: list<string>, suggestionData: ?array{dimensions: mixed, overall_feedback: ?string}, aiStatus: string, isAiConfigured: bool, canManage: bool, canScore: bool, rubricSummary: ?string, scoreMaximum: int, scoreFields: list<array{key: string, label: string, max: int, evidence_id: string, points_id: string, points: mixed, evidence_reasoning: mixed}>, overallFeedback: mixed, previousAverage: ?int, score: ?ActivityScore, canManageSecondReader: bool, readers: Collection<int, User>}
      */
     public function editData(SubmissionVersion $version, User $viewer, ?array $draft): array
     {
@@ -414,16 +414,20 @@ class ScoringPageService
     }
 
     /**
-     * The submitted answers with the text to show: a scalar value as is, anything else as pretty-printed JSON.
+     * The submitted answers with the text to show (a scalar value as is, anything else as pretty-printed JSON) and the
+     * link to open for a GitHub link field.
      *
-     * @return list<array{label: string, text: mixed}>
+     * @return list<array{label: string, text: mixed, link: ?string}>
      */
     private function answerRows(SubmissionVersion $version): array
     {
+        $links = $this->answers->fieldLinks($version);
+
         return collect($this->answers->fields($version))
             ->map(fn (array $field): array => [
                 'label' => $field['label'],
                 'text' => is_scalar($field['value']) ? $field['value'] : json_encode($field['value'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+                'link' => $links[$field['key']] ?? null,
             ])
             ->values()
             ->all();

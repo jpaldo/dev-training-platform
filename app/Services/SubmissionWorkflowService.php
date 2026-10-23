@@ -10,6 +10,7 @@ use App\Models\EvidenceRequirement;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\User;
+use App\Rules\GitHubUrl;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Arr;
@@ -126,7 +127,8 @@ class SubmissionWorkflowService
     }
 
     /**
-     * Throw the first unmet submission requirement: the required and select fields, then the required evidence.
+     * Throw the first unmet submission requirement: the required, select and GitHub link fields, then the required
+     * evidence.
      *
      * @throws ValidationException
      */
@@ -139,6 +141,9 @@ class SubmissionWorkflowService
             }
             if (($field['type'] ?? null) === 'select' && filled($values[$field['key']] ?? null) && ! in_array($values[$field['key']], $field['options'] ?? [], true)) {
                 throw ValidationException::withMessages(['field_values.'.$field['key'] => 'Select a valid '.$field['label'].'.']);
+            }
+            if (($field['type'] ?? null) === 'github_url' && filled($values[$field['key']] ?? null) && ! GitHubUrl::accepts($values[$field['key']])) {
+                throw ValidationException::withMessages(['field_values.'.$field['key'] => GitHubUrl::MESSAGE]);
             }
         }
 

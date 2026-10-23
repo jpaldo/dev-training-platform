@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\ActivityScore;
 use App\Models\ActivityScoreSuggestion;
 use App\Models\ActivitySubmission;
@@ -72,6 +73,16 @@ class ScoringEditPageTest extends TestCase
         $this->assertStringNotContainsString('a\/b', $content);
         $this->assertSame(3, substr_count($content, 'data-score-points data-max='));
         $response->assertDontSee('AI-assisted suggestions')->assertDontSee('id="suggestion-form"', false)->assertDontSee('Read only')->assertDontSee('Second reader')->assertDontSee('No submitted activity answers.');
+    }
+
+    public function test_a_github_link_field_shows_as_a_link_opening_in_a_new_tab(): void
+    {
+        [$coach, $version] = $this->assignedCoachWithVersion(['deliverable_url' => 'https://github.com/ana/l4/pull/3']);
+        ActivityRequirement::factory()->for($version->submission->activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url']]);
+
+        $this->actingAs($coach)->get(route('coach.scoring.edit', $version))
+            ->assertOk()
+            ->assertSeeInOrder(['>Deliverable link</strong>', '<a href="https://github.com/ana/l4/pull/3" target="_blank" rel="noopener noreferrer"', '>https://github.com/ana/l4/pull/3</a>'], false);
     }
 
     public function test_without_a_saved_score_the_fields_start_from_the_suggestion_and_ai_actions_are_offered(): void

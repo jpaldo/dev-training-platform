@@ -8,6 +8,7 @@
         $subsectionTitleClasses = 'm-0 text-lg font-extrabold';
         $rowClasses = 'grid min-w-0 grid-cols-1 justify-items-start gap-2 rounded-xl border border-line bg-field px-4 py-3.5';
         $formattedClasses = 'w-full min-w-0 rounded-xl bg-surface-sunken p-4';
+        $linkClasses = 'font-bold break-all text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50';
         $hintClasses = 'm-0 text-sm/relaxed text-muted';
         $improveButtonClasses = 'inline-flex cursor-pointer items-center justify-center rounded-lg border border-line bg-raised px-2.5 py-1.5 font-sans text-xs font-extrabold text-white transition hover:border-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent/50 disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:border-line';
         $improveStatusClasses = 'm-0 text-sm text-muted data-error:text-rose-300';
@@ -47,9 +48,13 @@
                         @foreach($answers as $answer)
                             <li class="{{ $rowClasses }}">
                                 <strong>{{ $answer['label'] }}</strong>
-                                <div class="{{ $formattedClasses }}">
-                                    <x-formatted-text :text="$answer['text']" />
-                                </div>
+                                @if($answer['link'])
+                                    <a href="{{ $answer['link'] }}" target="_blank" rel="noopener noreferrer" class="{{ $linkClasses }}">{{ $answer['link'] }}</a>
+                                @else
+                                    <div class="{{ $formattedClasses }}">
+                                        <x-formatted-text :text="$answer['text']" />
+                                    </div>
+                                @endif
                             </li>
                         @endforeach
                     </ul>

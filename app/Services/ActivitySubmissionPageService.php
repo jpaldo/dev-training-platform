@@ -105,7 +105,8 @@ class ActivitySubmissionPageService
 
     /**
      * The form fields grouped under their section headings: the AI / artifact context section opens before its first
-     * field and the activity work section before the first other field, each with the control to render and its length limit.
+     * field and the activity work section before the first other field, each with the control to render, its placeholder
+     * (`https://github.com/` for a GitHub link) and its length limit.
      *
      * @param  array<string, array<string, mixed>>  $fields
      * @return list<array{title: string, description: string, fields: list<array<string, mixed>>}>
@@ -131,6 +132,7 @@ class ActivitySubmissionPageService
                 ...$field,
                 'key' => $key,
                 'control' => $this->fieldControl($key, $field),
+                'placeholder' => ($field['type'] ?? null) === 'github_url' ? 'https://github.com/' : null,
                 'max_length' => FieldLimits::forField($key, $field['type'] ?? 'textarea'),
                 'has_length_note' => in_array($key, ['exact_prompt', 'exact_ai_output', 'ai_output', 'prompt'], true),
             ];
@@ -140,8 +142,8 @@ class ActivitySubmissionPageService
     }
 
     /**
-     * The control a form field renders as: date, artifact type select, select, URL, text, Markdown
-     * editor with preview, or plain textarea.
+     * The control a form field renders as: date, artifact type select, select, URL (also for a GitHub link), text,
+     * Markdown editor with preview, or plain textarea.
      *
      * @param  array<string, mixed>  $field
      */
@@ -152,6 +154,7 @@ class ActivitySubmissionPageService
         return match (true) {
             $type === 'date' => 'date',
             $key === 'artifact_type' => 'artifact_type',
+            $type === 'github_url' => 'url',
             in_array($type, ['select', 'url', 'text'], true) => $type,
             Markdown::editorPreview($key) => 'markdown',
             default => 'textarea',

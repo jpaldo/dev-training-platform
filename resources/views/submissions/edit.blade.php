@@ -144,7 +144,7 @@
                                             <p class="{{ $hintClasses }}">Accept — Validation passed; no changes needed.<br>Revise — An issue was found, but you can correct the artifact yourself.<br>Re-prompt AI — The AI output needs substantial changes, so use AI to generate an improved version.<br>Reject — The artifact is unreliable or unsuitable and should not be used.</p>
                                         @endif
                                     @elseif($field['control'] === 'url' || $field['control'] === 'text')
-                                        <input id="{{ $key }}" type="{{ $field['control'] }}" name="field_values[{{ $key }}]" value="{{ $value }}" maxlength="{{ $field['max_length'] }}" @required($isRequired) class="{{ $controlClasses }}">
+                                        <input id="{{ $key }}" type="{{ $field['control'] }}" name="field_values[{{ $key }}]" value="{{ $value }}" maxlength="{{ $field['max_length'] }}"@if($field['placeholder']) placeholder="{{ $field['placeholder'] }}"@endif @required($isRequired) class="{{ $controlClasses }}">
                                         <span class="text-sm text-muted" data-char-count></span>
                                     @elseif($field['control'] === 'markdown')
                                         <x-markdown-field :id="$key" :name="'field_values['.$key.']'" :value="$value" :maxlength="$field['max_length']" :required="$isRequired" class="{{ $textareaClasses }}" />

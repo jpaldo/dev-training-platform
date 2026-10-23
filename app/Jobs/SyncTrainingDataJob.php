@@ -10,7 +10,6 @@ use App\Models\GoogleDriveExport;
 use App\Models\GoogleDriveSync;
 use App\Models\SubmissionVersion;
 use App\Models\User;
-use App\Models\WeeklyVideoRecording;
 use App\Services\ExportLifecycleService;
 use App\Services\GoogleDriveConnectionService;
 use App\Services\GoogleDriveService;
@@ -182,21 +181,6 @@ class SyncTrainingDataJob implements ShouldQueue
                     $evidenceStats['failed']++;
                     $componentErrors[] = 'Evidences: One evidence file could not be synchronized.';
                 }
-            }
-        }
-
-        $video = WeeklyVideoRecording::query()->where('user_id', $participant->id)->whereHas('week', fn (Builder $q): Builder => $q->where('week_number', $weekNumber))->first();
-        if ($video && $video->disk && $video->path && Storage::disk($video->disk)->exists($video->path)) {
-            try {
-                $evidenceWeekFolder = $ensureEvidenceFolder();
-                $videoFolder = $this->managedFolder($participant, $connection, $drive, 'Video Recording', $evidenceWeekFolder, 'weekly_video_folder', (string) $weekNumber, $destination);
-                $existing = $video->drive_destination_folder_id === $destination ? $video->drive_file_id : null;
-                $driveId = $drive->uploadFile($connection, $video->original_filename, Storage::disk($video->disk)->get($video->path), $videoFolder, $video->mime_type, $existing);
-                $video->update(['drive_file_id' => $driveId ?: $existing, 'drive_destination_folder_id' => $destination]);
-                $sync->increment('successful_components');
-            } catch (Throwable $exception) {
-                $sync->increment('failed_components');
-                $componentErrors[] = 'Video Recording: Unable to synchronize video.';
             }
         }
     }

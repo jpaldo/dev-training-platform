@@ -17,6 +17,7 @@ use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Models\WeeklyVideoRecording;
 use App\Services\ExportLifecycleService;
 use App\Services\GoogleDriveConnectionService;
 use App\Services\GoogleDriveService;
@@ -356,6 +357,45 @@ class GoogleDriveSyncTest extends TestCase
         $this->assertSame('completed', $sync->fresh()->component_results['Evidences']['status']);
         $this->assertSame(1, $sync->fresh()->component_results['Evidences']['completed']);
         $this->assertSame(0, $sync->fresh()->component_results['Evidences']['failed']);
+    }
+
+    public function test_full_sync_leaves_a_chosen_weekly_video_in_the_participants_drive(): void
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        $program = Program::factory()->create(['is_active' => true]);
+        $week = TrainingWeek::factory()->create(['program_id' => $program->id, 'week_number' => 2]);
+        $video = WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create(['name' => 'week-2-walkthrough.mp4']);
+        GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'refresh_token' => 'refresh', 'drive_folder_id' => 'root', 'destination_source' => 'picker', 'connected_at' => now()]);
+        $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSyncStatus::Enqueued]);
+        $uploads = [];
+        $folders = [];
+
+        $drive = Mockery::mock(GoogleDriveService::class);
+        $drive->shouldReceive('validateDestination')->once()->andReturn('root');
+        $drive->shouldReceive('ensureFolder')->andReturnUsing(function (GoogleDriveConnection $received, string $name, string $parent) use (&$folders): string {
+            $folders[] = $name;
+
+            return 'folder-'.md5($name.'|'.$parent);
+        });
+        $drive->shouldReceive('uploadFile')->andReturnUsing(function (GoogleDriveConnection $received, string $name) use (&$uploads): string {
+            $uploads[] = $name;
+
+            return 'drive-'.$name;
+        });
+        $workbooks = Mockery::mock(TrainingWorkbookService::class);
+        $workbooks->shouldReceive('forWeek')->times(4)->andReturn('xlsx');
+
+        (new SyncTrainingDataJob($sync->id))->handle(app(GoogleDriveConnectionService::class), $drive, Mockery::mock(TrainingExportService::class), $workbooks, app(ExportLifecycleService::class), app(TrainingSyncCoordinator::class));
+
+        $sync->refresh();
+        $this->assertSame(['Week 1.xlsx', 'Week 2.xlsx', 'Week 3.xlsx', 'Week 4.xlsx'], $uploads);
+        $this->assertNotContains('Video Recording', $folders);
+        $this->assertSame(GoogleDriveSyncStatus::Completed, $sync->status);
+        $this->assertSame(4, $sync->successful_components);
+        $this->assertSame(0, $sync->failed_components);
+        $this->assertArrayNotHasKey('Video Recording', $sync->component_results);
+        $this->assertDatabaseMissing('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'weekly_video_folder']);
+        $this->assertSame($video->drive_file_id, $video->fresh()->drive_file_id);
     }
 
     public function test_sync_reconciles_five_evidence_files_with_partial_drive_tracking_and_reuses_ids(): void

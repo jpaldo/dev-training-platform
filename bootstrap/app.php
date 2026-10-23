@@ -5,7 +5,6 @@ use App\Http\Middleware\EnsureUserHasRole;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -30,14 +29,4 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
-
-        $exceptions->render(function (PostTooLargeException $exception, Request $request) {
-            if ($request->isMethod('post') && $request->is('training/weeks/*/video-recording')) {
-                return redirect()->back()->withErrors([
-                    'video' => 'The video must not exceed 350 MB.',
-                ]);
-            }
-
-            return null;
-        });
     })->create();

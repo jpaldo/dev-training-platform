@@ -74,18 +74,51 @@ rolled back: `down()` restores nothing, and the previous release no longer
 runs on the new schema. The release also no longer has the Daily Log
 Completion report, so **every export is taken from the version running before
 this release**. Run the steps in this order. On a database that has never
-held QA training data, skip steps 1 and 2.
+held QA training data, skip steps 2 and 3.
 
 ### Before deploying
 
-1. **Participants sync to Google Drive.** Ask every participant who has
+1. **Google Drive works in production.** Participants choose their weekly
+   video from their own Google Drive, and week 1 of the first session
+   (Mon 9 Nov 2026) asks for one, so set this up well before then:
+   - A Google Cloud project in the company's Google Workspace organization.
+   - An OAuth consent screen set to *Internal* (only company Google accounts
+     can connect), with the scopes `openid`, `email`, `profile` and
+     `https://www.googleapis.com/auth/drive.file`.
+   - The Google Drive API and the Google Picker API enabled.
+   - A *Web application* OAuth client with the authorized redirect URI
+     `https://{host}/profile/google-drive/callback` and the production origin
+     (`https://{host}`) as an authorized JavaScript origin.
+   - A Picker API key restricted to the production host (HTTP referrers) and
+     to the Google Picker API.
+   - In the shared `.env`: `GOOGLE_DRIVE_ENABLED=true`, `GOOGLE_CLIENT_ID`,
+     `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (the redirect URI above,
+     exactly), `GOOGLE_PICKER_API_KEY` and `GOOGLE_CLOUD_PROJECT_NUMBER`. Or
+     enter them on the admin **Google Drive Integration** page
+     (`/admin/settings/google-drive`: **Settings → Manage Google Settings →
+     Manage OAuth / Drive Configuration**); a value saved there wins over
+     `.env`.
+   - Verify with **Test Google Configuration** on that page (it checks that
+     the client ID, secret and redirect URI are set, not the Picker key).
+     After deploying and seeding (step 6), sign in as a test participant,
+     connect Google Drive from the profile and choose a video on a week's
+     **Choose Weekly Video** page: the migrations delete every participant
+     account and the running version cannot choose a video, so this check
+     only works on the new release.
+
+   Weekly videos are no longer uploaded, so they need no PHP upload limit.
+   Evidence files still do: PHP's `upload_max_filesize` and `post_max_size`
+   and the web server's body limit must stay above `training.evidence_max_kb`
+   (300 MB) and, for video evidence, `training.weekly_video_max_kb` (350 MB).
+
+2. **Participants sync to Google Drive.** Ask every participant who has
    connected Google Drive to press **SYNC TO GOOGLE DRIVE** in the sidebar
    (or the sync button in the Google Drive card on their profile) and wait
    until it no longer shows **SYNCING...**. Only the participant can start
    their sync; an admin cannot run it for them. It writes their Week 1 to 4
    workbooks and evidence files to their own Drive folder, which the release
    leaves alone.
-2. **An admin downloads every export** while signed in to the running
+3. **An admin downloads every export** while signed in to the running
    version. Clear every filter first: each export uses the filters shown on
    its screen, and an unfiltered export holds every participant.
    - **Reports → Progress → Export Progress CSV**
@@ -103,7 +136,7 @@ held QA training data, skip steps 1 and 2.
      (`daily-log-completion.csv`). This report does not exist in this
      release. The CSV lists log dates per week, not the log text; the full
      entries survive only in the database dump.
-3. **The operator puts the running release into maintenance mode**
+4. **The operator puts the running release into maintenance mode**
    (`php artisan down` in the live app path), then takes a database dump and
    an archive of the shared `private/` directory (`storage/app/private`).
    Keep both with the CSVs; they are the only way back. Do not continue until
@@ -111,7 +144,7 @@ held QA training data, skip steps 1 and 2.
 
 ### Deploying
 
-4. Deploy this release with the release sequence above. The script never
+5. Deploy this release with the release sequence above. The script never
    migrates and `prepare` stops while migrations are pending, so run
    `php artisan migrate --force` from the new release directory, then finish
    `prepare` and `activate`. Besides adding the employee ID, first and last
@@ -137,7 +170,7 @@ held QA training data, skip steps 1 and 2.
 
 ### After deploying
 
-5. Seed the L4 program, then its first session, from the active release:
+6. Seed the L4 program, then its first session, from the active release:
    - `php artisan db:seed --class=L4TrainingProgramSeeder --force`
    - `php artisan db:seed --class=L4FirstSessionSeeder --force` creates
      *L4 Accelerator Training — November 2026* (4 weeks, Mon 9 Nov to Sun
@@ -147,8 +180,8 @@ held QA training data, skip steps 1 and 2.
 
    Re-running either is safe. Never run a bare `php artisan db:seed` here: it
    also runs the demo account provisioner.
-6. Never run the demo account provisioner in production:
+7. Never run the demo account provisioner in production:
    `app:ensure-development-accounts` (local, staging and testing) and
    `app:ensure-development-baseline` (local and testing) both refuse to run
    there.
-7. Reload the queue/cron mechanism and run the usual post-switch checks.
+8. Reload the queue/cron mechanism and run the usual post-switch checks.

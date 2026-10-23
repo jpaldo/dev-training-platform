@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
+use App\Models\MentorAssignment;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
@@ -187,8 +188,8 @@ class SessionRepositoryUrlTest extends TestCase
     }
 
     /**
-     * A participant in two sessions of one program, a coach assigned to them, and a submitted version of their
-     * attempt at a Week 2 activity in the first session.
+     * A participant in two sessions of one program, a coach who is their current mentor in the first session, and a
+     * submitted version of their attempt at a Week 2 activity in the first session.
      *
      * @return array{User, User, TrainingSession, TrainingSession, SubmissionVersion}
      */
@@ -196,9 +197,9 @@ class SessionRepositoryUrlTest extends TestCase
     {
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
-        $coach->assignedParticipants()->attach($participant->id);
         $week = TrainingWeek::factory()->create(['week_number' => 2]);
         $sessionA = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        MentorAssignment::factory()->create(['training_session_id' => $sessionA->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         $sessionB = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
         $activity = Activity::factory()->for($week, 'week')->withScoringDimensions([['key' => 'D1', 'label' => 'Quality', 'max' => 100]])->create();
         $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->for($sessionA)->create(['status' => 'submitted', 'submitted_at' => now()]);

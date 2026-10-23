@@ -24,9 +24,9 @@ class MissingSubmissionReportService
         $participants = User::query()
             ->where('role', UserRole::Participant)
             ->when($filters['participant'] ?? null, fn (Builder $query, int|string $value): Builder => $query->whereKey($value))
-            ->when($filters['mentor'] ?? null, fn (Builder $query, int|string $value): Builder => $query->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($value)))
+            ->when($filters['mentor'] ?? null, fn (Builder $query, int|string $value): Builder => $query->whereHas('currentMentors', fn (Builder $coach): Builder => $coach->whereKey($value)))
             ->with([
-                'assignedCoaches:id,name',
+                'currentMentors:id,name',
                 'activitySubmissions.activity.week',
                 'activitySubmissions.versions.evidence',
                 'weeklyVideoRecordings',
@@ -42,7 +42,7 @@ class MissingSubmissionReportService
         $accessibleWeekIds = $this->accessibleWeekIds($participants, $program);
         $rows = collect();
         foreach ($participants as $participant) {
-            $mentor = $participant->assignedCoaches->pluck('name')->filter()->implode(', ') ?: 'Not assigned';
+            $mentor = $participant->currentMentors->pluck('name')->unique()->filter()->implode(', ') ?: 'Not assigned';
 
             foreach ($program->weeks as $week) {
                 if (! $accessibleWeekIds->get($participant->id, collect())->contains($week->id)) {

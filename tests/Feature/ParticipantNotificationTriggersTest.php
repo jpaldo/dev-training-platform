@@ -6,6 +6,7 @@ use App\Jobs\GenerateParticipantNotificationsJob;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\GateCriterion;
+use App\Models\MentorAssignment;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
@@ -162,8 +163,8 @@ class ParticipantNotificationTriggersTest extends TestCase
     {
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
-        $coach->assignedParticipants()->attach($participant->id);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->create(['status' => 'submitted']);
+        MentorAssignment::factory()->create(['training_session_id' => $submission->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
 
         $this->assertWriteQueuesOneSyncFor($participant, fn (): mixed => $this->actingAs($coach)
@@ -176,11 +177,11 @@ class ParticipantNotificationTriggersTest extends TestCase
     {
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
-        $coach->assignedParticipants()->attach($participant->id);
         $week = TrainingWeek::factory()->create(['week_number' => 2]);
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         $criterion = GateCriterion::factory()->for($gate, 'gate')->create();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->withMentors($coach)->create();
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
 
         $this->assertWriteQueuesOneSyncFor($participant, fn (): mixed => $this->actingAs($coach)
             ->post(route('training.coach.gates.update', [$session, $week, $participant, $gate]), ['status' => 'needs_revision', 'criteria' => [$criterion->id => 'not_met']])

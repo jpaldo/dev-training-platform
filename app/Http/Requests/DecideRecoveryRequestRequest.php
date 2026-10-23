@@ -11,14 +11,15 @@ use Illuminate\Validation\Rule;
 class DecideRecoveryRequestRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * Determine if the user is authorized to make this request: an admin or the participant's current mentor in the
+     * session of the submission the request is for.
      */
     public function authorize(): bool
     {
         $recoveryRequest = $this->route('recoveryRequest');
         abort_unless($recoveryRequest instanceof ActivityRecoveryRequest && $recoveryRequest->isPending(), 422);
 
-        return $this->user()?->canManageParticipant($recoveryRequest->participant) === true;
+        return $this->user()?->mentorsParticipantInSession($recoveryRequest->participant, $recoveryRequest->submission->trainingSession) === true;
     }
 
     /**

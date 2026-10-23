@@ -9,12 +9,15 @@ use Illuminate\Validation\Rule;
 
 class StoreSecondReaderScoreRequest extends FormRequest
 {
+    /**
+     * Determine if the user is authorized to make this request: an admin or the participant's current mentor in the
+     * submission's session.
+     */
     public function authorize(): bool
     {
-        $version = $this->route('submissionVersion');
-        $participant = $version?->loadMissing('submission.participant')->submission?->participant;
+        $submission = $this->route('submissionVersion')?->loadMissing(['submission.participant', 'submission.trainingSession'])->submission;
 
-        return $participant && $this->user()?->isCoachOrAdmin() && $this->user()->canManageParticipant($participant);
+        return $submission !== null && $this->user()?->mentorsParticipantInSession($submission->participant, $submission->trainingSession) === true;
     }
 
     public function rules(): array

@@ -33,11 +33,15 @@ class SubmissionVersionPolicy
     }
 
     /**
-     * Determine whether the user can update the model.
+     * Determine whether the user can update the model: the participant who submitted it, an admin, or the participant's
+     * current mentor in the submission's session.
      */
     public function update(User $user, SubmissionVersion $submissionVersion): bool
     {
-        return $user->id === $submissionVersion->submission->user_id || ($user->isCoachOrAdmin() && $user->canManageParticipant($submissionVersion->submission->participant));
+        $submission = $submissionVersion->submission;
+
+        return $user->id === $submission->user_id
+            || $user->mentorsParticipantInSession($submission->participant, $submission->trainingSession);
     }
 
     /**

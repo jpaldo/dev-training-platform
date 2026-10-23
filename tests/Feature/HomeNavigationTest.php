@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ActivitySubmission;
+use App\Models\MentorAssignment;
 use App\Models\ParticipantNotification;
 use App\Models\Program;
 use App\Models\TrainingSession;
@@ -171,7 +172,7 @@ class HomeNavigationTest extends TestCase
         $participant = User::factory()->create();
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('Mentor')->assertSee('Not assigned');
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Ely Mentor']);
-        $participant->assignedCoaches()->attach($coach);
+        MentorAssignment::factory()->create(['participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         $this->actingAs($participant->fresh())->get(route('dashboard'))->assertOk()->assertSee('Ely Mentor');
     }
 }

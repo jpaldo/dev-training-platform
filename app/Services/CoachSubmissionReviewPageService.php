@@ -25,10 +25,10 @@ class CoachSubmissionReviewPageService
      */
     public function showData(SubmissionVersion $submissionVersion, User $viewer): array
     {
-        $submissionVersion->load(['submission.participant', 'submission.activity.week', 'evidence', 'reviews.reviewer', 'interactions']);
+        $submissionVersion->load(['submission.participant', 'submission.trainingSession', 'submission.activity.week', 'evidence', 'reviews.reviewer', 'interactions']);
         $submission = $submissionVersion->submission;
         $activity = $submission->activity;
-        $canManage = $viewer->canManageParticipant($submission->participant);
+        $canManage = $viewer->mentorsParticipantInSession($submission->participant, $submission->trainingSession);
 
         return [
             'submissionVersion' => $submissionVersion,

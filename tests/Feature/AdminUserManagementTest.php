@@ -229,42 +229,15 @@ class AdminUserManagementTest extends TestCase
         $this->post(route('login.store'), ['email' => $user->email, 'password' => 'password'])->assertSessionHasErrors('email');
     }
 
-    public function test_admin_can_assign_and_remove_active_coaches_from_a_participant(): void
+    public function test_the_user_form_no_longer_assigns_mentors_and_its_route_is_gone(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $participant = User::factory()->create(['role' => 'participant']);
         $coach = User::factory()->create(['role' => 'coach', 'is_active' => true]);
 
-        $this->actingAs($admin)->get(route('admin.users.edit', $participant))->assertOk()->assertSee('Assigned Mentors');
-        $this->actingAs($admin)->post(route('admin.users.assignments', $participant), ['coach_ids' => [$coach->id]])->assertRedirect();
-        $this->assertTrue($participant->fresh()->assignedCoaches->contains($coach));
-        $this->actingAs($admin)->post(route('admin.users.assignments', $participant), ['coach_ids' => []])->assertRedirect();
-        $this->assertCount(0, $participant->fresh()->assignedCoaches);
-    }
-
-    public function test_admin_assignment_rejects_inactive_or_non_coach_users(): void
-    {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $participant = User::factory()->create(['role' => 'participant']);
-        $inactiveCoach = User::factory()->create(['role' => 'coach', 'is_active' => false]);
-        $otherParticipant = User::factory()->create(['role' => 'participant']);
-
-        $this->actingAs($admin)->post(route('admin.users.assignments', $participant), ['coach_ids' => [$inactiveCoach->id, $otherParticipant->id]])
-            ->assertRedirect()
-            ->assertSessionHasErrors(['coach_ids.0' => 'The selected mentor is invalid.', 'coach_ids.1' => 'The selected mentor is invalid.']);
-        $this->assertCount(0, $participant->fresh()->assignedCoaches);
-    }
-
-    public function test_admin_assignment_returns_not_found_for_non_participant_before_validating_input(): void
-    {
-        $admin = User::factory()->create(['role' => 'admin']);
-        $coach = User::factory()->create(['role' => 'coach', 'is_active' => true]);
-
-        $this->actingAs($admin)
-            ->post(route('admin.users.assignments', $coach), ['coach_ids' => ['not-a-number']])
-            ->assertNotFound();
-
-        $this->assertCount(0, $coach->fresh()->assignedCoaches);
+        $this->actingAs($admin)->get(route('admin.users.edit', $participant))->assertOk()->assertDontSee('Assigned Mentors');
+        $this->actingAs($admin)->post("/admin/users/{$participant->id}/assignments", ['coach_ids' => [$coach->id]])->assertNotFound();
+        $this->assertDatabaseEmpty('mentor_assignments');
     }
 
     /**

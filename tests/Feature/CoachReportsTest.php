@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
+use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingSession;
@@ -22,7 +23,7 @@ class CoachReportsTest extends TestCase
         $this->seed(L4TrainingProgramSeeder::class);
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Mentor Ely']);
         $participant = User::factory()->create(['name' => 'Combined Path']);
-        $participant->assignedCoaches()->attach($coach->id);
+        MentorAssignment::factory()->create(['participant_id' => $participant->id, 'mentor_id' => $coach->id]);
 
         $this->actingAs($coach)->get(route('coach.reports', ['mentor' => $coach->id]))
             ->assertOk()->assertDontSee('Automation / Manual')->assertSee('Combined Path')->assertSee('Mentor Ely')->assertSee('Gates Passed')->assertSee('Total Participants');
@@ -110,7 +111,7 @@ class CoachReportsTest extends TestCase
         $this->seed(L4TrainingProgramSeeder::class);
         $admin = User::factory()->create(['role' => 'admin', 'name' => 'Mentor Ely']);
         $participant = User::factory()->create(['name' => 'Combined QA', 'employee_id' => 'EMP-6001']);
-        $participant->assignedCoaches()->attach($admin->id);
+        MentorAssignment::factory()->create(['participant_id' => $participant->id, 'mentor_id' => $admin->id]);
         $this->enrollParticipantsInL4Session();
 
         $response = $this->actingAs($admin)->get(route('coach.reports.missing-submissions', [

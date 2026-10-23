@@ -50,13 +50,9 @@ class AdminUserFormPageTest extends TestCase
             ->assertDontSee('Attendance summary');
     }
 
-    public function test_editing_a_participant_shows_the_saved_values_drive_coach_assignment_and_all_time_attendance(): void
+    public function test_editing_a_participant_shows_the_saved_values_drive_and_all_time_attendance_without_mentor_assignment(): void
     {
         $participant = User::factory()->create(['name' => 'Hal Hybrid', 'employee_id' => 'EMP-0042', 'job_role' => 'qa_tester', 'email' => 'hal@example.test', 'is_active' => false, 'drive_link' => 'https://drive.google.com/drive/folders/hal']);
-        $assigned = User::factory()->create(['role' => 'coach', 'name' => 'Bea Coach', 'email' => 'bea@example.test']);
-        User::factory()->create(['role' => 'coach', 'name' => 'Abe Coach', 'email' => 'abe@example.test']);
-        User::factory()->create(['role' => 'coach', 'name' => 'Ina Inactive', 'is_active' => false]);
-        $participant->assignedCoaches()->attach($assigned->id);
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subDays(10), 'check_out_at' => now()->subDays(10)->addHours(4), 'total_seconds' => 14400]);
         foreach (range(1, 4) as $daysAgo) {
             AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subDays($daysAgo), 'check_out_at' => now()->subDays($daysAgo)->addMinutes(90), 'total_seconds' => 5400]);
@@ -80,19 +76,13 @@ class AdminUserFormPageTest extends TestCase
                 'id="password_confirmation" name="password_confirmation" type="password"',
                 'Training Drive',
                 'href="https://drive.google.com/drive/folders/hal" target="_blank" rel="noopener noreferrer"', 'Open Training Drive ↗',
-                'Assigned Mentors',
-                'action="'.route('admin.users.assignments', $participant).'"',
-                'name="coach_ids[]" multiple size="3"',
-                '<option value="', '>Abe Coach · abe@example.test</option>',
-                '<option value="'.$assigned->id.'" selected>Bea Coach · bea@example.test</option>',
-                'Save Assignments',
-                'Currently assigned: Bea Coach',
                 'Attendance summary',
                 '5 completed session(s) · 10.00 total hours.',
                 'href="'.route('admin.attendance.index', ['participant' => $participant->id]).'"', 'View attendance',
             ], false)
             ->assertDontSee('name="is_active" value="1" checked', false)
-            ->assertDontSee('Ina Inactive')
+            ->assertDontSee('Assigned Mentors')
+            ->assertDontSee('name="coach_ids[]"', false)
             ->assertDontSee('Secure password setup');
     }
 
@@ -173,7 +163,7 @@ class AdminUserFormPageTest extends TestCase
             ->assertDontSee('name="is_active" value="1" checked', false);
     }
 
-    public function test_query_count_does_not_grow_with_the_number_of_coaches_and_attendance_sessions(): void
+    public function test_query_count_does_not_grow_with_the_number_of_attendance_sessions(): void
     {
         $this->assertSame($this->editPageQueryCount(1), $this->editPageQueryCount(3));
     }
@@ -184,15 +174,13 @@ class AdminUserFormPageTest extends TestCase
     }
 
     /**
-     * Create a participant with the given number of assigned active coaches and completed attendance sessions, and
-     * count the queries of the admin's edit page request after a warm-up request.
+     * Create a participant with the given number of completed attendance sessions, and count the queries of the
+     * admin's edit page request after a warm-up request.
      */
     private function editPageQueryCount(int $count): int
     {
         $admin = $this->admin();
         $participant = User::factory()->create();
-        $coaches = User::factory()->count($count)->create(['role' => 'coach']);
-        $participant->assignedCoaches()->attach($coaches->modelKeys());
         foreach (range(1, $count) as $daysAgo) {
             AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subDays($daysAgo), 'check_out_at' => now()->subDays($daysAgo)->addHour(), 'total_seconds' => 3600]);
         }
@@ -201,7 +189,7 @@ class AdminUserFormPageTest extends TestCase
 
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $this->actingAs($admin)->get(route('admin.users.edit', $participant))->assertOk()->assertSee('Assigned Mentors');
+        $this->actingAs($admin)->get(route('admin.users.edit', $participant))->assertOk()->assertSee('Attendance summary');
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());

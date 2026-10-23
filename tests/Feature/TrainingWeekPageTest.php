@@ -216,6 +216,7 @@ class TrainingWeekPageTest extends TestCase
     {
         $coach = User::factory()->create(['role' => 'coach']);
         ['session' => $session, 'week' => $week, 'gate' => $gate] = $this->weekFixture(rows: 1);
+        $session->mentors()->attach($coach->id);
 
         $this->actingAs($coach)->get(route('training.weeks.show', [$session, $week]))
             ->assertOk()
@@ -228,7 +229,7 @@ class TrainingWeekPageTest extends TestCase
     {
         $coach = User::factory()->create(['role' => 'coach']);
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 5, 'position' => 5]);
-        $session = TrainingSession::factory()->forWeek($week)->create();
+        $session = TrainingSession::factory()->forWeek($week)->withMentors($coach)->create();
 
         $this->actingAs($coach)->get(route('training.weeks.show', [$session, $week]))
             ->assertOk()

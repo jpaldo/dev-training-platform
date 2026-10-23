@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
+use App\Models\MentorAssignment;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
@@ -64,7 +65,7 @@ class ActivityMarkdownRenderingTest extends TestCase
     {
         [$week, $activity, $participant, $version] = $this->submittedVersion();
         $coach = User::factory()->create(['role' => 'coach']);
-        $coach->assignedParticipants()->attach($participant->id);
+        MentorAssignment::factory()->create(['training_session_id' => $version->submission->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
 
         $response = $this->actingAs($coach)->get(route('coach.reviews.show', $version))->assertOk();
 
@@ -82,7 +83,7 @@ class ActivityMarkdownRenderingTest extends TestCase
     {
         [$week, $activity, $participant, $version] = $this->submittedVersion();
         $coach = User::factory()->create(['role' => 'coach']);
-        $coach->assignedParticipants()->attach($participant->id);
+        MentorAssignment::factory()->create(['training_session_id' => $version->submission->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
 
         $response = $this->actingAs($coach)->get(route('coach.reviews.show', $version))->assertOk();
 

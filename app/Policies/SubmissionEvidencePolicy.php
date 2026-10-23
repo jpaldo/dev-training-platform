@@ -17,11 +17,15 @@ class SubmissionEvidencePolicy
     }
 
     /**
-     * Determine whether the user can view the model.
+     * Determine whether the user can view (open or download) the model: the participant who submitted it, an admin, or
+     * the participant's current mentor in the submission's session.
      */
     public function view(User $user, SubmissionEvidence $submissionEvidence): bool
     {
-        return $user->isCoachOrAdmin() || $user->id === $submissionEvidence->submissionVersion->submission->user_id;
+        $submission = $submissionEvidence->submissionVersion->submission;
+
+        return $user->id === $submission->user_id
+            || $user->mentorsParticipantInSession($submission->participant, $submission->trainingSession);
     }
 
     /**

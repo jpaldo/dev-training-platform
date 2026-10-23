@@ -48,7 +48,7 @@ class GateReviewController extends Controller
     public function update(StoreGateReviewRequest $request, TrainingSession $trainingSession, TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, GateReviewService $reviews): RedirectResponse
     {
         $this->guard($trainingSession, $trainingWeek, $participant, $trainingGate);
-        abort_unless($request->user()->canManageParticipant($participant), 403);
+        abort_unless($request->user()->mentorsParticipantInSession($participant, $trainingSession), 403);
         $existing = $this->evaluation($trainingSession, $participant, $trainingGate);
         Gate::authorize($existing ? 'update' : 'create', $existing ?? GateEvaluation::class);
         $reviews->record(

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
+use App\Models\MentorAssignment;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionInteraction;
 use App\Models\SubmissionReview;
@@ -216,7 +217,8 @@ class CoachSubmissionReviewPageTest extends TestCase
     }
 
     /**
-     * A coach assigned to the participant of a new version whose submission has the given status.
+     * A coach who is the current mentor, in the submission's session, of the participant of a new version whose
+     * submission has the given status.
      *
      * @param  array<string, mixed>  $fieldValues
      * @return array{0: User, 1: SubmissionVersion}
@@ -225,7 +227,7 @@ class CoachSubmissionReviewPageTest extends TestCase
     {
         $coach = User::factory()->create(['role' => 'coach']);
         $version = $this->version($submissionStatus, $fieldValues, $weekNumber, $position);
-        $coach->assignedParticipants()->attach($version->submission->user_id);
+        MentorAssignment::factory()->create(['training_session_id' => $version->submission->training_session_id, 'participant_id' => $version->submission->user_id, 'mentor_id' => $coach->id]);
 
         return [$coach, $version];
     }

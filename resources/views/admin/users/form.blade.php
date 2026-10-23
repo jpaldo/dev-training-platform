@@ -108,27 +108,6 @@
                 </x-ui.card>
             @endif
 
-            @if($coachAssignment)
-                <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="user-coaches-title">
-                    <div class="grid gap-2">
-                        <h2 id="user-coaches-title" class="{{ $sectionTitleClasses }}">Assigned Mentors</h2>
-                        <p id="user-coaches-hint" class="m-0 leading-relaxed text-muted">Assign one or more active Mentor users. Assignments control which Mentors can change this participant's training outcomes.</p>
-                    </div>
-                    <form method="POST" action="{{ $coachAssignment['url'] }}" class="m-0 grid grid-cols-1 justify-items-start gap-4">
-                        @csrf
-                        <select name="coach_ids[]" multiple size="{{ $coachAssignment['size'] }}" aria-labelledby="user-coaches-title" aria-describedby="user-coaches-hint" class="{{ $controlClasses }}">
-                            @foreach($coachAssignment['coachOptions'] as $option)
-                                <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
-                            @endforeach
-                        </select>
-                        <x-ui.button variant="secondary" type="submit">Save Assignments</x-ui.button>
-                    </form>
-                    @if($coachAssignment['assignedNames'] !== '')
-                        <p class="m-0 text-sm/relaxed text-muted">Currently assigned: {{ $coachAssignment['assignedNames'] }}</p>
-                    @endif
-                </x-ui.card>
-            @endif
-
             @if($attendance)
                 <x-ui.card as="section" class="grid justify-items-start gap-3" aria-labelledby="user-attendance-title">
                     <h2 id="user-attendance-title" class="{{ $sectionTitleClasses }}">Attendance summary</h2>

@@ -26,7 +26,7 @@ class CoachRecoveryRequestPageService
             'items' => ActivityRecoveryRequest::query()
                 ->with(['participant', 'submission.activity.week'])
                 ->where('status', RecoveryRequestStatus::Pending)
-                ->when(! $viewer->hasAnyRole(UserRole::Admin), fn (Builder $query): Builder => $query->whereHas('participant.assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($viewer->id)))
+                ->when(! $viewer->hasAnyRole(UserRole::Admin), fn (Builder $query): Builder => $query->whereHas('participant.currentMentors', fn (Builder $coach): Builder => $coach->whereKey($viewer->id)))
                 ->latest()
                 ->paginate(self::REQUESTS_PER_PAGE)
                 ->withQueryString()

@@ -11,16 +11,17 @@ use Illuminate\Validation\Rule;
 class ImproveScoringFeedbackRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * Determine if the user is authorized to make this request: an admin or the participant's current mentor in the
+     * submission's session.
      */
     public function authorize(): bool
     {
         $submissionVersion = $this->route('submissionVersion');
         abort_unless($submissionVersion instanceof SubmissionVersion, 404);
-        $submissionVersion->loadMissing('submission.participant');
+        $submissionVersion->loadMissing(['submission.participant', 'submission.trainingSession']);
         abort_unless(! $submissionVersion->isDraft() && $submissionVersion->submission->participant->role === UserRole::Participant, 404);
 
-        return $this->user()?->canManageParticipant($submissionVersion->submission->participant) === true;
+        return $this->user()?->mentorsParticipantInSession($submissionVersion->submission->participant, $submissionVersion->submission->trainingSession) === true;
     }
 
     /**

@@ -121,7 +121,6 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::post('/users', [AdminUserController::class, 'store'])->name('users.store');
         Route::get('/users/{user}/edit', [AdminUserController::class, 'edit'])->name('users.edit');
         Route::put('/users/{user}', [AdminUserController::class, 'update'])->name('users.update');
-        Route::post('/users/{user}/assignments', [AdminUserController::class, 'assignments'])->name('users.assignments');
         Route::post('/users/{user}/disable', [AdminUserController::class, 'disable'])->name('users.disable');
         Route::post('/users/{user}/enable', [AdminUserController::class, 'enable'])->name('users.enable');
         Route::get('/attendance', [AttendanceController::class, 'manage'])->name('attendance.index');

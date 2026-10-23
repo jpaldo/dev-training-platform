@@ -7,6 +7,7 @@ use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
 use App\Models\GateEvaluation;
+use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
@@ -27,7 +28,7 @@ class CoachParticipantPageTest extends TestCase
     {
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 4, 'position' => 4]);
         Activity::factory()->for($week, 'week')->create(['position' => 2]);
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        [$coach, $participant] = $this->coachAndParticipant();
 
         $this->actingAs($coach)->get(route('coach.participants.show', $participant))
             ->assertOk()
@@ -51,10 +52,10 @@ class CoachParticipantPageTest extends TestCase
     {
         $participant = User::factory()->create();
         $viewer = User::factory()->create(['role' => $role]);
-        if ($isAssigned) {
-            $viewer->assignedParticipants()->attach($participant->id);
-        }
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->create(['status' => 'failed']);
+        if ($isAssigned) {
+            MentorAssignment::factory()->create(['training_session_id' => $submission->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $viewer->id]);
+        }
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
         $retryForm = 'action="'.route('coach.reviews.retry', $version).'"';
 
@@ -78,15 +79,15 @@ class CoachParticipantPageTest extends TestCase
     {
         return [
             'admin' => ['admin', false, 'Admins have full access.', true],
-            'assigned coach' => ['coach', true, 'Assigned to you — outcome-changing actions are available.', true],
-            'unassigned coach' => ['coach', false, 'Not assigned to you — read only.', false],
+            'current mentor in the session' => ['coach', true, 'Assigned to you — outcome-changing actions are available.', true],
+            'coach who does not mentor them' => ['coach', false, 'Not assigned to you — read only.', false],
         ];
     }
 
     #[DataProvider('submissionStatuses')]
     public function test_submission_row_badge_shows_the_attempt_status_with_its_tone(string $status, string $badge): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        [$coach, $participant] = $this->coachAndParticipant();
         $activity = Activity::factory()->for(TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]), 'week')->create(['title' => 'Charter']);
         ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $status]);
 
@@ -115,7 +116,7 @@ class CoachParticipantPageTest extends TestCase
 
     public function test_gate_rows_show_the_evaluation_or_readiness_status(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        [$coach, $participant] = $this->coachAndParticipant();
         $program = Program::factory()->create();
         $passedGate = TrainingGate::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 1]), 'week')->create(['title' => 'Passed Gate']);
         $blockedGate = TrainingGate::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 3, 'position' => 2]), 'week')->create(['title' => 'Blocked Gate']);
@@ -135,7 +136,7 @@ class CoachParticipantPageTest extends TestCase
     #[DataProvider('savedGateStatuses')]
     public function test_gate_row_badge_shows_the_saved_evaluation_status_with_its_tone(GateEvaluationStatus $status, string $badge): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        [$coach, $participant] = $this->coachAndParticipant();
         $gate = TrainingGate::factory()->for(TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]), 'week')->create(['title' => 'Evaluated Gate']);
         TrainingSession::factory()->forWeek($gate->week)->withParticipants($participant)->create();
         GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => $status]);
@@ -162,14 +163,15 @@ class CoachParticipantPageTest extends TestCase
 
     public function test_the_weekly_video_card_shows_the_chosen_video_with_a_lazy_preview_and_the_mentor_help_line(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        [$coach, $participant] = $this->coachAndParticipant();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 2]);
-        WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create([
+        $recording = WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create([
             'drive_file_id' => 'drive-video-2',
             'name' => 'week-2-walkthrough.mp4',
             'size_bytes' => 1572864,
             'chosen_at' => '2026-10-22 09:30:00',
         ]);
+        MentorAssignment::factory()->create(['training_session_id' => $recording->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
 
         $html = $this->actingAs($coach)->get(route('coach.participants.show', $participant))
             ->assertOk()
@@ -194,11 +196,12 @@ class CoachParticipantPageTest extends TestCase
     public function test_the_weekly_video_card_shows_each_videos_sharing_state_with_the_configured_domain(): void
     {
         config()->set('services.google_drive.share_domain', 'fullscale.io');
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        [$coach, $participant] = $this->coachAndParticipant();
         $program = Program::factory()->create();
         $sharedWeek = TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 2]);
         $unsharedWeek = TrainingWeek::factory()->for($program)->create(['week_number' => 3, 'position' => 3]);
-        WeeklyVideoRecording::factory()->for($participant, 'participant')->for($sharedWeek, 'week')->shared()->create(['chosen_at' => now()->subDay()]);
+        $recording = WeeklyVideoRecording::factory()->for($participant, 'participant')->for($sharedWeek, 'week')->shared()->create(['chosen_at' => now()->subDay()]);
+        MentorAssignment::factory()->create(['training_session_id' => $recording->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         WeeklyVideoRecording::factory()->for($participant, 'participant')->for($unsharedWeek, 'week')->create(['chosen_at' => now()]);
 
         $this->actingAs($coach)->get(route('coach.participants.show', $participant))
@@ -219,13 +222,16 @@ class CoachParticipantPageTest extends TestCase
     /**
      * Give a new participant the given number of weeks of a new active program (earlier programs are deactivated),
      * each with a Gate, a submission with two versions, a weekly video recording and a completed attendance session,
-     * plus an open session, and count the queries of the assigned coach's page request after a warm-up request.
+     * plus an open session, and count the queries of the page request of the participant's mentor in the session of
+     * that work, after a warm-up request.
      */
     private function participantPageQueryCount(int $rows): int
     {
         Program::query()->update(['is_active' => false]);
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        [$coach, $participant] = $this->coachAndParticipant();
         $program = Program::factory()->create();
+        $session = TrainingSession::factory()->for($program)->create();
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
 
         foreach (range(1, $rows) as $position) {
             $week = TrainingWeek::factory()->for($program)->create(['week_number' => $position + 1, 'position' => $position]);
@@ -250,16 +256,12 @@ class CoachParticipantPageTest extends TestCase
     }
 
     /**
-     * A participant and a coach assigned to them.
+     * A coach and a participant (make the coach their mentor in the session of their work where the test needs it).
      *
      * @return array{User, User}
      */
-    private function assignedCoachAndParticipant(): array
+    private function coachAndParticipant(): array
     {
-        $participant = User::factory()->create();
-        $coach = User::factory()->create(['role' => 'coach']);
-        $coach->assignedParticipants()->attach($participant->id);
-
-        return [$coach, $participant];
+        return [User::factory()->create(['role' => 'coach']), User::factory()->create()];
     }
 }

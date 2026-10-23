@@ -44,7 +44,7 @@ class CoachReportService
     }
 
     /**
-     * The participants matching the filters with their assigned coaches and their submission, Gate evaluation and
+     * The participants matching the filters with their current mentors and their submission, Gate evaluation and
      * passed Gate evaluation counts.
      *
      * @param  ?array{search?: ?string, mentor?: int|string|null, assigned_coach?: int|string|null}  $filters
@@ -58,7 +58,7 @@ class CoachReportService
                 'gateEvaluations',
                 'gateEvaluations as passed_gate_evaluations_count' => fn (Builder $query): Builder => $query->where('status', GateEvaluationStatus::Passed),
             ])
-            ->with('assignedCoaches');
+            ->with('currentMentors');
     }
 
     public function participantSummary(?array $filters = null): Builder
@@ -212,7 +212,7 @@ class CoachReportService
                 'filename' => 'participant-progress.csv',
                 'header' => ['Name', 'Employee ID', 'Email', 'Submissions', 'Gate evaluations'],
                 'rows' => $this->participants(Arr::only($input, ['search']))->get()
-                    ->when($input['mentor'] ?? null, fn (Collection $items, int|string $mentor): Collection => $items->filter(fn (User $participant): bool => $participant->assignedCoaches->contains('id', (int) $mentor))->values())
+                    ->when($input['mentor'] ?? null, fn (Collection $items, int|string $mentor): Collection => $items->filter(fn (User $participant): bool => $participant->currentMentors->contains('id', (int) $mentor))->values())
                     ->map(fn (User $item): array => [$item->name, $item->employee_id, $item->email, $item->activity_submissions_count, $item->gate_evaluations_count]),
             ],
         };
@@ -244,6 +244,6 @@ class CoachReportService
     {
         return User::query()->where('role', UserRole::Participant)
             ->when($filters['search'] ?? null, fn (Builder $q, string $v): Builder => $q->where(fn (Builder $search): Builder => $search->where('name', 'like', "%{$v}%")->orWhere('email', 'like', "%{$v}%")))
-            ->when($filters['mentor'] ?? $filters['assigned_coach'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('assignedCoaches', fn (Builder $coach): Builder => $coach->whereKey($v)));
+            ->when($filters['mentor'] ?? $filters['assigned_coach'] ?? null, fn (Builder $q, int|string $v): Builder => $q->whereHas('currentMentors', fn (Builder $coach): Builder => $coach->whereKey($v)));
     }
 }

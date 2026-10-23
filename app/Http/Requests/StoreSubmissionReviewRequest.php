@@ -11,13 +11,14 @@ use Illuminate\Validation\Rule;
 class StoreSubmissionReviewRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * Determine if the user is authorized to make this request: an admin or the participant's current mentor in the
+     * submission's session.
      */
     public function authorize(): bool
     {
-        $version = $this->route('submissionVersion');
+        $submission = $this->route('submissionVersion')?->loadMissing(['submission.participant', 'submission.trainingSession'])->submission;
 
-        return $this->user()?->isCoachOrAdmin() === true && $version?->loadMissing('submission.participant')->submission?->participant && $this->user()->canManageParticipant($version->submission->participant);
+        return $submission !== null && $this->user()?->mentorsParticipantInSession($submission->participant, $submission->trainingSession) === true;
     }
 
     /**

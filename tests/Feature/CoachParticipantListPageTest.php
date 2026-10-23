@@ -6,6 +6,7 @@ use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
 use App\Models\GateEvaluation;
 use App\Models\GoogleDriveConnection;
+use App\Models\MentorAssignment;
 use App\Models\User;
 use Closure;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -28,8 +29,8 @@ class CoachParticipantListPageTest extends TestCase
         $assigned = User::factory()->create(['name' => 'Ada Assigned', 'drive_link' => 'https://drive.google.com/drive/folders/ada']);
         $unassigned = User::factory()->create(['name' => 'Una Unassigned']);
         User::factory()->create(['name' => 'Nev Never']);
-        $coach->assignedParticipants()->attach($assigned->id);
-        $otherCoach->assignedParticipants()->attach($unassigned->id);
+        MentorAssignment::factory()->create(['participant_id' => $assigned->id, 'mentor_id' => $coach->id]);
+        MentorAssignment::factory()->create(['participant_id' => $unassigned->id, 'mentor_id' => $otherCoach->id]);
         GoogleDriveConnection::create(['user_id' => $assigned->id, 'google_account_id' => 'account', 'google_email' => '', 'access_token' => 'access', 'connected_at' => now()]);
         AttendanceSession::create(['user_id' => $assigned->id, 'check_in_at' => now()->setTime(14, 0)]);
         AttendanceSession::create(['user_id' => $unassigned->id, 'check_in_at' => now()->subDay()->setTime(9, 0), 'check_out_at' => now()->subDay()->setTime(10, 30), 'total_seconds' => 5400]);
@@ -61,7 +62,7 @@ class CoachParticipantListPageTest extends TestCase
     {
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create();
-        $coach->assignedParticipants()->attach($participant->id);
+        MentorAssignment::factory()->create(['participant_id' => $participant->id, 'mentor_id' => $coach->id]);
 
         $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.participants'))
             ->assertOk()
@@ -128,7 +129,7 @@ class CoachParticipantListPageTest extends TestCase
     {
         $coach = User::factory()->create(['role' => 'coach']);
         $participants = User::factory()->count($participantCount)->create();
-        $coach->assignedParticipants()->attach($participants->modelKeys());
+        $participants->each(fn (User $participant): MentorAssignment => MentorAssignment::factory()->create(['participant_id' => $participant->id, 'mentor_id' => $coach->id]));
 
         foreach ($participants as $participant) {
             GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => "account-{$participant->id}", 'google_email' => "drive-{$participant->id}@gmail.com", 'access_token' => 'access', 'connected_at' => now()]);

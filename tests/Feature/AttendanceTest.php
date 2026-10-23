@@ -250,7 +250,7 @@ class AttendanceTest extends TestCase
         $week1 = $program->weeks()->where('week_number', 1)->firstOrFail();
         $week2 = $program->weeks()->where('week_number', 2)->firstOrFail();
         $activity = $week2->activities()->firstOrFail();
-        $session = TrainingSession::factory()->forWeek($week1)->withParticipants($participant)->create();
+        $session = TrainingSession::factory()->forWeek($week1)->withParticipants($participant)->withMentors($coach)->create();
 
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $this->actingAs($participant)->get(route('training.activities.show', [$session, $week2, $activity]))->assertForbidden();

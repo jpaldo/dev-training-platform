@@ -48,10 +48,10 @@ class CoachParticipantListPageService
             'email' => $participant->email,
             'access_label' => match (true) {
                 $viewer->hasAnyRole(UserRole::Admin) => 'Admin access',
-                $participant->assignedCoaches->contains('id', $viewer->id) => 'Assigned to me',
+                $participant->currentMentors->contains('id', $viewer->id) => 'Assigned to me',
                 default => null,
             },
-            'coach_names' => $participant->assignedCoaches->pluck('name')->join(', '),
+            'coach_names' => $participant->currentMentors->pluck('name')->unique()->join(', '),
             'drive_url' => $participant->drive_link ?: null,
             'google_drive_account' => $participant->googleDriveConnection
                 ? ($participant->googleDriveConnection->google_email ?: 'Account connected')

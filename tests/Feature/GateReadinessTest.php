@@ -10,6 +10,7 @@ use App\Models\EvidenceRequirement;
 use App\Models\GateCriterion;
 use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
+use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
@@ -192,8 +193,8 @@ class GateReadinessTest extends TestCase
         ['week' => $week, 'gate' => $gate, 'video_criterion' => $videoCriterion] = $weekTwo;
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
-        $coach->assignedParticipants()->attach($participant->id);
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->withMentors($coach)->create();
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         $review = ['status' => 'needs_revision', 'criteria' => [$videoCriterion->id => 'met']];
 
         $this->actingAs($coach)->post(route('training.coach.gates.update', [$session, $week, $participant, $gate]), $review)

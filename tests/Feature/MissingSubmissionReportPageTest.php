@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\GateCriterion;
+use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\TrainingGate;
 use App\Models\TrainingSession;
@@ -29,7 +30,8 @@ class MissingSubmissionReportPageTest extends TestCase
         Activity::factory()->for($week, 'week')->create(['title' => 'Explore checkout']);
         GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
         $ada = User::factory()->create(['name' => 'Ada Alpha', 'email' => 'ada@example.test']);
-        $ada->assignedCoaches()->attach([$admin->id, $coach->id]);
+        MentorAssignment::factory()->create(['participant_id' => $ada->id, 'mentor_id' => $admin->id]);
+        MentorAssignment::factory()->create(['participant_id' => $ada->id, 'mentor_id' => $coach->id]);
         $this->enrollParticipants($week->program);
 
         $response = $this->actingAs($coach)->get(route('coach.reports.missing-submissions'))
@@ -100,7 +102,7 @@ class MissingSubmissionReportPageTest extends TestCase
         $participants = User::factory()->count(26)
             ->sequence(fn (Sequence $sequence): array => ['name' => sprintf('Page Person %02d', $sequence->index + 1)])
             ->create();
-        $mentor->assignedParticipants()->attach($participants->modelKeys());
+        $participants->each(fn (User $participant): MentorAssignment => MentorAssignment::factory()->create(['participant_id' => $participant->id, 'mentor_id' => $mentor->id]));
         User::factory()->create(['name' => 'Page Unassigned']);
         $this->enrollParticipants($week->program);
         $filters = [

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Activity;
 use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivitySubmission;
+use App\Models\MentorAssignment;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -126,7 +127,8 @@ class CoachRecoveryRequestPageTest extends TestCase
 
     /**
      * Create a recovery request with the given status, message and creation time for a failed attempt of the
-     * activity by a new participant with the given name, assigned to the given coach.
+     * activity by a new participant with the given name, whose current mentor in the attempt's session is the given
+     * coach.
      */
     private function recoveryRequest(User $assignedCoach, Activity $activity, string $participantName, int $attemptNumber, ?string $message, CarbonInterface $createdAt, string $status = 'pending'): ActivityRecoveryRequest
     {
@@ -134,7 +136,7 @@ class CoachRecoveryRequestPageTest extends TestCase
             ->for($activity)
             ->for(User::factory()->state(['name' => $participantName]), 'participant')
             ->create(['status' => 'failed', 'attempt_number' => $attemptNumber]);
-        $assignedCoach->assignedParticipants()->attach($submission->user_id);
+        MentorAssignment::factory()->create(['training_session_id' => $submission->training_session_id, 'participant_id' => $submission->user_id, 'mentor_id' => $assignedCoach->id]);
 
         return ActivityRecoveryRequest::forceCreate([
             'user_id' => $submission->user_id,

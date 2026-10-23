@@ -7,7 +7,6 @@ use App\Enums\UserRole;
 use App\Http\Requests\FilterAdminUsersRequest;
 use App\Http\Requests\StoreAdminUserRequest;
 use App\Http\Requests\UpdateAdminUserRequest;
-use App\Http\Requests\UpdateParticipantAssignmentsRequest;
 use App\Models\AdminAuditLog;
 use App\Models\User;
 use App\Services\AdminUserPageService;
@@ -53,16 +52,6 @@ class AdminUserController extends Controller
     public function edit(User $user, AdminUserPageService $page): View
     {
         return view('admin.users.form', $page->formData($user));
-    }
-
-    public function assignments(UpdateParticipantAssignmentsRequest $request, User $user): RedirectResponse
-    {
-        $data = $request->validated();
-        $coachIds = $data['coach_ids'] ?? [];
-        $user->assignedCoaches()->sync($coachIds);
-        $this->audit($request, $user, 'participant_assignments_updated', ['coach_count' => count($coachIds)]);
-
-        return back()->with('status', 'Participant assignments updated.');
     }
 
     public function update(UpdateAdminUserRequest $request, User $user): RedirectResponse

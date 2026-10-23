@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
+use App\Models\MentorAssignment;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
@@ -270,9 +271,9 @@ class AuthenticationAuthorizationTest extends TestCase
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
         $admin = User::factory()->create(['role' => 'admin']);
-        $coach->assignedParticipants()->attach($participant->id);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->create();
         $gateEvaluation = GateEvaluation::factory()->for(TrainingGate::factory(), 'gate')->for($participant, 'participant')->create();
+        MentorAssignment::factory()->create(['training_session_id' => $gateEvaluation->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
 
         $this->assertTrue($coach->can('view', $participant));
         $this->assertFalse($coach->can('update', $participant));
@@ -362,21 +363,27 @@ class AuthenticationAuthorizationTest extends TestCase
         );
     }
 
-    public function test_only_admins_and_assigned_coaches_manage_a_participant(): void
+    public function test_only_admins_and_the_current_mentor_in_the_session_mentor_a_participant(): void
     {
         $participant = User::factory()->create();
         $otherParticipant = User::factory()->create();
-        $assignedCoach = User::factory()->create(['role' => 'coach']);
+        $currentMentor = User::factory()->create(['role' => 'coach']);
+        $previousMentor = User::factory()->create(['role' => 'coach']);
         $otherCoach = User::factory()->create(['role' => 'coach']);
         $admin = User::factory()->create(['role' => 'admin']);
-        $assignedCoach->assignedParticipants()->attach($participant->id);
+        $session = TrainingSession::factory()->create();
+        $otherSession = TrainingSession::factory()->create();
+        MentorAssignment::factory()->ended()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $previousMentor->id]);
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $currentMentor->id]);
+        MentorAssignment::factory()->create(['training_session_id' => $otherSession->id, 'participant_id' => $participant->id, 'mentor_id' => $otherCoach->id]);
 
-        $this->assertTrue($admin->canManageParticipant($participant));
-        $this->assertTrue($assignedCoach->canManageParticipant($participant));
-        $this->assertTrue($assignedCoach->canManageParticipant($participant->load('assignedCoaches')));
-        $this->assertFalse($otherCoach->canManageParticipant($participant));
-        $this->assertFalse($assignedCoach->canManageParticipant($otherCoach));
-        $this->assertFalse($otherParticipant->canManageParticipant($participant));
+        $this->assertTrue($admin->mentorsParticipantInSession($participant, $session));
+        $this->assertTrue($currentMentor->mentorsParticipantInSession($participant, $session));
+        $this->assertFalse($currentMentor->mentorsParticipantInSession($participant, $otherSession));
+        $this->assertFalse($currentMentor->mentorsParticipantInSession($otherParticipant, $session));
+        $this->assertFalse($previousMentor->mentorsParticipantInSession($participant, $session));
+        $this->assertFalse($otherCoach->mentorsParticipantInSession($participant, $session));
+        $this->assertFalse($otherParticipant->mentorsParticipantInSession($participant, $session));
     }
 
     public function test_validation_lab_pages_are_gone(): void
@@ -408,7 +415,6 @@ class AuthenticationAuthorizationTest extends TestCase
     {
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create();
-        $coach->assignedParticipants()->attach($participant->id);
 
         $this->actingAs($coach)->get('/coach/week-four/interview-questionnaire')->assertNotFound();
         $this->actingAs($coach)->post('/coach/week-four/interview-pairs', ['participant_one_id' => $participant->id, 'participant_two_id' => $coach->id])->assertNotFound();
@@ -421,7 +427,6 @@ class AuthenticationAuthorizationTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create();
-        $coach->assignedParticipants()->attach($participant->id);
         $activity = Activity::factory()->for(TrainingWeek::factory()->state(['week_number' => 4]), 'week')->create(['position' => 2]);
         $scheduleUrl = '/training/weeks/'.$activity->training_week_id.'/activities/'.$activity->id.'/mentor-interview/schedule';
 

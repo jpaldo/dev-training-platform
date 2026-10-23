@@ -153,7 +153,9 @@ return new class extends Migration
         $participants = fn (): Builder => DB::table('users')->where('role', self::PARTICIPANT_ROLE);
 
         foreach (self::PARTICIPANT_OWNED_ROWS as $table => $userColumn) {
-            DB::table($table)->whereIn($userColumn, $participants()->select('id'))->delete();
+            if (Schema::hasTable($table)) {
+                DB::table($table)->whereIn($userColumn, $participants()->select('id'))->delete();
+            }
         }
 
         DB::table('password_reset_tokens')->whereIn('email', $participants()->select('email'))->delete();

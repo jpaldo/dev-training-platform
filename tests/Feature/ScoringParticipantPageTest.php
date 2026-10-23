@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Activity;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
+use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
@@ -110,8 +111,8 @@ class ScoringParticipantPageTest extends TestCase
         $activity = Activity::factory()->for($this->week(Program::factory()->create(), 2), 'week')->withScoringDimensions()->create();
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
-        $coach->assignedParticipants()->attach($participant->id);
         $version = $this->version($participant, $activity, 'submitted');
+        MentorAssignment::factory()->create(['training_session_id' => $version->submission->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         $dimensions = collect($activity->scoringDimensions())->mapWithKeys(fn (array $dimension): array => [$dimension['key'] => ['points' => 1, 'evidence_reasoning' => 'Reason']])->all();
 
         $this->actingAs($coach)->followingRedirects()

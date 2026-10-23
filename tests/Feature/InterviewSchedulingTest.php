@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\InterviewerApprovalStatus;
 use App\Enums\InterviewType;
 use App\Models\InterviewScheduler;
+use App\Models\MentorAssignment;
 use App\Models\User;
 use App\Rules\ExternalBookingUrl;
 use Database\Seeders\L4TrainingProgramSeeder;
@@ -171,7 +172,7 @@ class InterviewSchedulingTest extends TestCase
         $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant']);
         $mentor = User::factory()->create(['role' => 'coach']);
-        $participant->assignedCoaches()->attach($mentor->id);
+        MentorAssignment::factory()->create(['participant_id' => $participant->id, 'mentor_id' => $mentor->id]);
         InterviewScheduler::create(['interview_type' => 'mock', 'user_id' => $mentor->id, 'full_name' => $mentor->name, 'email' => $mentor->email, 'booking_url' => 'https://calendar.app.google/mock', 'is_active' => true]);
 
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertDontSee('Schedule Mock Interview')->assertDontSee('https://calendar.app.google/mock');

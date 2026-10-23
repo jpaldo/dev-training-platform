@@ -32,11 +32,12 @@ class GateEvaluationPolicy
     }
 
     /**
-     * Determine whether the user can update the model.
+     * Determine whether the user can update the model: an admin or the participant's current mentor in the evaluation's
+     * session.
      */
     public function update(User $user, GateEvaluation $gateEvaluation): bool
     {
-        return $user->isCoachOrAdmin() && $user->canManageParticipant($gateEvaluation->participant);
+        return $user->mentorsParticipantInSession($gateEvaluation->participant, $gateEvaluation->trainingSession);
     }
 
     /**

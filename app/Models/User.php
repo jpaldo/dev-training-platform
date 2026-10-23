@@ -134,29 +134,26 @@ class User extends Authenticatable
         return $this->hasMany(GoogleDriveSync::class);
     }
 
-    public function assignedParticipants(): BelongsToMany
+    /**
+     * Whether the user may act as the participant's mentor in the session: an admin (in every session), or a coach
+     * holding the participant's current mentor assignment there. A previous mentor of the participant, or their mentor
+     * in another session, may not. Records carry their session, so callers pass the record's session.
+     */
+    public function mentorsParticipantInSession(User $participant, TrainingSession $trainingSession): bool
     {
-        return $this->belongsToMany(self::class, 'coach_participant_assignments', 'coach_id', 'participant_id')->withTimestamps();
-    }
-
-    public function assignedCoaches(): BelongsToMany
-    {
-        return $this->belongsToMany(self::class, 'coach_participant_assignments', 'participant_id', 'coach_id')->withTimestamps();
-    }
-
-    public function canManageParticipant(User $participant): bool
-    {
-        if ($this->role === UserRole::Admin) {
+        if ($this->hasAnyRole(UserRole::Admin)) {
             return true;
         }
-        if ($this->role !== UserRole::Coach || $participant->role !== UserRole::Participant) {
+
+        if (! $this->hasAnyRole(UserRole::Coach)) {
             return false;
         }
-        if ($participant->relationLoaded('assignedCoaches')) {
-            return $participant->assignedCoaches->contains($this->id);
-        }
 
-        return $this->assignedParticipants()->whereKey($participant->id)->exists();
+        return MentorAssignment::query()
+            ->current()
+            ->forParticipantInSession($trainingSession->id, $participant->id)
+            ->where('mentor_id', $this->id)
+            ->exists();
     }
 
     public function gateEvaluations(): HasMany
@@ -201,5 +198,15 @@ class User extends Authenticatable
     public function currentMentorAssignments(): HasMany
     {
         return $this->hasMany(MentorAssignment::class, 'mentor_id')->current();
+    }
+
+    /**
+     * The user's (a participant's) current mentors, through their current mentor assignments in every session: one
+     * per session that has assigned them one, so a coach who mentors them in two sessions is listed twice.
+     */
+    public function currentMentors(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'mentor_assignments', 'participant_id', 'mentor_id')
+            ->wherePivotNull('ended_at');
     }
 }

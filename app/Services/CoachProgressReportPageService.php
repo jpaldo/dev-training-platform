@@ -67,7 +67,7 @@ class CoachProgressReportPageService
     }
 
     /**
-     * One participant progress row: name, email, assigned mentor names (or "Not assigned") and the
+     * One participant progress row: name, email, current mentor names (or "Not assigned") and the
      * participant's submission count and passed Gate evaluation count.
      *
      * @return array{name: string, email: string, mentors: string, submission_count: int, gate_count: int}
@@ -77,7 +77,7 @@ class CoachProgressReportPageService
         return [
             'name' => $participant->name,
             'email' => $participant->email,
-            'mentors' => $participant->assignedCoaches->pluck('name')->filter()->join(', ') ?: 'Not assigned',
+            'mentors' => $participant->currentMentors->pluck('name')->unique()->filter()->join(', ') ?: 'Not assigned',
             'submission_count' => $participant->activity_submissions_count,
             'gate_count' => $participant->passed_gate_evaluations_count,
         ];

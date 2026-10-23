@@ -11,8 +11,8 @@
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <x-ui.card as="section" class="grid content-start gap-3" aria-labelledby="participant-coaches-title">
                 <h2 id="participant-coaches-title" class="m-0 text-xl font-extrabold">Assigned Mentors</h2>
-                @if($participant->assignedCoaches->isNotEmpty())
-                    <p class="m-0 leading-relaxed text-muted">{{ $participant->assignedCoaches->pluck('name')->join(', ') }}</p>
+                @if($mentorNames !== '')
+                    <p class="m-0 leading-relaxed text-muted">{{ $mentorNames }}</p>
                 @else
                     <p class="m-0 leading-relaxed text-muted">No Mentors assigned.</p>
                 @endif
@@ -56,7 +56,7 @@
                                         </div>
                                         <p class="m-0 text-sm text-muted">Attempt {{ $submission->attempt_number }} · {{ $row['version_count'] }} version(s)</p>
                                         @if($submission->isFailed())
-                                            @if($canManage)
+                                            @if($row['can_manage'])
                                                 <p class="m-0 text-sm/relaxed text-muted">This attempt is closed. Create a separate retry if appropriate.</p>
                                             @else
                                                 <p class="m-0 text-sm/relaxed text-muted">Read only — this participant is not assigned to you.</p>
@@ -65,7 +65,7 @@
                                         @if($row['latest_version'])
                                             <div class="flex flex-wrap items-center gap-3">
                                                 <x-ui.button variant="secondary" :href="route('coach.reviews.show', $row['latest_version'])">View attempt</x-ui.button>
-                                                @if($submission->isFailed() && $canManage)
+                                                @if($submission->isFailed() && $row['can_manage'])
                                                     <form method="post" action="{{ route('coach.reviews.retry', $row['latest_version']) }}" class="m-0">
                                                         @csrf
                                                         <x-ui.button variant="secondary" type="submit">Create Retry Attempt</x-ui.button>

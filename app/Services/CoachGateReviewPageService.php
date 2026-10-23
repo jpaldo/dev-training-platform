@@ -28,15 +28,16 @@ class CoachGateReviewPageService
     /**
      * Everything the coach Gate review page renders for the participant's work in the session (the session itself for
      * the form's URL): the participant's GitHub repository for the session (null when they have none), the readiness
-     * summary, shown for information only (the required checklist items met: the weekly
-     * video item once its recording is reviewed as met, every other one when the saved evaluation marks it met; the video recording as Not required when the Gate has no weekly video item), the
-     * readiness blockers, the week's checklist (the required items, each ticked only when the saved evaluation marks it
-     * met, never from readiness or submissions, with the weekly video link on the video item), the participant's
-     * GitHub deliverable links for each of the week's activities, the decision options (Completed, Incomplete), the
-     * decision to preselect (the saved evaluation's when it is one of them; none otherwise, so the first one shows),
-     * the values a ticked and an unticked item post, the saved evaluation for the comments field and whether the
-     * viewer may decide the Gate (a coach who is not assigned to the participant sees the page read only). Old input
-     * overrides the preselected values in the view.
+     * summary, shown for information only (the required checklist items met: the weekly video item once its recording
+     * is reviewed as met, every other one when the saved evaluation marks it met; the video recording as Not required
+     * when the Gate has no weekly video item), the readiness blockers, the week's checklist (the required items, each
+     * ticked only when the saved evaluation marks it met, never from readiness or submissions, with the weekly video
+     * link on the video item only for a viewer who may decide the Gate), the participant's GitHub deliverable links for
+     * each of the week's activities, the decision options (Completed, Incomplete), the decision to preselect (the saved
+     * evaluation's when it is one of them; none otherwise, so the first one shows), the values a ticked and an unticked
+     * item post, the saved evaluation for the comments field and whether the viewer may decide the Gate (an admin or
+     * the participant's current mentor in the session; any other coach sees the page read only, without the video
+     * link). Old input overrides the preselected values in the view.
      *
      * @return array{trainingSession: TrainingSession, trainingWeek: TrainingWeek, participant: User, repositoryUrl: ?string, gate: TrainingGate, evaluation: ?GateEvaluation, canManage: bool, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, checklist: list<array{id: int, title: string, description: ?string, video_url: ?string, saved_status: string}>, deliverables: list<array{position: int, title: string, links: list<array{label: string, url: string}>}>, decisionOptions: list<array{value: string, label: string}>, selectedDecision: ?string, tickedValue: string, untickedValue: string}
      */
@@ -47,6 +48,7 @@ class CoachGateReviewPageService
         $requiredCriteria = $gate->criteria->where('is_required', true)->values();
         $readiness = $this->gates->readiness($trainingSession, $participant, $gate);
         $weeklyVideo = $this->gates->weeklyVideo($trainingSession, $participant, $gate);
+        $canManage = $viewer->mentorsParticipantInSession($participant, $trainingSession);
         $metCriteriaCount = $requiredCriteria
             ->filter(fn (GateCriterion $criterion): bool => $criterion->isWeeklyVideo()
                 ? $weeklyVideo['status'] === 'met'
@@ -72,7 +74,7 @@ class CoachGateReviewPageService
             'repositoryUrl' => TrainingSessionParticipant::query()->forParticipantInSession($trainingSession->id, $participant->id)->value('repository_url'),
             'gate' => $gate,
             'evaluation' => $evaluation,
-            'canManage' => $viewer->canManageParticipant($participant),
+            'canManage' => $canManage,
             'readinessItems' => [
                 ['label' => 'Checklist', 'value' => $metCriteriaCount.' / '.$requiredCriteria->count()],
                 ['label' => 'Activities', 'value' => $this->activityProgress($activities, $latestSubmissions)],
@@ -87,7 +89,7 @@ class CoachGateReviewPageService
                 'id' => $criterion->id,
                 'title' => $criterion->title,
                 'description' => $criterion->description,
-                'video_url' => $criterion->isWeeklyVideo() ? $weeklyVideo['url'] : null,
+                'video_url' => $canManage && $criterion->isWeeklyVideo() ? $weeklyVideo['url'] : null,
                 'saved_status' => ($evaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id)?->status ?? GateCriterionStatus::NotMet)->value,
             ])->all(),
             'deliverables' => $this->deliverables($activities, $latestSubmissions),

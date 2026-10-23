@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Enums\ActivityScoreStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
+use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -42,7 +44,8 @@ class ScoringReportControllerTest extends TestCase
         $weekThreeActivity = Activity::factory()->for($weekThree, 'week')->create(['position' => 1]);
         $ada = User::factory()->create(['name' => 'Ada', 'email' => 'ada@example.com', 'employee_id' => 'EMP-1001']);
         $ben = User::factory()->create(['name' => 'Ben', 'email' => 'ben@example.com', 'employee_id' => null]);
-        $ada->assignedCoaches()->attach($coach->id);
+        $session = TrainingSession::factory()->forWeek($weekTwo)->create();
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $ada->id, 'mentor_id' => $coach->id]);
 
         $this->createScoredSubmission($ada, $firstActivity, $coach, 80);
         $this->createScoredSubmission($ada, $secondActivity, $coach, 90);

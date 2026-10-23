@@ -47,9 +47,9 @@ class ScoringController extends Controller
 
     public function generateSuggestion(Request $request, SubmissionVersion $submissionVersion, ScoringSuggestionService $suggestions): RedirectResponse
     {
-        $submissionVersion->load('submission.participant');
+        $submissionVersion->load(['submission.participant', 'submission.trainingSession']);
         abort_unless(! $submissionVersion->isDraft() && $submissionVersion->submission->participant->role === UserRole::Participant, 404);
-        abort_unless(request()->user()->canManageParticipant($submissionVersion->submission->participant), 403);
+        abort_unless($request->user()->mentorsParticipantInSession($submissionVersion->submission->participant, $submissionVersion->submission->trainingSession), 403);
         if ($request->filled('draft_json')) {
             $draft = json_decode((string) $request->input('draft_json'), true);
             if (is_array($draft)) {

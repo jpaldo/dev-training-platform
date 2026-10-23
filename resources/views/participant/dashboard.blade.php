@@ -44,7 +44,7 @@
             </div>
             <div class="grid min-w-0 grow basis-44 content-start gap-1.5">
                 <span class="text-xs font-black tracking-[0.1em] text-muted uppercase">Mentor</span>
-                <span class="font-extrabold wrap-anywhere">{{ $user->assignedCoaches->pluck('name')->join(', ') ?: 'Not assigned' }}</span>
+                <span class="font-extrabold wrap-anywhere">{{ $mentorNames ?: 'Not assigned' }}</span>
             </div>
             @if($notificationSummary['next'])
                 <x-ui.alert class="grid min-w-0 grow basis-64 content-start justify-items-start gap-2 p-4">

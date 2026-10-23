@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Models\Activity;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
+use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -24,8 +26,9 @@ class ScoringOverviewPageTest extends TestCase
         $mentor = User::factory()->create(['role' => 'coach', 'name' => 'Mia Mentor']);
         $ada = User::factory()->create(['name' => 'Ada Automation', 'email' => 'ada@example.com']);
         $ben = User::factory()->create(['name' => 'Ben Both', 'email' => 'ben@example.com']);
-        $coach->assignedParticipants()->attach($ada->id);
-        $mentor->assignedParticipants()->attach($ada->id);
+        [$sessionA, $sessionB] = TrainingSession::factory()->forWeek($activities[2][0]->week)->count(2)->create()->all();
+        MentorAssignment::factory()->create(['training_session_id' => $sessionA->id, 'participant_id' => $ada->id, 'mentor_id' => $coach->id]);
+        MentorAssignment::factory()->create(['training_session_id' => $sessionB->id, 'participant_id' => $ada->id, 'mentor_id' => $mentor->id]);
         $this->score($ada, $activities[2][0], 83, 'Proficient');
 
         $response = $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk();
@@ -80,7 +83,7 @@ class ScoringOverviewPageTest extends TestCase
         $assigned = User::factory()->create(['name' => 'Ada Assigned']);
         $unassigned = User::factory()->create(['name' => 'Ada Unassigned']);
         User::factory()->create(['name' => 'Ada Manual']);
-        $coach->assignedParticipants()->attach($assigned->id);
+        MentorAssignment::factory()->create(['training_session_id' => TrainingSession::factory()->forWeek($activities[2][0]->week)->create()->id, 'participant_id' => $assigned->id, 'mentor_id' => $coach->id]);
         $this->score($assigned, $activities[2][0], 83, 'Proficient');
         $this->score($unassigned, $activities[2][0], 84, 'Proficient');
         $filters = ['search' => 'Ada', 'week' => 2, 'score_status' => 'scored', 'band' => 'Proficient', 'assigned_to_me' => 1];

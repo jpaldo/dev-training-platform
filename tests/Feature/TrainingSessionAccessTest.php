@@ -76,16 +76,26 @@ class TrainingSessionAccessTest extends TestCase
         $this->actingAs($member)->get(route('training.activities.show', [$session, $laterWeek, $laterActivity]))->assertNotFound();
     }
 
-    public function test_admins_and_coaches_open_the_week_and_activity_pages_of_a_session_they_are_not_in(): void
+    public function test_admins_and_the_sessions_mentors_open_the_week_and_activity_pages_of_a_session_they_are_not_in(): void
     {
         ['session' => $session, 'week' => $week, 'activity' => $activity] = $this->sessionFixture();
+        $mentor = User::factory()->create(['role' => 'coach']);
+        $session->mentors()->attach($mentor->id);
 
-        foreach (['admin', 'coach'] as $role) {
-            $user = User::factory()->create(['role' => $role]);
-
+        foreach ([User::factory()->create(['role' => 'admin']), $mentor] as $user) {
             $this->actingAs($user)->get(route('training.weeks.show', [$session, $week]))->assertOk();
             $this->actingAs($user)->get(route('training.activities.show', [$session, $week, $activity]))->assertOk();
         }
+    }
+
+    public function test_a_coach_who_is_not_a_mentor_of_the_session_cannot_open_its_week_and_activity_pages(): void
+    {
+        ['session' => $session, 'week' => $week, 'activity' => $activity] = $this->sessionFixture();
+        $otherSessionMentor = User::factory()->create(['role' => 'coach']);
+        TrainingSession::factory()->forWeek($week)->withMentors($otherSessionMentor)->create();
+
+        $this->actingAs($otherSessionMentor)->get(route('training.weeks.show', [$session, $week]))->assertForbidden();
+        $this->actingAs($otherSessionMentor)->get(route('training.activities.show', [$session, $week, $activity]))->assertForbidden();
     }
 
     public function test_only_a_participant_in_the_session_opens_its_session_page(): void

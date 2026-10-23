@@ -6,6 +6,7 @@ use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
 use App\Models\GateEvaluation;
+use App\Models\MentorAssignment;
 use App\Models\SubmissionVersion;
 use App\Models\User;
 use Closure;
@@ -27,7 +28,8 @@ class CoachProgressReportPageTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'name' => 'Admin Blake']);
 
         $risky = User::factory()->create(['name' => 'Riley Risk', 'email' => 'riley@example.test']);
-        $risky->assignedCoaches()->attach([$admin->id, $coach->id]);
+        MentorAssignment::factory()->create(['participant_id' => $risky->id, 'mentor_id' => $admin->id]);
+        MentorAssignment::factory()->create(['participant_id' => $risky->id, 'mentor_id' => $coach->id]);
         $revision = ActivitySubmission::factory()->for($risky, 'participant')->create(['status' => 'needs_revision']);
         $failedGate = GateEvaluation::factory()->for($risky, 'participant')->create(['status' => 'failed']);
         GateEvaluation::factory()->for($risky, 'participant')->create(['status' => 'passed']);
@@ -81,9 +83,9 @@ class CoachProgressReportPageTest extends TestCase
         $participants = User::factory()->count(26)
             ->sequence(fn (Sequence $sequence): array => ['name' => sprintf('Page Person %02d', $sequence->index + 1)])
             ->create();
-        $mentor->assignedParticipants()->attach($participants->modelKeys());
+        $participants->each(fn (User $participant): MentorAssignment => MentorAssignment::factory()->create(['participant_id' => $participant->id, 'mentor_id' => $mentor->id]));
         $participants->each(fn (User $participant): ActivitySubmission => ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'failed']));
-        User::factory()->create(['name' => 'Other Mentee'])->assignedCoaches()->attach($mentor->id);
+        MentorAssignment::factory()->create(['participant_id' => User::factory()->create(['name' => 'Other Mentee'])->id, 'mentor_id' => $mentor->id]);
         User::factory()->create(['name' => 'Page Unassigned']);
         $filters = ['search' => 'Page', 'mentor' => $mentor->id];
 
@@ -187,7 +189,7 @@ class CoachProgressReportPageTest extends TestCase
     {
         $coach = User::factory()->create(['role' => 'coach']);
         $participants = User::factory()->count($participantCount)->create();
-        $coach->assignedParticipants()->attach($participants->modelKeys());
+        $participants->each(fn (User $participant): MentorAssignment => MentorAssignment::factory()->create(['participant_id' => $participant->id, 'mentor_id' => $coach->id]));
 
         foreach ($participants as $participant) {
             ActivitySubmission::factory()->for($participant, 'participant')->create(['status' => 'needs_revision']);

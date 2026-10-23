@@ -47,7 +47,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         'gate_evaluations',
         'attendance_sessions',
         'weekly_video_recordings',
-        'coach_participant_assignments',
     ];
 
     public function test_it_empties_the_training_tables_and_deletes_the_qa_program_and_participants(): void
@@ -199,7 +198,6 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
             'mime_type' => 'video/mp4',
             'size_bytes' => 5,
         ]);
-        DB::table('coach_participant_assignments')->insert(['coach_id' => $coach->id, 'participant_id' => $participant->id]);
         DB::table('sessions')->insert(['id' => 'participant-session', 'user_id' => $participant->id, 'payload' => '', 'last_activity' => now()->timestamp]);
         DB::table('password_reset_tokens')->insert(['email' => $participant->email, 'token' => 'reset-token']);
         DB::table('password_setup_tokens')->insert(['user_id' => $participant->id, 'token_hash' => 'setup-token', 'expires_at' => now()->addDay(), 'created_by' => $coach->id]);

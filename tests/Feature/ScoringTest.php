@@ -8,6 +8,7 @@ use App\Models\Activity;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
+use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionInteraction;
@@ -52,8 +53,8 @@ class ScoringTest extends TestCase
         $activity->update(['configuration' => [...$activity->configuration, 'scoring_dimensions' => self::DIMENSIONS]]);
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
-        $coach->assignedParticipants()->attach($participant->id);
         $submission = ActivitySubmission::factory()->create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
+        MentorAssignment::factory()->create(['training_session_id' => $submission->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => ['exact_prompt' => 'Prompt'], 'submitted_at' => now()]);
 
         return [$participant, $coach, $version];
@@ -533,7 +534,8 @@ class ScoringTest extends TestCase
     }
 
     /**
-     * A coach assigned to the participant of a submitted version of an activity with the given scoring dimensions.
+     * A coach who is the current mentor, in the submission's session, of the participant of a submitted version of an
+     * activity with the given scoring dimensions.
      *
      * @param  list<array{key: string, label: string, max: int}>  $dimensions
      * @return array{0: User, 1: SubmissionVersion}
@@ -544,7 +546,7 @@ class ScoringTest extends TestCase
         $submission = ActivitySubmission::factory()->for($activity)->create(['status' => 'submitted', 'submitted_at' => now()]);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
         $coach = User::factory()->create(['role' => 'coach']);
-        $coach->assignedParticipants()->attach($submission->user_id);
+        MentorAssignment::factory()->create(['training_session_id' => $submission->training_session_id, 'participant_id' => $submission->user_id, 'mentor_id' => $coach->id]);
 
         return [$coach, $version];
     }

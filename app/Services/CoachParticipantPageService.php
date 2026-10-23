@@ -7,6 +7,7 @@ use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
+use App\Models\MentorAssignment;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\User;
@@ -21,27 +22,37 @@ class CoachParticipantPageService
     ) {}
 
     /**
-     * Everything the coach participant page renders: the viewer's access level, the submission and weekly video rows,
-     * the Gate rows, the attendance summary and the page tabs. `shareDomain` is the Google Workspace domain the
-     * weekly videos are shared with (null when none is configured).
+     * Everything the coach participant page renders: the participant's current mentors (their names, each once), the
+     * viewer's access level, the submission and weekly video rows, the Gate rows, the attendance summary and the page
+     * tabs. The viewer manages the participant when they are an admin or the participant's current mentor in at least
+     * one session; each submission row says whether the viewer manages it (its session), and only the weekly videos of
+     * those sessions are listed. `shareDomain` is the Google Workspace domain the weekly videos are shared with (null
+     * when none is configured).
      *
-     * @return array{participant: User, access: string, canManage: bool, submissions: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion}>, videoRecordings: Collection<int, WeeklyVideoRecording>, shareDomain: ?string, gates: Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int, review_url: ?string}>, attendance: array{completed_sessions: int, total_hours: float, active_session: ?AttendanceSession}, tabs: list<array{key: string, label: string}>, selectedTab: string}
+     * @return array{participant: User, mentorNames: string, access: string, canManage: bool, submissions: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion, can_manage: bool}>, videoRecordings: Collection<int, WeeklyVideoRecording>, shareDomain: ?string, gates: Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int, review_url: ?string}>, attendance: array{completed_sessions: int, total_hours: float, active_session: ?AttendanceSession}, tabs: list<array{key: string, label: string}>, selectedTab: string}
      */
     public function showData(User $viewer, User $participant): array
     {
-        $participant->load(['activitySubmissions.activity.week', 'activitySubmissions.versions', 'weeklyVideoRecordings.week', 'attendanceSessions', 'assignedCoaches']);
-        $canManage = $viewer->canManageParticipant($participant);
+        $participant->load(['activitySubmissions.activity.week', 'activitySubmissions.versions', 'weeklyVideoRecordings.week', 'attendanceSessions', 'currentMentors:id,name']);
+        $isAdmin = $viewer->hasAnyRole(UserRole::Admin);
+        $managedSessionIds = $isAdmin ? [] : $this->mentoredSessionIds($viewer, $participant);
+        $canManage = $isAdmin || $managedSessionIds !== [];
+        $managesSession = fn (int $trainingSessionId): bool => $isAdmin || in_array($trainingSessionId, $managedSessionIds, true);
 
         return [
             'participant' => $participant,
+            'mentorNames' => $participant->currentMentors->pluck('name')->unique()->join(', '),
             'access' => match (true) {
-                $viewer->hasAnyRole(UserRole::Admin) => 'admin',
+                $isAdmin => 'admin',
                 $canManage => 'manage',
                 default => 'read_only',
             },
             'canManage' => $canManage,
-            'submissions' => $this->submissionRows($participant),
-            'videoRecordings' => $participant->weeklyVideoRecordings->sortByDesc('chosen_at')->values(),
+            'submissions' => $this->submissionRows($participant, $managesSession),
+            'videoRecordings' => $participant->weeklyVideoRecordings
+                ->filter(fn (WeeklyVideoRecording $recording): bool => $managesSession($recording->training_session_id))
+                ->sortByDesc('chosen_at')
+                ->values(),
             'shareDomain' => $this->googleDrive->getShareDomain(),
             'gates' => $this->gateRows($participant),
             'attendance' => $this->attendanceSummary($participant),
@@ -55,11 +66,28 @@ class CoachParticipantPageService
     }
 
     /**
-     * The participant's attempts with their status label and tone, version count and latest version.
+     * The sessions in which the viewer (a coach) is the participant's current mentor.
      *
-     * @return Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion}>
+     * @return list<int>
      */
-    private function submissionRows(User $participant): Collection
+    private function mentoredSessionIds(User $viewer, User $participant): array
+    {
+        return MentorAssignment::query()
+            ->current()
+            ->where('participant_id', $participant->id)
+            ->where('mentor_id', $viewer->id)
+            ->pluck('training_session_id')
+            ->all();
+    }
+
+    /**
+     * The participant's attempts with their status label and tone, version count, latest version and whether the
+     * viewer manages the attempt's session.
+     *
+     * @param  callable(int): bool  $managesSession
+     * @return Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion, can_manage: bool}>
+     */
+    private function submissionRows(User $participant, callable $managesSession): Collection
     {
         return $participant->activitySubmissions->toBase()->map(fn (ActivitySubmission $submission): array => [
             'submission' => $submission,
@@ -72,6 +100,7 @@ class CoachParticipantPageService
             },
             'version_count' => $submission->versions->count(),
             'latest_version' => $submission->versions->sortByDesc('version_number')->first(),
+            'can_manage' => $managesSession($submission->training_session_id),
         ]);
     }
 

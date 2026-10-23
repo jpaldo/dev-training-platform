@@ -52,10 +52,10 @@ class AdminUserPageService
     /**
      * Everything the add / edit user page renders. The employee ID is required when adding a user or editing one who
      * already has it, and optional when editing a user created before it existed; the job role is optional. Editing
-     * also shows the Training Drive link, the all-time attendance summary and, for a participant, the coach assignment
-     * form. Saving the user is the page's single main action.
+     * also shows the Training Drive link and the all-time attendance summary. Saving the user is the page's single main
+     * action.
      *
-     * @return array{isEditing: bool, title: string, formAction: string, formMethod: ?string, submitLabel: string, cancelUrl: string, employeeId: ?string, isEmployeeIdRequired: bool, firstName: ?string, lastName: ?string, email: ?string, jobRole: string, jobRoleOptions: list<array{value: string, label: string}>, accessType: string, accessTypeOptions: list<array{value: string, label: string}>, isActive: bool, driveUrl: ?string, coachAssignment: ?array{url: string, size: int, coachOptions: list<array{value: string, label: string, is_selected: bool}>, assignedNames: string}, attendance: ?array{completedCount: int, totalHours: string, url: string}}
+     * @return array{isEditing: bool, title: string, formAction: string, formMethod: ?string, submitLabel: string, cancelUrl: string, employeeId: ?string, isEmployeeIdRequired: bool, firstName: ?string, lastName: ?string, email: ?string, jobRole: string, jobRoleOptions: list<array{value: string, label: string}>, accessType: string, accessTypeOptions: list<array{value: string, label: string}>, isActive: bool, driveUrl: ?string, attendance: ?array{completedCount: int, totalHours: string, url: string}}
      */
     public function formData(?User $user): array
     {
@@ -83,7 +83,6 @@ class AdminUserPageService
                 ->all(),
             'isActive' => $user?->is_active ?? true,
             'driveUrl' => $user?->drive_link ?: null,
-            'coachAssignment' => $user?->hasAnyRole(UserRole::Participant) ? $this->coachAssignment($user) : null,
             'attendance' => $user ? $this->attendanceSummary($user) : null,
         ];
     }
@@ -121,32 +120,6 @@ class AdminUserPageService
             'edit_url' => route('admin.users.edit', $user),
             'disable_url' => $user->is_active ? route('admin.users.disable', $user) : null,
             'enable_url' => $user->is_active ? null : route('admin.users.enable', $user),
-        ];
-    }
-
-    /**
-     * The participant's coach assignment form: every active Mentor / Coach by name (assigned ones selected) and
-     * the names of the coaches assigned now.
-     *
-     * @return array{url: string, size: int, coachOptions: list<array{value: string, label: string, is_selected: bool}>, assignedNames: string}
-     */
-    private function coachAssignment(User $participant): array
-    {
-        $participant->loadMissing('assignedCoaches');
-        $coaches = User::query()->where('role', UserRole::Coach)->where('is_active', true)->orderBy('name')->get();
-
-        return [
-            'url' => route('admin.users.assignments', $participant),
-            'size' => max(3, min(6, $coaches->count())),
-            'coachOptions' => $coaches
-                ->map(fn (User $coach): array => [
-                    'value' => (string) $coach->id,
-                    'label' => "{$coach->name} · {$coach->email}",
-                    'is_selected' => $participant->assignedCoaches->contains($coach->id),
-                ])
-                ->values()
-                ->all(),
-            'assignedNames' => $participant->assignedCoaches->pluck('name')->join(', '),
         ];
     }
 

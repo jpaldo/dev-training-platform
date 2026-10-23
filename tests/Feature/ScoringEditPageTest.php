@@ -8,6 +8,7 @@ use App\Models\ActivityScore;
 use App\Models\ActivityScoreSuggestion;
 use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
+use App\Models\MentorAssignment;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionInteraction;
 use App\Models\SubmissionVersion;
@@ -291,7 +292,7 @@ class ScoringEditPageTest extends TestCase
     }
 
     /**
-     * A coach assigned to the participant of a new submitted version.
+     * A coach who is the current mentor, in the submission's session, of the participant of a new submitted version.
      *
      * @param  array<string, mixed>  $fieldValues
      * @param  list<array{key: string, label: string, max: int}>  $dimensions
@@ -301,7 +302,7 @@ class ScoringEditPageTest extends TestCase
     {
         $coach = User::factory()->create(['role' => 'coach']);
         $version = $this->version($fieldValues, $dimensions);
-        $coach->assignedParticipants()->attach($version->submission->user_id);
+        MentorAssignment::factory()->create(['training_session_id' => $version->submission->training_session_id, 'participant_id' => $version->submission->user_id, 'mentor_id' => $coach->id]);
 
         return [$coach, $version];
     }

@@ -11,6 +11,7 @@ use App\Models\ActivitySubmission;
 use App\Models\GateCriterion;
 use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
+use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
@@ -30,8 +31,8 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_ready_participant_shows_the_summary_the_checklist_and_a_single_main_action_for_the_decision_form(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 2, extraCriteriaCount: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 2, extraCriteriaCount: 1, mentor: $coach);
         foreach ($activities as $activity) {
             $this->completeActivity($participant, $activity);
         }
@@ -104,8 +105,8 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_every_checklist_item_starts_unticked_without_a_saved_evaluation_even_when_the_week_is_complete(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 2, extraCriteriaCount: 2);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 2, extraCriteriaCount: 2, mentor: $coach);
         foreach ($activities as $activity) {
             $this->completeActivity($participant, $activity);
         }
@@ -124,8 +125,8 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_the_checklist_lists_each_activitys_github_links_from_its_latest_handed_in_version(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 3, extraCriteriaCount: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 3, extraCriteriaCount: 1, mentor: $coach);
         [$linkedActivity, $draftActivity, $notGitHubActivity] = $activities;
         foreach ($activities as $activity) {
             ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url']]);
@@ -161,9 +162,10 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_the_checklist_page_shows_the_participants_repository_for_the_session(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $sessionA, 'week' => $week, 'gate' => $gate] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $sessionA, 'week' => $week, 'gate' => $gate] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, mentor: $coach);
         $sessionB = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $this->assignMentor($coach, $participant, $sessionB);
         $sessionA->participants()->updateExistingPivot($participant->id, ['repository_url' => 'https://github.com/ana/l4-accelerator']);
 
         $this->actingAs($coach)->get(route('training.coach.gates.show', [$sessionA, $week, $participant, $gate]))
@@ -186,8 +188,8 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_blocked_participant_shows_the_blockers_and_a_missing_video(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, mentor: $coach);
 
         $this->actingAs($coach)->get(route('training.coach.gates.show', [$session, $week, $participant, $gate]))
             ->assertOk()
@@ -210,12 +212,13 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_a_gate_without_a_weekly_video_criterion_shows_the_video_as_not_required_and_no_video_blocker(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        [$coach, $participant] = $this->coachAndParticipant();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 2]);
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         GateCriterion::factory()->for($gate, 'gate')->create();
         Activity::factory()->for($week, 'week')->create(['position' => 1]);
         $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $this->assignMentor($coach, $participant, $session);
 
         $this->actingAs($coach)->get(route('training.coach.gates.show', [$session, $week, $participant, $gate]))
             ->assertOk()
@@ -233,8 +236,8 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_met_criteria_count_the_video_criterion_once_its_recording_is_reviewed_as_met(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, mentor: $coach);
         [$activityCriterion, $videoCriterion] = $criteria;
         $this->chooseWeeklyVideo($participant, $week);
         $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
@@ -246,11 +249,12 @@ class CoachGateReviewPageTest extends TestCase
             ->assertSeeInOrder(['>Checklist</span>', '1 / 2', 'Activities'], false);
     }
 
-    public function test_a_coach_who_is_not_assigned_to_the_participant_sees_the_gate_read_only(): void
+    public function test_a_session_mentor_who_is_not_the_participants_mentor_sees_the_gate_read_only(): void
     {
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
         ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        $session->mentors()->attach($coach->id);
         $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
         GateCriterionEvaluation::factory()->for($evaluation)->for($criteria->first(), 'criterion')->create(['status' => GateCriterionStatus::Met]);
 
@@ -270,8 +274,8 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_a_rejected_decision_returns_to_the_page_with_the_error(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, mentor: $coach);
         [$activityCriterion, $videoCriterion] = $criteria;
         $pageUrl = route('training.coach.gates.show', [$session, $week, $participant, $gate]);
 
@@ -293,8 +297,8 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_saving_a_review_stores_each_required_criterion_decision_and_a_left_out_criterion_as_not_met(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 2);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 2, mentor: $coach);
         [$metCriterion, $notMetCriterion, $videoCriterion] = $criteria;
 
         $this->actingAs($coach)
@@ -315,8 +319,8 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_completing_a_week_fails_while_a_checklist_item_is_unticked(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, mentor: $coach);
         [$activityCriterion, $videoCriterion] = $criteria;
         $this->completeActivity($participant, $activities->first());
         $this->chooseWeeklyVideo($participant, $week);
@@ -340,8 +344,8 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_every_ticked_item_completes_the_week_while_readiness_still_has_blockers(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, mentor: $coach);
         $this->chooseWeeklyVideo($participant, $week);
 
         $this->actingAs($coach)
@@ -358,8 +362,8 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_a_week_cannot_be_completed_with_the_weekly_video_ticked_before_it_is_chosen(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, mentor: $coach);
         $videoCriterion = $criteria->last();
 
         $this->actingAs($coach)
@@ -374,8 +378,8 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_marking_a_week_incomplete_fails_when_every_checklist_item_is_ticked(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, mentor: $coach);
         $this->chooseWeeklyVideo($participant, $week);
 
         $this->actingAs($coach)
@@ -409,8 +413,8 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_a_week_one_gate_can_be_reviewed(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, weekNumber: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, weekNumber: 1, mentor: $coach);
         [$activityCriterion, $videoCriterion] = $criteria;
 
         $this->actingAs($coach)->get(route('training.coach.gates.show', [$session, $week, $participant, $gate]))
@@ -430,10 +434,10 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_a_participant_who_is_not_in_the_session_is_not_found(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, mentor: $coach);
         $outsider = User::factory()->create();
-        $coach->assignedParticipants()->attach($outsider->id);
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $outsider->id, 'mentor_id' => $coach->id]);
         $review = [
             'status' => 'needs_revision',
             'criteria' => $criteria->mapWithKeys(fn (GateCriterion $criterion): array => [$criterion->id => 'not_met'])->all(),
@@ -448,9 +452,10 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_a_review_in_one_session_is_not_shown_or_changed_in_another(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $sessionA, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $sessionA, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, mentor: $coach);
         $sessionB = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $this->assignMentor($coach, $participant, $sessionB);
         $this->chooseWeeklyVideo($participant, $week);
         $everyItemTicked = [
             'status' => 'passed',
@@ -483,8 +488,8 @@ class CoachGateReviewPageTest extends TestCase
     #[DataProvider('statusesThatAreNotDecisions')]
     public function test_a_gate_decision_must_be_completed_or_incomplete(string $status): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, mentor: $coach);
 
         $this->actingAs($coach)
             ->post(route('training.coach.gates.update', [$session, $week, $participant, $gate]), [
@@ -512,8 +517,8 @@ class CoachGateReviewPageTest extends TestCase
 
     public function test_a_criterion_decision_must_be_met_or_not_met(): void
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1, mentor: $coach);
         $criterionId = $criteria->first()->id;
 
         $this->actingAs($coach)
@@ -537,8 +542,8 @@ class CoachGateReviewPageTest extends TestCase
      */
     private function gateReviewQueryCount(int $rows): int
     {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture($participant, activityCount: $rows, extraCriteriaCount: $rows);
+        [$coach, $participant] = $this->coachAndParticipant();
+        ['session' => $session, 'week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture($participant, activityCount: $rows, extraCriteriaCount: $rows, mentor: $coach);
         foreach ($activities as $activity) {
             ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'configuration' => ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url']]);
             SubmissionVersion::factory()->for($this->completeActivity($participant, $activity), 'submission')->create(['status' => SubmissionStatus::Submitted, 'field_values' => ['deliverable_url' => "https://github.com/ana/l4/pull/{$activity->id}"]]);
@@ -559,14 +564,17 @@ class CoachGateReviewPageTest extends TestCase
     /**
      * A Gate of the given week (Week 2 by default) with a required weekly video criterion, the given number of other
      * required criteria, one optional criterion and the given number of active activities, and an active session of
-     * the week's program with the participant in it.
+     * the week's program with the participant in it (and the mentor, when given, as the participant's mentor there).
      *
      * @return array{session: TrainingSession, week: TrainingWeek, gate: TrainingGate, criteria: Collection<int, GateCriterion>, activities: Collection<int, Activity>}
      */
-    private function gateFixture(User $participant, int $activityCount, int $extraCriteriaCount, int $weekNumber = 2): array
+    private function gateFixture(User $participant, int $activityCount, int $extraCriteriaCount, int $weekNumber = 2, ?User $mentor = null): array
     {
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => $weekNumber, 'position' => $weekNumber]);
         $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        if ($mentor !== null) {
+            $this->assignMentor($mentor, $participant, $session);
+        }
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         $criteria = collect(range(1, $extraCriteriaCount))
             ->map(fn (int $position): GateCriterion => GateCriterion::factory()->for($gate, 'gate')->create(['position' => $position]))
@@ -589,16 +597,21 @@ class CoachGateReviewPageTest extends TestCase
     }
 
     /**
-     * A participant and a coach assigned to them.
+     * A coach and a participant; pass the coach to gateFixture() as `mentor` to make them the participant's mentor.
      *
      * @return array{User, User}
      */
-    private function assignedCoachAndParticipant(): array
+    private function coachAndParticipant(): array
     {
-        $participant = User::factory()->create();
-        $coach = User::factory()->create(['role' => 'coach']);
-        $coach->assignedParticipants()->attach($participant->id);
+        return [User::factory()->create(['role' => 'coach']), User::factory()->create()];
+    }
 
-        return [$coach, $participant];
+    /**
+     * Make the coach a mentor of the session and the participant's current mentor there.
+     */
+    private function assignMentor(User $coach, User $participant, TrainingSession $session): void
+    {
+        $session->mentors()->attach($coach->id);
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
     }
 }

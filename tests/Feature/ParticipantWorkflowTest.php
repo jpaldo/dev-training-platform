@@ -14,6 +14,7 @@ use App\Models\ActivityScoreDimension;
 use App\Models\ActivitySubmission;
 use App\Models\EvidenceRequirement;
 use App\Models\GateEvaluation;
+use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
@@ -254,7 +255,7 @@ class ParticipantWorkflowTest extends TestCase
         $this->assertSame([], Storage::disk('local')->allFiles());
 
         $coach = User::factory()->create(['role' => 'coach']);
-        $coach->assignedParticipants()->attach($participant);
+        MentorAssignment::factory()->create(['training_session_id' => $version->submission->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         $version->update(['status' => 'submitted', 'submitted_at' => now()]);
         $version->submission->update(['status' => 'submitted', 'submitted_at' => now()]);
 
@@ -991,6 +992,7 @@ class ParticipantWorkflowTest extends TestCase
         [, $week2, , $session] = $this->trainingFixture();
         $week3 = TrainingWeek::factory()->for($week2->program)->create(['week_number' => 3, 'position' => 2]);
         $coach = User::factory()->create(['role' => 'coach']);
+        $session->mentors()->attach($coach->id);
         $this->actingAs($coach)->get(route('training.weeks.show', [$session, $week3]))->assertOk();
     }
 
@@ -1001,6 +1003,7 @@ class ParticipantWorkflowTest extends TestCase
         ActivityRequirement::factory()->for($activity)->create(['title' => 'Manual-only requirement', 'position' => 1]);
         ActivityRequirement::factory()->for($activity)->create(['title' => 'Automation-only requirement', 'position' => 2]);
         $coach = User::factory()->create(['role' => 'coach']);
+        $session->mentors()->attach($coach->id);
 
         $this->actingAs($participant)->get(route('training.activities.show', [$session, $week2, $activity]))
             ->assertOk()

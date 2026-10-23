@@ -57,12 +57,12 @@ class ScoringPageService
      */
     public function editData(SubmissionVersion $version, User $viewer, ?array $draft): array
     {
-        $version->loadMissing(['submission.participant', 'submission.activity.week', 'evidence', 'activityScore.dimensions', 'scoreSuggestion', 'interactions']);
+        $version->loadMissing(['submission.participant', 'submission.trainingSession', 'submission.activity.week', 'evidence', 'activityScore.dimensions', 'scoreSuggestion', 'interactions']);
         $submission = $version->submission;
         $score = $version->activityScore;
         $suggestion = $version->scoreSuggestion;
         $dimensions = $submission->activity->scoringDimensions();
-        $canManage = $viewer->canManageParticipant($submission->participant);
+        $canManage = $viewer->mentorsParticipantInSession($submission->participant, $submission->trainingSession);
         $canManageSecondReader = $canManage && (bool) $score?->second_reader_required;
         $aiStatus = $this->configuration->adminValues()['status'];
 
@@ -306,7 +306,7 @@ class ScoringPageService
                 fn (Builder $activityQuery): Builder => $activityQuery->whereKey($activity),
             ))
             ->when(($filters['assigned_to_me'] ?? false) && $viewer->hasAnyRole(UserRole::Coach), fn (Builder $query): Builder => $query->whereHas(
-                'assignedCoaches',
+                'currentMentors',
                 fn (Builder $coachQuery): Builder => $coachQuery->whereKey($viewer->id),
             ))
             ->when(($filters['score_status'] ?? null) === 'scored', fn (Builder $query): Builder => $query->whereHas('activitySubmissions.versions.publishedActivityScore'))
@@ -315,14 +315,14 @@ class ScoringPageService
                 'activitySubmissions.versions.publishedActivityScore',
                 fn (Builder $scoreQuery): Builder => $scoreQuery->where('performance_band', $band),
             ))
-            ->with('assignedCoaches')
+            ->with('currentMentors')
             ->paginate(self::PARTICIPANTS_PER_PAGE)
             ->withQueryString();
     }
 
     /**
      * One overview row: the participant, each scored week's average with its band (null while unscored) and
-     * completion, the overall average and completion, the assigned coaches and the link to the participant's scoring.
+     * completion, the overall average and completion, the current mentors and the link to the participant's scoring.
      *
      * @param  array{weeks: \Illuminate\Support\Collection<int, array{completed: int, total: int, average: ?int}>, completed: int, total: int, average: ?int}  $summary  the participant's ScoringService summary
      * @return array{name: string, email: string, weeks: list<array{average: ?int, band: ?string, completion: string}>, average: string, completion: string, coach_names: string, scoring_url: string}
@@ -342,7 +342,7 @@ class ScoringPageService
                 ->all(),
             'average' => (string) ($summary['average'] ?? '—'),
             'completion' => $this->completion($summary['completed'], $summary['total']),
-            'coach_names' => $participant->assignedCoaches->pluck('name')->implode(', ') ?: 'Unassigned',
+            'coach_names' => $participant->currentMentors->pluck('name')->unique()->implode(', ') ?: 'Unassigned',
             'scoring_url' => route('coach.scoring.participant', $participant),
         ];
     }

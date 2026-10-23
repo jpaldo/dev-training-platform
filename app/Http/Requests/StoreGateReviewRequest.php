@@ -21,8 +21,8 @@ class StoreGateReviewRequest extends FormRequest
     private ?Collection $requiredCriteria = null;
 
     /**
-     * Determine if the user is authorized to make this request: a coach or admin who manages the participant. A
-     * participant who is not in the route's session is not found, before the review is validated.
+     * Determine if the user is authorized to make this request: an admin or the participant's current mentor in the
+     * route's session. A participant who is not in the session is not found, before the review is validated.
      */
     public function authorize(): bool
     {
@@ -30,7 +30,7 @@ class StoreGateReviewRequest extends FormRequest
         $trainingSession = $this->route('trainingSession');
         abort_unless($participant instanceof User && $trainingSession instanceof TrainingSession && $trainingSession->includesParticipant($participant), 404);
 
-        return $this->user()?->isCoachOrAdmin() === true && $this->user()->canManageParticipant($participant);
+        return $this->user()?->mentorsParticipantInSession($participant, $trainingSession) === true;
     }
 
     /**

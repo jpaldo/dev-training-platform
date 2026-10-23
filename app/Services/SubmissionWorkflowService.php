@@ -9,6 +9,7 @@ use App\Models\ActivitySubmission;
 use App\Models\EvidenceRequirement;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\User;
 use App\Rules\GitHubUrl;
 use Illuminate\Database\Eloquent\Builder;
@@ -44,7 +45,16 @@ class SubmissionWorkflowService
         })->with('activityRequirement')->orderBy('position')->get();
     }
 
-    public function saveDraft(User $user, Activity $activity, array $fieldValues, ?string $note, ?array $interactions = null): SubmissionVersion
+    /**
+     * Save the answers to the user's latest attempt at the activity within the session: start the attempt, update its
+     * draft, or open a new draft version of an attempt that needs revision.
+     *
+     * @param  array<string, mixed>  $fieldValues
+     * @param  array<int, array{prompt?: ?string, output?: ?string}>|null  $interactions
+     *
+     * @throws ValidationException
+     */
+    public function saveDraft(User $user, TrainingSession $trainingSession, Activity $activity, array $fieldValues, ?string $note, ?array $interactions = null): SubmissionVersion
     {
         $allowed = Arr::only($fieldValues, array_keys($this->fieldDefinitions($activity)));
         if (array_key_exists('artifact_type_other', $fieldValues) && filled($fieldValues['artifact_type_other'])) {
@@ -59,10 +69,10 @@ class SubmissionWorkflowService
             Validator::make($allowed, ['artifact_type' => ['nullable', 'string', 'max:120']])->validate();
         }
 
-        return DB::transaction(function () use ($activity, $allowed, $note, $user, $interactions): SubmissionVersion {
-            $submission = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $user->id)->latest('attempt_number')->lockForUpdate()->first();
+        return DB::transaction(function () use ($trainingSession, $activity, $allowed, $note, $user, $interactions): SubmissionVersion {
+            $submission = ActivitySubmission::query()->where('training_session_id', $trainingSession->id)->where('activity_id', $activity->id)->where('user_id', $user->id)->latest('attempt_number')->lockForUpdate()->first();
             if (! $submission) {
-                $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $user->id, 'status' => SubmissionStatus::Draft]);
+                $submission = ActivitySubmission::create(['training_session_id' => $trainingSession->id, 'activity_id' => $activity->id, 'user_id' => $user->id, 'status' => SubmissionStatus::Draft]);
             }
             $latest = $submission->versions()->lockForUpdate()->orderByDesc('version_number')->first();
             if (! $latest) {

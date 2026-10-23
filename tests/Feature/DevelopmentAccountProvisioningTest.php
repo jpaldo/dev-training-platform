@@ -193,9 +193,10 @@ class DevelopmentAccountProvisioningTest extends TestCase
             'requirement_type' => 'submission_field',
             'configuration' => ['key' => 'artifact_type', 'label' => 'Artifact Type', 'type' => 'text', 'required' => false],
         ]);
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
-        $this->actingAs($participant)->post(route('training.submission.draft', [$week, $activity]), [
+        $this->actingAs($participant)->post(route('training.submission.draft', [$session, $week, $activity]), [
             'field_values' => ['artifact_type' => 'Other', 'artifact_type_other' => '  API contract test  '],
         ])->assertRedirect();
 

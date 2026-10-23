@@ -31,9 +31,9 @@ class ParticipantNotificationService
     }
 
     /**
-     * Raise and resolve the participant's notifications for the active program's weeks. Links to a week or activity
-     * page go through the participant's session that includes the week (ParticipantWeekSessionService); without one
-     * those notifications have no link.
+     * Raise and resolve the participant's notifications for the active program's weeks. Links to a week, activity or
+     * submission page go through the participant's session that includes the week (ParticipantWeekSessionService);
+     * without one those notifications have no link.
      */
     public function sync(User $participant): void
     {
@@ -56,16 +56,17 @@ class ParticipantNotificationService
             foreach ($week->activities as $activity) {
                 $submission = $participant->activitySubmissions()->where('activity_id', $activity->id)->latest('attempt_number')->with(['versions' => fn (Relation $q): Relation => $q->latest('version_number')])->first();
                 $url = $trainingSession ? route('training.activities.show', [$trainingSession, $week, $activity]) : null;
+                $submissionUrl = $trainingSession ? route('training.submission.edit', [$trainingSession, $week, $activity]) : null;
                 $this->state($participant, "week:{$week->id}:activity:{$activity->id}:incomplete", ParticipantNotificationType::ActivityIncomplete, 'Activity incomplete', "{$activity->title} has not been completed for Week {$week->week_number}.", $url, ! $submission || $submission->isFailed());
-                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:draft", ParticipantNotificationType::ActivityDraft, 'Continue your activity', "You have an unfinished draft for {$activity->title}.", route('training.submission.edit', [$week, $activity]), $submission?->isDraft() === true);
+                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:draft", ParticipantNotificationType::ActivityDraft, 'Continue your activity', "You have an unfinished draft for {$activity->title}.", $submissionUrl, $submission?->isDraft() === true);
                 $version = $submission?->versions->first();
                 $latestReview = $version?->reviews()->latest('reviewed_at')->first();
                 $needsRevision = $submission?->needsRevision() === true || $latestReview?->decision === ReviewDecision::NeedsRevision;
-                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:revision", ParticipantNotificationType::NeedsRevision, 'Revision required', "Your submission for {$activity->title} needs revision. Mentor feedback is available.", route('training.submission.edit', [$week, $activity]), $needsRevision, ParticipantNotificationPriority::High);
+                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:revision", ParticipantNotificationType::NeedsRevision, 'Revision required', "Your submission for {$activity->title} needs revision. Mentor feedback is available.", $submissionUrl, $needsRevision, ParticipantNotificationPriority::High);
                 $awaiting = $submission?->isAwaitingReview() === true;
-                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:review", ParticipantNotificationType::AwaitingReview, 'Awaiting mentor review', "Your {$activity->title} submission has been submitted and is awaiting review.", route('training.submission.edit', [$week, $activity]), $awaiting);
+                $this->state($participant, "week:{$week->id}:activity:{$activity->id}:review", ParticipantNotificationType::AwaitingReview, 'Awaiting mentor review', "Your {$activity->title} submission has been submitted and is awaiting review.", $submissionUrl, $awaiting);
                 if ($latestReview?->decision === ReviewDecision::Approved) {
-                    $this->event($participant, "event:review:{$latestReview->id}", ParticipantNotificationType::ActivityApproved, 'Activity approved', "Your {$activity->title} submission has been approved.", route('training.submission.edit', [$week, $activity]));
+                    $this->event($participant, "event:review:{$latestReview->id}", ParticipantNotificationType::ActivityApproved, 'Activity approved', "Your {$activity->title} submission has been approved.", $submissionUrl);
                 }
                 $missingEvidence = $this->missingEvidence($activity, $submission);
                 $this->state($participant, "week:{$week->id}:activity:{$activity->id}:evidence", ParticipantNotificationType::MissingEvidence, 'Evidence missing', "{$activity->title} is missing required evidence.", $url, $missingEvidence);

@@ -54,6 +54,7 @@ class ParticipantDashboardControllerTest extends TestCase
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
+        TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
 
         foreach ([[1, ActivityScoreStatus::Published, 88], [2, ActivityScoreStatus::Draft, 41]] as [$position, $status, $totalScore]) {
             $activity = Activity::factory()->for($week, 'week')->withScoringDimensions()->create(['position' => $position]);
@@ -135,6 +136,26 @@ class ParticipantDashboardControllerTest extends TestCase
                 'href="'.route('training.activities.show', [$session, $week, $activity]).'"',
                 '>Start</',
             ], false);
+    }
+
+    public function test_activity_progress_comes_only_from_the_attempts_in_the_session_the_week_opens_in(): void
+    {
+        $participant = User::factory()->create();
+        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
+        $activity = Activity::factory()->for($week, 'week')->create(['title' => 'Set up the repository']);
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $otherSession = TrainingSession::factory()->forWeek($week)->completed()->withParticipants($participant)->create();
+        ActivitySubmission::factory()->for($otherSession)->for($activity)->for($participant, 'participant')->create(['status' => 'approved']);
+
+        $this->actingAs($participant)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'href="'.route('training.weeks.show', [$session, $week]).'"',
+                '<strong>Set up the repository</strong>',
+                '>Not Started</span>',
+                '>Start</',
+            ], false)
+            ->assertDontSee('>Approved</span>', false);
     }
 
     public function test_a_participant_in_no_session_with_the_week_sees_the_week_without_links_to_it(): void

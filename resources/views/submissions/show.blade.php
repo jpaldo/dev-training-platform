@@ -178,7 +178,7 @@
                                 <x-ui.badge tone="accent">Viewing</x-ui.badge>
                             @else
                                 <div class="flex flex-wrap items-center gap-3">
-                                    <x-ui.button variant="secondary" :href="route('training.submission.show', [$trainingWeek, $activity, $historic])">View</x-ui.button>
+                                    <x-ui.button variant="secondary" :href="route('training.submission.show', [$trainingSession, $trainingWeek, $activity, $historic])">View</x-ui.button>
                                     <span class="text-xs text-muted">Read only</span>
                                 </div>
                             @endif

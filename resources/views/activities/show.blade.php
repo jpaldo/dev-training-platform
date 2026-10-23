@@ -14,12 +14,12 @@
 
         <x-ui.main-action id="activity-main-action">
             @if($submission?->needsRevision())
-                <form method="POST" action="{{ route('training.submission.revise', [$trainingWeek, $activity]) }}" class="m-0" data-revise-submission>
+                <form method="POST" action="{{ route('training.submission.revise', [$trainingSession, $trainingWeek, $activity]) }}" class="m-0" data-revise-submission>
                     @csrf
                     <x-ui.button type="submit">Revise submission →</x-ui.button>
                 </form>
             @else
-                <x-ui.button :href="route('training.submission.edit', [$trainingWeek, $activity])">{{ $latestVersion ? 'Continue submission' : 'Start submission' }} →</x-ui.button>
+                <x-ui.button :href="route('training.submission.edit', [$trainingSession, $trainingWeek, $activity])">{{ $latestVersion ? 'Continue submission' : 'Start submission' }} →</x-ui.button>
             @endif
         </x-ui.main-action>
 
@@ -74,7 +74,7 @@
                             @endif
                         @endif
                         @if($latestVersion && ! $latestVersion->isDraft())
-                            <x-ui.button variant="secondary" :href="route('training.submission.show', [$trainingWeek, $activity, $latestVersion])">View Submission</x-ui.button>
+                            <x-ui.button variant="secondary" :href="route('training.submission.show', [$trainingSession, $trainingWeek, $activity, $latestVersion])">View Submission</x-ui.button>
                         @endif
                     </x-ui.card>
 
@@ -153,7 +153,7 @@
                                         @elseif($attemptSubmission->isDraft())
                                             <p class="m-0 leading-relaxed">{{ $attempt['has_later_attempt'] ? 'This draft is an earlier attempt.' : 'Your work is saved as a draft.' }}</p>
                                             @if(! $attempt['has_later_attempt'])
-                                                <x-ui.button variant="secondary" :href="route('training.submission.edit', [$trainingWeek, $activity])">Continue Attempt {{ $attemptSubmission->attempt_number }} →</x-ui.button>
+                                                <x-ui.button variant="secondary" :href="route('training.submission.edit', [$trainingSession, $trainingWeek, $activity])">Continue Attempt {{ $attemptSubmission->attempt_number }} →</x-ui.button>
                                             @endif
                                         @elseif($attemptSubmission->needsRevision())
                                             <p class="m-0 leading-relaxed">Your mentor requested changes to this submission.</p>
@@ -163,7 +163,7 @@
                                                     <div class="{{ $feedbackClasses }}">{{ $attempt['feedback'] }}</div>
                                                 </div>
                                             @endif
-                                            <form method="POST" action="{{ route('training.submission.revise', [$trainingWeek, $activity]) }}" class="m-0" data-revise-submission>
+                                            <form method="POST" action="{{ route('training.submission.revise', [$trainingSession, $trainingWeek, $activity]) }}" class="m-0" data-revise-submission>
                                                 @csrf
                                                 <x-ui.button variant="secondary" type="submit">Revise Submission →</x-ui.button>
                                             </form>

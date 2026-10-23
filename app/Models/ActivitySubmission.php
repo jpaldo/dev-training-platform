@@ -77,6 +77,14 @@ class ActivitySubmission extends Model
         return in_array($this->status, SubmissionStatus::accepted(), true);
     }
 
+    /**
+     * Whether this is an attempt at the activity within the session.
+     */
+    public function isForActivityInSession(Activity $activity, TrainingSession $trainingSession): bool
+    {
+        return $this->activity_id === $activity->id && $this->training_session_id === $trainingSession->id;
+    }
+
     public function trainingSession(): BelongsTo
     {
         return $this->belongsTo(TrainingSession::class);

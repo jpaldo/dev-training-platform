@@ -10,6 +10,7 @@ use App\Models\ApplicationSetting;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveExport;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\GoogleDriveConnectionService;
 use App\Services\GoogleDriveService;
@@ -199,12 +200,13 @@ class GoogleDriveExportTest extends TestCase
         GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'a', 'google_email' => 'p@example.com', 'access_token' => 'token', 'token_expires_at' => now()->addHour(), 'connected_at' => now(), 'drive_folder_id' => 'folder']);
         Http::fake(['https://www.googleapis.com/drive/v3/files/folder*' => Http::response(['id' => 'folder', 'mimeType' => 'application/vnd.google-apps.folder', 'capabilities' => ['canAddChildren' => true]], 200)]);
         $activity = Activity::query()->whereHas('week', fn ($q) => $q->where('week_number', 1))->firstOrFail();
+        $session = TrainingSession::factory()->forWeek($activity->week)->withParticipants($participant, $other)->create();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
 
-        $this->actingAs($participant)->post(route('training.activities.export', [$activity->week, $activity]))->assertRedirect()->assertSessionHas('status');
+        $this->actingAs($participant)->post(route('training.activities.export', [$session, $activity->week, $activity]))->assertRedirect()->assertSessionHas('status');
         Queue::assertPushed(SyncTrainingDataJob::class);
-        $this->actingAs($other)->post(route('training.activities.export', [$activity->week, $activity]))->assertRedirect()->assertSessionHasErrors('google_drive');
+        $this->actingAs($other)->post(route('training.activities.export', [$session, $activity->week, $activity]))->assertRedirect()->assertSessionHasErrors('google_drive');
         $this->actingAs($participant)->post(route('reports.export'))->assertRedirect()->assertSessionHas('status');
         Queue::assertPushed(SyncTrainingDataJob::class);
     }
@@ -242,10 +244,11 @@ class GoogleDriveExportTest extends TestCase
         $participant = User::factory()->create(['drive_link' => 'https://drive.google.com/drive/folders/inaccessible']);
         GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'account', 'google_email' => 'p@example.com', 'access_token' => 'token', 'token_expires_at' => now()->addHour(), 'connected_at' => now(), 'drive_folder_id' => 'old-folder']);
         $activity = Activity::query()->whereHas('week', fn ($query) => $query->where('week_number', 1))->firstOrFail();
+        $session = TrainingSession::factory()->forWeek($activity->week)->withParticipants($participant)->create();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create();
 
-        $this->actingAs($participant)->post(route('training.activities.export', [$activity->week, $activity]))->assertRedirect()->assertSessionHas('status');
+        $this->actingAs($participant)->post(route('training.activities.export', [$session, $activity->week, $activity]))->assertRedirect()->assertSessionHas('status');
 
         Queue::assertPushed(SyncTrainingDataJob::class);
         Http::assertNothingSent();

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AttendanceSession;
 use App\Models\Program;
+use App\Models\TrainingSession;
 use App\Models\User;
 use Carbon\Carbon;
 use Database\Seeders\L4TrainingProgramSeeder;
@@ -20,7 +21,8 @@ class AttendancePagesTest extends TestCase
         $participant = User::factory()->create();
         $this->seed(L4TrainingProgramSeeder::class);
         $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
-        $returnTo = route('training.submission.edit', [$week, $week->activities()->firstOrFail()]);
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $returnTo = route('training.submission.edit', [$session, $week, $week->activities()->firstOrFail()]);
 
         $response = $this->actingAs($participant)
             ->followingRedirects()

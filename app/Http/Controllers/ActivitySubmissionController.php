@@ -7,6 +7,7 @@ use App\Http\Requests\StoreSubmissionDraftRequest;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\ActivitySubmissionPageService;
@@ -22,15 +23,21 @@ use Illuminate\View\View;
 
 class ActivitySubmissionController extends Controller
 {
-    public function show(Request $request, TrainingWeek $trainingWeek, Activity $activity, SubmissionVersion $submissionVersion, ActivitySubmissionPageService $pages): View
+    /**
+     * A handed-in version of the participant's attempt at the activity within the session; a draft, or a version of
+     * someone else's attempt or of an attempt in another session, is a 404.
+     */
+    public function show(Request $request, TrainingSession $trainingSession, TrainingWeek $trainingWeek, Activity $activity, SubmissionVersion $submissionVersion, ActivitySubmissionPageService $pages): View
     {
         /** @var User $user */
         $user = $request->user();
         $submissionVersion->load(['submission.participant', 'submission.activity', 'submission.versions', 'evidence', 'reviews', 'publishedActivityScore.dimensions', 'interactions']);
-        abort_unless($submissionVersion->submission->user_id === $user->id && $submissionVersion->submission->activity_id === $activity->id && $submissionVersion->submission->activity->training_week_id === $trainingWeek->id, 404);
+        $submission = $submissionVersion->submission;
+        abort_unless($submission->user_id === $user->id && $submission->isForActivityInSession($activity, $trainingSession) && $submission->activity->training_week_id === $trainingWeek->id, 404);
         abort_unless(! $submissionVersion->isDraft(), 404);
 
         return view('submissions.show', [
+            'trainingSession' => $trainingSession,
             'trainingWeek' => $trainingWeek,
             'activity' => $activity,
             'submissionVersion' => $submissionVersion,
@@ -38,7 +45,7 @@ class ActivitySubmissionController extends Controller
         ]);
     }
 
-    public function edit(Request $request, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, GoogleDriveReadinessService $readiness, ActivitySubmissionPageService $pages): View|Response|RedirectResponse
+    public function edit(Request $request, TrainingSession $trainingSession, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, GoogleDriveReadinessService $readiness, ActivitySubmissionPageService $pages): View|Response|RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -47,7 +54,7 @@ class ActivitySubmissionController extends Controller
         }
         $progression->ensureCanAccessActivity($user, $trainingWeek, $activity);
         if ($user->hasAnyRole(UserRole::Participant) && $progression->requiresAttendanceForActivity($user, $trainingWeek, $activity)) {
-            $request->session()->put('attendance_return_to', route('training.submission.edit', [$trainingWeek, $activity]));
+            $request->session()->put('attendance_return_to', route('training.submission.edit', [$trainingSession, $trainingWeek, $activity]));
 
             return redirect()->route('participant.attendance.index')->withErrors([
                 'attendance' => 'Please check in before continuing this activity.',
@@ -56,50 +63,50 @@ class ActivitySubmissionController extends Controller
         $progression->ensureCanEditActivity($user, $trainingWeek, $activity);
 
         return response()
-            ->view('submissions.edit', $pages->editData($user, $trainingWeek, $activity))
+            ->view('submissions.edit', $pages->editData($user, $trainingSession, $trainingWeek, $activity))
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
-    public function storeDraft(StoreSubmissionDraftRequest $request, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, GoogleDriveReadinessService $readiness, ActivitySubmissionService $submissions): JsonResponse|RedirectResponse
+    public function storeDraft(StoreSubmissionDraftRequest $request, TrainingSession $trainingSession, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, GoogleDriveReadinessService $readiness, ActivitySubmissionService $submissions): JsonResponse|RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
         $this->ensureCanEdit($user, $trainingWeek, $activity, $progression, $readiness);
         Gate::authorize('create', ActivitySubmission::class);
-        $version = $submissions->saveDraft($user, $activity, $request->validated('field_values', []), $request->validated('participant_note'), $request->validated('interactions'));
+        $version = $submissions->saveDraft($user, $trainingSession, $activity, $request->validated('field_values', []), $request->validated('participant_note'), $request->validated('interactions'));
 
         if ($request->expectsJson()) {
             return response()->json(['saved' => true, 'version_id' => $version->id, 'status' => 'Saved']);
         }
 
-        return redirect()->route('training.submission.edit', [$trainingWeek, $activity])->with('status', 'Draft saved.');
+        return redirect()->route('training.submission.edit', [$trainingSession, $trainingWeek, $activity])->with('status', 'Draft saved.');
     }
 
-    public function revise(Request $request, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, GoogleDriveReadinessService $readiness, ActivitySubmissionService $submissions): RedirectResponse
+    public function revise(Request $request, TrainingSession $trainingSession, TrainingWeek $trainingWeek, Activity $activity, WeekProgressionService $progression, GoogleDriveReadinessService $readiness, ActivitySubmissionService $submissions): RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
         $this->ensureCanEdit($user, $trainingWeek, $activity, $progression, $readiness);
-        $submission = $submissions->latestAttempt($user, $activity);
+        $submission = $submissions->latestAttempt($user, $trainingSession, $activity);
         if ($submissions->hasDraftVersion($submission)) {
-            return redirect()->route('training.submission.edit', [$trainingWeek, $activity])->with('status', 'Revision draft already available.');
+            return redirect()->route('training.submission.edit', [$trainingSession, $trainingWeek, $activity])->with('status', 'Revision draft already available.');
         }
         abort_unless($submission->needsRevision(), 422);
-        $submissions->createRevisionDraft($user, $activity, $submission);
+        $submissions->createRevisionDraft($user, $trainingSession, $activity, $submission);
 
-        return redirect()->route('training.submission.edit', [$trainingWeek, $activity])->with('status', 'Revision draft created.');
+        return redirect()->route('training.submission.edit', [$trainingSession, $trainingWeek, $activity])->with('status', 'Revision draft created.');
     }
 
-    public function submit(Request $request, TrainingWeek $trainingWeek, Activity $activity, SubmissionVersion $submissionVersion, WeekProgressionService $progression, GoogleDriveReadinessService $readiness, ActivitySubmissionService $submissions): RedirectResponse
+    public function submit(Request $request, TrainingSession $trainingSession, TrainingWeek $trainingWeek, Activity $activity, SubmissionVersion $submissionVersion, WeekProgressionService $progression, GoogleDriveReadinessService $readiness, ActivitySubmissionService $submissions): RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
         $this->ensureCanEdit($user, $trainingWeek, $activity, $progression, $readiness);
-        abort_unless($submissionVersion->submission->activity_id === $activity->id, 404);
+        abort_unless($submissionVersion->submission->isForActivityInSession($activity, $trainingSession), 404);
         Gate::authorize('update', $submissionVersion);
         $submissions->submit($user, $submissionVersion);
 
-        return redirect()->route('training.submission.edit', [$trainingWeek, $activity])->with('status', 'Submission sent for review.');
+        return redirect()->route('training.submission.edit', [$trainingSession, $trainingWeek, $activity])->with('status', 'Submission sent for review.');
     }
 
     /**

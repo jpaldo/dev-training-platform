@@ -12,6 +12,7 @@ use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionInteraction;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\OpenRouterScoringSuggestionProvider;
 use App\Services\ScoringService;
@@ -283,14 +284,15 @@ class ScoringTest extends TestCase
     {
         $activity = Activity::factory()->create();
         $participant = User::factory()->create();
+        $session = TrainingSession::factory()->forWeek($activity->week)->withParticipants($participant)->create();
         $workflow = app(SubmissionWorkflowService::class);
-        $draft = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy prompt'], null, [
+        $draft = $workflow->saveDraft($participant, $session, $activity, ['prompt' => 'Legacy prompt'], null, [
             ['prompt' => 'Initial prompt', 'output' => 'Initial output'],
             ['prompt' => 'Follow-up prompt', 'output' => 'Follow-up output'],
         ]);
 
         $this->assertCount(2, $draft->fresh()->interactions);
-        $submitted = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy prompt'], null, [
+        $submitted = $workflow->saveDraft($participant, $session, $activity, ['prompt' => 'Legacy prompt'], null, [
             ['prompt' => 'Initial prompt', 'output' => 'Updated output'],
             ['prompt' => 'Follow-up prompt', 'output' => 'Follow-up output'],
             ['prompt' => 'Third prompt', 'output' => 'Third output'],
@@ -304,12 +306,13 @@ class ScoringTest extends TestCase
     {
         $activity = Activity::factory()->create();
         $participant = User::factory()->create();
+        $session = TrainingSession::factory()->forWeek($activity->week)->withParticipants($participant)->create();
         $workflow = app(SubmissionWorkflowService::class);
-        $v1 = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy'], null, [['prompt' => 'Prompt 1', 'output' => 'Output 1'], ['prompt' => 'Prompt 2', 'output' => 'Output 2']]);
+        $v1 = $workflow->saveDraft($participant, $session, $activity, ['prompt' => 'Legacy'], null, [['prompt' => 'Prompt 1', 'output' => 'Output 1'], ['prompt' => 'Prompt 2', 'output' => 'Output 2']]);
         $workflow->submit($participant, $v1);
         $v1->refresh();
         $v1->submission->update(['status' => 'needs_revision']);
-        $v2 = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy'], null, [['prompt' => 'Prompt 1', 'output' => 'Output 1'], ['prompt' => 'Prompt 2 revised', 'output' => 'Output 2 revised'], ['prompt' => 'Prompt 3', 'output' => 'Output 3']]);
+        $v2 = $workflow->saveDraft($participant, $session, $activity, ['prompt' => 'Legacy'], null, [['prompt' => 'Prompt 1', 'output' => 'Output 1'], ['prompt' => 'Prompt 2 revised', 'output' => 'Output 2 revised'], ['prompt' => 'Prompt 3', 'output' => 'Output 3']]);
         $workflow->submit($participant, $v2);
 
         $this->assertSame(['Output 1', 'Output 2'], $v1->fresh()->interactions->pluck('output')->all());

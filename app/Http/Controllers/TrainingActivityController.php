@@ -30,7 +30,7 @@ class TrainingActivityController extends Controller
         if ($progression->requiresAttendanceForNewActivity($user, $trainingWeek, $activity)) {
             return redirect()->route('dashboard')->withErrors(['attendance' => 'Please check in to access this week\'s activities.']);
         }
-        $attempts = $page->attempts($user, $activity);
+        $attempts = $page->attempts($user, $trainingSession, $activity);
         if ($user->hasAnyRole(UserRole::Participant) && $readiness->enforced() && ! $readiness->isReady($user) && $attempts->isEmpty()) {
             return redirect()->route('dashboard')->withErrors(['google_drive_setup' => $readiness->message($user)]);
         }

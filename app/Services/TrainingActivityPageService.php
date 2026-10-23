@@ -28,14 +28,15 @@ class TrainingActivityPageService
     public function __construct(private readonly SafeMarkdownRenderer $markdown) {}
 
     /**
-     * The participant's attempts at the activity, oldest first, with every version (newest first) and its evidence,
-     * reviews and score.
+     * The participant's attempts at the activity within the session, oldest first, with every version (newest first)
+     * and its evidence, reviews and score.
      *
      * @return EloquentCollection<int, ActivitySubmission>
      */
-    public function attempts(User $user, Activity $activity): EloquentCollection
+    public function attempts(User $user, TrainingSession $trainingSession, Activity $activity): EloquentCollection
     {
         return ActivitySubmission::query()
+            ->where('training_session_id', $trainingSession->id)
             ->where('activity_id', $activity->id)
             ->where('user_id', $user->id)
             ->with(['versions' => fn (Relation $query): Relation => $query->with(['evidence', 'reviews', 'publishedActivityScore'])->orderByDesc('version_number')])

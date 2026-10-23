@@ -161,18 +161,20 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::prefix('sessions/{trainingSession}/weeks/{trainingWeek}')->middleware(['can:view,trainingSession', 'session.week'])->group(function (): void {
             Route::get('/', [TrainingWeekController::class, 'show'])->name('weeks.show');
             Route::get('/activities/{activity}', [TrainingActivityController::class, 'show'])->name('activities.show');
+            Route::middleware('role:participant')->group(function (): void {
+                Route::get('/activities/{activity}/submission', [ActivitySubmissionController::class, 'edit'])->name('submission.edit');
+                Route::get('/activities/{activity}/submission/versions/{submissionVersion}', [ActivitySubmissionController::class, 'show'])->name('submission.show');
+                Route::post('/activities/{activity}/submission/draft', [ActivitySubmissionController::class, 'storeDraft'])->name('submission.draft');
+                Route::post('/activities/{activity}/submission/revise', [ActivitySubmissionController::class, 'revise'])->name('submission.revise');
+                Route::post('/activities/{activity}/submission/versions/{submissionVersion}/submit', [ActivitySubmissionController::class, 'submit'])->name('submission.submit');
+                Route::post('/activities/{activity}/submission/versions/{submissionVersion}/evidence', [SubmissionEvidenceController::class, 'store'])->name('evidence.store');
+                Route::post('/activities/{activity}/export', [ActivityExportController::class, 'export'])->name('activities.export');
+            });
         });
         Route::middleware('role:participant')->group(function () {
             Route::get('/weeks/{trainingWeek}/gates/{trainingGate}', [GateReviewController::class, 'participant'])->name('gates.show');
             Route::get('/weeks/{trainingWeek}/video-recording', [WeeklyVideoRecordingController::class, 'edit'])->name('video-recording.edit');
             Route::post('/weeks/{trainingWeek}/video-recording', [WeeklyVideoRecordingController::class, 'store'])->name('video-recording.store');
-            Route::get('/weeks/{trainingWeek}/activities/{activity}/submission', [ActivitySubmissionController::class, 'edit'])->name('submission.edit');
-            Route::get('/weeks/{trainingWeek}/activities/{activity}/submission/versions/{submissionVersion}', [ActivitySubmissionController::class, 'show'])->name('submission.show');
-            Route::post('/weeks/{trainingWeek}/activities/{activity}/submission/draft', [ActivitySubmissionController::class, 'storeDraft'])->name('submission.draft');
-            Route::post('/weeks/{trainingWeek}/activities/{activity}/submission/revise', [ActivitySubmissionController::class, 'revise'])->name('submission.revise');
-            Route::post('/weeks/{trainingWeek}/activities/{activity}/submission/versions/{submissionVersion}/submit', [ActivitySubmissionController::class, 'submit'])->name('submission.submit');
-            Route::post('/weeks/{trainingWeek}/activities/{activity}/submission/versions/{submissionVersion}/evidence', [SubmissionEvidenceController::class, 'store'])->name('evidence.store');
-            Route::post('/weeks/{trainingWeek}/activities/{activity}/export', [ActivityExportController::class, 'export'])->name('activities.export');
         });
         Route::get('/evidence/{submissionEvidence}/download', [SubmissionEvidenceController::class, 'download'])->name('evidence.download');
         Route::get('/evidence/{submissionEvidence}/view', [SubmissionEvidenceController::class, 'view'])->name('evidence.view');

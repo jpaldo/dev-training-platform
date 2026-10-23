@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
 use App\Enums\SubmissionStatus;
+use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
 use App\Models\GateEvaluation;
 use App\Models\Program;
@@ -29,8 +30,8 @@ class ParticipantDashboardService
      * Build the dashboard rows for every week of the program, with the participant's activity progress attached. An
      * available week shows its Weekly Video Recording only when it asks for one; the program's weeks are expected to
      * be loaded with TrainingWeek::withAsksForWeeklyVideo(). Each row carries the participant's session that includes
-     * the week (ParticipantWeekSessionService), which its week and activity links go through; without one the row has
-     * no links.
+     * the week (ParticipantWeekSessionService): its week and activity links go through it and its activity progress
+     * comes from that session's attempts; without one the row has no links and no progress.
      *
      * @return Collection<int, array{week: TrainingWeek, session: ?TrainingSession, passed: bool, available: bool, locked_reason: ?string, shows_weekly_video: bool, is_current: bool, attendance_required: bool}>
      */
@@ -39,17 +40,18 @@ class ParticipantDashboardService
         $programWeeks = $program->weeks;
         $weekStates = $this->progression->weekStates($user, $programWeeks);
         $videoRecordings = WeeklyVideoRecording::query()->where('user_id', $user->id)->whereIn('training_week_id', $programWeeks->modelKeys())->get()->keyBy('training_week_id');
-        $this->attachActivityProgress($user, $programWeeks);
         $trainingSessions = $this->weekSessions->sessionsOfProgram($user, $program->id);
+        $sessionsByWeek = $programWeeks->mapWithKeys(fn (TrainingWeek $week): array => [$week->id => $this->weekSessions->firstIncludingWeek($trainingSessions, $week)]);
+        $this->attachActivityProgress($user, $programWeeks, $sessionsByWeek);
 
-        $weeks = $programWeeks->sortBy('position')->values()->map(function (TrainingWeek $week) use ($weekStates, $videoRecordings, $trainingSessions): array {
+        $weeks = $programWeeks->sortBy('position')->values()->map(function (TrainingWeek $week) use ($weekStates, $videoRecordings, $sessionsByWeek): array {
             $passed = $weekStates[$week->id]['passed'];
             $available = $passed || $weekStates[$week->id]['accessible'];
             $week->weekly_video_recording = $videoRecordings->get($week->id);
 
             return [
                 'week' => $week,
-                'session' => $this->weekSessions->firstIncludingWeek($trainingSessions, $week),
+                'session' => $sessionsByWeek->get($week->id),
                 'passed' => $passed,
                 'available' => $available,
                 'locked_reason' => $passed ? null : ($available ? null : 'Your mentor must mark the previous week completed before you can continue.'),
@@ -93,20 +95,24 @@ class ParticipantDashboardService
 
     /**
      * Attach the participant's latest submission with its status label, badge tone and next action, the attempts, the
-     * published score and the activity prerequisites to every activity.
+     * published score and the activity prerequisites to every activity. Only the attempts within the week's session
+     * count; a week without a session shows every activity as not started.
      *
      * @param  EloquentCollection<int, TrainingWeek>  $weeks  weeks with their activities loaded
+     * @param  Collection<int, ?TrainingSession>  $sessionsByWeek  keyed by week id
      */
-    private function attachActivityProgress(User $user, EloquentCollection $weeks): void
+    private function attachActivityProgress(User $user, EloquentCollection $weeks, Collection $sessionsByWeek): void
     {
-        $attemptsByActivity = $user->activitySubmissions()
+        $attempts = $user->activitySubmissions()
+            ->whereIn('training_session_id', $sessionsByWeek->filter()->map(fn (TrainingSession $session): int => $session->id)->unique()->values())
             ->whereIn('activity_id', $weeks->pluck('activities')->collapse()->pluck('id'))
             ->with('versions.publishedActivityScore')
             ->orderBy('attempt_number')
-            ->get()
-            ->groupBy('activity_id');
+            ->get();
 
         foreach ($weeks as $week) {
+            $sessionId = $sessionsByWeek->get($week->id)?->id;
+            $attemptsByActivity = $attempts->filter(fn (ActivitySubmission $attempt): bool => $attempt->training_session_id === $sessionId)->groupBy('activity_id');
             foreach ($week->activities as $activity) {
                 $attempts = $attemptsByActivity->get($activity->id, new EloquentCollection);
                 $activity->participant_submission = $attempts->last();

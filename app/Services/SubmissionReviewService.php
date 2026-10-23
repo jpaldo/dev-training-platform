@@ -46,21 +46,21 @@ class SubmissionReviewService
     }
 
     /**
-     * Find a later attempt of the same activity that is still in progress or already passed.
+     * Find a later attempt of the same activity in the same session that is still in progress or already passed.
      */
     public function existingRetry(ActivitySubmission $submission): ?ActivitySubmission
     {
-        return ActivitySubmission::query()->where('activity_id', $submission->activity_id)->where('user_id', $submission->user_id)->where('attempt_number', '>', $submission->attempt_number)->whereIn('status', [SubmissionStatus::Draft, SubmissionStatus::NeedsRevision, ...SubmissionStatus::awaitingReview(), ...SubmissionStatus::accepted()])->first();
+        return ActivitySubmission::query()->where('training_session_id', $submission->training_session_id)->where('activity_id', $submission->activity_id)->where('user_id', $submission->user_id)->where('attempt_number', '>', $submission->attempt_number)->whereIn('status', [SubmissionStatus::Draft, SubmissionStatus::NeedsRevision, ...SubmissionStatus::awaitingReview(), ...SubmissionStatus::accepted()])->first();
     }
 
     /**
-     * Open the next attempt of a failed submission with an empty draft version.
+     * Open the next attempt of a failed submission, in the same session, with an empty draft version.
      */
     public function createRetry(ActivitySubmission $submission): ActivitySubmission
     {
         return DB::transaction(function () use ($submission): ActivitySubmission {
-            $attempt = ActivitySubmission::query()->where('activity_id', $submission->activity_id)->where('user_id', $submission->user_id)->max('attempt_number') + 1;
-            $retry = ActivitySubmission::create(['activity_id' => $submission->activity_id, 'user_id' => $submission->user_id, 'attempt_number' => $attempt, 'status' => SubmissionStatus::Draft]);
+            $attempt = ActivitySubmission::query()->where('training_session_id', $submission->training_session_id)->where('activity_id', $submission->activity_id)->where('user_id', $submission->user_id)->max('attempt_number') + 1;
+            $retry = ActivitySubmission::create(['training_session_id' => $submission->training_session_id, 'activity_id' => $submission->activity_id, 'user_id' => $submission->user_id, 'attempt_number' => $attempt, 'status' => SubmissionStatus::Draft]);
             $retry->versions()->create(['version_number' => 1, 'status' => SubmissionStatus::Draft, 'field_values' => []]);
 
             return $retry;

@@ -56,7 +56,8 @@ class AttendanceTest extends TestCase
         $program = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail();
         $week = $program->weeks()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->firstOrFail();
-        $destination = route('training.submission.edit', [$week, $activity]);
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $destination = route('training.submission.edit', [$session, $week, $activity]);
 
         $this->actingAs($participant)->get($destination)->assertRedirect(route('participant.attendance.index'));
         $this->actingAs($participant)->post(route('participant.attendance.check-in'), ['return_to' => $destination])->assertRedirect($destination);
@@ -234,7 +235,7 @@ class AttendanceTest extends TestCase
 
         $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))->assertOk();
         $this->actingAs($participant)
-            ->get(route('training.submission.edit', [$week, $activity]))
+            ->get(route('training.submission.edit', [$session, $week, $activity]))
             ->assertRedirect(route('participant.attendance.index'))
             ->assertSessionHasErrors('attendance');
     }

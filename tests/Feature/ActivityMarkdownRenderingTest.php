@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Support\FieldLimits;
@@ -43,9 +44,9 @@ class ActivityMarkdownRenderingTest extends TestCase
 
     public function test_participant_submission_page_renders_markdown_for_ai_output_fields_only(): void
     {
-        [$week, $activity, $participant, $version] = $this->submittedVersion();
+        [$week, $activity, $participant, $version, $session] = $this->submittedVersion();
 
-        $response = $this->actingAs($participant)->get(route('training.submission.show', [$week, $activity, $version]))->assertOk();
+        $response = $this->actingAs($participant)->get(route('training.submission.show', [$session, $week, $activity, $version]))->assertOk();
 
         $response->assertSee('<h1>AI Generated Heading</h1>', false);
         $response->assertSee('<table', false);
@@ -123,21 +124,23 @@ class ActivityMarkdownRenderingTest extends TestCase
     }
 
     /**
-     * A participant's submitted version with Markdown in an AI output field and in a plain textarea field.
+     * A participant's submitted version with Markdown in an AI output field and in a plain textarea field, within a
+     * session of the week's program that the participant is in.
      *
-     * @return array{0: TrainingWeek, 1: Activity, 2: User, 3: SubmissionVersion}
+     * @return array{0: TrainingWeek, 1: Activity, 2: User, 3: SubmissionVersion, 4: TrainingSession}
      */
     private function submittedVersion(): array
     {
         $week = TrainingWeek::factory()->create(['week_number' => 1, 'position' => 1]);
         $activity = Activity::factory()->for($week, 'week')->create();
         $participant = User::factory()->create();
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
         $submission = ActivitySubmission::factory()->create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
         $version = SubmissionVersion::create(['activity_submission_id' => $submission->id, 'version_number' => 1, 'status' => 'submitted', 'submitted_at' => now(), 'field_values' => [
             'exact_ai_output' => self::AI_OUTPUT,
             'issue_caught' => "**raw marker**\nStill plain text.",
         ]]);
 
-        return [$week, $activity, $participant, $version];
+        return [$week, $activity, $participant, $version, $session];
     }
 }

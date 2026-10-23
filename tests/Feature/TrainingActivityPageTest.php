@@ -57,8 +57,8 @@ class TrainingActivityPageTest extends TestCase
         $this->assertSame(1, preg_match('/<div id="activity-main-action"[^>]*>(.*?)<\/div>/s', $html, $mainAction));
         $this->assertStringContainsString($actionLabel, $mainAction[1]);
         $this->assertStringContainsString($isRevisionForm
-            ? 'method="POST" action="'.route('training.submission.revise', [$week, $activity]).'"'
-            : 'href="'.route('training.submission.edit', [$week, $activity]).'"', $mainAction[1]);
+            ? 'method="POST" action="'.route('training.submission.revise', [$session, $week, $activity]).'"'
+            : 'href="'.route('training.submission.edit', [$session, $week, $activity]).'"', $mainAction[1]);
         $this->assertSame(1, substr_count($html, $actionLabel));
         $this->assertStringContainsString('id="activity-tab-'.$selectedTab.'" aria-controls="activity-panel-'.$selectedTab.'" aria-selected="true"', $html);
     }
@@ -84,7 +84,7 @@ class TrainingActivityPageTest extends TestCase
 
         $html = $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))->assertOk()->getContent();
 
-        $this->assertSame($linkCount, substr_count($html, 'href="'.route('training.submission.show', [$week, $activity, $version]).'"'));
+        $this->assertSame($linkCount, substr_count($html, 'href="'.route('training.submission.show', [$session, $week, $activity, $version]).'"'));
     }
 
     public function test_the_week_two_validation_checklist_opens_without_a_lab_record(): void
@@ -95,8 +95,8 @@ class TrainingActivityPageTest extends TestCase
         $html = $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))->assertOk()->getContent();
 
         $this->assertSame(1, preg_match('/<div id="activity-main-action"[^>]*>(.*?)<\/div>/s', $html, $mainAction));
-        $this->assertStringContainsString('href="'.route('training.submission.edit', [$week, $activity]).'"', $mainAction[1]);
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))->assertOk();
+        $this->assertStringContainsString('href="'.route('training.submission.edit', [$session, $week, $activity]).'"', $mainAction[1]);
+        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))->assertOk();
     }
 
     /**
@@ -195,7 +195,7 @@ class TrainingActivityPageTest extends TestCase
             ->assertOk()
             ->assertSee('Status: <strong class="text-slate-100">Needs revision</strong>', false);
 
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))
             ->assertOk()
             ->assertSee('Current status: <strong class="text-slate-100">Needs revision</strong>', false)
             ->assertSee('· Version 1 (Submitted)')

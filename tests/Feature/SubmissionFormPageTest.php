@@ -10,6 +10,7 @@ use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Support\FieldLimits;
@@ -25,15 +26,15 @@ class SubmissionFormPageTest extends TestCase
     #[DataProvider('mainActionStates')]
     public function test_single_main_action_matches_the_submission_state(string $submissionStatus, string $versionStatus, string $actionLabel, string $actionRoute): void
     {
-        [$participant, $week, $activity] = $this->activityFixture();
+        [$participant, $week, $activity, $session] = $this->activityFixture();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $submissionStatus]);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => $versionStatus]);
 
-        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))->assertOk()->getContent();
+        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))->assertOk()->getContent();
 
         $this->assertSame(1, preg_match('/<div id="submission-main-action"[^>]*>(.*?)<\/div>/s', $html, $mainAction));
         $this->assertStringContainsString($actionLabel, $mainAction[1]);
-        $this->assertStringContainsString('action="'.route($actionRoute, $actionRoute === 'training.submission.submit' ? [$week, $activity, $version] : [$week, $activity]).'"', $mainAction[1]);
+        $this->assertStringContainsString('action="'.route($actionRoute, $actionRoute === 'training.submission.submit' ? [$session, $week, $activity, $version] : [$session, $week, $activity]).'"', $mainAction[1]);
         $this->assertSame(1, substr_count($html, $actionLabel));
         $this->assertSame(1, substr_count($html, 'data-final-submit-form>') + substr_count($html, 'data-revise-submission>'));
     }
@@ -51,11 +52,11 @@ class SubmissionFormPageTest extends TestCase
 
     public function test_submitted_version_has_no_main_action_or_editable_form(): void
     {
-        [$participant, $week, $activity] = $this->activityFixture();
+        [$participant, $week, $activity, $session] = $this->activityFixture();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
 
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))
             ->assertOk()
             ->assertSee('This submitted version is immutable.')
             ->assertDontSee('submission-main-action', false)
@@ -66,12 +67,12 @@ class SubmissionFormPageTest extends TestCase
 
     public function test_fields_render_under_their_section_headings_in_configured_order(): void
     {
-        [$participant, $week, $activity] = $this->activityFixture();
+        [$participant, $week, $activity, $session] = $this->activityFixture();
         $this->submissionField($activity, 1, ['key' => 'tool_name', 'label' => 'Tool name', 'type' => 'text', 'section' => 'artifact_context']);
         $this->submissionField($activity, 2, ['key' => 'finding', 'label' => 'Finding summary', 'type' => 'textarea', 'required' => true]);
         $this->submissionField($activity, 3, ['key' => 'decision', 'label' => 'Decision', 'type' => 'select', 'options' => ['Accept', 'Reject']]);
 
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))
             ->assertOk()
             ->assertSeeInOrder(['1. AI / ARTIFACT CONTEXT', 'Tool name', '2. YOUR WORK', 'Finding summary *', 'Decision', 'Participant note (optional)'])
             ->assertSee('id="tool_name" type="text" name="field_values[tool_name]" value="" maxlength="'.FieldLimits::TEXT.'"', false)
@@ -81,11 +82,11 @@ class SubmissionFormPageTest extends TestCase
 
     public function test_a_github_link_field_renders_as_a_url_input_with_the_github_placeholder(): void
     {
-        [$participant, $week, $activity] = $this->activityFixture();
+        [$participant, $week, $activity, $session] = $this->activityFixture();
         $this->submissionField($activity, 1, ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url', 'required' => true]);
         $this->submissionField($activity, 2, ['key' => 'demo_url', 'label' => 'Demo link', 'type' => 'url']);
 
-        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))->assertOk()->getContent();
+        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))->assertOk()->getContent();
 
         $this->assertStringContainsString('id="deliverable_url" type="url" name="field_values[deliverable_url]" value="" maxlength="'.FieldLimits::URL.'" placeholder="https://github.com/" required', $html);
         $this->assertStringContainsString('id="demo_url" type="url" name="field_values[demo_url]" value="" maxlength="'.FieldLimits::URL.'"', $html);
@@ -94,13 +95,13 @@ class SubmissionFormPageTest extends TestCase
 
     public function test_a_github_link_saves_as_a_draft(): void
     {
-        [$participant, $week, $activity] = $this->activityFixture();
+        [$participant, $week, $activity, $session] = $this->activityFixture();
         $this->submissionField($activity, 1, ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url', 'required' => true]);
 
         $this->actingAs($participant)
-            ->post(route('training.submission.draft', [$week, $activity]), ['field_values' => ['deliverable_url' => 'https://github.com/ana/l4/pull/3']])
+            ->post(route('training.submission.draft', [$session, $week, $activity]), ['field_values' => ['deliverable_url' => 'https://github.com/ana/l4/pull/3']])
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('training.submission.edit', [$week, $activity]));
+            ->assertRedirect(route('training.submission.edit', [$session, $week, $activity]));
 
         $this->assertSame(['deliverable_url' => 'https://github.com/ana/l4/pull/3'], SubmissionVersion::query()->sole()->field_values);
     }
@@ -108,11 +109,11 @@ class SubmissionFormPageTest extends TestCase
     #[DataProvider('nonGitHubLinks')]
     public function test_a_github_link_field_rejects_other_values_on_draft_save(string $value): void
     {
-        [$participant, $week, $activity] = $this->activityFixture();
+        [$participant, $week, $activity, $session] = $this->activityFixture();
         $this->submissionField($activity, 1, ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url', 'required' => true]);
 
         $this->actingAs($participant)
-            ->post(route('training.submission.draft', [$week, $activity]), ['field_values' => ['deliverable_url' => $value]])
+            ->post(route('training.submission.draft', [$session, $week, $activity]), ['field_values' => ['deliverable_url' => $value]])
             ->assertSessionHasErrors(['field_values.deliverable_url' => 'Enter a link to your public GitHub repository (https://github.com/…).']);
 
         $this->assertDatabaseCount('submission_versions', 0);
@@ -132,11 +133,11 @@ class SubmissionFormPageTest extends TestCase
 
     public function test_a_plain_url_field_still_accepts_a_link_outside_github(): void
     {
-        [$participant, $week, $activity] = $this->activityFixture();
+        [$participant, $week, $activity, $session] = $this->activityFixture();
         $this->submissionField($activity, 1, ['key' => 'demo_url', 'label' => 'Demo link', 'type' => 'url']);
 
         $this->actingAs($participant)
-            ->post(route('training.submission.draft', [$week, $activity]), ['field_values' => ['demo_url' => 'https://gitlab.com/x']])
+            ->post(route('training.submission.draft', [$session, $week, $activity]), ['field_values' => ['demo_url' => 'https://gitlab.com/x']])
             ->assertSessionHasNoErrors();
 
         $this->assertSame(['demo_url' => 'https://gitlab.com/x'], SubmissionVersion::query()->sole()->field_values);
@@ -144,13 +145,13 @@ class SubmissionFormPageTest extends TestCase
 
     public function test_submitting_a_draft_with_a_stored_non_github_link_fails(): void
     {
-        [$participant, $week, $activity] = $this->activityFixture();
+        [$participant, $week, $activity, $session] = $this->activityFixture();
         $this->submissionField($activity, 1, ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url', 'required' => true]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft', 'field_values' => ['deliverable_url' => 'https://gitlab.com/x']]);
 
         $this->actingAs($participant)
-            ->post(route('training.submission.submit', [$week, $activity, $version]))
+            ->post(route('training.submission.submit', [$session, $week, $activity, $version]))
             ->assertSessionHasErrors(['field_values.deliverable_url' => 'Enter a link to your public GitHub repository (https://github.com/…).']);
 
         $this->assertTrue($version->fresh()->isDraft());
@@ -158,7 +159,7 @@ class SubmissionFormPageTest extends TestCase
         $version->update(['field_values' => ['deliverable_url' => 'https://github.com/ana/l4/pull/3']]);
 
         $this->actingAs($participant)
-            ->post(route('training.submission.submit', [$week, $activity, $version]))
+            ->post(route('training.submission.submit', [$session, $week, $activity, $version]))
             ->assertSessionHasNoErrors();
 
         $this->assertFalse($version->fresh()->isDraft());
@@ -166,11 +167,11 @@ class SubmissionFormPageTest extends TestCase
 
     public function test_length_limited_fields_use_the_shared_character_counter_and_markdown_fields_without_a_page_script(): void
     {
-        [$participant, $week, $activity] = $this->activityFixture();
+        [$participant, $week, $activity, $session] = $this->activityFixture();
         $this->submissionField($activity, 1, ['key' => 'tool_name', 'label' => 'Tool name', 'type' => 'text']);
         $this->submissionField($activity, 2, ['key' => 'finding', 'label' => 'Finding summary', 'type' => 'textarea']);
 
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))
             ->assertOk()
             ->assertSeeInOrder([
                 'data-character-counter>', '>Tool name</label>', 'maxlength="'.FieldLimits::TEXT.'"', 'data-char-count></span>',
@@ -184,7 +185,7 @@ class SubmissionFormPageTest extends TestCase
 
     public function test_each_evidence_requirement_renders_the_upload_form_for_its_type(): void
     {
-        [$participant, $week, $activity] = $this->activityFixture();
+        [$participant, $week, $activity, $session] = $this->activityFixture();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
         $linkRequirement = null;
@@ -194,7 +195,7 @@ class SubmissionFormPageTest extends TestCase
         }
         SubmissionEvidence::factory()->for($version, 'submissionVersion')->for($linkRequirement, 'evidenceRequirement')->create(['evidence_type' => 'link', 'content' => null, 'url' => 'https://example.com/evidence']);
 
-        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))->assertOk()->getContent();
+        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))->assertOk()->getContent();
 
         $this->assertSame(3, substr_count($html, 'data-evidence-form>'));
         $this->assertSame(1, substr_count($html, 'name="content"'));
@@ -208,12 +209,12 @@ class SubmissionFormPageTest extends TestCase
 
     public function test_a_video_evidence_requirement_renders_a_required_recording_link_and_no_file_input(): void
     {
-        [$participant, $week, $activity] = $this->activityFixture();
+        [$participant, $week, $activity, $session] = $this->activityFixture();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
         $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity))->create(['evidence_type' => 'video']);
 
-        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))->assertOk()->getContent();
+        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))->assertOk()->getContent();
 
         $this->assertSame(1, substr_count($html, 'data-evidence-form>'));
         $this->assertStringContainsString('<label for="evidence-url-'.$requirement->id.'" class="text-sm font-extrabold">Recording link</label>', $html);
@@ -228,12 +229,12 @@ class SubmissionFormPageTest extends TestCase
 
     public function test_a_week_four_activity_two_opens_the_standard_form_without_the_peer_or_mentor_interview(): void
     {
-        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 4, position: 2);
+        [$participant, $week, $activity, $session] = $this->activityFixture(weekNumber: 4, position: 2);
         $this->submissionField($activity, 1, ['key' => 'interview_notes', 'label' => 'Interview notes', 'type' => 'textarea', 'required' => true]);
 
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))
             ->assertOk()
-            ->assertSee('action="'.route('training.submission.draft', [$week, $activity]).'" data-submission-form>', false)
+            ->assertSee('action="'.route('training.submission.draft', [$session, $week, $activity]).'" data-submission-form>', false)
             ->assertSee('name="field_values[interview_notes]"', false)
             ->assertDontSee('MENTOR MOCK INTERVIEW')
             ->assertDontSee('name="scheduled_at"', false)
@@ -245,30 +246,30 @@ class SubmissionFormPageTest extends TestCase
 
     public function test_a_later_week_three_activity_opens_the_standard_form_before_earlier_activities_are_submitted(): void
     {
-        [$participant, $week, $activity] = $this->activityFixture(weekNumber: 3, position: 2);
+        [$participant, $week, $activity, $session] = $this->activityFixture(weekNumber: 3, position: 2);
         Activity::factory()->for($week, 'week')->create(['position' => 1]);
         ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea', 'required' => true]]);
 
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))
+        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))
             ->assertOk()
-            ->assertSee('action="'.route('training.submission.draft', [$week, $activity]).'" data-submission-form>', false)
+            ->assertSee('action="'.route('training.submission.draft', [$session, $week, $activity]).'" data-submission-form>', false)
             ->assertSee('name="field_values[finding]"', false)
             ->assertDontSee('WEEK 3 WORKSPACE');
     }
 
     public function test_version_history_offers_a_read_only_view_of_earlier_submitted_versions_only(): void
     {
-        [$participant, $week, $activity] = $this->activityFixture();
+        [$participant, $week, $activity, $session] = $this->activityFixture();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
         $submitted = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 1, 'status' => 'submitted', 'submitted_at' => now()]);
         $leftoverDraft = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 2, 'status' => 'draft']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 3, 'status' => 'draft']);
 
-        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))->assertOk()->getContent();
+        $html = $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))->assertOk()->getContent();
 
         $this->assertSame(3, substr_count($html, 'data-version-row'));
-        $this->assertStringContainsString('href="'.route('training.submission.show', [$week, $activity, $submitted]).'"', $html);
-        $this->assertStringNotContainsString(route('training.submission.show', [$week, $activity, $leftoverDraft]), $html);
+        $this->assertStringContainsString('href="'.route('training.submission.show', [$session, $week, $activity, $submitted]).'"', $html);
+        $this->assertStringNotContainsString(route('training.submission.show', [$session, $week, $activity, $leftoverDraft]), $html);
         $this->assertSame(1, substr_count($html, 'Read only'));
     }
 
@@ -283,7 +284,7 @@ class SubmissionFormPageTest extends TestCase
      */
     private function submissionFormQueryCount(int $rows): int
     {
-        [$participant, $week, $activity] = $this->activityFixture();
+        [$participant, $week, $activity, $session] = $this->activityFixture();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
         foreach (range(1, $rows) as $position) {
             $earlier = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => $position, 'status' => 'submitted', 'submitted_at' => now()]);
@@ -297,11 +298,11 @@ class SubmissionFormPageTest extends TestCase
             SubmissionEvidence::factory()->for($draft, 'submissionVersion')->for($evidenceRequirement, 'evidenceRequirement')->create();
         }
 
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))->assertOk();
+        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))->assertOk();
 
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week, $activity]))->assertOk()->assertSee('Answer '.$rows)->assertSee('Version '.($rows + 1));
+        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))->assertOk()->assertSee('Answer '.$rows)->assertSee('Version '.($rows + 1));
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());
@@ -318,18 +319,19 @@ class SubmissionFormPageTest extends TestCase
     }
 
     /**
-     * A checked-in manual participant and an activity in the given week; by default a Week 2 activity that is not the
-     * Validation Checklist.
+     * A checked-in manual participant, an activity in the given week and a session of its program that the participant
+     * is in; by default a Week 2 activity that is not the Validation Checklist.
      *
-     * @return array{User, TrainingWeek, Activity}
+     * @return array{User, TrainingWeek, Activity, TrainingSession}
      */
     private function activityFixture(int $weekNumber = 2, int $position = 2): array
     {
         $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => $weekNumber, 'position' => 1]);
         $activity = Activity::factory()->for($week, 'week')->create(['position' => $position]);
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
-        return [$participant, $week, $activity];
+        return [$participant, $week, $activity, $session];
     }
 }

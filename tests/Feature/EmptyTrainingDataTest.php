@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Program;
+use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -68,12 +69,13 @@ class EmptyTrainingDataTest extends TestCase
         $this->actingAs($viewer)->get(route($routeName, $parameters))->assertOk();
     }
 
-    public function test_coach_participant_page_opens_without_any_program_or_training_data(): void
+    public function test_coach_participant_page_opens_without_any_program_weeks_or_training_data(): void
     {
         $participant = User::factory()->create();
+        $session = TrainingSession::factory()->withParticipants($participant)->create();
 
-        $this->actingAs(User::factory()->create(['role' => 'coach']))
-            ->get(route('coach.participants.show', $participant))
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->get(route('coach.participants.show', [$session, $participant]))
             ->assertOk();
     }
 

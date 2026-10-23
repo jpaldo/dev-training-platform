@@ -101,8 +101,10 @@ class CoachGateBoardPageService
     }
 
     /**
-     * One table row: the Gate and its week, the participant, the status with its badge tone, the
-     * required criteria met, the weekly video (a link when chosen, otherwise Missing, or Not required when the Gate has no weekly video criterion), the blocker count (null without blockers) and the link to review (or, once completed, view) the Gate in the row's session.
+     * One table row: the Gate and its week, the participant with the link to their work in the row's session, the
+     * status with its badge tone, the required criteria met, the weekly video (a link when chosen, otherwise Missing, or
+     * Not required when the Gate has no weekly video criterion), the blocker count (null without blockers) and the link
+     * to review (or, once completed, view) the Gate in the row's session.
      *
      * @param  array{gate: TrainingGate, trainingSession: TrainingSession, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, criteria_met: int, criteria_total: int, weekly_video: array{status: string, url: ?string, criterion: ?GateCriterion, recording: ?WeeklyVideoRecording}}  $row
      * @return array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, status_label: string, status_tone: string, criteria_met: int, criteria_total: int, video: array{url: ?string, label: string}, blocker_label: ?string, action_label: string, action_url: string}
@@ -118,7 +120,7 @@ class CoachGateBoardPageService
             'gate_title' => $gate->title,
             'participant_name' => $participant->name,
             'participant_email' => $participant->email,
-            'participant_url' => route('coach.participants.show', $participant),
+            'participant_url' => route('coach.participants.show', [$row['trainingSession'], $participant]),
             'status_label' => strtoupper($row['status']->label()),
             'status_tone' => match ($row['status']) {
                 GateEvaluationStatus::Passed => 'success',

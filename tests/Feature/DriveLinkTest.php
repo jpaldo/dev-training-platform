@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\MentorAssignment;
+use App\Models\TrainingSession;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -33,16 +35,19 @@ class DriveLinkTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $admin = User::factory()->create(['role' => 'admin']);
 
-        $this->actingAs($coach)->get(route('coach.participants.show', $participant))->assertOk()->assertSee('Open Training Drive')->assertSee('target="_blank"', false)->assertSee('rel="noopener noreferrer"', false)->assertSee($participant->drive_link);
+        $session = TrainingSession::factory()->withParticipants($participant, $other)->withMentors($coach)->create();
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+
+        $this->actingAs($coach)->get(route('coach.participants.show', [$session, $participant]))->assertOk()->assertSee('Open Training Drive')->assertSee('target="_blank"', false)->assertSee('rel="noopener noreferrer"', false)->assertSee($participant->drive_link);
         $this->actingAs($admin)->get(route('admin.users.edit', $participant))->assertOk()->assertSee('Open Training Drive')->assertSee($participant->drive_link);
-        $this->actingAs($participant)->get(route('coach.participants.show', $other))->assertForbidden();
+        $this->actingAs($participant)->get(route('coach.participants.show', [$session, $other]))->assertForbidden();
     }
 
     public function test_missing_drive_link_is_displayed_as_not_provided(): void
     {
         $participant = User::factory()->create(['drive_link' => null]);
-        $coach = User::factory()->create(['role' => 'coach']);
+        $session = TrainingSession::factory()->withParticipants($participant)->create();
 
-        $this->actingAs($coach)->get(route('coach.participants.show', $participant))->assertOk()->assertSee('Training Drive')->assertSee('Not provided');
+        $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.participants.show', [$session, $participant]))->assertOk()->assertSee('Training Drive')->assertSee('Not provided');
     }
 }

@@ -21,6 +21,7 @@ use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
 use Database\Seeders\L4TrainingProgramSeeder;
+use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -33,6 +34,19 @@ class CoachOperationsTest extends TestCase
     private function seedProgram(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
+    }
+
+    /**
+     * Add the participants to the session and make the coach a mentor of the session and their current mentor there.
+     */
+    private function mentorInSession(TrainingSession $session, User $coach, User ...$participants): void
+    {
+        $session->mentors()->syncWithoutDetaching([$coach->id]);
+
+        foreach ($participants as $participant) {
+            $session->participants()->syncWithoutDetaching([$participant->id => ['joined_at' => now()]]);
+            MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+        }
     }
 
     public function test_participants_cannot_access_coach_operations(): void
@@ -69,11 +83,12 @@ class CoachOperationsTest extends TestCase
             'size_bytes' => 1572864,
             'chosen_at' => '2026-10-22 09:30:00',
         ]);
-        MentorAssignment::factory()->create(['training_session_id' => $recording->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+        $session = $recording->trainingSession;
+        $this->mentorInSession($session, $coach, $participant);
         $driveUrl = $recording->driveViewUrl();
 
         $this->actingAs($coach)
-            ->get(route('coach.participants.show', $participant))
+            ->get(route('coach.participants.show', [$session, $participant]))
             ->assertOk()
             ->assertSeeInOrder([
                 'Weekly Video Recording',
@@ -89,10 +104,8 @@ class CoachOperationsTest extends TestCase
 
         $unassignedCoach = User::factory()->create(['role' => 'coach']);
         $this->actingAs($unassignedCoach)
-            ->get(route('coach.participants.show', $participant))
-            ->assertOk()
-            ->assertDontSee($driveUrl, false)
-            ->assertDontSee('week-2.mp4');
+            ->get(route('coach.participants.show', [$session, $participant]))
+            ->assertForbidden();
     }
 
     public function test_participant_list_is_a_searchable_table_with_drive_and_attendance(): void
@@ -101,6 +114,7 @@ class CoachOperationsTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $manual = User::factory()->create(['name' => 'Manual Tester', 'email' => 'manual@example.test', 'drive_link' => 'https://drive.google.com/drive/folders/manual']);
         $automation = User::factory()->create(['name' => 'Automation Tester', 'email' => 'automation@example.test']);
+        $this->mentorInSession(TrainingSession::factory()->create(), $coach, $manual, $automation);
         AttendanceSession::create(['user_id' => $manual->id, 'check_in_at' => now()->subHour()]);
         AttendanceSession::create(['user_id' => $automation->id, 'check_in_at' => now()->subHours(2), 'check_out_at' => now()->subHour(), 'total_seconds' => 3600]);
 
@@ -118,6 +132,7 @@ class CoachOperationsTest extends TestCase
         $connected = User::factory()->create(['name' => 'Connected Participant', 'email' => 'connected@example.test']);
         $unconnected = User::factory()->create(['name' => 'Unconnected Participant', 'email' => 'unconnected@example.test']);
         GoogleDriveConnection::create(['user_id' => $connected->id, 'google_account_id' => 'account', 'google_email' => 'connected@gmail.com', 'access_token' => 'access', 'connected_at' => now()]);
+        $this->mentorInSession(TrainingSession::factory()->create(), $coach, $connected, $unconnected);
 
         foreach ([$coach, $admin] as $viewer) {
             $this->actingAs($viewer)->get(route('coach.participants'))->assertOk()
@@ -136,7 +151,8 @@ class CoachOperationsTest extends TestCase
     {
         $this->seedProgram();
         $coach = User::factory()->create(['role' => 'coach']);
-        $participants = User::factory()->count(26)->create();
+        $participants = User::factory()->count(26)->sequence(fn (Sequence $sequence): array => ['name' => sprintf('Participant %02d', $sequence->index + 1)])->create();
+        $this->mentorInSession(TrainingSession::factory()->create(), $coach, ...$participants);
         AttendanceSession::create(['user_id' => $participants->last()->id, 'check_in_at' => now()->subHour(), 'check_out_at' => now(), 'total_seconds' => 3600]);
 
         $firstPage = $this->actingAs($coach)->get(route('coach.participants', ['search' => 'example']));
@@ -378,12 +394,13 @@ class CoachOperationsTest extends TestCase
         $participant = User::factory()->create();
         $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
         $failed = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'failed', 'attempt_number' => 1]);
-        MentorAssignment::factory()->create(['training_session_id' => $failed->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+        $session = $failed->trainingSession;
+        $this->mentorInSession($session, $coach, $participant);
         $version = $failed->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => ['answer' => 'original'], 'submitted_at' => now()]);
         $this->actingAs($coach)->post(route('coach.reviews.retry', $version))
-            ->assertRedirect(route('coach.participants.show', $participant))
+            ->assertRedirect(route('coach.participants.show', [$session, $participant]))
             ->assertSessionHas('status', 'Retry attempt 2 created.');
-        $this->actingAs($coach)->get(route('coach.participants.show', $participant))
+        $this->actingAs($coach)->get(route('coach.participants.show', [$session, $participant]))
             ->assertOk()
             ->assertSee('Attempt 1')
             ->assertSee('Attempt 2')
@@ -393,7 +410,7 @@ class CoachOperationsTest extends TestCase
         $this->assertSame('original', $version->fresh()->field_values['answer']);
 
         $this->actingAs($coach)->post(route('coach.reviews.retry', $version))
-            ->assertRedirect(route('coach.participants.show', $participant))
+            ->assertRedirect(route('coach.participants.show', [$session, $participant]))
             ->assertSessionHas('status', 'Retry attempt 2 already exists.');
         $this->assertSame(2, $activity->submissions()->where('user_id', $participant->id)->count());
     }
@@ -408,7 +425,7 @@ class CoachOperationsTest extends TestCase
         ActivitySubmission::factory()->for($participant, 'participant')->create(['activity_id' => $failed->activity_id, 'status' => 'resubmitted', 'attempt_number' => 2]);
 
         $this->actingAs($coach)->post(route('coach.reviews.retry', $version))
-            ->assertRedirect(route('coach.participants.show', $participant))
+            ->assertRedirect(route('coach.participants.show', [$failed->training_session_id, $participant]))
             ->assertSessionHas('status', 'Retry attempt 2 already exists.');
         $this->assertSame(2, ActivitySubmission::where('user_id', $participant->id)->count());
     }

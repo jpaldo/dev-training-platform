@@ -88,7 +88,7 @@ class MissingSubmissionReportPageService
                 ->through(fn (array $row): array => [
                     'participant_name' => $row['participant_name'],
                     'participant_email' => $row['email'],
-                    'participant_url' => route('coach.participants.show', $row['participant']),
+                    'participant_url' => route('coach.participants.show', [$row['trainingSession'], $row['participant']]),
                     'mentor' => $row['mentor'],
                     'category' => $row['category'],
                     'week' => $row['week'],

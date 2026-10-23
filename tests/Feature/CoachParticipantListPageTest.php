@@ -7,6 +7,7 @@ use App\Models\AttendanceSession;
 use App\Models\GateEvaluation;
 use App\Models\GoogleDriveConnection;
 use App\Models\MentorAssignment;
+use App\Models\TrainingSession;
 use App\Models\User;
 use Closure;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -21,61 +22,126 @@ class CoachParticipantListPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_rows_show_the_coach_access_drive_and_attendance_of_each_participant(): void
+    public function test_a_mentor_sees_one_row_per_session_where_they_currently_mentor_the_participant(): void
     {
-        $this->travelTo(now()->setDate(2026, 3, 10)->setTime(15, 0));
+        $this->travelTo(now()->setDate(2026, 11, 10)->setTime(15, 0));
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Coach Carter']);
         $otherCoach = User::factory()->create(['role' => 'coach', 'name' => 'Other Mentor']);
-        $assigned = User::factory()->create(['name' => 'Ada Assigned', 'drive_link' => 'https://drive.google.com/drive/folders/ada']);
-        $unassigned = User::factory()->create(['name' => 'Una Unassigned']);
-        User::factory()->create(['name' => 'Nev Never']);
-        MentorAssignment::factory()->create(['participant_id' => $assigned->id, 'mentor_id' => $coach->id]);
-        MentorAssignment::factory()->create(['participant_id' => $unassigned->id, 'mentor_id' => $otherCoach->id]);
-        GoogleDriveConnection::create(['user_id' => $assigned->id, 'google_account_id' => 'account', 'google_email' => '', 'access_token' => 'access', 'connected_at' => now()]);
-        AttendanceSession::create(['user_id' => $assigned->id, 'check_in_at' => now()->setTime(14, 0)]);
-        AttendanceSession::create(['user_id' => $unassigned->id, 'check_in_at' => now()->subDay()->setTime(9, 0), 'check_out_at' => now()->subDay()->setTime(10, 30), 'total_seconds' => 5400]);
+        $ada = User::factory()->create(['name' => 'Ada Assigned', 'employee_id' => 'EMP-0001', 'drive_link' => 'https://drive.google.com/drive/folders/ada']);
+        $una = User::factory()->create(['name' => 'Una Unassigned']);
+        $nev = User::factory()->create(['name' => 'Nev Never']);
+        $session = TrainingSession::factory()->create(['title' => 'L4 November', 'starts_on' => '2026-11-09', 'ends_on' => '2026-12-06']);
+        $otherSession = TrainingSession::factory()->create(['title' => 'L4 October']);
+        $this->mentor($session, $coach, $ada);
+        $this->mentor($session, $otherCoach, $una);
+        $session->participants()->attach($nev, ['joined_at' => now()]);
+        $this->mentor($otherSession, $otherCoach, $ada);
+        GoogleDriveConnection::create(['user_id' => $ada->id, 'google_account_id' => 'account', 'google_email' => '', 'access_token' => 'access', 'connected_at' => now()]);
+        AttendanceSession::create(['user_id' => $ada->id, 'check_in_at' => now()->setTime(14, 0)]);
 
-        $this->actingAs($coach)->get(route('coach.participants'))
+        $response = $this->actingAs($coach)->get(route('coach.participants'))
             ->assertOk()
             ->assertSeeInOrder([
                 'MENTOR · PARTICIPANTS',
                 'aria-label="Filter participants"',
                 'Participant training overview',
-                '>Ada Assigned</strong>', 'Assigned to me', 'Coach Carter',
+                'Employee ID', 'Training session', 'Mentor',
+                '>Ada Assigned</strong>', 'EMP-0001', 'L4 November', '9 Nov – 6 Dec 2026', 'Coach Carter',
                 'href="https://drive.google.com/drive/folders/ada" target="_blank" rel="noopener noreferrer"', 'Open Drive ↗',
                 '>Connected<', 'Account connected',
-                'CHECKED IN', 'Mar 10 · 2:00 PM', 'elapsed',
-                'href="'.route('coach.participants.show', $assigned).'"', 'Inspect',
-                '>Una Unassigned</strong>', 'Not assigned', 'Other Mentor', 'Not provided', 'Not Connected',
-                'CHECKED OUT', 'Mar 9 · 10:30 AM', '1h 30m',
-                '>Nev Never</strong>', 'Not assigned', 'Not checked in',
-                'Showing 1–3 of 3 participants',
+                'CHECKED IN', 'Nov 10 · 2:00 PM', 'elapsed',
+                'href="'.route('coach.participants.show', [$session, $ada]).'"', 'Inspect',
+                'Showing 1–1 of 1 participants',
             ], false)
-            ->assertDontSee('Admin access')
-            ->assertDontSee('Manual QA')
-            ->assertDontSee('QA Path')
-            ->assertDontSee('Daily Logs')
-            ->assertDontSee('Assign reciprocal partners');
+            ->assertDontSee('L4 October')
+            ->assertDontSee('Una Unassigned')
+            ->assertDontSee('Nev Never')
+            ->assertDontSee('Assigned to me')
+            ->assertDontSee('Admin access');
+
+        $this->assertSame(1, substr_count($response->getContent(), 'data-participant-row'));
     }
 
-    public function test_admin_has_admin_access_to_every_participant(): void
+    public function test_after_reassignment_the_participant_leaves_the_previous_mentors_list(): void
+    {
+        $ana = User::factory()->create(['role' => 'coach']);
+        $ben = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create(['name' => 'Pia Participant']);
+        $session = TrainingSession::factory()->withMentors($ben)->create();
+        $this->mentor($session, $ana, $participant);
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->put(route('admin.sessions.assignments.update', [$session, $participant]), ['mentor_id' => $ben->id])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($ana)->get(route('coach.participants'))
+            ->assertOk()
+            ->assertSee('No participants match these filters.')
+            ->assertDontSee('>Pia Participant</strong>', false);
+        $this->actingAs($ben)->get(route('coach.participants'))
+            ->assertOk()
+            ->assertSee('>Pia Participant</strong>', false);
+    }
+
+    public function test_an_admin_sees_every_session_membership_and_can_filter_by_session(): void
+    {
+        $coach = User::factory()->create(['role' => 'coach', 'name' => 'Coach Carter']);
+        $ada = User::factory()->create(['name' => 'Ada Alpha', 'employee_id' => null]);
+        $bo = User::factory()->create(['name' => 'Bo Beta']);
+        User::factory()->create(['name' => 'Cy Without Session']);
+        $november = TrainingSession::factory()->create(['title' => 'L4 November', 'starts_on' => '2026-11-09', 'ends_on' => '2026-12-06']);
+        $october = TrainingSession::factory()->create(['title' => 'L4 October', 'starts_on' => '2026-10-05', 'ends_on' => '2026-11-01']);
+        $this->mentor($november, $coach, $ada);
+        $october->participants()->attach([$ada->id, $bo->id], ['joined_at' => now()]);
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $response = $this->actingAs($admin)->get(route('coach.participants'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '<option value="">All training sessions</option>',
+                '<option value="'.$november->id.'" >L4 November (9 Nov – 6 Dec 2026)</option>',
+                '<option value="'.$october->id.'" >L4 October (5 Oct – 1 Nov 2026)</option>',
+                '>Ada Alpha</strong>', '—', 'L4 November', 'Coach Carter', 'href="'.route('coach.participants.show', [$november, $ada]).'"',
+                '>Ada Alpha</strong>', 'L4 October', 'Not assigned', 'href="'.route('coach.participants.show', [$october, $ada]).'"',
+                '>Bo Beta</strong>', 'L4 October', 'Not assigned',
+                'Showing 1–3 of 3 participants',
+            ], false)
+            ->assertDontSee('Cy Without Session');
+        $this->assertSame(3, substr_count($response->getContent(), 'data-participant-row'));
+
+        $filtered = $this->actingAs($admin)->get(route('coach.participants', ['session' => $october->id]))
+            ->assertOk()
+            ->assertSee('<option value="'.$october->id.'" selected>L4 October', false)
+            ->assertSeeInOrder(['>Ada Alpha</strong>', 'L4 October', '>Bo Beta</strong>'], false)
+            ->assertDontSee('href="'.route('coach.participants.show', [$november, $ada]).'"', false);
+        $this->assertSame(2, substr_count($filtered->getContent(), 'data-participant-row'));
+    }
+
+    public function test_a_mentor_is_offered_only_the_sessions_they_mentor(): void
     {
         $coach = User::factory()->create(['role' => 'coach']);
-        $participant = User::factory()->create();
-        MentorAssignment::factory()->create(['participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+        TrainingSession::factory()->withMentors($coach)->create(['title' => 'Mentored Session']);
+        TrainingSession::factory()->create(['title' => 'Someone Elses Session']);
 
-        $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.participants'))
+        $this->actingAs($coach)->get(route('coach.participants'))
             ->assertOk()
-            ->assertSeeInOrder(['>'.$participant->name.'</strong>', 'Admin access', $coach->name], false)
-            ->assertDontSee('Assigned to me')
-            ->assertDontSee('Not assigned');
+            ->assertSee('Mentored Session')
+            ->assertDontSee('Someone Elses Session');
+    }
+
+    public function test_an_unknown_session_filter_fails_validation(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->get(route('coach.participants', ['session' => 999999]))
+            ->assertSessionHasErrors('session');
     }
 
     public function test_filters_keep_their_values_and_an_empty_result_shows_a_notice_instead_of_the_table(): void
     {
-        User::factory()->create(['name' => 'Some Person']);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $this->mentor(TrainingSession::factory()->create(), $coach, User::factory()->create(['name' => 'Some Person']));
 
-        $this->actingAs(User::factory()->create(['role' => 'coach']))
+        $this->actingAs($coach)
             ->get(route('coach.participants', ['search' => 'Nobody']))
             ->assertOk()
             ->assertSee('name="search" value="Nobody"', false)
@@ -87,10 +153,12 @@ class CoachParticipantListPageTest extends TestCase
 
     public function test_an_old_path_filter_is_ignored(): void
     {
-        User::factory()->create(['name' => 'Mia Manual']);
-        User::factory()->create(['name' => 'Abe Automation']);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $session = TrainingSession::factory()->create();
+        $this->mentor($session, $coach, User::factory()->create(['name' => 'Mia Manual']));
+        $this->mentor($session, $coach, User::factory()->create(['name' => 'Abe Automation']));
 
-        $response = $this->actingAs(User::factory()->create(['role' => 'coach']))
+        $response = $this->actingAs($coach)
             ->get(route('coach.participants', ['path' => 'automation']))
             ->assertOk()
             ->assertSessionHasNoErrors()
@@ -100,16 +168,20 @@ class CoachParticipantListPageTest extends TestCase
         $this->assertSame(2, substr_count($response->getContent(), 'data-participant-row'));
     }
 
-    public function test_rows_count_submissions_and_gate_evaluations_without_loading_them(): void
+    public function test_rows_count_the_sessions_submissions_and_gate_evaluations_without_loading_them(): void
     {
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create();
-        ActivitySubmission::factory()->count(2)->for($participant, 'participant')->create();
-        GateEvaluation::factory()->count(3)->for($participant, 'participant')->create();
+        $session = TrainingSession::factory()->create();
+        $this->mentor($session, $coach, $participant);
+        ActivitySubmission::factory()->count(2)->for($participant, 'participant')->for($session)->create();
+        GateEvaluation::factory()->count(3)->for($participant, 'participant')->for($session)->create();
+        ActivitySubmission::factory()->for($participant, 'participant')->create();
+        GateEvaluation::factory()->for($participant, 'participant')->create();
 
         $retrievedModels = $this->retrievedModelCounts(fn (): TestResponse => $this->actingAs($coach)->get(route('coach.participants'))
             ->assertOk()
-            ->assertViewHas('participants', fn (LengthAwarePaginator $rows): bool => $rows->first()['submission_count'] === 2 && $rows->first()['gate_count'] === 3));
+            ->assertViewHas('participants', fn (LengthAwarePaginator $rows): bool => $rows->count() === 1 && $rows->first()['submission_count'] === 2 && $rows->first()['gate_count'] === 3));
 
         $this->assertArrayNotHasKey(ActivitySubmission::class, $retrievedModels);
         $this->assertArrayNotHasKey(GateEvaluation::class, $retrievedModels);
@@ -121,20 +193,32 @@ class CoachParticipantListPageTest extends TestCase
     }
 
     /**
-     * Create the given number of participants, each assigned to a new coach with a Drive connection, a submission, a
-     * Gate evaluation and an open attendance session, and count the queries of that coach's page request after a
-     * warm-up request.
+     * Add the participant to the session and make the coach a mentor of the session and the participant's current
+     * mentor there.
+     */
+    private function mentor(TrainingSession $session, User $coach, User $participant): void
+    {
+        $session->participants()->syncWithoutDetaching([$participant->id => ['joined_at' => now()]]);
+        $session->mentors()->syncWithoutDetaching([$coach->id]);
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+    }
+
+    /**
+     * Create the given number of participants in a new session, each mentored there by a new coach and with a Drive
+     * connection, a submission, a Gate evaluation and an open attendance session, and count the queries of that coach's
+     * page request after a warm-up request.
      */
     private function participantListQueryCount(int $participantCount): int
     {
         $coach = User::factory()->create(['role' => 'coach']);
+        $session = TrainingSession::factory()->create();
         $participants = User::factory()->count($participantCount)->create();
-        $participants->each(fn (User $participant): MentorAssignment => MentorAssignment::factory()->create(['participant_id' => $participant->id, 'mentor_id' => $coach->id]));
 
         foreach ($participants as $participant) {
+            $this->mentor($session, $coach, $participant);
             GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => "account-{$participant->id}", 'google_email' => "drive-{$participant->id}@gmail.com", 'access_token' => 'access', 'connected_at' => now()]);
-            ActivitySubmission::factory()->for($participant, 'participant')->create();
-            GateEvaluation::factory()->for($participant, 'participant')->create();
+            ActivitySubmission::factory()->for($participant, 'participant')->for($session)->create();
+            GateEvaluation::factory()->for($participant, 'participant')->for($session)->create();
             AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subHour()]);
         }
 

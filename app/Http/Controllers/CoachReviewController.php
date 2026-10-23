@@ -51,10 +51,10 @@ class CoachReviewController extends Controller
         abort_unless($submission->isFailed(), 422);
         $existingRetry = $reviews->existingRetry($submission);
         if ($existingRetry) {
-            return redirect()->route('coach.participants.show', $submission->user_id)->with('status', "Retry attempt {$existingRetry->attempt_number} already exists.");
+            return redirect()->route('coach.participants.show', [$submission->training_session_id, $submission->user_id])->with('status', "Retry attempt {$existingRetry->attempt_number} already exists.");
         }
         $retry = $reviews->createRetry($submission);
 
-        return redirect()->route('coach.participants.show', $submission->user_id)->with('status', "Retry attempt {$retry->attempt_number} created.");
+        return redirect()->route('coach.participants.show', [$submission->training_session_id, $submission->user_id])->with('status', "Retry attempt {$retry->attempt_number} created.");
     }
 }

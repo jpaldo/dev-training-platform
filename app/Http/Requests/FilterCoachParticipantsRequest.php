@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Models\TrainingSession;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class FilterCoachParticipantsRequest extends FormRequest
 {
@@ -24,6 +26,7 @@ class FilterCoachParticipantsRequest extends FormRequest
     {
         return [
             'search' => ['nullable', 'string', 'max:100'],
+            'session' => ['nullable', 'integer', Rule::exists(TrainingSession::class, 'id')],
         ];
     }
 }

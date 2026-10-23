@@ -22,10 +22,19 @@
             <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
         @endif
 
-        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end" aria-label="Filter participants">
+        <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end" aria-label="Filter participants">
             <div class="grid min-w-0 gap-2">
                 <label for="participant-search" class="{{ $labelClasses }}">Search participant or email</label>
                 <input id="participant-search" name="search" value="{{ $search }}" placeholder="Search participant or email…" class="{{ $controlClasses }}">
+            </div>
+            <div class="grid min-w-0 gap-2">
+                <label for="participant-session" class="{{ $labelClasses }}">Training session</label>
+                <select id="participant-session" name="session" class="{{ $controlClasses }}">
+                    <option value="">All training sessions</option>
+                    @foreach($sessionOptions as $option)
+                        <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
             </div>
             <x-ui.button variant="secondary" type="submit">Filter</x-ui.button>
         </x-ui.card>
@@ -34,11 +43,13 @@
             <h2 id="participant-list-title" class="m-0 text-xl font-extrabold">Participant training overview</h2>
             @if($participants->isNotEmpty())
                 <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="participant-list-title" tabindex="0">
-                    <table class="w-full min-w-250 border-collapse text-sm" aria-labelledby="participant-list-title">
+                    <table class="w-full min-w-300 border-collapse text-sm" aria-labelledby="participant-list-title">
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Assigned Mentor</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Employee ID</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Training session</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Mentor</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Training Drive</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Google Drive</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Attendance</th>
@@ -56,17 +67,19 @@
                                             <span class="wrap-break-word text-muted">{{ $participant['email'] }}</span>
                                         </span>
                                     </th>
+                                    <td class="{{ $cellClasses }} whitespace-nowrap">{{ $participant['employee_id'] }}</td>
                                     <td class="{{ $cellClasses }}">
-                                        <span class="grid justify-items-start gap-1">
-                                            @if($participant['access_label'])
-                                                <x-ui.badge tone="success" class="whitespace-nowrap">{{ $participant['access_label'] }}</x-ui.badge>
-                                            @else
-                                                <span class="text-muted">Not assigned</span>
-                                            @endif
-                                            @if($participant['coach_names'] !== '')
-                                                <span class="text-muted">{{ $participant['coach_names'] }}</span>
-                                            @endif
+                                        <span class="grid gap-0.5">
+                                            <span class="wrap-break-word">{{ $participant['session_title'] }}</span>
+                                            <span class="whitespace-nowrap text-muted">{{ $participant['session_dates'] }}</span>
                                         </span>
+                                    </td>
+                                    <td class="{{ $cellClasses }}">
+                                        @if($participant['mentor_name'] !== null)
+                                            <span class="wrap-break-word">{{ $participant['mentor_name'] }}</span>
+                                        @else
+                                            <span class="text-muted">Not assigned</span>
+                                        @endif
                                     </td>
                                     <td class="{{ $cellClasses }} whitespace-nowrap">
                                         @if($participant['drive_url'])

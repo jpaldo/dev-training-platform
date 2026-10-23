@@ -61,7 +61,7 @@ class CoachGateBoardPageTest extends TestCase
                 'NOT READY', '>1</dd>',
                 'One row per participant, training session and Gate',
                 '>Week 2</strong>', '>Release readiness</span>',
-                'href="'.route('coach.participants.show', $awaiting).'"', '>Ada Awaiting</a>', '>ada@example.test</span>',
+                'href="'.route('coach.participants.show', [$session, $awaiting]).'"', '>Ada Awaiting</a>', '>ada@example.test</span>',
                 'border-accent text-cyan-200 whitespace-nowrap">AWAITING REVIEW</span>',
                 '>0 / 2</span>', '>criteria met</span>',
                 'href="'.$awaitingRecording->driveViewUrl().'" target="_blank" rel="noopener noreferrer"', '>Awaiting Review<span class="sr-only"> (opens Google Drive in a new tab)</span></a>',

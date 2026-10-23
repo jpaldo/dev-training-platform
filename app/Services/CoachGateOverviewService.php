@@ -29,7 +29,6 @@ class CoachGateOverviewService
 
     public function __construct(
         private readonly GateReadinessService $readiness,
-        private readonly ParticipantWeekSessionService $weekSessions,
     ) {}
 
     /**
@@ -96,36 +95,29 @@ class CoachGateOverviewService
     }
 
     /**
-     * Build a participant's Gate rows: the Gates of every active week of the active program, each from the participant's
-     * work in their session that includes the week (ParticipantWeekSessionService, until 10.5 scopes the page to a
-     * session). A Gate whose week is in none of their sessions has no session, evaluation or readiness.
+     * Build a participant's Gate rows in one session: the Gates of the session's weeks, each with the participant's
+     * evaluation (null when not reviewed yet) and readiness reasons in that session.
      *
-     * @return array{gateRows: Collection<int, array{gate: TrainingGate, trainingSession: ?TrainingSession, evaluation: ?GateEvaluation, readiness: ?array<string, string>}>}
+     * @return Collection<int, array{gate: TrainingGate, evaluation: ?GateEvaluation, readiness: array<string, string>}>
      */
-    public function participantOverview(User $participant): array
+    public function participantSessionOverview(TrainingSession $trainingSession, User $participant): Collection
     {
-        $gates = TrainingGate::query()->whereHas('week', fn (Builder $q): Builder => $q->inActiveProgram())->with(['week', 'criteria'])->get();
-        $trainingSessions = $gates->isEmpty() ? collect() : $this->weekSessions->sessionsOfProgram($participant, $gates->first()->week->program_id);
-        $memberships = $trainingSessions->mapWithKeys(fn (TrainingSession $trainingSession): array => [$trainingSession->id => $trainingSession->pivot]);
-        $readinessByMembership = $this->readiness->readinessForMemberships($memberships, $gates);
-        $evaluations = $memberships->isEmpty() ? collect() : GateEvaluation::query()
-            ->whereIn('training_gate_id', $gates->modelKeys())
-            ->whereIn('training_session_id', $memberships->keys())
+        $gates = TrainingGate::query()
+            ->whereIn('training_week_id', $trainingSession->weeks()->reorder()->select('id'))
+            ->with(['week', 'criteria'])
+            ->get();
+        $readiness = $this->readiness->readinessForGates($trainingSession, $participant, $gates);
+        $evaluations = GateEvaluation::query()
+            ->where('training_session_id', $trainingSession->id)
             ->where('user_id', $participant->id)
+            ->whereIn('training_gate_id', $gates->modelKeys())
             ->get()
-            ->keyBy(fn (GateEvaluation $evaluation): string => "{$evaluation->training_session_id}:{$evaluation->training_gate_id}");
+            ->keyBy('training_gate_id');
 
-        return [
-            'gateRows' => $gates->map(function (TrainingGate $gate) use ($trainingSessions, $readinessByMembership, $evaluations): array {
-                $trainingSession = $this->weekSessions->firstIncludingWeek($trainingSessions, $gate->week);
-
-                return [
-                    'gate' => $gate,
-                    'trainingSession' => $trainingSession,
-                    'evaluation' => $trainingSession ? $evaluations->get("{$trainingSession->id}:{$gate->id}") : null,
-                    'readiness' => $trainingSession ? $readinessByMembership->get($trainingSession->id)->get($gate->id) : null,
-                ];
-            }),
-        ];
+        return $gates->map(fn (TrainingGate $gate): array => [
+            'gate' => $gate,
+            'evaluation' => $evaluations->get($gate->id),
+            'readiness' => $readiness->get($gate->id),
+        ]);
     }
 }

@@ -32,7 +32,7 @@ class MissingSubmissionReportPageTest extends TestCase
         $ada = User::factory()->create(['name' => 'Ada Alpha', 'email' => 'ada@example.test']);
         MentorAssignment::factory()->create(['participant_id' => $ada->id, 'mentor_id' => $admin->id]);
         MentorAssignment::factory()->create(['participant_id' => $ada->id, 'mentor_id' => $coach->id]);
-        $this->enrollParticipants($week->program);
+        $session = $this->enrollParticipants($week->program);
 
         $response = $this->actingAs($coach)->get(route('coach.reports.missing-submissions'))
             ->assertOk()
@@ -50,7 +50,7 @@ class MissingSubmissionReportPageTest extends TestCase
                 'Missing Activities', '>1</dd>',
                 'Missing Video Recordings', '>1</dd>',
                 'Actionable missing requirements', '2 row(s)',
-                'href="'.e(route('coach.participants.show', $ada)).'"', '>Ada Alpha</a>', '>ada@example.test</span>',
+                'href="'.e(route('coach.participants.show', [$session, $ada])).'"', '>Ada Alpha</a>', '>ada@example.test</span>',
                 '>Admin Blake, Coach Avery</td>', '>Video Recording</td>', '>Week 2</td>', '<strong>Weekly Video Recording</strong>',
                 '>1</td>', '>0</td>', '>1</td>', '>0</td>', '>Not Submitted</span>',
                 '>Ada Alpha</a>', '>Activities</td>', '>Week 2</td>', '<strong>Explore checkout</strong>',
@@ -277,15 +277,18 @@ class MissingSubmissionReportPageTest extends TestCase
 
     /**
      * Add every participant to the earliest session of the program (the one the factories put training records in),
-     * creating an active one when it has none: the report lists only weeks a participant can open in a session.
+     * creating an active one when it has none, and return it: the report lists only weeks a participant can open in a
+     * session.
      */
-    private function enrollParticipants(Program $program): void
+    private function enrollParticipants(Program $program): TrainingSession
     {
         $session = TrainingSession::query()->where('program_id', $program->id)->orderBy('id')->first()
             ?? TrainingSession::factory()->for($program)->create();
         $session->participants()->syncWithoutDetaching(
             User::query()->where('role', UserRole::Participant)->pluck('id')->mapWithKeys(fn (int $id): array => [$id => ['joined_at' => now()]])->all(),
         );
+
+        return $session;
     }
 
     /**

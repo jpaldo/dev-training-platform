@@ -9,19 +9,21 @@
         </header>
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <x-ui.card as="section" class="grid content-start gap-3" aria-labelledby="participant-coaches-title">
-                <h2 id="participant-coaches-title" class="m-0 text-xl font-extrabold">Assigned Mentors</h2>
-                @if($mentorNames !== '')
-                    <p class="m-0 leading-relaxed text-muted">{{ $mentorNames }}</p>
+            <x-ui.card as="section" class="grid content-start gap-3" aria-labelledby="participant-session-title">
+                <h2 id="participant-session-title" class="m-0 text-xl font-extrabold">Training session</h2>
+                <p class="m-0 grid gap-0.5 leading-relaxed">
+                    <span class="wrap-break-word">{{ $trainingSession->title }}</span>
+                    <span class="text-muted">{{ $trainingSession->dateRangeLabel() }}</span>
+                </p>
+                @if($mentorName !== null)
+                    <p class="m-0 leading-relaxed text-muted">Mentor: {{ $mentorName }}</p>
                 @else
-                    <p class="m-0 leading-relaxed text-muted">No Mentors assigned.</p>
+                    <p class="m-0 leading-relaxed text-muted">No mentor assigned.</p>
                 @endif
-                @if($access === 'admin')
+                @if($isAdmin)
                     <x-ui.alert tone="success">Admins have full access.</x-ui.alert>
-                @elseif($access === 'manage')
-                    <x-ui.alert tone="success">Assigned to you — outcome-changing actions are available.</x-ui.alert>
                 @else
-                    <x-ui.alert tone="error">Not assigned to you — read only. You can view this participant but cannot change training outcomes.</x-ui.alert>
+                    <x-ui.alert tone="success">Assigned to you — outcome-changing actions are available.</x-ui.alert>
                 @endif
             </x-ui.card>
 
@@ -56,16 +58,12 @@
                                         </div>
                                         <p class="m-0 text-sm text-muted">Attempt {{ $submission->attempt_number }} · {{ $row['version_count'] }} version(s)</p>
                                         @if($submission->isFailed())
-                                            @if($row['can_manage'])
-                                                <p class="m-0 text-sm/relaxed text-muted">This attempt is closed. Create a separate retry if appropriate.</p>
-                                            @else
-                                                <p class="m-0 text-sm/relaxed text-muted">Read only — this participant is not assigned to you.</p>
-                                            @endif
+                                            <p class="m-0 text-sm/relaxed text-muted">This attempt is closed. Create a separate retry if appropriate.</p>
                                         @endif
                                         @if($row['latest_version'])
                                             <div class="flex flex-wrap items-center gap-3">
                                                 <x-ui.button variant="secondary" :href="route('coach.reviews.show', $row['latest_version'])">View attempt</x-ui.button>
-                                                @if($submission->isFailed() && $row['can_manage'])
+                                                @if($submission->isFailed())
                                                     <form method="post" action="{{ route('coach.reviews.retry', $row['latest_version']) }}" class="m-0">
                                                         @csrf
                                                         <x-ui.button variant="secondary" type="submit">Create Retry Attempt</x-ui.button>
@@ -81,23 +79,21 @@
                         @endif
                     </x-ui.card>
 
-                    @if($canManage)
-                        <x-ui.card as="section" class="grid gap-4" aria-labelledby="participant-videos-title">
-                            <h2 id="participant-videos-title" class="m-0 text-xl font-extrabold">Weekly Video Recording</h2>
-                            @if($videoRecordings->isNotEmpty())
-                                <ul class="m-0 grid list-none gap-3 p-0">
-                                    @foreach($videoRecordings as $recording)
-                                        <li class="grid justify-items-start gap-2 rounded-xl border border-line bg-field px-4 py-3.5">
-                                            <strong>Week {{ $recording->week->week_number }}</strong>
-                                            <x-weekly-video-actions :recording="$recording" :share-domain="$shareDomain" for-mentor />
-                                        </li>
-                                    @endforeach
-                                </ul>
-                            @else
-                                <p class="m-0 text-muted">No weekly video recording submitted.</p>
-                            @endif
-                        </x-ui.card>
-                    @endif
+                    <x-ui.card as="section" class="grid gap-4" aria-labelledby="participant-videos-title">
+                        <h2 id="participant-videos-title" class="m-0 text-xl font-extrabold">Weekly Video Recording</h2>
+                        @if($videoRecordings->isNotEmpty())
+                            <ul class="m-0 grid list-none gap-3 p-0">
+                                @foreach($videoRecordings as $recording)
+                                    <li class="grid justify-items-start gap-2 rounded-xl border border-line bg-field px-4 py-3.5">
+                                        <strong>Week {{ $recording->week->week_number }}</strong>
+                                        <x-weekly-video-actions :recording="$recording" :share-domain="$shareDomain" for-mentor />
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @else
+                            <p class="m-0 text-muted">No weekly video recording submitted.</p>
+                        @endif
+                    </x-ui.card>
                 </div>
             </x-ui.tab-panel>
 
@@ -117,9 +113,7 @@
                                             @endif
                                         </div>
                                     </div>
-                                    @if($row['review_url'])
-                                        <x-ui.button variant="secondary" :href="$row['review_url']">Review Gate</x-ui.button>
-                                    @endif
+                                    <x-ui.button variant="secondary" :href="$row['review_url']">Review Gate</x-ui.button>
                                 </li>
                             @endforeach
                         </ul>

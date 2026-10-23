@@ -7,11 +7,12 @@ use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
-use App\Models\MentorAssignment;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
+use App\Models\TrainingSession;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
 
 class CoachParticipantPageService
@@ -19,42 +20,39 @@ class CoachParticipantPageService
     public function __construct(
         private readonly CoachGateOverviewService $gateOverview,
         private readonly GoogleDriveConfigurationService $googleDrive,
+        private readonly MentorAssignmentService $mentorAssignments,
     ) {}
 
     /**
-     * Everything the coach participant page renders: the participant's current mentors (their names, each once), the
-     * viewer's access level, the submission and weekly video rows, the Gate rows, the attendance summary and the page
-     * tabs. The viewer manages the participant when they are an admin or the participant's current mentor in at least
-     * one session; each submission row says whether the viewer manages it (its session), and only the weekly videos of
-     * those sessions are listed. `shareDomain` is the Google Workspace domain the weekly videos are shared with (null
-     * when none is configured).
+     * Everything the coach participant page renders for the participant's work in one training session: the session,
+     * the participant's current mentor there (null when not assigned), whether the viewer is an admin (otherwise they
+     * are that mentor), the session's submission and weekly video rows, the Gate rows of the session's weeks, the
+     * attendance summary (attendance is not per session) and the page tabs. `shareDomain` is the Google Workspace domain
+     * the weekly videos are shared with (null when none is configured).
      *
-     * @return array{participant: User, mentorNames: string, access: string, canManage: bool, submissions: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion, can_manage: bool}>, videoRecordings: Collection<int, WeeklyVideoRecording>, shareDomain: ?string, gates: Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int, review_url: ?string}>, attendance: array{completed_sessions: int, total_hours: float, active_session: ?AttendanceSession}, tabs: list<array{key: string, label: string}>, selectedTab: string}
+     * @return array{participant: User, trainingSession: TrainingSession, mentorName: ?string, isAdmin: bool, submissions: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion}>, videoRecordings: Collection<int, WeeklyVideoRecording>, shareDomain: ?string, gates: Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int, review_url: string}>, attendance: array{completed_sessions: int, total_hours: float, active_session: ?AttendanceSession}, tabs: list<array{key: string, label: string}>, selectedTab: string}
      */
-    public function showData(User $viewer, User $participant): array
+    public function showData(User $viewer, TrainingSession $trainingSession, User $participant): array
     {
-        $participant->load(['activitySubmissions.activity.week', 'activitySubmissions.versions', 'weeklyVideoRecordings.week', 'attendanceSessions', 'currentMentors:id,name']);
-        $isAdmin = $viewer->hasAnyRole(UserRole::Admin);
-        $managedSessionIds = $isAdmin ? [] : $this->mentoredSessionIds($viewer, $participant);
-        $canManage = $isAdmin || $managedSessionIds !== [];
-        $managesSession = fn (int $trainingSessionId): bool => $isAdmin || in_array($trainingSessionId, $managedSessionIds, true);
+        $participant->load([
+            'activitySubmissions' => fn (Relation $submissions): Relation => $submissions
+                ->where('training_session_id', $trainingSession->id)
+                ->with(['activity.week', 'versions']),
+            'weeklyVideoRecordings' => fn (Relation $recordings): Relation => $recordings
+                ->where('training_session_id', $trainingSession->id)
+                ->with('week'),
+            'attendanceSessions',
+        ]);
 
         return [
             'participant' => $participant,
-            'mentorNames' => $participant->currentMentors->pluck('name')->unique()->join(', '),
-            'access' => match (true) {
-                $isAdmin => 'admin',
-                $canManage => 'manage',
-                default => 'read_only',
-            },
-            'canManage' => $canManage,
-            'submissions' => $this->submissionRows($participant, $managesSession),
-            'videoRecordings' => $participant->weeklyVideoRecordings
-                ->filter(fn (WeeklyVideoRecording $recording): bool => $managesSession($recording->training_session_id))
-                ->sortByDesc('chosen_at')
-                ->values(),
+            'trainingSession' => $trainingSession,
+            'mentorName' => $this->mentorAssignments->currentMentor($trainingSession, $participant)?->name,
+            'isAdmin' => $viewer->hasAnyRole(UserRole::Admin),
+            'submissions' => $this->submissionRows($participant),
+            'videoRecordings' => $participant->weeklyVideoRecordings->sortByDesc('chosen_at')->values(),
             'shareDomain' => $this->googleDrive->getShareDomain(),
-            'gates' => $this->gateRows($participant),
+            'gates' => $this->gateRows($trainingSession, $participant),
             'attendance' => $this->attendanceSummary($participant),
             'tabs' => [
                 ['key' => 'submissions', 'label' => 'Submissions'],
@@ -66,28 +64,11 @@ class CoachParticipantPageService
     }
 
     /**
-     * The sessions in which the viewer (a coach) is the participant's current mentor.
+     * The participant's attempts in the session with their status label and tone, version count and latest version.
      *
-     * @return list<int>
+     * @return Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion}>
      */
-    private function mentoredSessionIds(User $viewer, User $participant): array
-    {
-        return MentorAssignment::query()
-            ->current()
-            ->where('participant_id', $participant->id)
-            ->where('mentor_id', $viewer->id)
-            ->pluck('training_session_id')
-            ->all();
-    }
-
-    /**
-     * The participant's attempts with their status label and tone, version count, latest version and whether the
-     * viewer manages the attempt's session.
-     *
-     * @param  callable(int): bool  $managesSession
-     * @return Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion, can_manage: bool}>
-     */
-    private function submissionRows(User $participant, callable $managesSession): Collection
+    private function submissionRows(User $participant): Collection
     {
         return $participant->activitySubmissions->toBase()->map(fn (ActivitySubmission $submission): array => [
             'submission' => $submission,
@@ -100,22 +81,18 @@ class CoachParticipantPageService
             },
             'version_count' => $submission->versions->count(),
             'latest_version' => $submission->versions->sortByDesc('version_number')->first(),
-            'can_manage' => $managesSession($submission->training_session_id),
         ]);
     }
 
     /**
-     * The participant's Gates of the active program's weeks, with their evaluation or readiness status and blocker count
-     * in the participant's session that includes the week, and the link to review the Gate there (null without such a
-     * session).
+     * The Gates of the session's weeks with the participant's evaluation or readiness status and blocker count in the
+     * session, and the link to review the Gate there.
      *
-     * @return Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int, review_url: ?string}>
+     * @return Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int, review_url: string}>
      */
-    private function gateRows(User $participant): Collection
+    private function gateRows(TrainingSession $trainingSession, User $participant): Collection
     {
-        ['gateRows' => $gateRows] = $this->gateOverview->participantOverview($participant);
-
-        return $gateRows->map(function (array $row) use ($participant): array {
+        return $this->gateOverview->participantSessionOverview($trainingSession, $participant)->map(function (array $row) use ($trainingSession, $participant): array {
             $status = $row['evaluation']?->status ?? GateEvaluationStatus::fromReadiness($row['readiness']);
 
             return [
@@ -128,8 +105,8 @@ class CoachParticipantPageService
                     GateEvaluationStatus::ReadyForReview, GateEvaluationStatus::AwaitingReview => 'accent',
                     GateEvaluationStatus::NotReady => 'neutral',
                 },
-                'blocker_count' => count($row['readiness'] ?? []),
-                'review_url' => $row['trainingSession'] ? route('training.coach.gates.show', [$row['trainingSession'], $row['gate']->week, $participant, $row['gate']]) : null,
+                'blocker_count' => count($row['readiness']),
+                'review_url' => route('training.coach.gates.show', [$trainingSession, $row['gate']->week, $participant, $row['gate']]),
             ];
         });
     }

@@ -9,8 +9,8 @@ use App\Models\ActivitySubmission;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSession;
 use App\Models\TrainingSessionParticipant;
-use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -39,18 +39,19 @@ class MissingSubmissionReportService
             return collect();
         }
 
-        $accessibleWeekIds = $this->accessibleWeekIds($participants, $program);
+        $weekSessions = $this->accessibleWeekSessions($participants, $program);
         $rows = collect();
         foreach ($participants as $participant) {
             $mentor = $participant->currentMentors->pluck('name')->unique()->filter()->implode(', ') ?: 'Not assigned';
 
             foreach ($program->weeks as $week) {
-                if (! $accessibleWeekIds->get($participant->id, collect())->contains($week->id)) {
+                $trainingSession = $weekSessions->get($participant->id, collect())->get($week->id);
+                if (! $trainingSession instanceof TrainingSession) {
                     continue;
                 }
 
                 if ($week->asksForWeeklyVideo() && ! $participant->weeklyVideoRecordings->contains('training_week_id', $week->id)) {
-                    $rows->push($this->row($participant, $mentor, 'Video Recording', $week->week_number, 'Weekly Video Recording', 1, 0, 'Not Submitted', 0));
+                    $rows->push($this->row($participant, $trainingSession, $mentor, 'Video Recording', $week->week_number, 'Weekly Video Recording', 1, 0, 'Not Submitted', 0));
                 }
 
                 foreach ($week->activities as $activity) {
@@ -60,7 +61,7 @@ class MissingSubmissionReportService
                     if ($hasSubmittedVersion) {
                         continue;
                     }
-                    $rows->push($this->row($participant, $mentor, 'Activities', $week->week_number, $activity->title, 1, 0, 'Not Submitted', $this->activityEvidenceCount($participant, $activity)));
+                    $rows->push($this->row($participant, $trainingSession, $mentor, 'Activities', $week->week_number, $activity->title, 1, 0, 'Not Submitted', $this->activityEvidenceCount($participant, $activity)));
                 }
             }
         }
@@ -72,36 +73,46 @@ class MissingSubmissionReportService
     }
 
     /**
-     * Per participant, the ids of the program's weeks they can open in one of their sessions of the program that
-     * includes the week. A participant in none of its sessions can open none.
+     * Per participant, the program's weeks they can open in one of their sessions of the program that includes the
+     * week, each with the first such session (the earliest membership): the session the row's participant link opens.
+     * A participant in none of its sessions can open none.
      *
      * @param  EloquentCollection<int, User>  $participants
-     * @return Collection<int, Collection<int, int>> keyed by participant id
+     * @return Collection<int, Collection<int, TrainingSession>> keyed by participant id, then by week id
      */
-    private function accessibleWeekIds(EloquentCollection $participants, Program $program): Collection
+    private function accessibleWeekSessions(EloquentCollection $participants, Program $program): Collection
     {
         $programWeeks = $program->weeks()->get();
         $memberships = TrainingSessionParticipant::query()
             ->whereIn('user_id', $participants->modelKeys())
             ->whereHas('trainingSession', fn (Builder $query): Builder => $query->where('program_id', $program->id))
             ->with('trainingSession')
+            ->orderBy('id')
             ->get();
         $weekStates = app(WeekProgressionService::class)->weekStatesForMemberships($memberships, $programWeeks);
 
         return $memberships
             ->groupBy('user_id', preserveKeys: true)
-            ->map(fn (Collection $participantMemberships): Collection => $participantMemberships
-                ->flatMap(fn (TrainingSessionParticipant $membership, int $key): array => $programWeeks
-                    ->filter(fn (TrainingWeek $week): bool => $membership->trainingSession->includesWeek($week) && $weekStates->get($key)->get($week->id)['accessible'])
-                    ->modelKeys())
-                ->unique()
-                ->values());
+            ->map(function (Collection $participantMemberships) use ($programWeeks, $weekStates): Collection {
+                $sessionsByWeek = collect();
+                foreach ($participantMemberships as $key => $membership) {
+                    foreach ($programWeeks as $week) {
+                        $isOpenInMembership = $membership->trainingSession->includesWeek($week) && $weekStates->get($key)->get($week->id)['accessible'];
+                        if ($isOpenInMembership && ! $sessionsByWeek->has($week->id)) {
+                            $sessionsByWeek->put($week->id, $membership->trainingSession);
+                        }
+                    }
+                }
+
+                return $sessionsByWeek;
+            });
     }
 
-    private function row(User $participant, string $mentor, string $category, int $week, string $requirement, int $expected, int $submitted, string $status, int $evidences): array
+    private function row(User $participant, TrainingSession $trainingSession, string $mentor, string $category, int $week, string $requirement, int $expected, int $submitted, string $status, int $evidences): array
     {
         return [
             'participant' => $participant,
+            'trainingSession' => $trainingSession,
             'participant_name' => $participant->name,
             'employee_id' => $participant->employee_id,
             'email' => $participant->email,

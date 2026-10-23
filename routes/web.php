@@ -131,7 +131,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
     Route::middleware('role:coach,admin')->prefix('coach')->name('coach.')->group(function () {
         Route::get('/', [CoachOperationsController::class, 'dashboard'])->name('dashboard');
         Route::get('/participants', [CoachParticipantController::class, 'index'])->name('participants');
-        Route::get('/participants/{participant}', [CoachParticipantController::class, 'show'])->name('participants.show');
+        Route::get('/sessions/{trainingSession}/participants/{participant}', [CoachParticipantController::class, 'show'])->scopeBindings()->name('participants.show');
         Route::get('/reviews', [CoachReviewController::class, 'index'])->name('reviews');
         Route::get('/recovery-requests', [RecoveryRequestController::class, 'index'])->name('recovery.index');
         Route::post('/recovery-requests/{recoveryRequest}', [RecoveryRequestController::class, 'decide'])->name('recovery.decide');

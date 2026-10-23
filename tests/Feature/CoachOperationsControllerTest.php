@@ -9,6 +9,7 @@ use App\Models\EvidenceRequirement;
 use App\Models\GateCriterion;
 use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
+use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
@@ -91,11 +92,11 @@ class CoachOperationsControllerTest extends TestCase
     {
         $coach = User::factory()->create(['role' => 'coach']);
 
-        $singleRowQueryCount = $this->queryCount($coach, route('coach.participants.show', $this->createGateProgress(1)->first()));
+        $singleRowQueryCount = $this->queryCount($coach, $this->mentoredParticipantUrl($coach, $this->createGateProgress(1)->first()));
 
         Program::query()->update(['is_active' => false]);
 
-        $threeRowQueryCount = $this->queryCount($coach, route('coach.participants.show', $this->createGateProgress(3)->first()));
+        $threeRowQueryCount = $this->queryCount($coach, $this->mentoredParticipantUrl($coach, $this->createGateProgress(3)->first()));
 
         $this->assertSame($singleRowQueryCount, $threeRowQueryCount);
     }
@@ -143,6 +144,20 @@ class CoachOperationsControllerTest extends TestCase
         }
 
         return $participants;
+    }
+
+    /**
+     * Add the participant to the session of their training records, make the coach their current mentor there and
+     * return the coach participant page of that session.
+     */
+    private function mentoredParticipantUrl(User $coach, User $participant): string
+    {
+        $session = TrainingSession::query()->findOrFail(ActivitySubmission::query()->where('user_id', $participant->id)->value('training_session_id'));
+        $session->participants()->attach($participant, ['joined_at' => now()]);
+        $session->mentors()->attach($coach);
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+
+        return route('coach.participants.show', [$session, $participant]);
     }
 
     /**

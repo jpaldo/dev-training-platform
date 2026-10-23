@@ -4,31 +4,41 @@ namespace App\Services;
 
 use App\Enums\GateCriterionStatus;
 use App\Enums\GateEvaluationStatus;
+use App\Enums\SubmissionStatus;
 use App\Models\Activity;
+use App\Models\ActivityRequirement;
+use App\Models\ActivitySubmission;
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Database\Eloquent\Relations\Relation;
 
 class CoachGateReviewPageService
 {
-    public function __construct(private readonly GateReadinessService $gates) {}
+    public function __construct(
+        private readonly GateReadinessService $gates,
+        private readonly SubmissionAnswerPresenter $answers,
+    ) {}
 
     /**
-     * Everything the coach Gate review page renders: the readiness summary (the required criteria met: the weekly
-     * video criterion once its recording is reviewed as met, every other one when the saved evaluation marks it met;
-     * the video recording as Not required when the Gate has no weekly video criterion), the blockers, the required criteria (with the weekly video link on the video criterion and the criterion decision
-     * to preselect: the saved one, Not met without one), the Gate decision options, the decision to preselect (the saved
-     * evaluation's when it is a coach decision; none otherwise, so the first one shows), the criterion decision options,
-     * the saved evaluation for the comments field and whether the viewer may decide the Gate (a coach who is not
-     * assigned to the participant sees the page read only). Old input overrides the preselected values in the view.
+     * Everything the coach Gate review page renders: the readiness summary (the required checklist items met: the
+     * weekly video item once its recording is reviewed as met, every other one when the saved evaluation marks it met;
+     * the video recording as Not required when the Gate has no weekly video item), the blockers, the week's checklist
+     * (the required items, each ticked only when the saved evaluation marks it met, never from readiness or
+     * submissions, with the weekly video link on the video item), the participant's GitHub deliverable links for each
+     * of the week's activities, the Gate decision options, the decision to preselect (the saved evaluation's when it is
+     * a coach decision; none otherwise, so the first one shows), the values a ticked and an unticked item post, the
+     * saved evaluation for the comments field and whether the viewer may decide the Gate (a coach who is not assigned
+     * to the participant sees the page read only). Old input overrides the preselected values in the view.
      *
-     * @return array{trainingWeek: TrainingWeek, participant: User, gate: TrainingGate, evaluation: ?GateEvaluation, canManage: bool, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, criteria: list<array{id: int, title: string, field_label: string, description: ?string, video_url: ?string, selected_status: string}>, decisionOptions: list<array{value: string, label: string}>, selectedDecision: ?string, criterionStatusOptions: list<array{value: string, label: string}>}
+     * @return array{trainingWeek: TrainingWeek, participant: User, gate: TrainingGate, evaluation: ?GateEvaluation, canManage: bool, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, checklist: list<array{id: int, title: string, description: ?string, video_url: ?string, saved_status: string}>, deliverables: list<array{position: int, title: string, links: list<array{label: string, url: string}>}>, decisionOptions: list<array{value: string, label: string}>, selectedDecision: ?string, tickedValue: string, untickedValue: string}
      */
     public function showData(TrainingWeek $week, User $participant, TrainingGate $gate, ?GateEvaluation $evaluation, User $viewer): array
     {
-        $gate->load('criteria');
+        $gate->load(['criteria' => fn (Relation $query): Relation => $query->orderBy('position')]);
         $evaluation?->loadMissing('criterionEvaluations');
         $requiredCriteria = $gate->criteria->where('is_required', true)->values();
         $readiness = $this->gates->readiness($participant, $gate);
@@ -38,6 +48,17 @@ class CoachGateReviewPageService
                 ? $weeklyVideo['status'] === 'met'
                 : $evaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id)?->isMet() === true)
             ->count();
+        $activities = $week->activities()
+            ->where('is_active', true)
+            ->orderBy('position')
+            ->with(['requirements' => fn (Relation $query): Relation => $query->where('requirement_type', 'submission_field')->orderBy('position')])
+            ->get();
+        $latestSubmissions = $participant->activitySubmissions()
+            ->whereIn('activity_id', $activities->pluck('id'))
+            ->with(['versions' => fn (Relation $query): Relation => $query->whereIn('status', SubmissionStatus::handedIn())])
+            ->orderBy('attempt_number')
+            ->get()
+            ->keyBy('activity_id');
 
         return [
             'trainingWeek' => $week,
@@ -46,8 +67,8 @@ class CoachGateReviewPageService
             'evaluation' => $evaluation,
             'canManage' => $viewer->canManageParticipant($participant),
             'readinessItems' => [
-                ['label' => 'Criteria', 'value' => $metCriteriaCount.' / '.$requiredCriteria->count()],
-                ['label' => 'Activities', 'value' => $this->activityProgress($participant, $week)],
+                ['label' => 'Checklist', 'value' => $metCriteriaCount.' / '.$requiredCriteria->count()],
+                ['label' => 'Activities', 'value' => $this->activityProgress($activities, $latestSubmissions)],
                 ['label' => 'Video Recording', 'value' => match (true) {
                     $weeklyVideo['status'] === 'not_required' => 'Not required',
                     $weeklyVideo['url'] !== null => 'Uploaded',
@@ -55,28 +76,21 @@ class CoachGateReviewPageService
                 }],
             ],
             'blockers' => array_values($readiness),
-            'criteria' => $requiredCriteria->map(function (GateCriterion $criterion) use ($weeklyVideo, $evaluation): array {
-                $isVideo = $criterion->isWeeklyVideo();
-                $savedStatus = $evaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id)?->status;
-
-                return [
-                    'id' => $criterion->id,
-                    'title' => $isVideo ? 'REQUIRED WEEKLY VIDEO RECORDING' : $criterion->title,
-                    'field_label' => $isVideo ? 'Required Weekly Video Recording' : $criterion->title,
-                    'description' => $criterion->description,
-                    'video_url' => $isVideo ? $weeklyVideo['url'] : null,
-                    'selected_status' => ($savedStatus ?? GateCriterionStatus::NotMet)->value,
-                ];
-            })->all(),
+            'checklist' => $requiredCriteria->map(fn (GateCriterion $criterion): array => [
+                'id' => $criterion->id,
+                'title' => $criterion->title,
+                'description' => $criterion->description,
+                'video_url' => $criterion->isWeeklyVideo() ? $weeklyVideo['url'] : null,
+                'saved_status' => ($evaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id)?->status ?? GateCriterionStatus::NotMet)->value,
+            ])->all(),
+            'deliverables' => $this->deliverables($activities, $latestSubmissions),
             'decisionOptions' => array_map(fn (GateEvaluationStatus $status): array => [
                 'value' => $status->value,
                 'label' => $this->decisionLabel($status),
             ], GateEvaluationStatus::decisions()),
             'selectedDecision' => in_array($evaluation?->status, GateEvaluationStatus::decisions(), true) ? $evaluation->status->value : null,
-            'criterionStatusOptions' => array_map(fn (GateCriterionStatus $status): array => [
-                'value' => $status->value,
-                'label' => $status->label(),
-            ], GateCriterionStatus::cases()),
+            'tickedValue' => GateCriterionStatus::Met->value,
+            'untickedValue' => GateCriterionStatus::NotMet->value,
         ];
     }
 
@@ -92,16 +106,52 @@ class CoachGateReviewPageService
     }
 
     /**
-     * The number of the week's active activities whose participant submission is submitted or completed, out of all of them.
+     * The number of the week's active activities whose latest participant attempt is handed in, out of all of them.
+     *
+     * @param  EloquentCollection<int, Activity>  $activities
+     * @param  EloquentCollection<int, ActivitySubmission>  $latestSubmissions  keyed by activity id
      */
-    private function activityProgress(User $participant, TrainingWeek $week): string
+    private function activityProgress(EloquentCollection $activities, EloquentCollection $latestSubmissions): string
     {
-        $weekActivities = $week->activities()->where('is_active', true)->get();
-        $activitySubmissions = $participant->activitySubmissions()->whereIn('activity_id', $weekActivities->pluck('id'))->get()->keyBy('activity_id');
-        $completedActivities = $weekActivities
-            ->filter(fn (Activity $activity): bool => $activitySubmissions->get($activity->id)?->isHandedIn() === true)
+        $completedActivities = $activities
+            ->filter(fn (Activity $activity): bool => $latestSubmissions->get($activity->id)?->isHandedIn() === true)
             ->count();
 
-        return "{$completedActivities} / {$weekActivities->count()} submitted";
+        return "{$completedActivities} / {$activities->count()} submitted";
+    }
+
+    /**
+     * The GitHub deliverable links of each of the week's active activities, from the latest handed-in version of the
+     * participant's latest attempt, labelled with their field labels (no links before anything is handed in). The
+     * mentor opens them to check the checklist items by hand.
+     *
+     * @param  EloquentCollection<int, Activity>  $activities  with their submission field requirements
+     * @param  EloquentCollection<int, ActivitySubmission>  $latestSubmissions  keyed by activity id, with their handed-in versions
+     * @return list<array{position: int, title: string, links: list<array{label: string, url: string}>}>
+     */
+    private function deliverables(EloquentCollection $activities, EloquentCollection $latestSubmissions): array
+    {
+        return $activities->map(function (Activity $activity) use ($latestSubmissions): array {
+            $submission = $latestSubmissions->get($activity->id);
+            $version = $submission?->versions->sortByDesc('version_number')->first();
+            $links = [];
+            if ($version) {
+                $version->setRelation('submission', $submission->setRelation('activity', $activity));
+                $links = $this->answers->fieldLinks($version);
+            }
+
+            return [
+                'position' => $activity->position,
+                'title' => $activity->title,
+                'links' => $activity->requirements
+                    ->filter(fn (ActivityRequirement $field): bool => isset($links[$field->configuration['key'] ?? '']))
+                    ->map(fn (ActivityRequirement $field): array => [
+                        'label' => $field->configuration['label'] ?? $field->title,
+                        'url' => $links[$field->configuration['key']],
+                    ])
+                    ->values()
+                    ->all(),
+            ];
+        })->all();
     }
 }

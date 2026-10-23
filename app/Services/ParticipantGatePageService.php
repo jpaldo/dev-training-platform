@@ -16,11 +16,11 @@ class ParticipantGatePageService
 
     /**
      * Everything the participant Gate page renders: the Gate status, the readiness summary, the Weekly Video Recording
-     * state (null when the Gate has no weekly video criterion, so it does not require a video), the required criteria
-     * with their review status and the coach feedback. The main action (Upload Video Recording) is offered only while
+     * state (null when the Gate has no weekly video criterion, so it does not require a video), the week's checklist
+     * (read only, each required item with its review status) and the coach feedback. The main action (Upload Video Recording) is offered only while
      * the Gate requires a video and none is linked.
      *
-     * @return array{trainingWeek: TrainingWeek, gate: TrainingGate, statusLabel: string, statusTone: string, readinessItems: list<array{label: string, progress: string, message: string}>, showsReadyNotice: bool, weeklyVideo: ?array{description: ?string, status_label: string, status_tone: string, url: ?string}, uploadVideoUrl: ?string, criteria: list<array{title: string, status_label: string, status_tone: string}>, coachFeedback: ?string}
+     * @return array{trainingWeek: TrainingWeek, gate: TrainingGate, statusLabel: string, statusTone: string, readinessItems: list<array{label: string, progress: string, message: string}>, showsReadyNotice: bool, weeklyVideo: ?array{description: ?string, status_label: string, status_tone: string, url: ?string}, uploadVideoUrl: ?string, criteria: list<array{title: string, description: ?string, is_met: bool, status_label: string, status_tone: string}>, coachFeedback: ?string}
      */
     public function showData(TrainingWeek $week, User $participant, TrainingGate $gate): array
     {
@@ -93,20 +93,24 @@ class ParticipantGatePageService
     }
 
     /**
-     * The Gate's required criteria with their review status: Met, Missing (evaluated but not met) or Awaiting Review.
-     * The Gate's criteria must be loaded, and the evaluation's criterion evaluations when there is one.
+     * The Gate's required checklist items in checklist order, read only, each with whether the mentor ticked it and its
+     * review status: Met (ticked), Missing (reviewed but not ticked) or Awaiting Review. The Gate's criteria must be
+     * loaded, and the evaluation's criterion evaluations when there is one.
      *
-     * @return list<array{title: string, status_label: string, status_tone: string}>
+     * @return list<array{title: string, description: ?string, is_met: bool, status_label: string, status_tone: string}>
      */
     public function criterionRows(TrainingGate $gate, ?GateEvaluation $evaluation): array
     {
         return $gate->criteria
             ->where('is_required', true)
+            ->sortBy('position')
             ->map(function (GateCriterion $criterion) use ($evaluation): array {
                 $criterionEvaluation = $evaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id);
 
                 return [
                     'title' => $criterion->title,
+                    'description' => $criterion->description,
+                    'is_met' => $criterionEvaluation?->isMet() === true,
                     'status_label' => match (true) {
                         $criterionEvaluation?->isMet() === true => 'Met',
                         $criterionEvaluation !== null => 'Missing',

@@ -4,12 +4,15 @@ namespace Tests\Feature;
 
 use App\Enums\GateCriterionStatus;
 use App\Enums\GateEvaluationStatus;
+use App\Enums\SubmissionStatus;
 use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\GateCriterion;
 use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
 use App\Models\Program;
+use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
@@ -24,7 +27,7 @@ class CoachGateReviewPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_ready_participant_shows_summary_criteria_and_a_single_main_action_for_the_decision_form(): void
+    public function test_ready_participant_shows_the_summary_the_checklist_and_a_single_main_action_for_the_decision_form(): void
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture(activityCount: 2, extraCriteriaCount: 1);
@@ -47,39 +50,109 @@ class CoachGateReviewPageTest extends TestCase
                 'form="gate-review-form"',
                 'Save Gate Evaluation',
                 'Gate readiness',
-                '>Criteria</span>',
+                '>Checklist</span>',
                 '1 / 2',
                 'Activities',
                 '2 / 2 submitted',
                 'Video Recording',
                 'Uploaded',
-                'Gate criteria',
-                e($activityCriterion->title),
-                'REQUIRED WEEKLY VIDEO RECORDING',
+                'Weekly checklist',
+                'Nothing is ticked automatically.',
+                '<input type="hidden" name="criteria['.$activityCriterion->id.']" value="not_met" form="gate-review-form">',
+                'type="checkbox"',
+                'id="criterion-'.$activityCriterion->id.'"',
+                'name="criteria['.$activityCriterion->id.']"',
+                'value="met"',
+                'form="gate-review-form"',
+                'aria-describedby="criterion-'.$activityCriterion->id.'-description"',
+                'checked',
+                '<label for="criterion-'.$activityCriterion->id.'"',
+                e($activityCriterion->title).'</label>',
+                'id="criterion-'.$activityCriterion->id.'-description"',
+                e($activityCriterion->description),
+                '<input type="hidden" name="criteria['.$videoCriterion->id.']" value="not_met" form="gate-review-form">',
+                'id="criterion-'.$videoCriterion->id.'"',
+                'name="criteria['.$videoCriterion->id.']"',
+                'class="mt-0.5 size-5',
+                '<label for="criterion-'.$videoCriterion->id.'"',
+                'Required Weekly Video Recording</label>',
                 'href="'.route('training.video-recording.view', [$week, $recording]).'"',
                 'View Video',
+                'Deliverable links',
                 'action="'.route('training.coach.gates.update', [$week, $participant, $gate]).'" id="gate-review-form"',
                 'name="status"',
                 '<option value="passed" >Passed</option>',
                 '<option value="needs_revision" selected>Needs Revision</option>',
                 '<option value="failed" >Failed</option>',
-                'Criterion decisions',
-                'name="criteria['.$activityCriterion->id.']"',
-                'value="met" selected>Met</option>',
-                'value="not_met" >Not met</option>',
-                '>Required Weekly Video Recording</label>',
-                'name="criteria['.$videoCriterion->id.']"',
-                'value="met" >Met</option>',
-                'value="not_met" selected>Not met</option>',
                 'name="comments"',
                 'Strong week, finish the video.',
             ], false)
             ->assertDontSee('Blockers')
-            ->assertDontSee('Daily logs')
+            ->assertDontSee('Criterion decisions')
             ->assertDontSee('Optional stretch goal')
             ->assertDontSee('Read only');
 
-        $this->assertSame(1, substr_count($response->getContent(), 'Save Gate Evaluation'));
+        $content = $response->getContent();
+        $this->assertSame(1, substr_count($content, 'Save Gate Evaluation'));
+        $this->assertSame(1, substr_count($content, ' checked'));
+        $this->assertSame(0, preg_match_all('/\sdisabled\s/', $content));
+    }
+
+    public function test_every_checklist_item_starts_unticked_without_a_saved_evaluation_even_when_the_week_is_complete(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture(activityCount: 2, extraCriteriaCount: 2);
+        foreach ($activities as $activity) {
+            $this->completeActivity($participant, $activity);
+        }
+        $this->uploadWeeklyVideo($participant, $week);
+
+        $content = $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
+            ->assertOk()
+            ->assertSeeInOrder(['>Checklist</span>', '0 / 3', '2 / 2 submitted', 'Uploaded'], false)
+            ->assertDontSee('Blockers')
+            ->getContent();
+
+        $this->assertSame(3, substr_count($content, 'type="checkbox"'));
+        $this->assertSame(0, substr_count($content, ' checked'));
+        $this->assertSame(0, substr_count($content, ' selected>'));
+    }
+
+    public function test_the_checklist_lists_each_activitys_github_links_from_its_latest_handed_in_version(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        ['week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture(activityCount: 3, extraCriteriaCount: 1);
+        [$linkedActivity, $draftActivity, $notGitHubActivity] = $activities;
+        foreach ($activities as $activity) {
+            ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url']]);
+            ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 2, 'configuration' => ['key' => 'demo_url', 'label' => 'Demo link', 'type' => 'url']]);
+        }
+        $submission = $this->completeActivity($participant, $linkedActivity);
+        SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 1, 'status' => SubmissionStatus::Submitted, 'field_values' => ['deliverable_url' => 'https://github.com/ana/l4/pull/3', 'demo_url' => 'https://example.com/demo']]);
+        SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 2, 'status' => SubmissionStatus::Draft, 'field_values' => ['deliverable_url' => 'https://github.com/ana/l4/pull/9']]);
+        $draft = ActivitySubmission::factory()->for($participant, 'participant')->for($draftActivity)->create(['status' => 'draft']);
+        SubmissionVersion::factory()->for($draft, 'submission')->create(['field_values' => ['deliverable_url' => 'https://github.com/ana/l4/pull/4']]);
+        $notGitHub = $this->completeActivity($participant, $notGitHubActivity);
+        SubmissionVersion::factory()->for($notGitHub, 'submission')->create(['status' => SubmissionStatus::Submitted, 'field_values' => ['deliverable_url' => 'javascript:alert(1)']]);
+
+        $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Deliverable links',
+                'Activity 1 · '.e($linkedActivity->title),
+                'Deliverable link',
+                '<a href="https://github.com/ana/l4/pull/3" target="_blank" rel="noopener noreferrer"',
+                '>https://github.com/ana/l4/pull/3</a>',
+                'Activity 2 · '.e($draftActivity->title),
+                'No GitHub link submitted yet.',
+                'Activity 3 · '.e($notGitHubActivity->title),
+                'No GitHub link submitted yet.',
+                'action="'.route('training.coach.gates.update', [$week, $participant, $gate]).'"',
+            ], false)
+            ->assertDontSee('https://github.com/ana/l4/pull/9')
+            ->assertDontSee('https://github.com/ana/l4/pull/4')
+            ->assertDontSee('https://example.com/demo')
+            ->assertDontSee('javascript:', false);
     }
 
     public function test_blocked_participant_shows_the_blockers_and_a_missing_video(): void
@@ -90,7 +163,7 @@ class CoachGateReviewPageTest extends TestCase
         $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
             ->assertOk()
             ->assertSeeInOrder([
-                'Criteria',
+                'Checklist',
                 '0 / 2',
                 'Activities',
                 '0 / 1 submitted',
@@ -99,7 +172,9 @@ class CoachGateReviewPageTest extends TestCase
                 'Blockers',
                 'Activity 1 must have a submitted version.',
                 'Required Weekly Video Recording is missing. Upload the video before this Gate can be passed.',
-                'Gate criteria',
+                'Weekly checklist',
+                'Deliverable links',
+                'No GitHub link submitted yet.',
             ])
             ->assertDontSee('View Video');
     }
@@ -115,28 +190,15 @@ class CoachGateReviewPageTest extends TestCase
         $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
             ->assertOk()
             ->assertSeeInOrder([
-                'Criteria',
+                'Checklist',
                 '0 / 1',
                 'Video Recording',
                 'Not required',
                 'Blockers',
                 'Activity 1 must have a submitted version.',
-                'Gate criteria',
+                'Weekly checklist',
             ])
             ->assertDontSee('Required Weekly Video Recording is missing.');
-    }
-
-    public function test_without_a_saved_evaluation_no_decision_is_preselected_and_every_criterion_opens_on_not_met(): void
-    {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        ['week' => $week, 'gate' => $gate] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
-
-        $content = $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
-            ->assertOk()
-            ->getContent();
-
-        $this->assertSame(2, substr_count($content, ' selected>'));
-        $this->assertSame(2, substr_count($content, 'value="not_met" selected>Not met</option>'));
     }
 
     public function test_met_criteria_count_the_video_criterion_once_its_recording_is_reviewed_as_met(): void
@@ -151,22 +213,29 @@ class CoachGateReviewPageTest extends TestCase
 
         $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
             ->assertOk()
-            ->assertSeeInOrder(['>Criteria</span>', '1 / 2', 'Activities'], false);
+            ->assertSeeInOrder(['>Checklist</span>', '1 / 2', 'Activities'], false);
     }
 
     public function test_a_coach_who_is_not_assigned_to_the_participant_sees_the_gate_read_only(): void
     {
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
-        ['week' => $week, 'gate' => $gate] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+        ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
+        $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
+        GateCriterionEvaluation::factory()->for($evaluation)->for($criteria->first(), 'criterion')->create(['status' => GateCriterionStatus::Met]);
 
-        $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
+        $content = $this->actingAs($coach)->get(route('training.coach.gates.show', [$week, $participant, $gate]))
             ->assertOk()
-            ->assertSeeInOrder(['Gate criteria', 'Mentor decision', 'Read only — this participant is not assigned to you.'])
+            ->assertSeeInOrder(['Weekly checklist', 'id="criterion-'.$criteria->first()->id.'"', 'checked', 'Mentor decision', 'Read only — this participant is not assigned to you.'], false)
+            ->assertDontSee('name="criteria[', false)
             ->assertDontSee('id="gate-review-main-action"', false)
             ->assertDontSee('Save Gate Evaluation')
             ->assertDontSee('action="'.route('training.coach.gates.update', [$week, $participant, $gate]).'"', false)
-            ->assertDontSee('name="status"', false);
+            ->assertDontSee('name="status"', false)
+            ->getContent();
+
+        $this->assertSame(2, preg_match_all('/\sdisabled\s/', $content));
+        $this->assertSame(1, substr_count($content, ' checked'));
     }
 
     public function test_a_rejected_decision_returns_to_the_page_with_the_error(): void
@@ -175,7 +244,7 @@ class CoachGateReviewPageTest extends TestCase
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
         $pageUrl = route('training.coach.gates.show', [$week, $participant, $gate]);
 
-        $this->actingAs($coach)->from($pageUrl)->followingRedirects()
+        $content = $this->actingAs($coach)->from($pageUrl)->followingRedirects()
             ->post(route('training.coach.gates.update', [$week, $participant, $gate]), [
                 'status' => 'passed',
                 'criteria' => $criteria->mapWithKeys(fn (GateCriterion $criterion): array => [$criterion->id => 'met'])->all(),
@@ -186,7 +255,9 @@ class CoachGateReviewPageTest extends TestCase
             ->assertSee('The Week 2 Gate cannot pass until every required criterion and objective requirement is satisfied.')
             ->assertSee('Passing early.')
             ->assertSee('<option value="passed" selected>Passed</option>', false)
-            ->assertDontSee('value="not_met" selected', false);
+            ->getContent();
+
+        $this->assertSame(2, substr_count($content, ' checked'));
     }
 
     public function test_saving_a_review_stores_each_required_criterion_decision_and_a_left_out_criterion_as_not_met(): void
@@ -308,15 +379,16 @@ class CoachGateReviewPageTest extends TestCase
     }
 
     /**
-     * Give a new participant a Week 2 Gate with the given number of activities (each submitted) and extra required
-     * criteria, and count the queries of the assigned coach's page request after a warm-up request.
+     * Give a new participant a Week 2 Gate with the given number of activities (each submitted with a GitHub link) and
+     * extra required criteria, and count the queries of the assigned coach's page request after a warm-up request.
      */
     private function gateReviewQueryCount(int $rows): int
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();
         ['week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture(activityCount: $rows, extraCriteriaCount: $rows);
         foreach ($activities as $activity) {
-            $this->completeActivity($participant, $activity);
+            ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'configuration' => ['key' => 'deliverable_url', 'label' => 'Deliverable link', 'type' => 'github_url']]);
+            SubmissionVersion::factory()->for($this->completeActivity($participant, $activity), 'submission')->create(['status' => SubmissionStatus::Submitted, 'field_values' => ['deliverable_url' => "https://github.com/ana/l4/pull/{$activity->id}"]]);
         }
         $this->uploadWeeklyVideo($participant, $week);
         GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
@@ -351,9 +423,9 @@ class CoachGateReviewPageTest extends TestCase
         return ['week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities];
     }
 
-    private function completeActivity(User $participant, Activity $activity): void
+    private function completeActivity(User $participant, Activity $activity): ActivitySubmission
     {
-        ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
+        return ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
     }
 
     private function uploadWeeklyVideo(User $participant, TrainingWeek $week): WeeklyVideoRecording

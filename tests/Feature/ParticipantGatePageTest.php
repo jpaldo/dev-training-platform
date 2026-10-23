@@ -52,12 +52,16 @@ class ParticipantGatePageTest extends TestCase
                 'Status:',
                 'MISSING',
                 'Upload a video recording of your work for this week.',
-                'Criteria',
+                'Weekly checklist',
+                'Your mentor checks each item by hand and ticks it.',
                 e($activityCriterion->title),
                 'Awaiting Review',
+                e($activityCriterion->description),
                 'Required Weekly Video Recording',
                 'Awaiting Review',
             ], false)
+            ->assertDontSee('✓')
+            ->assertDontSee('type="checkbox"', false)
             ->assertDontSee('Optional stretch goal')
             ->assertDontSee('Daily logs')
             ->assertDontSee('View Video')
@@ -128,7 +132,7 @@ class ParticipantGatePageTest extends TestCase
             ->assertSeeInOrder([
                 'READY FOR REVIEW',
                 'Your Gate is ready for Mentor review. A Mentor/Admin must record the official result.',
-                'Criteria',
+                'Weekly checklist',
             ])
             ->assertDontSee('gate-main-action')
             ->assertDontSee('Upload Video Recording')
@@ -136,7 +140,7 @@ class ParticipantGatePageTest extends TestCase
             ->assertDontSee('Weekly Video Recording');
     }
 
-    public function test_evaluated_gate_shows_the_decision_criterion_results_and_coach_feedback(): void
+    public function test_evaluated_gate_shows_the_decision_the_ticked_checklist_items_and_coach_feedback(): void
     {
         $participant = User::factory()->create();
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture(activityCount: 1, extraCriteriaCount: 1);
@@ -147,21 +151,27 @@ class ParticipantGatePageTest extends TestCase
         GateCriterionEvaluation::factory()->create(['gate_evaluation_id' => $evaluation->id, 'gate_criterion_id' => $activityCriterion->id, 'status' => 'not_met']);
         GateCriterionEvaluation::factory()->create(['gate_evaluation_id' => $evaluation->id, 'gate_criterion_id' => $videoCriterion->id, 'status' => 'met']);
 
-        $this->actingAs($participant)->get(route('training.gates.show', [$week, $gate]))
+        $response = $this->actingAs($participant)->get(route('training.gates.show', [$week, $gate]))
             ->assertOk()
             ->assertSeeInOrder([
                 'NEEDS REVISION',
                 'Status:',
                 'MET',
-                'Criteria',
+                'Weekly checklist',
+                'font-black border-line"',
                 e($activityCriterion->title),
                 'Missing',
+                'font-black border-emerald-400 bg-emerald-400 text-canvas"',
+                '>✓</span>',
                 'Required Weekly Video Recording',
                 'Met',
                 'Mentor feedback',
                 'Re-record the walkthrough.',
-            ])
-            ->assertDontSee('Your Gate is ready for Mentor review');
+            ], false)
+            ->assertDontSee('Your Gate is ready for Mentor review')
+            ->assertDontSee('type="checkbox"', false);
+
+        $this->assertSame(1, substr_count($response->getContent(), '✓'));
     }
 
     #[DataProvider('savedGateStatuses')]

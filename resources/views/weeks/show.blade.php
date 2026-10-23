@@ -31,11 +31,26 @@
                         </p>
                     </div>
                     @if($gate['criteria'] !== [])
-                        <ul class="m-0 grid list-none grid-cols-1 gap-3 p-0">
+                        <ul class="m-0 grid list-none grid-cols-1 gap-3 p-0" aria-label="Checklist items">
                             @foreach($gate['criteria'] as $criterion)
-                                <li class="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-field px-4 py-3.5">
-                                    <strong class="min-w-0 wrap-break-word">{{ $criterion['title'] }}</strong>
-                                    <x-ui.badge :tone="$criterion['status_tone']">{{ $criterion['status_label'] }}</x-ui.badge>
+                                <li class="flex min-w-0 items-start gap-3 rounded-xl border border-line bg-field px-4 py-3.5">
+                                    <span
+                                        @class([
+                                            'mt-0.5 grid size-5 shrink-0 place-items-center rounded border-2 text-xs font-black',
+                                            'border-emerald-400 bg-emerald-400 text-canvas' => $criterion['is_met'],
+                                            'border-line' => ! $criterion['is_met'],
+                                        ])
+                                        aria-hidden="true"
+                                    >@if($criterion['is_met'])✓@endif</span>
+                                    <div class="grid min-w-0 flex-1 gap-1">
+                                        <div class="flex flex-wrap items-center justify-between gap-2">
+                                            <strong class="min-w-0 wrap-break-word">{{ $criterion['title'] }}</strong>
+                                            <x-ui.badge :tone="$criterion['status_tone']">{{ $criterion['status_label'] }}</x-ui.badge>
+                                        </div>
+                                        @if($criterion['description'])
+                                            <p class="m-0 text-sm/relaxed text-muted">{{ $criterion['description'] }}</p>
+                                        @endif
+                                    </div>
                                 </li>
                             @endforeach
                         </ul>

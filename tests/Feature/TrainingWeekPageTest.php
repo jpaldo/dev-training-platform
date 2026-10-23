@@ -40,10 +40,13 @@ class TrainingWeekPageTest extends TestCase
                 e($gate->title),
                 'Gate status:',
                 'NOT READY',
+                'aria-label="Checklist items"',
                 e($criteria[0]->title),
                 'Awaiting Review',
+                e($criteria[0]->description),
                 e($criteria[1]->title),
                 'Awaiting Review',
+                e($criteria[1]->description),
                 'Mentor approval is required before the next week unlocks.',
                 'href="'.route('training.gates.show', [$week, $gate]).'"',
                 'View Gate',
@@ -64,13 +67,14 @@ class TrainingWeekPageTest extends TestCase
             ], false)
             ->assertDontSee('Optional stretch goal')
             ->assertDontSee('Retired activity')
+            ->assertDontSee('✓')
             ->assertDontSee('Replace Video')
             ->assertDontSee('Content coming in a later phase');
 
         $this->assertSame(1, substr_count($response->getContent(), 'Upload Video Recording'));
     }
 
-    public function test_participant_with_a_video_and_an_evaluated_gate_sees_the_results_and_no_main_action(): void
+    public function test_participant_with_a_video_and_an_evaluated_gate_sees_the_ticked_checklist_items_and_no_main_action(): void
     {
         $participant = User::factory()->create();
         ['week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->weekFixture(rows: 2);
@@ -79,13 +83,16 @@ class TrainingWeekPageTest extends TestCase
         GateCriterionEvaluation::factory()->create(['gate_evaluation_id' => $evaluation->id, 'gate_criterion_id' => $criteria[0]->id, 'status' => 'met']);
         GateCriterionEvaluation::factory()->create(['gate_evaluation_id' => $evaluation->id, 'gate_criterion_id' => $criteria[1]->id, 'status' => 'not_met']);
 
-        $this->actingAs($participant)->get(route('training.weeks.show', $week))
+        $response = $this->actingAs($participant)->get(route('training.weeks.show', $week))
             ->assertOk()
             ->assertSeeInOrder([
                 'Gate status:',
                 'NEEDS REVISION',
+                'font-black border-emerald-400 bg-emerald-400 text-canvas"',
+                '>✓</span>',
                 e($criteria[0]->title),
                 'Met',
+                'font-black border-line"',
                 e($criteria[1]->title),
                 'Missing',
                 'Status:',
@@ -94,7 +101,10 @@ class TrainingWeekPageTest extends TestCase
                 'Replace Video',
             ], false)
             ->assertDontSee('week-main-action')
+            ->assertDontSee('type="checkbox"', false)
             ->assertDontSee('Upload Video Recording');
+
+        $this->assertSame(1, substr_count($response->getContent(), '✓'));
     }
 
     public function test_ready_participant_without_an_evaluation_sees_the_first_gate_by_position_ready_for_review(): void

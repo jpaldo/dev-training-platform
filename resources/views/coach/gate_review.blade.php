@@ -4,7 +4,6 @@
     @php
         $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
         $labelClasses = 'text-sm font-extrabold';
-        $rowClasses = 'grid justify-items-start gap-2 rounded-xl border border-line bg-field px-4 py-3.5';
     @endphp
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -48,25 +47,75 @@
                 </x-ui.card>
             @endif
 
-            <x-ui.card as="section" class="grid gap-4" aria-labelledby="gate-criteria-title">
-                <h2 id="gate-criteria-title" class="m-0 text-xl font-extrabold">Gate criteria</h2>
-                @if($criteria !== [])
-                    <ul class="m-0 grid list-none gap-3 p-0">
-                        @foreach($criteria as $criterion)
-                            <li class="{{ $rowClasses }}">
-                                <strong class="min-w-0 wrap-break-word">{{ $criterion['title'] }}</strong>
-                                @if($criterion['description'])
-                                    <p class="m-0 text-sm/relaxed text-muted">{{ $criterion['description'] }}</p>
-                                @endif
-                                @if($criterion['video_url'])
-                                    <x-ui.button variant="secondary" :href="$criterion['video_url']">View Video</x-ui.button>
-                                @endif
-                            </li>
-                        @endforeach
-                    </ul>
-                @else
-                    <p class="m-0 text-muted">No required criteria.</p>
-                @endif
+            <x-ui.card as="section" class="grid grid-cols-1 gap-5" aria-labelledby="gate-checklist-title">
+                <div class="grid gap-1">
+                    <h2 id="gate-checklist-title" class="m-0 text-xl font-extrabold">Weekly checklist</h2>
+                    <p class="m-0 text-sm/relaxed text-muted">Check each item in the participant's repository and deliverable links, then tick it. Nothing is ticked automatically.</p>
+                </div>
+
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+                    @if($checklist !== [])
+                        <ul class="m-0 grid list-none grid-cols-1 content-start gap-3 p-0" aria-label="Checklist items">
+                            @foreach($checklist as $item)
+                                <li class="flex min-w-0 items-start gap-3 rounded-xl border border-line bg-field px-4 py-3.5">
+                                    @if($canManage)
+                                        <input type="hidden" name="criteria[{{ $item['id'] }}]" value="{{ $untickedValue }}" form="gate-review-form">
+                                    @endif
+                                    <input
+                                        type="checkbox"
+                                        id="criterion-{{ $item['id'] }}"
+                                        @if($canManage)
+                                            name="criteria[{{ $item['id'] }}]"
+                                            value="{{ $tickedValue }}"
+                                            form="gate-review-form"
+                                        @else
+                                            disabled
+                                        @endif
+                                        @if($item['description'])
+                                            aria-describedby="criterion-{{ $item['id'] }}-description"
+                                        @endif
+                                        @checked(old('criteria.'.$item['id'], $item['saved_status']) === $tickedValue)
+                                        class="mt-0.5 size-5 shrink-0 accent-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent/50 disabled:cursor-not-allowed"
+                                    >
+                                    <div class="grid min-w-0 justify-items-start gap-1.5">
+                                        <label for="criterion-{{ $item['id'] }}" class="font-extrabold wrap-break-word">{{ $item['title'] }}</label>
+                                        @if($item['description'])
+                                            <p id="criterion-{{ $item['id'] }}-description" class="m-0 text-sm/relaxed text-muted">{{ $item['description'] }}</p>
+                                        @endif
+                                        @if($item['video_url'])
+                                            <x-ui.button variant="secondary" :href="$item['video_url']">View Video</x-ui.button>
+                                        @endif
+                                    </div>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @else
+                        <p class="m-0 text-muted">No required checklist items.</p>
+                    @endif
+
+                    <section class="grid min-w-0 content-start gap-3" aria-labelledby="gate-deliverables-title">
+                        <h3 id="gate-deliverables-title" class="m-0 text-lg font-extrabold">Deliverable links</h3>
+                        @if($deliverables !== [])
+                            <ul class="m-0 grid list-none grid-cols-1 gap-3 p-0">
+                                @foreach($deliverables as $activity)
+                                    <li class="grid min-w-0 gap-1.5 rounded-xl border border-line bg-surface-sunken px-4 py-3.5">
+                                        <strong class="wrap-break-word">Activity {{ $activity['position'] }} · {{ $activity['title'] }}</strong>
+                                        @forelse($activity['links'] as $link)
+                                            <p class="m-0 grid gap-0.5 text-sm">
+                                                <span class="text-muted">{{ $link['label'] }}</span>
+                                                <a href="{{ $link['url'] }}" target="_blank" rel="noopener noreferrer" class="font-bold break-all text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">{{ $link['url'] }}</a>
+                                            </p>
+                                        @empty
+                                            <p class="m-0 text-sm text-muted">No GitHub link submitted yet.</p>
+                                        @endforelse
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @else
+                            <p class="m-0 text-sm text-muted">This week has no activities.</p>
+                        @endif
+                    </section>
+                </div>
             </x-ui.card>
 
             @if($canManage)
@@ -82,20 +131,6 @@
                             @endforeach
                         </select>
                     </div>
-
-                    <section class="grid gap-4 border-t border-line pt-5" aria-labelledby="gate-criterion-decisions-title">
-                        <h3 id="gate-criterion-decisions-title" class="m-0 text-lg font-extrabold">Criterion decisions</h3>
-                        @foreach($criteria as $criterion)
-                            <div class="grid gap-2">
-                                <label for="criterion-{{ $criterion['id'] }}" class="{{ $labelClasses }}">{{ $criterion['field_label'] }}</label>
-                                <select id="criterion-{{ $criterion['id'] }}" name="criteria[{{ $criterion['id'] }}]" class="{{ $controlClasses }}">
-                                    @foreach($criterionStatusOptions as $option)
-                                        <option value="{{ $option['value'] }}" @selected(old('criteria.'.$criterion['id'], $criterion['selected_status']) === $option['value'])>{{ $option['label'] }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        @endforeach
-                    </section>
 
                     <div class="grid gap-2 border-t border-line pt-5">
                         <label for="gate-comments" class="{{ $labelClasses }}">Mentor comments</label>

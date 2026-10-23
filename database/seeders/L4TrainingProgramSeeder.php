@@ -8,7 +8,6 @@ use App\Models\GateCriterion;
 use App\Models\Program;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -304,13 +303,7 @@ class L4TrainingProgramSeeder extends Seeder
      */
     private function ensureEveryActiveWeekHasARequiredChecklistItem(Program $program): void
     {
-        $weekNumbersWithoutChecklist = $program->weeks()
-            ->where('is_active', true)
-            ->whereDoesntHave('gates', fn (Builder $gates): Builder => $gates
-                ->where('is_active', true)
-                ->whereHas('criteria', fn (Builder $criteria): Builder => $criteria->where('is_required', true)))
-            ->orderBy('week_number')
-            ->pluck('week_number');
+        $weekNumbersWithoutChecklist = $program->weekNumbersWithoutChecklist();
 
         if ($weekNumbersWithoutChecklist->isNotEmpty()) {
             throw new RuntimeException(sprintf(

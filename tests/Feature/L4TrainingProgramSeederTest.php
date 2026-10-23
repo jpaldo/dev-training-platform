@@ -31,6 +31,7 @@ class L4TrainingProgramSeederTest extends TestCase
         $program = Program::query()->sole();
         $this->assertSame('L4 Accelerator Training', $program->name);
         $this->assertTrue($program->is_active);
+        $this->assertSame([], $program->weekNumbersWithoutChecklist()->all());
 
         $weeks = $program->weeks()->orderBy('week_number')->with(['activities.requirements', 'gates.criteria'])->get();
         $this->assertSame([1, 2, 3, 4], $weeks->pluck('week_number')->all());
@@ -183,6 +184,19 @@ class L4TrainingProgramSeederTest extends TestCase
 
         $this->assertDatabaseEmpty('programs');
         $this->assertDatabaseEmpty('training_weeks');
+    }
+
+    public function test_the_checklist_helper_reports_each_active_week_without_an_active_checklist_with_a_required_item(): void
+    {
+        $program = Program::factory()->create(['is_active' => true]);
+        $week = fn (int $number, bool $isActive = true): TrainingWeek => TrainingWeek::factory()->for($program)->create(['week_number' => $number, 'position' => $number, 'is_active' => $isActive]);
+        GateCriterion::factory()->for(TrainingGate::factory()->for($week(1), 'week'), 'gate')->create();
+        GateCriterion::factory()->for(TrainingGate::factory()->for($week(2), 'week'), 'gate')->create(['is_required' => false]);
+        GateCriterion::factory()->for(TrainingGate::factory()->for($week(3), 'week')->state(['is_active' => false]), 'gate')->create();
+        $week(4);
+        $week(5, isActive: false);
+
+        $this->assertSame([2, 3, 4], $program->weekNumbersWithoutChecklist()->all());
     }
 
     /**

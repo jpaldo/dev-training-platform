@@ -8,7 +8,6 @@ use App\Models\Activity;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
 use App\Models\ApplicationSetting;
-use App\Models\EvidenceRequirement;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionInteraction;
@@ -17,7 +16,7 @@ use App\Models\User;
 use App\Services\OpenRouterScoringSuggestionProvider;
 use App\Services\ScoringService;
 use App\Services\SubmissionWorkflowService;
-use Database\Seeders\QaTrainingProgramSeeder;
+use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
@@ -46,9 +45,9 @@ class ScoringTest extends TestCase
 
     private function fixture(): array
     {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $program = Program::where('name', 'AI-Assisted QA Level 3')->firstOrFail();
-        $activity = $program->weeks()->where('week_number', 2)->firstOrFail()->activities()->firstOrFail();
+        $this->seed(L4TrainingProgramSeeder::class);
+        $program = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail();
+        $activity = $program->weeks()->where('week_number', 1)->firstOrFail()->activities()->firstOrFail();
         $activity->update(['configuration' => [...$activity->configuration, 'scoring_dimensions' => self::DIMENSIONS]]);
         $participant = User::factory()->create(['training_path' => 'automation']);
         $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
@@ -197,7 +196,7 @@ class ScoringTest extends TestCase
     public function test_completion_is_independent_from_score_and_zero_band_is_reserved_for_missing_score(): void
     {
         [$participant, $coach, $version] = $this->fixture();
-        $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk()->assertSee('1 / 3');
+        $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk()->assertSee('1 / 2');
         $this->assertSame('Not submitted / Not evidenced', app(ScoringService::class)->band(0));
         $this->assertSame('Exemplary', app(ScoringService::class)->band(90));
         $this->assertSame('Minimal', app(ScoringService::class)->band(34));
@@ -282,9 +281,7 @@ class ScoringTest extends TestCase
 
     public function test_follow_up_prompt_sequence_is_saved_without_mutating_history(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $program = Program::where('name', 'AI-Assisted QA Level 3')->firstOrFail();
-        $activity = $program->weeks()->where('week_number', 2)->firstOrFail()->activities()->where('position', 2)->firstOrFail();
+        $activity = Activity::factory()->create();
         $participant = User::factory()->create(['training_path' => 'manual']);
         $workflow = app(SubmissionWorkflowService::class);
         $draft = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy prompt'], null, [
@@ -305,9 +302,7 @@ class ScoringTest extends TestCase
 
     public function test_submitted_interactions_remain_version_scoped_through_revision(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $activity = Program::where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail()->activities()->where('position', 2)->firstOrFail();
-        EvidenceRequirement::query()->whereHas('activityRequirement', fn ($query) => $query->where('activity_id', $activity->id))->delete();
+        $activity = Activity::factory()->create();
         $participant = User::factory()->create(['training_path' => 'manual']);
         $workflow = app(SubmissionWorkflowService::class);
         $v1 = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy'], null, [['prompt' => 'Prompt 1', 'output' => 'Output 1'], ['prompt' => 'Prompt 2', 'output' => 'Output 2']]);

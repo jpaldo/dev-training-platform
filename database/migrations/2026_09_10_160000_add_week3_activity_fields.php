@@ -1,6 +1,5 @@
 <?php
 
-use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -20,14 +19,13 @@ return new class extends Migration
             ],
         ];
 
-        $seeder = new QaTrainingProgramSeeder;
         foreach ($fields as $title => $definitions) {
             foreach (DB::table('activities')->where('title', $title)->pluck('id') as $activityId) {
                 foreach ($definitions as $position => $definition) {
                     [$key, $label, $type, $required] = array_pad($definition, 4, true);
                     $existing = DB::table('activity_requirements')->where('activity_id', $activityId)->where('requirement_type', 'submission_field')->whereJsonContains('configuration->key', $key)->first();
                     $configuration = $existing ? (json_decode($existing->configuration ?: '{}', true) ?: []) : [];
-                    $configuration = array_merge($configuration, ['key' => $key, 'label' => $label, 'type' => $type, 'required' => $required, 'guidance' => $seeder->fieldGuidance($title, $key)]);
+                    $configuration = array_merge($configuration, ['key' => $key, 'label' => $label, 'type' => $type, 'required' => $required]);
                     $attributes = ['title' => $label, 'description' => $label, 'is_required' => $required, 'position' => $position + 1, 'configuration' => json_encode($configuration)];
                     if ($existing) {
                         DB::table('activity_requirements')->where('id', $existing->id)->update($attributes);

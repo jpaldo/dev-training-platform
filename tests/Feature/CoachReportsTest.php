@@ -2,11 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\User;
-use Database\Seeders\QaTrainingProgramSeeder;
+use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -16,7 +17,7 @@ class CoachReportsTest extends TestCase
 
     public function test_progress_report_uses_friendly_paths_and_mentor_filter(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Mentor Ely']);
         $participant = User::factory()->create(['name' => 'Combined Path', 'training_path' => 'automation_manual']);
         $participant->assignedCoaches()->attach($coach->id);
@@ -27,7 +28,7 @@ class CoachReportsTest extends TestCase
 
     public function test_admin_can_view_missing_submissions_and_participants_cannot(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $admin = User::factory()->create(['role' => 'admin']);
         $participant = User::factory()->create(['role' => 'participant']);
 
@@ -41,9 +42,9 @@ class CoachReportsTest extends TestCase
 
     public function test_missing_report_uses_bounded_custom_pagination_icons(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $admin = User::factory()->create(['role' => 'admin']);
-        User::factory()->count(7)->create(['role' => 'participant']);
+        User::factory()->count(9)->create(['role' => 'participant']);
 
         $response = $this->actingAs($admin)->get(route('coach.reports.missing-submissions'));
 
@@ -55,18 +56,18 @@ class CoachReportsTest extends TestCase
 
     public function test_missing_report_treats_drafts_and_evidence_only_as_not_submitted_but_submitted_revision_as_submitted(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $admin = User::factory()->create(['role' => 'admin']);
         $participant = User::factory()->create(['training_path' => 'automation_manual']);
-        $week = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
-        $draftActivity = $week->activities()->where('title', 'Validation Checklist')->firstOrFail();
-        $submittedActivity = $week->activities()->where('title', 'AI Output Error Detection')->firstOrFail();
+        $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
+        $draftActivity = $week->activities()->where('position', 1)->firstOrFail();
+        $submittedActivity = $week->activities()->where('position', 2)->firstOrFail();
 
         $draft = ActivitySubmission::factory()->for($participant, 'participant')->for($draftActivity)->create(['status' => 'draft']);
         SubmissionVersion::factory()->for($draft, 'submission')->create(['status' => 'draft']);
         $revision = ActivitySubmission::factory()->for($participant, 'participant')->for($submittedActivity)->create(['status' => 'needs_revision']);
         SubmissionVersion::factory()->for($revision, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
-        $failedActivity = $week->activities()->where('title', 'Pre-acceptance Check')->firstOrFail();
+        $failedActivity = Activity::factory()->for($week, 'week')->create(['title' => 'Retried Activity']);
         $failed = ActivitySubmission::factory()->for($participant, 'participant')->for($failedActivity)->create(['attempt_number' => 1, 'status' => 'failed']);
         SubmissionVersion::factory()->for($failed, 'submission')->create(['status' => 'failed', 'submitted_at' => now()]);
         $retry = ActivitySubmission::factory()->for($participant, 'participant')->for($failedActivity)->create(['attempt_number' => 2, 'status' => 'draft']);
@@ -75,32 +76,33 @@ class CoachReportsTest extends TestCase
         $response = $this->actingAs($admin)->get(route('coach.reports.missing-submissions', [
             'participant' => $participant->id,
             'category' => 'activities',
-            'week' => 2,
+            'week' => 1,
         ]));
 
-        $response->assertOk()->assertSee('Validation Checklist')->assertDontSee('AI Output Error Detection')->assertDontSee('Pre-acceptance Check');
+        $response->assertOk()->assertSee($draftActivity->title)->assertDontSee($submittedActivity->title)->assertDontSee('Retried Activity');
     }
 
     public function test_missing_report_counts_a_submitted_version_without_a_submission_time_as_submitted(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $admin = User::factory()->create(['role' => 'admin']);
         $participant = User::factory()->create(['training_path' => 'automation_manual']);
-        $week = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
-        $submittedActivity = $week->activities()->where('title', 'AI Output Error Detection')->firstOrFail();
+        $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
+        $missingActivity = $week->activities()->where('position', 1)->firstOrFail();
+        $submittedActivity = $week->activities()->where('position', 2)->firstOrFail();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($submittedActivity)->create(['status' => 'submitted']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => null]);
 
         $this->actingAs($admin)->get(route('coach.reports.missing-submissions', [
             'participant' => $participant->id,
             'category' => 'activities',
-            'week' => 2,
-        ]))->assertOk()->assertSee('Validation Checklist')->assertDontSee('AI Output Error Detection');
+            'week' => 1,
+        ]))->assertOk()->assertSee($missingActivity->title)->assertDontSee($submittedActivity->title);
     }
 
     public function test_missing_report_supports_combined_path_mentor_and_csv_filters(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $admin = User::factory()->create(['role' => 'admin', 'name' => 'Mentor Ely']);
         $participant = User::factory()->create(['name' => 'Combined QA', 'training_path' => 'automation_manual', 'employee_id' => 'EMP-6001']);
         $participant->assignedCoaches()->attach($admin->id);

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use Database\Seeders\QaTrainingProgramSeeder;
+use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -13,7 +13,7 @@ class DataIntegrityTest extends TestCase
 
     public function test_domain_records_have_valid_owners_and_relationships(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         foreach ([
             ['submission_versions', 'activity_submission_id', 'activity_submissions'],
             ['submission_evidence', 'submission_version_id', 'submission_versions'],

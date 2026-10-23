@@ -2,14 +2,14 @@
 
 namespace App\Console\Commands;
 
-use Database\Seeders\QaTrainingProgramSeeder;
+use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Console\Command;
 
 class EnsureDevelopmentBaselineCommand extends Command
 {
     protected $signature = 'app:ensure-development-baseline';
 
-    protected $description = 'Ensure the local QA training reference baseline exists';
+    protected $description = 'Ensure the local L4 training reference baseline exists';
 
     public function handle(): int
     {
@@ -19,8 +19,8 @@ class EnsureDevelopmentBaselineCommand extends Command
             return self::FAILURE;
         }
 
-        app(QaTrainingProgramSeeder::class)->run();
-        $this->info('Ensured the QA training baseline.');
+        app(L4TrainingProgramSeeder::class)->run();
+        $this->info('Ensured the L4 training baseline.');
 
         return self::SUCCESS;
     }

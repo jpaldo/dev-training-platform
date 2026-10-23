@@ -13,7 +13,7 @@ use App\Models\SubmissionVersion;
 use App\Models\User;
 use App\Services\GoogleDriveConnectionService;
 use App\Services\GoogleDriveService;
-use Database\Seeders\QaTrainingProgramSeeder;
+use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
@@ -188,7 +188,7 @@ class GoogleDriveExportTest extends TestCase
     public function test_participant_activity_and_summary_exports_use_authenticated_owner(): void
     {
         Queue::fake();
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         config(['services.google_drive.enabled' => true, 'services.google_drive.client_id' => 'client', 'services.google_drive.client_secret' => 'secret', 'services.google_drive.redirect_uri' => 'https://example.test/callback']);
         ApplicationSetting::create(['key' => 'google_drive.enabled', 'value' => '1', 'is_encrypted' => false]);
         ApplicationSetting::create(['key' => 'google_drive.client_id', 'value' => 'client', 'is_encrypted' => false]);
@@ -198,7 +198,7 @@ class GoogleDriveExportTest extends TestCase
         $other = User::factory()->create(['training_path' => 'manual']);
         GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'a', 'google_email' => 'p@example.com', 'access_token' => 'token', 'token_expires_at' => now()->addHour(), 'connected_at' => now(), 'drive_folder_id' => 'folder']);
         Http::fake(['https://www.googleapis.com/drive/v3/files/folder*' => Http::response(['id' => 'folder', 'mimeType' => 'application/vnd.google-apps.folder', 'capabilities' => ['canAddChildren' => true]], 200)]);
-        $activity = Activity::query()->whereHas('week', fn ($q) => $q->where('week_number', 2))->firstOrFail();
+        $activity = Activity::query()->whereHas('week', fn ($q) => $q->where('week_number', 1))->firstOrFail();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
 
@@ -233,7 +233,7 @@ class GoogleDriveExportTest extends TestCase
     public function test_activity_export_enqueues_before_remote_destination_validation(): void
     {
         Queue::fake();
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         config(['services.google_drive.enabled' => true, 'services.google_drive.client_id' => 'client', 'services.google_drive.client_secret' => 'secret', 'services.google_drive.redirect_uri' => 'https://example.test/callback']);
         ApplicationSetting::create(['key' => 'google_drive.enabled', 'value' => '1', 'is_encrypted' => false]);
         ApplicationSetting::create(['key' => 'google_drive.client_id', 'value' => 'client', 'is_encrypted' => false]);
@@ -241,7 +241,7 @@ class GoogleDriveExportTest extends TestCase
         ApplicationSetting::create(['key' => 'google_drive.client_secret', 'value' => Crypt::encryptString('secret'), 'is_encrypted' => true]);
         $participant = User::factory()->create(['training_path' => 'manual', 'drive_link' => 'https://drive.google.com/drive/folders/inaccessible']);
         GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'account', 'google_email' => 'p@example.com', 'access_token' => 'token', 'token_expires_at' => now()->addHour(), 'connected_at' => now(), 'drive_folder_id' => 'old-folder']);
-        $activity = Activity::query()->whereHas('week', fn ($query) => $query->where('week_number', 2))->firstOrFail();
+        $activity = Activity::query()->whereHas('week', fn ($query) => $query->where('week_number', 1))->firstOrFail();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create();
 

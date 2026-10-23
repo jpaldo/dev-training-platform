@@ -23,7 +23,7 @@ use App\Services\GoogleDriveService;
 use App\Services\TrainingExportService;
 use App\Services\TrainingSyncCoordinator;
 use App\Services\TrainingWorkbookService;
-use Database\Seeders\QaTrainingProgramSeeder;
+use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Contracts\Queue\Job;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -120,12 +120,12 @@ class GoogleDriveSyncTest extends TestCase
 
     public function test_participant_week_workbook_contains_no_internal_scoring_columns(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['training_path' => 'manual']);
-        $activity = Activity::query()->whereHas('week', fn ($q) => $q->where('week_number', 2))->firstOrFail();
+        $activity = Activity::query()->whereHas('week', fn ($q) => $q->where('week_number', 1))->firstOrFail();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'field_values' => []]);
-        $content = app(TrainingWorkbookService::class)->forWeek($participant, 2);
+        $content = app(TrainingWorkbookService::class)->forWeek($participant, 1);
         $path = tempnam(sys_get_temp_dir(), 'qa-score-');
         file_put_contents($path, $content);
         $zip = new ZipArchive;
@@ -147,14 +147,14 @@ class GoogleDriveSyncTest extends TestCase
 
     public function test_week_workbook_prefers_the_latest_submitted_version_over_a_newer_revision_draft(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['training_path' => 'manual']);
-        $activity = Activity::query()->whereHas('week', fn (Builder $query): Builder => $query->where('week_number', 2))->firstOrFail();
+        $activity = Activity::query()->whereHas('week', fn (Builder $query): Builder => $query->where('week_number', 1))->firstOrFail();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 1, 'status' => 'submitted', 'participant_note' => 'Submitted note']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 2, 'status' => 'draft', 'participant_note' => 'Revision draft note']);
 
-        $xml = $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, 2));
+        $xml = $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, 1));
 
         $this->assertStringContainsString('Submitted note', $xml);
         $this->assertStringNotContainsString('Revision draft note', $xml);
@@ -162,19 +162,19 @@ class GoogleDriveSyncTest extends TestCase
 
     public function test_week_workbooks_print_the_submission_status_and_configured_answers_of_the_activity(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['training_path' => 'manual']);
-        foreach ([2 => 'under_review', 3 => 'needs_revision'] as $weekNumber => $status) {
+        foreach ([1 => 'under_review', 2 => 'needs_revision'] as $weekNumber => $status) {
             $activity = Activity::query()->whereHas('week', fn (Builder $query): Builder => $query->where('week_number', $weekNumber))->where('is_active', true)->orderBy('position')->firstOrFail();
             $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $status]);
-            SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'field_values' => $weekNumber === 3 ? ['failure_description' => 'Checkout times out'] : []]);
+            SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'field_values' => $weekNumber === 2 ? ['deliverable_url' => 'https://github.com/example/checkout'] : []]);
         }
 
-        $this->assertStringContainsString('<t xml:space="preserve">under_review</t>', $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, 2)));
-        $weekThreeWorkbook = $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, 3));
-        $this->assertStringContainsString('<t xml:space="preserve">needs_revision</t>', $weekThreeWorkbook);
-        $this->assertStringContainsString('<t xml:space="preserve">Failure Description</t>', $weekThreeWorkbook);
-        $this->assertStringContainsString('<t xml:space="preserve">Checkout times out</t>', $weekThreeWorkbook);
+        $this->assertStringContainsString('<t xml:space="preserve">under_review</t>', $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, 1)));
+        $weekTwoWorkbook = $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, 2));
+        $this->assertStringContainsString('<t xml:space="preserve">needs_revision</t>', $weekTwoWorkbook);
+        $this->assertStringContainsString('<t xml:space="preserve">Deliverable link</t>', $weekTwoWorkbook);
+        $this->assertStringContainsString('<t xml:space="preserve">https://github.com/example/checkout</t>', $weekTwoWorkbook);
     }
 
     public function test_sqlite_evidence_tracking_references_submission_evidence_table(): void
@@ -582,10 +582,10 @@ class GoogleDriveSyncTest extends TestCase
     public function test_drive_setup_is_required_before_starting_an_official_activity(): void
     {
         $this->configureDrive();
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant']);
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()]);
-        $week = TrainingWeek::query()->where('week_number', 2)->firstOrFail();
+        $week = TrainingWeek::query()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 2)->where('is_active', true)->firstOrFail();
 
         $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))
@@ -596,9 +596,9 @@ class GoogleDriveSyncTest extends TestCase
     public function test_legacy_drive_link_does_not_satisfy_activity_readiness(): void
     {
         $this->configureDrive();
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant', 'drive_link' => 'https://drive.google.com/drive/folders/legacy']);
-        $week = TrainingWeek::query()->where('week_number', 2)->firstOrFail();
+        $week = TrainingWeek::query()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 2)->where('is_active', true)->firstOrFail();
 
         $this->actingAs($participant)->get(route('training.activities.show', [$week, $activity]))

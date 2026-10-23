@@ -5,12 +5,21 @@ use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 
 /**
- * Demo accounts that `DevelopmentAccountProvisioner` keeps in place in local and testing environments. Employee IDs
- * continue the `DEV-` sequence that `DatabaseSeeder` starts with `test@example.com` (`DEV-0001`). Participants also
- * carry a training path.
+ * Demo accounts that `DevelopmentAccountProvisioner` keeps in place in local and testing environments, with employee
+ * IDs in the `DEV-` sequence. Participants also carry a training path.
  */
 return [
     'accounts' => [
+        [
+            'employee_id' => 'DEV-0001',
+            'first_name' => 'Test',
+            'last_name' => 'User',
+            'email' => 'test@example.com',
+            'password' => 'password',
+            'role' => UserRole::Participant->value,
+            'job_role' => JobRole::Developer->value,
+            'training_path' => TrainingPath::Manual->value,
+        ],
         [
             'employee_id' => 'DEV-0002',
             'first_name' => 'Development',

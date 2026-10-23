@@ -7,7 +7,7 @@ use App\Enums\InterviewType;
 use App\Models\InterviewScheduler;
 use App\Models\User;
 use App\Rules\ExternalBookingUrl;
-use Database\Seeders\QaTrainingProgramSeeder;
+use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Validator;
 use Tests\TestCase;
@@ -168,7 +168,7 @@ class InterviewSchedulingTest extends TestCase
 
     public function test_assigned_participant_dashboard_does_not_show_the_mentor_booking_link(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant']);
         $mentor = User::factory()->create(['role' => 'coach']);
         $participant->assignedCoaches()->attach($mentor->id);

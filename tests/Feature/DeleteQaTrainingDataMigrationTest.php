@@ -4,13 +4,14 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\AdminAuditLog;
 use App\Models\EvidenceRequirement;
 use App\Models\GateCriterion;
 use App\Models\Program;
+use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -53,7 +54,7 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
     public function test_it_empties_the_training_tables_and_deletes_the_qa_program_and_participants(): void
     {
         Storage::fake('local');
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->createQaProgram();
         $coach = User::factory()->create(['role' => UserRole::Coach]);
         $participant = User::factory()->create();
         $this->seedTrainingRecords($participant, $coach);
@@ -77,7 +78,7 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
     public function test_it_keeps_admin_and_coach_accounts_with_their_audit_rows_and_drive_connection(): void
     {
         Storage::fake('local');
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->createQaProgram();
         $admin = User::factory()->create(['role' => UserRole::Admin]);
         $coach = User::factory()->create(['role' => UserRole::Coach]);
         $participant = User::factory()->create();
@@ -97,7 +98,7 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
 
     public function test_it_keeps_programs_other_than_the_qa_program(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->createQaProgram();
         $otherWeek = TrainingWeek::factory()->create();
 
         $this->migration()->up();
@@ -113,7 +114,7 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
         Storage::disk('local')->put(self::EVIDENCE_PATH, 'evidence');
         Storage::disk('local')->put(self::VIDEO_PATH, 'video');
         Storage::disk('local')->put('public-interview/booking.pdf', 'kept');
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->createQaProgram();
         $this->seedTrainingRecords(User::factory()->create(), User::factory()->create(['role' => UserRole::Coach]));
 
         $this->migration()->up();
@@ -138,8 +139,23 @@ class DeleteQaTrainingDataMigrationTest extends TestCase
     }
 
     /**
+     * The QA program by its stored name, with one week, an activity with an evidence requirement and a Gate with one
+     * criterion.
+     */
+    private function createQaProgram(): void
+    {
+        $week = TrainingWeek::factory()
+            ->for(Program::factory()->state(['name' => 'AI-Assisted QA Level 3']))
+            ->create(['week_number' => 2, 'position' => 1]);
+        EvidenceRequirement::factory()
+            ->for(ActivityRequirement::factory()->for(Activity::factory()->for($week, 'week')))
+            ->create();
+        GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create();
+    }
+
+    /**
      * Writes one row to every training table (and the participant's session, tokens and Drive connection) for the
-     * seeded QA program. Rows go in through the query builder: most of these tables have no factory and their
+     * QA program. Rows go in through the query builder: most of these tables have no factory and their
      * models are removed during Phase 2.
      */
     private function seedTrainingRecords(User $participant, User $coach): void

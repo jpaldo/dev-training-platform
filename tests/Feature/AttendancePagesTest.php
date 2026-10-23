@@ -6,7 +6,7 @@ use App\Models\AttendanceSession;
 use App\Models\Program;
 use App\Models\User;
 use Carbon\Carbon;
-use Database\Seeders\QaTrainingProgramSeeder;
+use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -18,8 +18,8 @@ class AttendancePagesTest extends TestCase
     public function test_participant_without_an_open_session_gets_check_in_now_as_the_single_main_action(): void
     {
         $participant = User::factory()->create(['training_path' => 'manual']);
-        $this->seed(QaTrainingProgramSeeder::class);
-        $week = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
+        $this->seed(L4TrainingProgramSeeder::class);
+        $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
         $returnTo = route('training.submission.edit', [$week, $week->activities()->firstOrFail()]);
 
         $response = $this->actingAs($participant)

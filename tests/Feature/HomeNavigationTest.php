@@ -6,7 +6,7 @@ use App\Enums\TrainingPath;
 use App\Models\ParticipantNotification;
 use App\Models\Program;
 use App\Models\User;
-use Database\Seeders\QaTrainingProgramSeeder;
+use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -23,7 +23,7 @@ class HomeNavigationTest extends TestCase
 
     public function test_participant_sidebar_contains_profile_and_logout(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant']);
 
         $html = $this->actingAs($participant)->get(route('dashboard'))->assertOk()->getContent();
@@ -37,7 +37,7 @@ class HomeNavigationTest extends TestCase
 
     public function test_sidebar_shows_role_specific_groups_and_marks_current_page(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
 
         $coachHtml = $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.participants'))->assertOk()->getContent();
         $this->assertMatchesRegularExpression('/href="'.preg_quote(route('coach.participants'), '/').'"\s+aria-current="page"/', $coachHtml);
@@ -51,7 +51,7 @@ class HomeNavigationTest extends TestCase
 
     public function test_authenticated_pages_use_full_width_shell_while_auth_pages_remain_constrained(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $coach = User::factory()->create(['role' => 'coach']);
 
         $this->actingAs($coach)->get(route('coach.participants'))->assertOk()
@@ -77,7 +77,7 @@ class HomeNavigationTest extends TestCase
 
     public function test_forwarded_public_host_is_preserved_for_authenticated_redirects(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create();
 
         $response = $this->actingAs($participant)->withHeaders([
@@ -92,21 +92,21 @@ class HomeNavigationTest extends TestCase
 
     public function test_participant_dashboard_uses_configured_activities_and_needs_revision_feedback(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        $week2 = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first();
-        $activity = $week2->activities()->where('position', 2)->first();
+        $week1 = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first();
+        $activity = $week1->activities()->where('position', 2)->first();
         $submission = $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'needs_revision']);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => [], 'submitted_at' => now()]);
         $version->reviews()->create(['reviewer_id' => User::factory()->create(['role' => 'coach'])->id, 'decision' => 'needs_revision', 'comments' => 'Please revise this activity.', 'reviewed_at' => now()]);
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee($activity->title)->assertSee('Revise');
-        $this->actingAs($participant)->get(route('training.submission.edit', [$week2, $activity]))->assertOk()->assertSee('Please revise this activity.');
+        $this->actingAs($participant)->get(route('training.submission.edit', [$week1, $activity]))->assertOk()->assertSee('Please revise this activity.');
     }
 
     public function test_participant_dashboard_shows_training_overview_before_week_cards(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create();
 
         $response = $this->actingAs($participant)->get(route('dashboard'));
@@ -121,15 +121,15 @@ class HomeNavigationTest extends TestCase
 
     public function test_dashboard_disclosure_and_tabs_have_accessible_defaults_without_changing_content(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create();
         ParticipantNotification::factory()->create(['user_id' => $participant->id, 'title' => 'Current work', 'body' => 'Complete your next activity.', 'resolved_at' => null]);
 
         $response = $this->actingAs($participant)->get(route('dashboard'))->assertOk();
         $html = $response->getContent();
-        $this->assertMatchesRegularExpression('/id="dashboard-tab-week-2"[^>]*aria-selected="true"/', $html);
+        $this->assertMatchesRegularExpression('/id="dashboard-tab-week-1"[^>]*aria-selected="true"/', $html);
         $this->assertMatchesRegularExpression('/id="dashboard-tab-overview"[^>]*aria-selected="false"/', $html);
-        $this->assertMatchesRegularExpression('/id="dashboard-panel-week-2"(?:(?!hidden)[^>])*>/', $html);
+        $this->assertMatchesRegularExpression('/id="dashboard-panel-week-1"(?:(?!hidden)[^>])*>/', $html);
         $this->assertMatchesRegularExpression('/id="dashboard-panel-overview"[^>]*\shidden\b/', $html);
         $response->assertSee('data-dashboard-disclosure', false)
             ->assertSee('aria-controls="dashboard-missing-content"', false)
@@ -142,18 +142,18 @@ class HomeNavigationTest extends TestCase
 
     public function test_participant_dashboard_and_gate_page_show_authoritative_gate_status_and_criteria(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create();
-        $week2 = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first();
-        $gate = $week2->gates()->with('criteria')->firstOrFail();
+        $week1 = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first();
+        $gate = $week1->gates()->with('criteria')->firstOrFail();
         $response = $this->actingAs($participant)->get(route('dashboard'));
         $response->assertOk()->assertSee($gate->title)->assertSee('Not ready')->assertSee('View Gate');
-        $this->actingAs($participant)->get(route('training.gates.show', [$week2, $gate]))->assertOk()->assertSee($gate->criteria->first()->title)->assertSee('Awaiting Review');
+        $this->actingAs($participant)->get(route('training.gates.show', [$week1, $gate]))->assertOk()->assertSee($gate->criteria->first()->title)->assertSee('Awaiting Review');
     }
 
     public function test_combined_training_path_is_displayed_and_receives_both_path_requirements(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['training_path' => 'automation_manual']);
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('Automation / Manual');
         $this->assertSame([TrainingPath::Manual, TrainingPath::Automation, TrainingPath::AutomationManual], $participant->eligibleTrainingPaths());
@@ -161,7 +161,7 @@ class HomeNavigationTest extends TestCase
 
     public function test_dashboard_shows_assigned_mentors_or_neutral_unassigned_state(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['training_path' => 'manual']);
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('Mentor')->assertSee('Not assigned');
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Ely Mentor']);

@@ -18,7 +18,7 @@ use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
-use Database\Seeders\QaTrainingProgramSeeder;
+use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -32,7 +32,7 @@ class CoachOperationsTest extends TestCase
 
     private function seedProgram(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
     }
 
     public function test_participants_cannot_access_coach_operations(): void
@@ -163,15 +163,15 @@ class CoachOperationsTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $manual = User::factory()->create(['name' => 'Gate Manual', 'email' => 'gate-manual@example.test', 'training_path' => 'manual']);
         $automation = User::factory()->create(['name' => 'Gate Automation', 'email' => 'gate-auto@example.test', 'training_path' => 'automation']);
-        $program = Program::where('name', 'AI-Assisted QA Level 3')->firstOrFail();
-        $week2 = $program->weeks()->where('week_number', 2)->firstOrFail();
-        $gate = $week2->gates()->firstOrFail();
+        $program = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail();
+        $week1 = $program->weeks()->where('week_number', 1)->firstOrFail();
+        $gate = $week1->gates()->firstOrFail();
         GateEvaluation::create(['training_gate_id' => $gate->id, 'user_id' => $manual->id, 'status' => 'passed', 'evaluated_at' => now()]);
 
         $response = $this->actingAs($coach)->get(route('coach.gates'));
-        $response->assertOk()->assertSee('<table', false)->assertSee('Week 2')->assertSee('Week 3')->assertSee('Week 4')->assertSee('Gate Manual')->assertSee('Gate Automation')->assertSee('PASSED')->assertSee('Criteria')->assertSee('Video')->assertSee('Review Gate');
+        $response->assertOk()->assertSee('<table', false)->assertSee('Week 1')->assertSee('Week 2')->assertSee('Week 4')->assertSee('Gate Manual')->assertSee('Gate Automation')->assertSee('PASSED')->assertSee('Criteria')->assertSee('Video')->assertSee('Review Gate');
         $this->actingAs($coach)->get(route('coach.gates', ['search' => 'Gate Manual']))->assertOk()->assertSee('Gate Manual')->assertDontSee('Gate Automation');
-        $this->actingAs($coach)->get(route('coach.gates', ['week' => 2, 'path' => 'manual', 'status' => 'passed']))->assertOk()->assertSee('Gate Manual')->assertDontSee('Gate Automation');
+        $this->actingAs($coach)->get(route('coach.gates', ['week' => 1, 'path' => 'manual', 'status' => 'passed']))->assertOk()->assertSee('Gate Manual')->assertDontSee('Gate Automation');
         $this->actingAs($manual)->get(route('coach.gates'))->assertForbidden();
     }
 
@@ -181,7 +181,7 @@ class CoachOperationsTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
-        $activity = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first()->activities()->first();
+        $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
         $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
         $version = SubmissionVersion::create(['activity_submission_id' => $submission->id, 'version_number' => 1, 'status' => 'submitted', 'field_values' => ['finding_and_decision' => 'original'], 'submitted_at' => now()]);
         $this->actingAs($coach)->post(route('coach.reviews.store', $version), ['decision' => 'needs_revision', 'comments' => 'Please clarify the evidence.'])->assertRedirect();
@@ -202,7 +202,7 @@ class CoachOperationsTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
-        $activity = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first()->activities()->first();
+        $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'under_review', 'submitted_at' => now()]);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
 
@@ -251,7 +251,7 @@ class CoachOperationsTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
-        $activity = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first()->activities()->first();
+        $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
         $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
         $version = SubmissionVersion::create(['activity_submission_id' => $submission->id, 'version_number' => 1, 'status' => 'submitted', 'field_values' => ['x' => 'original'], 'submitted_at' => now()]);
         $this->actingAs($coach)->post(route('coach.reviews.claim', $version))->assertRedirect();
@@ -307,15 +307,15 @@ class CoachOperationsTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $manual = User::factory()->create(['training_path' => 'manual', 'employee_id' => 'EMP-4001']);
         $automation = User::factory()->create(['training_path' => 'automation']);
-        $program = Program::where('name', 'AI-Assisted QA Level 3')->first();
+        $program = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first();
+        $w1 = $program->weeks()->where('week_number', 1)->first()->gates()->first();
         $w2 = $program->weeks()->where('week_number', 2)->first()->gates()->first();
-        $w3 = $program->weeks()->where('week_number', 3)->first()->gates()->first();
-        GateEvaluation::create(['training_gate_id' => $w2->id, 'user_id' => $manual->id, 'status' => 'passed', 'evaluated_at' => now()]);
-        GateEvaluation::create(['training_gate_id' => $w3->id, 'user_id' => $automation->id, 'status' => 'failed', 'evaluated_at' => now()]);
-        $response = $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'gates', 'participant' => $manual->id, 'week' => 2, 'status' => 'passed', 'path' => 'manual']));
+        GateEvaluation::create(['training_gate_id' => $w1->id, 'user_id' => $manual->id, 'status' => 'passed', 'evaluated_at' => now()]);
+        GateEvaluation::create(['training_gate_id' => $w2->id, 'user_id' => $automation->id, 'status' => 'failed', 'evaluated_at' => now()]);
+        $response = $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'gates', 'participant' => $manual->id, 'week' => 1, 'status' => 'passed', 'path' => 'manual']));
         $response->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
         $this->assertStringContainsString($manual->name, $response->streamedContent());
-        $this->assertStringContainsString(',2,"'.$w2->title.'",passed,', $response->streamedContent());
+        $this->assertStringContainsString(',1,"'.$w1->title.'",passed,', $response->streamedContent());
         $this->assertStringNotContainsString($automation->name, $response->streamedContent());
         $rows = array_map(str_getcsv(...), explode("\n", trim($response->streamedContent())));
         $this->assertSame(['Participant', 'Employee ID'], array_slice($rows[0], 0, 2));
@@ -328,7 +328,7 @@ class CoachOperationsTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
-        $activity = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first()->activities()->first();
+        $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
         $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'needs_revision']);
         $this->actingAs($coach)->get(route('coach.reports'))->assertOk()->assertSee(e("{$activity->title}: Needs revision"), false);
         $this->assertStringContainsString("{$activity->title}: Needs revision", $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'risk']))->streamedContent());
@@ -340,7 +340,7 @@ class CoachOperationsTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
-        $activity = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first()->activities()->first();
+        $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
         $submission = $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'submitted']);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => []]);
         $this->actingAs($coach)->get(route('coach.reviews.show', $version))
@@ -360,7 +360,7 @@ class CoachOperationsTest extends TestCase
         $this->seedProgram();
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
-        $activity = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first()->activities()->first();
+        $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
         $submission = $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'submitted']);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => []]);
 
@@ -374,7 +374,7 @@ class CoachOperationsTest extends TestCase
         $this->seedProgram();
         $participant = User::factory()->create();
         $other = User::factory()->create();
-        $activity = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first()->activities()->first();
+        $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
         $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $other->id, 'status' => 'submitted']);
         $version = SubmissionVersion::create(['activity_submission_id' => $submission->id, 'version_number' => 1, 'status' => 'submitted', 'field_values' => []]);
         $this->actingAs($participant)->get(route('coach.reviews.show', $version))->assertForbidden();
@@ -387,7 +387,7 @@ class CoachOperationsTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
-        $activity = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first()->activities()->first();
+        $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
         $failed = $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'failed', 'attempt_number' => 1]);
         $version = $failed->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => ['answer' => 'original'], 'submitted_at' => now()]);
         $this->actingAs($coach)->post(route('coach.reviews.retry', $version))
@@ -427,7 +427,7 @@ class CoachOperationsTest extends TestCase
     {
         $this->seedProgram();
         $participant = User::factory()->create();
-        $activity = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first()->activities()->first();
+        $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
         $failed = $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'failed', 'attempt_number' => 1]);
         $version = $failed->versions()->create(['version_number' => 1, 'status' => 'failed', 'field_values' => []]);
 
@@ -441,7 +441,7 @@ class CoachOperationsTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
-        $activity = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first()->activities()->first();
+        $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
         $submission = $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'approved', 'attempt_number' => 1]);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'approved', 'field_values' => []]);
 
@@ -455,7 +455,7 @@ class CoachOperationsTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create();
         $coach->assignedParticipants()->attach($participant->id);
-        $activity = Program::where('name', 'AI-Assisted QA Level 3')->first()->weeks()->where('week_number', 2)->first()->activities()->first();
+        $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
         $failed = $activity->submissions()->create(['user_id' => $participant->id, 'status' => 'failed', 'attempt_number' => 1]);
         $version = $failed->versions()->create(['version_number' => 1, 'status' => 'failed', 'field_values' => ['answer' => 'original']]);
         $this->actingAs($participant)->post(route('training.recovery.store', $failed), ['message' => 'Please reconsider this attempt.'])->assertRedirect();

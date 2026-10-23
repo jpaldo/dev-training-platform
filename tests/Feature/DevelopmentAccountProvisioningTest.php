@@ -5,9 +5,13 @@ namespace Tests\Feature;
 use App\Enums\JobRole;
 use App\Enums\TrainingPath;
 use App\Enums\UserRole;
+use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\Program;
+use App\Models\TrainingWeek;
 use App\Models\User;
+use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -39,6 +43,14 @@ class DevelopmentAccountProvisioningTest extends TestCase
         }
     }
 
+    public function test_database_seeder_seeds_the_l4_program_as_the_only_program(): void
+    {
+        $this->seed();
+
+        $this->assertSame([L4TrainingProgramSeeder::PROGRAM_NAME], Program::query()->pluck('name')->all());
+        $this->assertTrue(Program::query()->sole()->is_active);
+    }
+
     public function test_development_account_command_creates_nothing_and_changes_nothing_on_a_second_run(): void
     {
         $this->artisan('app:ensure-development-accounts')->assertExitCode(0);
@@ -48,23 +60,21 @@ class DevelopmentAccountProvisioningTest extends TestCase
 
         $after = User::query()->orderBy('id')->get($this->provisionedFields())->toArray();
         $this->assertSame($before, $after);
-        $this->assertSame(4, User::count());
+        $this->assertSame(count(self::seededAccounts()), User::count());
 
         foreach (self::seededAccounts() as [$email, $password]) {
-            if ($email === 'test@example.com') {
-                continue;
-            }
-
             $this->assertTrue(Hash::check($password, User::query()->where('email', $email)->sole()->password));
         }
     }
 
-    public function test_baseline_command_restores_reference_data_idempotently_without_deleting_users(): void
+    public function test_baseline_command_restores_the_l4_program_idempotently_without_deleting_users(): void
     {
         $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
 
-        $this->artisan('app:ensure-development-baseline')->assertExitCode(0);
-        $activity = Program::query()->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail()->activities()->firstOrFail();
+        $this->artisan('app:ensure-development-baseline')
+            ->expectsOutput('Ensured the L4 training baseline.')
+            ->assertExitCode(0);
+        $activity = Program::query()->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail()->activities()->firstOrFail();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $before = [
             'users' => User::count(),
@@ -80,7 +90,8 @@ class DevelopmentAccountProvisioningTest extends TestCase
         $this->assertSame($before['programs'], Program::count());
         $this->assertSame($before['activities'], $activity->week->fresh()->activities()->count());
         $this->assertDatabaseHas('activity_submissions', ['id' => $submission->id, 'user_id' => $participant->id]);
-        $this->assertDatabaseHas('programs', ['name' => 'AI-Assisted QA Level 3', 'is_active' => true]);
+        $this->assertDatabaseHas('programs', ['name' => L4TrainingProgramSeeder::PROGRAM_NAME, 'is_active' => true]);
+        $this->assertDatabaseCount('training_weeks', 4);
     }
 
     public function test_baseline_command_refuses_production(): void
@@ -145,10 +156,13 @@ class DevelopmentAccountProvisioningTest extends TestCase
 
     public function test_activity_artifact_type_other_is_trimmed_and_stored_as_the_actual_value(): void
     {
-        $this->seed();
         $participant = User::factory()->create(['role' => 'participant']);
-        $week = Program::firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
-        $activity = $week->activities()->where('title', 'AI Output Error Detection')->firstOrFail();
+        $week = TrainingWeek::factory()->create(['week_number' => 1, 'position' => 1]);
+        $activity = Activity::factory()->for($week, 'week')->create();
+        ActivityRequirement::factory()->for($activity)->create([
+            'requirement_type' => 'submission_field',
+            'configuration' => ['key' => 'artifact_type', 'label' => 'Artifact Type', 'type' => 'text', 'required' => false],
+        ]);
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         $this->actingAs($participant)->post(route('training.submission.draft', [$week, $activity]), [
@@ -161,7 +175,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
     }
 
     /**
-     * Every account `DatabaseSeeder` creates, as the seeder and `config/development_accounts.php` define it.
+     * Every account `DatabaseSeeder` creates, as `config/development_accounts.php` defines it.
      *
      * @return array<string, array{0: string, 1: string, 2: string, 3: string, 4: string, 5: UserRole, 6: JobRole, 7: ?TrainingPath}>
      */

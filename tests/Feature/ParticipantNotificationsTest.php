@@ -18,7 +18,7 @@ use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\ParticipantNotificationService;
-use Database\Seeders\QaTrainingProgramSeeder;
+use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -29,7 +29,7 @@ class ParticipantNotificationsTest extends TestCase
 
     public function test_new_participant_gets_week_reminders_without_daily_log_reminders_or_duplicates(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
 
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('Activity incomplete')->assertDontSee('Daily Logs incomplete');
@@ -41,7 +41,7 @@ class ParticipantNotificationsTest extends TestCase
 
     public function test_page_views_only_read_notifications(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
         $participant->participantNotifications()->delete();
 
@@ -53,9 +53,9 @@ class ParticipantNotificationsTest extends TestCase
 
     public function test_revision_reminder_is_a_high_priority_needs_revision_notification(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
-        $week = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
+        $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 1)->firstOrFail();
         ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'needs_revision']);
 
@@ -74,9 +74,9 @@ class ParticipantNotificationsTest extends TestCase
     #[DataProvider('latestReviewDecisions')]
     public function test_latest_review_decision_sets_the_revision_reminder_and_the_approved_event(ReviewDecision $decision, bool $isRevisionRequired, bool $isApprovedEvent): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
-        $week = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
+        $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 1)->firstOrFail();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'under_review']);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
@@ -110,9 +110,9 @@ class ParticipantNotificationsTest extends TestCase
     #[DataProvider('latestAttemptStatuses')]
     public function test_latest_attempt_status_sets_the_activity_reminders(string $status, array $activeReminders): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
-        $week = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
+        $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 1)->firstOrFail();
         ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'failed', 'attempt_number' => 1]);
         ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $status, 'attempt_number' => 2]);
@@ -148,9 +148,9 @@ class ParticipantNotificationsTest extends TestCase
     #[DataProvider('weekActivityStatuses')]
     public function test_weekly_video_reminder_starts_once_every_activity_of_the_week_is_handed_in(array $statuses, bool $isVideoReminderActive): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
-        $week = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail()->weeks()->where('week_number', 2)->firstOrFail();
+        $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
         foreach ($week->activities()->where('is_active', true)->orderBy('position')->get()->values() as $index => $activity) {
             ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $statuses[$index % count($statuses)]]);
         }
@@ -224,7 +224,7 @@ class ParticipantNotificationsTest extends TestCase
 
     public function test_dashboard_next_action_skips_notifications_awaiting_review(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
+        $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
         $participant->participantNotifications()->delete();
         ParticipantNotification::factory()->for($participant, 'participant')->create(['title' => 'Activity incomplete', 'body' => 'Complete your activity.', 'created_at' => now()->subHour()]);

@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\Activity;
 use App\Models\ActivitySubmission;
-use App\Models\Program;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Support\FieldLimits;
 use App\Support\Markdown;
-use Database\Seeders\QaTrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -43,7 +43,7 @@ class ActivityMarkdownRenderingTest extends TestCase
 
     public function test_participant_submission_page_renders_markdown_for_ai_output_fields_only(): void
     {
-        [$week, $activity, $participant, $version] = $this->submittedWeekTwoVersion();
+        [$week, $activity, $participant, $version] = $this->submittedVersion();
 
         $response = $this->actingAs($participant)->get(route('training.submission.show', [$week, $activity, $version]))->assertOk();
 
@@ -61,7 +61,7 @@ class ActivityMarkdownRenderingTest extends TestCase
 
     public function test_coach_review_page_renders_markdown_for_ai_output_fields_only(): void
     {
-        [$week, $activity, $participant, $version] = $this->submittedWeekTwoVersion();
+        [$week, $activity, $participant, $version] = $this->submittedVersion();
         $coach = User::factory()->create(['role' => 'coach']);
         $coach->assignedParticipants()->attach($participant->id);
 
@@ -79,7 +79,7 @@ class ActivityMarkdownRenderingTest extends TestCase
 
     public function test_coach_review_page_has_write_preview_toggle_for_comments_field(): void
     {
-        [$week, $activity, $participant, $version] = $this->submittedWeekTwoVersion();
+        [$week, $activity, $participant, $version] = $this->submittedVersion();
         $coach = User::factory()->create(['role' => 'coach']);
         $coach->assignedParticipants()->attach($participant->id);
 
@@ -97,28 +97,8 @@ class ActivityMarkdownRenderingTest extends TestCase
         $this->assertSame(1, substr_count($form, 'maxlength="'.FieldLimits::REVIEW_COMMENTS.'"'));
     }
 
-    public function test_week_two_validation_checklist_edit_page_omits_removed_ai_context_fields(): void
-    {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
-        $week = $program->weeks()->where('week_number', 2)->firstOrFail();
-        $activity = $week->activities()->where('title', 'Validation Checklist')->firstOrFail();
-        $participant = User::factory()->create();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-
-        $this->actingAs($participant)
-            ->get(route('training.submission.edit', [$week, $activity]))
-            ->assertOk()
-            ->assertSee('Issue Caught')
-            ->assertSee('Action Taken')
-            ->assertDontSee('AI / ARTIFACT CONTEXT')
-            ->assertDontSee('Feature / Area')
-            ->assertDontSee('Exact Prompt');
-    }
-
     public function test_markdown_preview_endpoint_renders_markdown_and_escapes_raw_html(): void
     {
-        $this->seed(QaTrainingProgramSeeder::class);
         $participant = User::factory()->create();
 
         $response = $this->actingAs($participant)->postJson(route('markdown.preview'), [
@@ -142,12 +122,15 @@ class ActivityMarkdownRenderingTest extends TestCase
         $this->assertSame('', $response->json('html'));
     }
 
-    private function submittedWeekTwoVersion(): array
+    /**
+     * A participant's submitted version with Markdown in an AI output field and in a plain textarea field.
+     *
+     * @return array{0: TrainingWeek, 1: Activity, 2: User, 3: SubmissionVersion}
+     */
+    private function submittedVersion(): array
     {
-        $this->seed(QaTrainingProgramSeeder::class);
-        $program = Program::query()->where('name', 'AI-Assisted QA Level 3')->firstOrFail();
-        $week = $program->weeks()->where('week_number', 2)->firstOrFail();
-        $activity = $week->activities()->where('title', 'Validation Checklist')->firstOrFail();
+        $week = TrainingWeek::factory()->create(['week_number' => 1, 'position' => 1]);
+        $activity = Activity::factory()->for($week, 'week')->create();
         $participant = User::factory()->create();
         $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
         $version = SubmissionVersion::create(['activity_submission_id' => $submission->id, 'version_number' => 1, 'status' => 'submitted', 'submitted_at' => now(), 'field_values' => [

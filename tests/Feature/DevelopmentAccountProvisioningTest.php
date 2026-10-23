@@ -11,9 +11,11 @@ use App\Models\ActivitySubmission;
 use App\Models\Program;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Services\DevelopmentAccountProvisioner;
 use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -102,12 +104,39 @@ class DevelopmentAccountProvisioningTest extends TestCase
         $this->assertDatabaseCount('programs', 0);
     }
 
-    public function test_development_account_command_refuses_production(): void
+    public function test_development_account_command_provisions_every_account_in_staging(): void
+    {
+        config()->set('app.env', 'staging');
+
+        $this->artisan('app:ensure-development-accounts')
+            ->expectsOutput('Ensured '.count(self::seededAccounts()).' development accounts.')
+            ->assertExitCode(0);
+
+        $this->assertSame(count(self::seededAccounts()), User::count());
+        $this->assertSame(3, User::query()->where('role', UserRole::Participant)->where('job_role', JobRole::Developer)->count());
+        $this->assertSame(3, User::query()->where('role', UserRole::Coach)->where('job_role', JobRole::Developer)->count());
+    }
+
+    public function test_development_account_command_refuses_production_and_creates_nothing(): void
     {
         config()->set('app.env', 'production');
 
-        $this->artisan('app:ensure-development-accounts')->assertExitCode(1);
-        $this->assertDatabaseMissing('users', ['email' => 'admin.dev@example.test']);
+        $this->artisan('app:ensure-development-accounts')
+            ->expectsOutput('Development account provisioning is disabled outside local, staging and testing environments.')
+            ->assertExitCode(1);
+        $this->assertDatabaseCount('users', 0);
+    }
+
+    #[DataProvider('refusedEnvironments')]
+    public function test_provisioner_throws_and_creates_nothing_outside_local_staging_and_testing(string $environment): void
+    {
+        config()->set('app.env', $environment);
+
+        $this->assertThrows(
+            fn (): int => app(DevelopmentAccountProvisioner::class)->provision(),
+            LogicException::class,
+        );
+        $this->assertDatabaseCount('users', 0);
     }
 
     #[DataProvider('seededAccounts')]
@@ -187,6 +216,21 @@ class DevelopmentAccountProvisioningTest extends TestCase
             'admin' => ['admin.dev@example.test', 'AdminDev!2026', 'DEV-0003', 'Development', 'Admin', UserRole::Admin, JobRole::ProjectManager, null],
             'first demo participant' => ['participant1.dev@example.test', 'ParticipantDev1!2026', 'DEV-0004', 'Avery', 'Santos', UserRole::Participant, JobRole::Developer, TrainingPath::Automation],
             'second demo participant' => ['participant2.dev@example.test', 'ParticipantDev2!2026', 'DEV-0005', 'Jordan', 'Reyes', UserRole::Participant, JobRole::Developer, TrainingPath::AutomationManual],
+            'first demo mentor' => ['mentor1.dev@example.test', 'MentorDev1!2026', 'DEV-0006', 'Casey', 'Lim', UserRole::Coach, JobRole::Developer, null],
+            'second demo mentor' => ['mentor2.dev@example.test', 'MentorDev2!2026', 'DEV-0007', 'Riley', 'Tan', UserRole::Coach, JobRole::Developer, null],
+        ];
+    }
+
+    /**
+     * Environments where provisioning must refuse: production, and any name outside the allowed list.
+     *
+     * @return array<string, array{0: string}>
+     */
+    public static function refusedEnvironments(): array
+    {
+        return [
+            'production' => ['production'],
+            'unknown environment' => ['demo'],
         ];
     }
 

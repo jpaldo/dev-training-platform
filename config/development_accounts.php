@@ -5,8 +5,9 @@ use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 
 /**
- * Demo accounts that `DevelopmentAccountProvisioner` keeps in place in local and testing environments, with employee
- * IDs in the `DEV-` sequence. Participants also carry a training path.
+ * Demo accounts that `DevelopmentAccountProvisioner` keeps in place in local, staging and testing environments, with
+ * employee IDs in the `DEV-` sequence: three participants and three mentors (`coach` role), all job role Developer,
+ * plus one admin. Participants also carry a training path.
  */
 return [
     'accounts' => [
@@ -57,6 +58,24 @@ return [
             'role' => UserRole::Participant->value,
             'job_role' => JobRole::Developer->value,
             'training_path' => TrainingPath::AutomationManual->value,
+        ],
+        [
+            'employee_id' => 'DEV-0006',
+            'first_name' => 'Casey',
+            'last_name' => 'Lim',
+            'email' => 'mentor1.dev@example.test',
+            'password' => 'MentorDev1!2026',
+            'role' => UserRole::Coach->value,
+            'job_role' => JobRole::Developer->value,
+        ],
+        [
+            'employee_id' => 'DEV-0007',
+            'first_name' => 'Riley',
+            'last_name' => 'Tan',
+            'email' => 'mentor2.dev@example.test',
+            'password' => 'MentorDev2!2026',
+            'role' => UserRole::Coach->value,
+            'job_role' => JobRole::Developer->value,
         ],
     ],
 ];

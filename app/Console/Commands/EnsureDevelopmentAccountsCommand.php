@@ -10,16 +10,10 @@ class EnsureDevelopmentAccountsCommand extends Command
 {
     protected $signature = 'app:ensure-development-accounts';
 
-    protected $description = 'Ensure the local development admin, coach and participant accounts exist';
+    protected $description = 'Ensure the demo admin, mentor and participant accounts exist (local, staging and testing only)';
 
     public function handle(DevelopmentAccountProvisioner $provisioner): int
     {
-        if (! in_array(config('app.env'), ['local', 'testing'], true)) {
-            $this->error('Development account provisioning is disabled outside local/testing environments.');
-
-            return self::FAILURE;
-        }
-
         try {
             $count = $provisioner->provision();
         } catch (LogicException $exception) {

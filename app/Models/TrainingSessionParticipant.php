@@ -4,13 +4,15 @@ namespace App\Models;
 
 use App\Observers\ParticipantProgressObserver;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
 /**
- * A participant's membership of a training session (`training_session_participants`). Removing a participant deletes
- * the row; their work keeps its session, so adding them again restores access. Joining and leaving queue the
- * participant's notification sync (ParticipantProgressObserver).
+ * A participant's membership of a training session (`training_session_participants`), with the GitHub repository they
+ * added for it (`repository_url`, null until then). Removing a participant deletes the row; their work keeps its
+ * session, so adding them again restores access. Joining and leaving queue the participant's notification sync
+ * (ParticipantProgressObserver).
  */
 #[ObservedBy([ParticipantProgressObserver::class])]
 class TrainingSessionParticipant extends Pivot
@@ -32,6 +34,14 @@ class TrainingSessionParticipant extends Pivot
     protected function casts(): array
     {
         return ['joined_at' => 'datetime'];
+    }
+
+    /**
+     * Limit the query to the participant's membership of the session (at most one row).
+     */
+    public function scopeForParticipantInSession(Builder $query, int $trainingSessionId, int $userId): Builder
+    {
+        return $query->where('training_session_id', $trainingSessionId)->where('user_id', $userId);
     }
 
     public function trainingSession(): BelongsTo

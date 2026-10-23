@@ -12,6 +12,7 @@ use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
 use App\Models\TrainingSession;
+use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -26,7 +27,8 @@ class CoachGateReviewPageService
 
     /**
      * Everything the coach Gate review page renders for the participant's work in the session (the session itself for
-     * the form's URL): the readiness summary, shown for information only (the required checklist items met: the weekly
+     * the form's URL): the participant's GitHub repository for the session (null when they have none), the readiness
+     * summary, shown for information only (the required checklist items met: the weekly
      * video item once its recording is reviewed as met, every other one when the saved evaluation marks it met; the video recording as Not required when the Gate has no weekly video item), the
      * readiness blockers, the week's checklist (the required items, each ticked only when the saved evaluation marks it
      * met, never from readiness or submissions, with the weekly video link on the video item), the participant's
@@ -36,7 +38,7 @@ class CoachGateReviewPageService
      * viewer may decide the Gate (a coach who is not assigned to the participant sees the page read only). Old input
      * overrides the preselected values in the view.
      *
-     * @return array{trainingSession: TrainingSession, trainingWeek: TrainingWeek, participant: User, gate: TrainingGate, evaluation: ?GateEvaluation, canManage: bool, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, checklist: list<array{id: int, title: string, description: ?string, video_url: ?string, saved_status: string}>, deliverables: list<array{position: int, title: string, links: list<array{label: string, url: string}>}>, decisionOptions: list<array{value: string, label: string}>, selectedDecision: ?string, tickedValue: string, untickedValue: string}
+     * @return array{trainingSession: TrainingSession, trainingWeek: TrainingWeek, participant: User, repositoryUrl: ?string, gate: TrainingGate, evaluation: ?GateEvaluation, canManage: bool, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, checklist: list<array{id: int, title: string, description: ?string, video_url: ?string, saved_status: string}>, deliverables: list<array{position: int, title: string, links: list<array{label: string, url: string}>}>, decisionOptions: list<array{value: string, label: string}>, selectedDecision: ?string, tickedValue: string, untickedValue: string}
      */
     public function showData(TrainingSession $trainingSession, TrainingWeek $week, User $participant, TrainingGate $gate, ?GateEvaluation $evaluation, User $viewer): array
     {
@@ -67,6 +69,7 @@ class CoachGateReviewPageService
             'trainingSession' => $trainingSession,
             'trainingWeek' => $week,
             'participant' => $participant,
+            'repositoryUrl' => TrainingSessionParticipant::query()->forParticipantInSession($trainingSession->id, $participant->id)->value('repository_url'),
             'gate' => $gate,
             'evaluation' => $evaluation,
             'canManage' => $viewer->canManageParticipant($participant),

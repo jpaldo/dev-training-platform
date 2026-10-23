@@ -20,6 +20,23 @@
             </div>
         </header>
 
+        <x-ui.card as="section" padding="p-5" class="grid min-w-0 grid-cols-1 gap-3" aria-labelledby="session-repository-title">
+            @if($repositoryUrl)
+                <h2 id="session-repository-title" class="text-base font-extrabold">Your GitHub repository</h2>
+                <a href="{{ $repositoryUrl }}" target="_blank" rel="noopener noreferrer" class="justify-self-start font-bold break-all text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">{{ $repositoryUrl }}<span class="sr-only"> (opens in a new tab)</span></a>
+                <details class="min-w-0" @error('repository_url') open @enderror>
+                    <summary aria-label="Change repository" class="inline-flex cursor-pointer list-none items-center rounded-xl border border-line bg-raised px-4 py-2.5 text-sm font-extrabold text-white hover:border-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent/50 [&::-webkit-details-marker]:hidden">Change</summary>
+                    <div class="mt-3">
+                        @include('training-sessions.repository-form')
+                    </div>
+                </details>
+            @else
+                <h2 id="session-repository-title" class="text-base font-extrabold">Add your GitHub repository for this session</h2>
+                <p class="text-sm/relaxed text-muted">Your mentor checks your session logs and deliverables there. You can change it later.</p>
+                @include('training-sessions.repository-form')
+            @endif
+        </x-ui.card>
+
         <div class="min-w-0" data-page-tabs>
             <x-ui.tab-list :tabs="$tabs" :selected="$selectedTab" id-prefix="session" label="Training session sections" />
 

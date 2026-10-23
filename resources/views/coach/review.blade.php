@@ -17,6 +17,7 @@
             <x-ui.eyebrow>SUBMISSION REVIEW</x-ui.eyebrow>
             <x-ui.page-title>{{ $activityTitle }}</x-ui.page-title>
             <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $participantName }} · Version {{ $submissionVersion->version_number }} · {{ $versionStatusLabel }}</p>
+            <x-session-repository :url="$repositoryUrl" />
         </header>
 
         @if($canManage)

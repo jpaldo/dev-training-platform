@@ -125,6 +125,18 @@ class TrainingSessionService
     }
 
     /**
+     * Save the GitHub repository the participant uses for the session (replacing an earlier one). They must be in the
+     * session; the request has already checked that and validated the link (GitHubRepositoryUrl).
+     */
+    public function saveRepositoryUrl(TrainingSession $session, User $participant, string $repositoryUrl): void
+    {
+        TrainingSessionParticipant::query()
+            ->forParticipantInSession($session->id, $participant->id)
+            ->firstOrFail()
+            ->update(['repository_url' => $repositoryUrl]);
+    }
+
+    /**
      * The sessions a new participant can tick on the registration form: those open to join, the earliest start first
      * (the order of the landing page's Available trainings), each with its title and dates. `value` is the session ID
      * as the form posts it.

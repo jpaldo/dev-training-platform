@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\UpdateSessionRepositoryRequest;
 use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\ParticipantTrainingSessionPageService;
@@ -45,5 +46,20 @@ class TrainingSessionController extends Controller
 
         return redirect()->route('training.sessions.show', $trainingSession)
             ->with('status', "You joined {$trainingSession->title}.");
+    }
+
+    /**
+     * Save the participant's GitHub repository for the session and return to the session page. Only a participant in
+     * the session gets here (UpdateSessionRepositoryRequest).
+     */
+    public function updateRepository(UpdateSessionRepositoryRequest $request, TrainingSession $trainingSession, TrainingSessionService $sessions): RedirectResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $sessions->saveRepositoryUrl($trainingSession, $user, $request->validated('repository_url'));
+
+        return redirect()->route('training.sessions.show', $trainingSession)
+            ->with('status', 'Your GitHub repository is saved.');
     }
 }

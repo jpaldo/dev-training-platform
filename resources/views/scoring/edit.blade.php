@@ -20,6 +20,7 @@
             <x-ui.eyebrow>ACTIVITY SCORING</x-ui.eyebrow>
             <x-ui.page-title>{{ $activityTitle }}</x-ui.page-title>
             <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $participantName }} · Week {{ $weekNumber }} · Submission Version {{ $version->version_number }}</p>
+            <x-session-repository :url="$repositoryUrl" />
         </header>
 
         @if($canScore)

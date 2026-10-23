@@ -9,6 +9,7 @@ use App\Models\ActivityScoreSuggestion;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -44,14 +45,15 @@ class ScoringPageService
     ) {}
 
     /**
-     * Everything the coach scoring page of a submission version renders: the header, the immutable submission (answers,
+     * Everything the coach scoring page of a submission version renders: the header (with the participant's GitHub
+     * repository for the submission's session, null when they have none), the immutable submission (answers,
      * prompt / output history, evidence), the AI suggestions, the scoring fields with their values
      * (a suggestion draft kept from the page, otherwise the saved score, otherwise the suggestion when nothing is saved
      * yet), the live score context and the second-reader review. The scoring fields are the activity's scoring
      * dimensions; an activity without dimensions cannot be scored. The single main action is Save / Publish Score.
      *
      * @param  array<string, mixed>|null  $draft  The scoring form values flashed when a suggestion was generated.
-     * @return array{version: SubmissionVersion, activityTitle: string, participantName: string, weekNumber: int, submissionStatus: string, submittedAt: string, answers: list<array{label: string, text: mixed, link: ?string}>, evidenceRows: list<array{title: string, detail: ?string}>, suggestion: ?ActivityScoreSuggestion, suggestionRows: list<array{heading: string, feedback: mixed, evidence_basis: mixed}>, evidenceProcessing: list<string>, suggestionData: ?array{dimensions: mixed, overall_feedback: ?string}, aiStatus: string, isAiConfigured: bool, canManage: bool, canScore: bool, rubricSummary: ?string, scoreMaximum: int, scoreFields: list<array{key: string, label: string, max: int, evidence_id: string, points_id: string, points: mixed, evidence_reasoning: mixed}>, overallFeedback: mixed, previousAverage: ?int, score: ?ActivityScore, canManageSecondReader: bool, readers: Collection<int, User>}
+     * @return array{version: SubmissionVersion, activityTitle: string, participantName: string, repositoryUrl: ?string, weekNumber: int, submissionStatus: string, submittedAt: string, answers: list<array{label: string, text: mixed, link: ?string}>, evidenceRows: list<array{title: string, detail: ?string}>, suggestion: ?ActivityScoreSuggestion, suggestionRows: list<array{heading: string, feedback: mixed, evidence_basis: mixed}>, evidenceProcessing: list<string>, suggestionData: ?array{dimensions: mixed, overall_feedback: ?string}, aiStatus: string, isAiConfigured: bool, canManage: bool, canScore: bool, rubricSummary: ?string, scoreMaximum: int, scoreFields: list<array{key: string, label: string, max: int, evidence_id: string, points_id: string, points: mixed, evidence_reasoning: mixed}>, overallFeedback: mixed, previousAverage: ?int, score: ?ActivityScore, canManageSecondReader: bool, readers: Collection<int, User>}
      */
     public function editData(SubmissionVersion $version, User $viewer, ?array $draft): array
     {
@@ -68,6 +70,7 @@ class ScoringPageService
             'version' => $version,
             'activityTitle' => $submission->activity->title,
             'participantName' => $submission->participant->name,
+            'repositoryUrl' => TrainingSessionParticipant::query()->forParticipantInSession($submission->training_session_id, $submission->user_id)->value('repository_url'),
             'weekNumber' => $submission->activity->week->week_number,
             'submissionStatus' => $submission->status->value,
             'submittedAt' => $version->submitted_at?->format('M j, Y g:i A') ?? '—',

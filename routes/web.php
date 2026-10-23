@@ -161,6 +161,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
     Route::prefix('training')->name('training.')->group(function () {
         Route::get('/sessions/{trainingSession}', [TrainingSessionController::class, 'show'])->middleware(['can:view,trainingSession', 'role:participant'])->name('sessions.show');
         Route::post('/sessions/{trainingSession}/join', [TrainingSessionController::class, 'join'])->name('sessions.join');
+        Route::put('/sessions/{trainingSession}/repository', [TrainingSessionController::class, 'updateRepository'])->middleware('role:participant')->name('sessions.repository.update');
         Route::prefix('sessions/{trainingSession}/weeks/{trainingWeek}')->middleware(['can:view,trainingSession', 'session.week'])->group(function (): void {
             Route::get('/', [TrainingWeekController::class, 'show'])->name('weeks.show');
             Route::get('/activities/{activity}', [TrainingActivityController::class, 'show'])->name('activities.show');

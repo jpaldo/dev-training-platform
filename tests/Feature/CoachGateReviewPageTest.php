@@ -159,6 +159,31 @@ class CoachGateReviewPageTest extends TestCase
             ->assertDontSee('javascript:', false);
     }
 
+    public function test_the_checklist_page_shows_the_participants_repository_for_the_session(): void
+    {
+        [$coach, $participant] = $this->assignedCoachAndParticipant();
+        ['session' => $sessionA, 'week' => $week, 'gate' => $gate] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        $sessionB = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $sessionA->participants()->updateExistingPivot($participant->id, ['repository_url' => 'https://github.com/ana/l4-accelerator']);
+
+        $this->actingAs($coach)->get(route('training.coach.gates.show', [$sessionA, $week, $participant, $gate]))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'Participant: '.e($participant->name).'</p>',
+                'Repository:',
+                '<a href="https://github.com/ana/l4-accelerator" target="_blank" rel="noopener noreferrer"',
+                '>https://github.com/ana/l4-accelerator<span class="sr-only"> (opens in a new tab)</span></a>',
+                '</header>',
+                'Weekly checklist',
+            ], false)
+            ->assertDontSee('No repository yet');
+
+        $this->actingAs($coach)->get(route('training.coach.gates.show', [$sessionB, $week, $participant, $gate]))
+            ->assertOk()
+            ->assertSeeInOrder(['Participant: '.e($participant->name).'</p>', 'Repository:', 'No repository yet', '</header>'], false)
+            ->assertDontSee('l4-accelerator');
+    }
+
     public function test_blocked_participant_shows_the_blockers_and_a_missing_video(): void
     {
         [$coach, $participant] = $this->assignedCoachAndParticipant();

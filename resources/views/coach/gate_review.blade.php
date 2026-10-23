@@ -11,6 +11,7 @@
             <x-ui.eyebrow>WEEK {{ $trainingWeek->week_number }} · GATE REVIEW</x-ui.eyebrow>
             <x-ui.page-title>{{ $gate->title }}</x-ui.page-title>
             <p class="m-0 leading-relaxed wrap-anywhere text-muted">Participant: {{ $participant->name }}</p>
+            <x-session-repository :url="$repositoryUrl" />
         </header>
 
         @if($canManage)

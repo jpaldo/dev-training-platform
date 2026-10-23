@@ -15,7 +15,7 @@ class PasswordSetupTest extends TestCase
 
     public function test_admin_can_create_an_account_without_a_plaintext_password_and_receive_a_one_time_setup_link(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $response = $this->actingAs($admin)->post(route('admin.users.store'), [
             'employee_id' => 'EMP-9001',
@@ -90,7 +90,7 @@ class PasswordSetupTest extends TestCase
 
     public function test_account_can_log_in_after_password_setup(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $response = $this->actingAs($admin)->post(route('admin.users.store'), [
             'employee_id' => 'EMP-9003',

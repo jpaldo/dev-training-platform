@@ -86,8 +86,8 @@ class CoachParticipantListPageTest extends TestCase
 
     public function test_an_old_path_filter_is_ignored(): void
     {
-        User::factory()->create(['name' => 'Mia Manual', 'training_path' => 'manual']);
-        User::factory()->create(['name' => 'Abe Automation', 'training_path' => 'automation']);
+        User::factory()->create(['name' => 'Mia Manual']);
+        User::factory()->create(['name' => 'Abe Automation']);
 
         $response = $this->actingAs(User::factory()->create(['role' => 'coach']))
             ->get(route('coach.participants', ['path' => 'automation']))

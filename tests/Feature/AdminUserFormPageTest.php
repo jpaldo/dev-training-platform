@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\AttendanceSession;
 use App\Models\User;
@@ -54,9 +53,9 @@ class AdminUserFormPageTest extends TestCase
     public function test_editing_a_participant_shows_the_saved_values_drive_coach_assignment_and_all_time_attendance(): void
     {
         $participant = User::factory()->create(['name' => 'Hal Hybrid', 'employee_id' => 'EMP-0042', 'job_role' => 'qa_tester', 'email' => 'hal@example.test', 'is_active' => false, 'drive_link' => 'https://drive.google.com/drive/folders/hal']);
-        $assigned = User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Bea Coach', 'email' => 'bea@example.test']);
-        User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Abe Coach', 'email' => 'abe@example.test']);
-        User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Ina Inactive', 'is_active' => false]);
+        $assigned = User::factory()->create(['role' => 'coach', 'name' => 'Bea Coach', 'email' => 'bea@example.test']);
+        User::factory()->create(['role' => 'coach', 'name' => 'Abe Coach', 'email' => 'abe@example.test']);
+        User::factory()->create(['role' => 'coach', 'name' => 'Ina Inactive', 'is_active' => false]);
         $participant->assignedCoaches()->attach($assigned->id);
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subDays(10), 'check_out_at' => now()->subDays(10)->addHours(4), 'total_seconds' => 14400]);
         foreach (range(1, 4) as $daysAgo) {
@@ -98,9 +97,9 @@ class AdminUserFormPageTest extends TestCase
     }
 
     #[DataProvider('accessTypesByRole')]
-    public function test_editing_a_user_preselects_the_access_type_of_their_role_whatever_their_training_path(UserRole $role, ?TrainingPath $trainingPath, string $selectedOption): void
+    public function test_editing_a_user_preselects_the_access_type_of_their_role(UserRole $role, string $selectedOption): void
     {
-        $user = User::factory()->create(['role' => $role, 'training_path' => $trainingPath]);
+        $user = User::factory()->create(['role' => $role]);
 
         $this->actingAs($this->admin())->get(route('admin.users.edit', $user))
             ->assertOk()
@@ -109,20 +108,19 @@ class AdminUserFormPageTest extends TestCase
     }
 
     /**
-     * @return array<string, array{UserRole, ?TrainingPath, string}>
+     * @return array<string, array{UserRole, string}>
      */
     public static function accessTypesByRole(): array
     {
         return [
-            'participant without a path' => [UserRole::Participant, null, '<option value="participant" selected>Participant</option>'],
-            'participant with a former path' => [UserRole::Participant, TrainingPath::Automation, '<option value="participant" selected>Participant</option>'],
-            'admin' => [UserRole::Admin, null, '<option value="admin" selected>Admin</option>'],
+            'participant' => [UserRole::Participant, '<option value="participant" selected>Participant</option>'],
+            'admin' => [UserRole::Admin, '<option value="admin" selected>Admin</option>'],
         ];
     }
 
     public function test_editing_a_coach_has_no_coach_assignment_and_shows_a_missing_drive_link(): void
     {
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $coach = User::factory()->create(['role' => 'coach']);
 
         $this->actingAs($this->admin())->get(route('admin.users.edit', $coach))
             ->assertOk()
@@ -133,7 +131,7 @@ class AdminUserFormPageTest extends TestCase
 
     public function test_editing_a_user_with_an_employee_id_marks_it_required(): void
     {
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null, 'employee_id' => 'EMP-0043']);
+        $coach = User::factory()->create(['role' => 'coach', 'employee_id' => 'EMP-0043']);
 
         $this->actingAs($this->admin())->get(route('admin.users.edit', $coach))
             ->assertOk()
@@ -182,7 +180,7 @@ class AdminUserFormPageTest extends TestCase
 
     private function admin(): User
     {
-        return User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        return User::factory()->create(['role' => 'admin']);
     }
 
     /**
@@ -193,7 +191,7 @@ class AdminUserFormPageTest extends TestCase
     {
         $admin = $this->admin();
         $participant = User::factory()->create();
-        $coaches = User::factory()->count($count)->create(['role' => 'coach', 'training_path' => null]);
+        $coaches = User::factory()->count($count)->create(['role' => 'coach']);
         $participant->assignedCoaches()->attach($coaches->modelKeys());
         foreach (range(1, $count) as $daysAgo) {
             AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subDays($daysAgo), 'check_out_at' => now()->subDays($daysAgo)->addHour(), 'total_seconds' => 3600]);

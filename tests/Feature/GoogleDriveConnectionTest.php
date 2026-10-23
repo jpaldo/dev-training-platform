@@ -197,8 +197,8 @@ class GoogleDriveConnectionTest extends TestCase
             'enabled' => true,
             'automatic_export' => false,
         ]);
-        $manual = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
-        $automation = User::factory()->create(['role' => 'participant', 'training_path' => 'automation']);
+        $manual = User::factory()->create(['role' => 'participant']);
+        $automation = User::factory()->create(['role' => 'participant']);
 
         foreach ([$manual, $automation] as $participant) {
             $this->actingAs($participant)->get(route('profile.show'))
@@ -211,7 +211,7 @@ class GoogleDriveConnectionTest extends TestCase
 
     public function test_profile_section_appears_before_google_drive_settings(): void
     {
-        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
+        $participant = User::factory()->create(['role' => 'participant']);
 
         $html = $this->actingAs($participant)->get(route('profile.show'))->assertOk()->getContent();
 

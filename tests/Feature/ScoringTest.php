@@ -49,8 +49,8 @@ class ScoringTest extends TestCase
         $program = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail();
         $activity = $program->weeks()->where('week_number', 1)->firstOrFail()->activities()->firstOrFail();
         $activity->update(['configuration' => [...$activity->configuration, 'scoring_dimensions' => self::DIMENSIONS]]);
-        $participant = User::factory()->create(['training_path' => 'automation']);
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $participant = User::factory()->create();
+        $coach = User::factory()->create(['role' => 'coach']);
         $coach->assignedParticipants()->attach($participant->id);
         $submission = ActivitySubmission::create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => ['exact_prompt' => 'Prompt'], 'submitted_at' => now()]);
@@ -221,7 +221,7 @@ class ScoringTest extends TestCase
         $this->actingAs($coach)->post(route('coach.scoring.store', $version), $payload)->assertRedirect();
         $score = ActivityScore::firstOrFail();
         $this->assertTrue($score->second_reader_required);
-        $reader = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $reader = User::factory()->create(['role' => 'coach']);
         $this->actingAs($coach)->post(route('coach.scoring.second-reader', $version), ['second_reader_id' => $reader->id, 'second_score' => 82, 'second_reasoning' => 'Independent review confirms the evidence.', 'moderation_outcome' => 'Reconciled'])->assertRedirect();
         $score->refresh();
         $this->assertSame(83, $score->total_score);
@@ -282,7 +282,7 @@ class ScoringTest extends TestCase
     public function test_follow_up_prompt_sequence_is_saved_without_mutating_history(): void
     {
         $activity = Activity::factory()->create();
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $workflow = app(SubmissionWorkflowService::class);
         $draft = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy prompt'], null, [
             ['prompt' => 'Initial prompt', 'output' => 'Initial output'],
@@ -303,7 +303,7 @@ class ScoringTest extends TestCase
     public function test_submitted_interactions_remain_version_scoped_through_revision(): void
     {
         $activity = Activity::factory()->create();
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $workflow = app(SubmissionWorkflowService::class);
         $v1 = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy'], null, [['prompt' => 'Prompt 1', 'output' => 'Output 1'], ['prompt' => 'Prompt 2', 'output' => 'Output 2']]);
         $workflow->submit($participant, $v1);

@@ -32,19 +32,19 @@ class CoachGateBoardPageTest extends TestCase
         GateCriterion::factory()->for($gate, 'gate')->create(['is_required' => false]);
         $activity = Activity::factory()->for($week, 'week')->create(['position' => 1]);
 
-        $passed = User::factory()->create(['name' => 'Pat Passed', 'email' => 'pat@example.test', 'training_path' => 'manual']);
+        $passed = User::factory()->create(['name' => 'Pat Passed', 'email' => 'pat@example.test']);
         $passedEvaluation = GateEvaluation::factory()->for($gate, 'gate')->for($passed, 'participant')->create(['status' => 'passed']);
         GateCriterionEvaluation::factory()->for($passedEvaluation, 'gateEvaluation')->for($videoCriterion, 'criterion')->create(['status' => 'met']);
         GateCriterionEvaluation::factory()->for($passedEvaluation, 'gateEvaluation')->for($activityCriterion, 'criterion')->create(['status' => 'met']);
         $passedRecording = $this->recordWeeklyVideo($passed, $week);
         $this->submitActivity($passed, $activity);
 
-        $awaiting = User::factory()->create(['name' => 'Ada Awaiting', 'email' => 'ada@example.test', 'training_path' => 'automation']);
+        $awaiting = User::factory()->create(['name' => 'Ada Awaiting', 'email' => 'ada@example.test']);
         GateEvaluation::factory()->for($gate, 'gate')->for($awaiting, 'participant')->create(['status' => 'awaiting_review']);
         $awaitingRecording = $this->recordWeeklyVideo($awaiting, $week);
         $this->submitActivity($awaiting, $activity);
 
-        $notReady = User::factory()->create(['name' => 'Nell Notready', 'email' => 'nell@example.test', 'training_path' => 'manual']);
+        $notReady = User::factory()->create(['name' => 'Nell Notready', 'email' => 'nell@example.test']);
 
         $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.gates'))
             ->assertOk()
@@ -130,8 +130,8 @@ class CoachGateBoardPageTest extends TestCase
     public function test_an_old_path_filter_is_ignored(): void
     {
         TrainingGate::factory()->for(TrainingWeek::factory()->state(['week_number' => 2]), 'week')->create();
-        User::factory()->create(['name' => 'Mia Manual', 'training_path' => 'manual']);
-        User::factory()->create(['name' => 'Abe Automation', 'training_path' => 'automation']);
+        User::factory()->create(['name' => 'Mia Manual']);
+        User::factory()->create(['name' => 'Abe Automation']);
 
         $response = $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.gates', ['path' => 'automation']))
             ->assertOk()

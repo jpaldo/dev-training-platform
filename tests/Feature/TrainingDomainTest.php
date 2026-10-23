@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\GateCriterionStatus;
-use App\Enums\TrainingPath;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
@@ -24,13 +23,12 @@ class TrainingDomainTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_training_content_supports_path_specific_requirements_and_evidence_rules(): void
+    public function test_training_content_supports_requirements_and_evidence_rules(): void
     {
         $program = Program::factory()->create();
         $week = TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 1]);
         $activity = Activity::factory()->for($week, 'week')->create();
         $requirement = ActivityRequirement::factory()->for($activity)->create([
-            'participant_path' => 'automation',
             'requirement_type' => 'deliverable',
         ]);
         $evidenceRequirement = EvidenceRequirement::factory()->for($requirement)->create([
@@ -40,7 +38,6 @@ class TrainingDomainTest extends TestCase
 
         $this->assertSame($program->id, $week->program->id);
         $this->assertSame($week->id, $activity->week->id);
-        $this->assertSame(TrainingPath::Automation, $requirement->fresh()->participant_path);
         $this->assertSame(['accepted_schemes' => ['https']], $evidenceRequirement->configuration);
     }
 

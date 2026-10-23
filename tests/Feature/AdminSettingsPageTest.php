@@ -601,7 +601,7 @@ class AdminSettingsPageTest extends TestCase
 
     private function admin(): User
     {
-        return User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        return User::factory()->create(['role' => 'admin']);
     }
 
     private function configureAiEnvironment(): void

@@ -22,8 +22,8 @@ class ScoringOverviewPageTest extends TestCase
         $activities = $this->program();
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Coach Carter']);
         $mentor = User::factory()->create(['role' => 'coach', 'name' => 'Mia Mentor']);
-        $ada = User::factory()->create(['name' => 'Ada Automation', 'email' => 'ada@example.com', 'training_path' => 'automation']);
-        $ben = User::factory()->create(['name' => 'Ben Both', 'email' => 'ben@example.com', 'training_path' => 'automation_manual']);
+        $ada = User::factory()->create(['name' => 'Ada Automation', 'email' => 'ada@example.com']);
+        $ben = User::factory()->create(['name' => 'Ben Both', 'email' => 'ben@example.com']);
         $coach->assignedParticipants()->attach($ada->id);
         $mentor->assignedParticipants()->attach($ada->id);
         $this->score($ada, $activities[2][0], 83, 'Proficient');
@@ -77,9 +77,9 @@ class ScoringOverviewPageTest extends TestCase
     {
         $activities = $this->program();
         $coach = User::factory()->create(['role' => 'coach']);
-        $assigned = User::factory()->create(['name' => 'Ada Assigned', 'training_path' => 'automation']);
-        $unassigned = User::factory()->create(['name' => 'Ada Unassigned', 'training_path' => 'automation']);
-        User::factory()->create(['name' => 'Ada Manual', 'training_path' => 'manual']);
+        $assigned = User::factory()->create(['name' => 'Ada Assigned']);
+        $unassigned = User::factory()->create(['name' => 'Ada Unassigned']);
+        User::factory()->create(['name' => 'Ada Manual']);
         $coach->assignedParticipants()->attach($assigned->id);
         $this->score($assigned, $activities[2][0], 83, 'Proficient');
         $this->score($unassigned, $activities[2][0], 84, 'Proficient');
@@ -129,7 +129,7 @@ class ScoringOverviewPageTest extends TestCase
     {
         $this->program();
         foreach (range(1, 26) as $number) {
-            User::factory()->create(['name' => sprintf('Participant %02d', $number), 'training_path' => 'manual']);
+            User::factory()->create(['name' => sprintf('Participant %02d', $number)]);
         }
         $coach = User::factory()->create(['role' => 'coach']);
 
@@ -161,8 +161,8 @@ class ScoringOverviewPageTest extends TestCase
     public function test_an_old_path_filter_is_ignored(): void
     {
         $this->program();
-        User::factory()->create(['name' => 'Mia Manual', 'training_path' => 'manual']);
-        User::factory()->create(['name' => 'Abe Automation', 'training_path' => 'automation']);
+        User::factory()->create(['name' => 'Mia Manual']);
+        User::factory()->create(['name' => 'Abe Automation']);
 
         $this->actingAs(User::factory()->create(['role' => 'coach']))
             ->get(route('coach.scoring.index', ['path' => 'automation']))
@@ -175,7 +175,7 @@ class ScoringOverviewPageTest extends TestCase
     public function test_the_table_scrolls_inside_a_positioned_region_so_its_screen_reader_only_header_cannot_widen_the_page(): void
     {
         $this->program();
-        User::factory()->create(['name' => 'Manual Person', 'training_path' => 'manual']);
+        User::factory()->create(['name' => 'Manual Person']);
 
         $this->actingAs(User::factory()->create(['role' => 'coach']))
             ->get(route('coach.scoring.index'))

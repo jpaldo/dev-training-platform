@@ -23,7 +23,7 @@ class EvidencePreviewUnavailablePageTest extends TestCase
     public function test_office_evidence_shows_the_escaped_bounded_preview_and_the_download_action(): void
     {
         Storage::fake('local');
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $version = $this->submittedVersionFor($participant);
         $path = 'evidence/'.$participant->id.'/'.$version->id.'/notes.docx';
         Storage::disk('local')->put($path, $this->docxContents('<p>Checked &lt;script&gt;alert(1)&lt;/script&gt; output</p>'));
@@ -59,7 +59,7 @@ class EvidencePreviewUnavailablePageTest extends TestCase
     public function test_evidence_without_a_preview_explains_why_and_falls_back_to_a_generic_title(): void
     {
         Storage::fake('local');
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $version = $this->submittedVersionFor($participant);
         $path = 'evidence/'.$participant->id.'/'.$version->id.'/bundle.zip';
         Storage::disk('local')->put($path, 'archive');

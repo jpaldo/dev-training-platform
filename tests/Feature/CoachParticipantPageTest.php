@@ -45,17 +45,6 @@ class CoachParticipantPageTest extends TestCase
             ->assertDontSee('Peer Mock Interview Requirement');
     }
 
-    public function test_heading_does_not_show_a_training_path(): void
-    {
-        [$coach, $participant] = $this->assignedCoachAndParticipant();
-        $participant->update(['training_path' => 'automation_manual']);
-
-        $this->actingAs($coach)->get(route('coach.participants.show', $participant))
-            ->assertOk()
-            ->assertSee(e($participant->email).'</p>', false)
-            ->assertDontSee('Automation / Manual');
-    }
-
     #[DataProvider('viewerAccess')]
     public function test_access_notice_and_retry_action_follow_the_viewer(string $role, bool $isAssigned, string $notice, bool $canRetry): void
     {

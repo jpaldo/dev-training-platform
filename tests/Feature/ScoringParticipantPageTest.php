@@ -29,7 +29,7 @@ class ScoringParticipantPageTest extends TestCase
         $drafted = Activity::factory()->for($weekTwo, 'week')->create(['title' => 'Draft notes', 'position' => 3]);
         Activity::factory()->for($weekTwo, 'week')->create(['title' => 'Untouched task', 'position' => 4]);
         Activity::factory()->for($weekThree, 'week')->create(['title' => 'Regression pass', 'position' => 1]);
-        $participant = User::factory()->create(['name' => 'Ada Automation', 'email' => 'ada@example.com', 'training_path' => 'automation']);
+        $participant = User::factory()->create(['name' => 'Ada Automation', 'email' => 'ada@example.com']);
         $scoredVersion = $this->version($participant, $scored, 'approved');
         $this->publishedScore($scoredVersion, 83, 'Proficient');
         $unscoredVersion = $this->version($participant, $unscored, 'submitted');

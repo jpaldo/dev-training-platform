@@ -19,8 +19,8 @@ class AdminDashboardPageTest extends TestCase
 
     public function test_admin_sees_the_labelled_counts_the_integration_statuses_and_the_admin_tool_links(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
-        User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
+        User::factory()->create(['role' => 'coach']);
         [$first, $second] = User::factory()->count(3)->create()->all();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2]);
         $activity = Activity::factory()->for($week, 'week')->create();
@@ -71,7 +71,7 @@ class AdminDashboardPageTest extends TestCase
         $activity = Activity::factory()->for(TrainingWeek::factory()->for(Program::factory()->state(['is_active' => false]))->state(['week_number' => 2]), 'week')->create();
         ActivitySubmission::factory()->for($activity)->create(['status' => 'submitted']);
 
-        $this->actingAs(User::factory()->create(['role' => 'admin', 'training_path' => null]))
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('admin.dashboard'))
             ->assertOk()
             ->assertSeeInOrder([

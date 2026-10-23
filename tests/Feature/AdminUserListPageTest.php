@@ -13,11 +13,11 @@ class AdminUserListPageTest extends TestCase
     public function test_rows_show_the_employee_id_access_type_status_and_account_actions_of_each_user(): void
     {
         $this->travelTo(now()->setDate(2026, 3, 10));
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null, 'name' => 'Ada Admin', 'created_at' => now()->subDays(5)]);
-        User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Cole Coach', 'employee_id' => null, 'created_at' => now()->subDays(4)]);
-        User::factory()->create(['training_path' => 'manual', 'name' => 'Max Manual', 'created_at' => now()->subDays(3)]);
-        User::factory()->create(['training_path' => 'automation', 'name' => 'Ava Automation', 'created_at' => now()->subDays(2)]);
-        $hybrid = User::factory()->create(['training_path' => 'automation_manual', 'name' => 'Hal Hybrid', 'employee_id' => 'EMP-0042', 'is_active' => false, 'created_at' => now()->subDay()]);
+        $admin = User::factory()->create(['role' => 'admin', 'name' => 'Ada Admin', 'created_at' => now()->subDays(5)]);
+        User::factory()->create(['role' => 'coach', 'name' => 'Cole Coach', 'employee_id' => null, 'created_at' => now()->subDays(4)]);
+        User::factory()->create(['name' => 'Max Manual', 'created_at' => now()->subDays(3)]);
+        User::factory()->create(['name' => 'Ava Automation', 'created_at' => now()->subDays(2)]);
+        $hybrid = User::factory()->create(['name' => 'Hal Hybrid', 'employee_id' => 'EMP-0042', 'is_active' => false, 'created_at' => now()->subDay()]);
 
         $response = $this->actingAs($admin)->get(route('admin.users.index'))
             ->assertOk()
@@ -54,9 +54,9 @@ class AdminUserListPageTest extends TestCase
 
     public function test_filters_keep_their_values_and_an_empty_result_shows_a_notice_instead_of_the_table(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
-        User::factory()->create(['training_path' => 'automation', 'name' => 'Ava Automation']);
-        User::factory()->create(['training_path' => 'manual', 'name' => 'Max Manual']);
+        $admin = User::factory()->create(['role' => 'admin']);
+        User::factory()->create(['name' => 'Ava Automation']);
+        User::factory()->create(['name' => 'Max Manual']);
 
         $this->actingAs($admin)->get(route('admin.users.index', ['search' => 'Ava', 'access_type' => 'participant', 'status' => 'active']))
             ->assertOk()
@@ -75,10 +75,10 @@ class AdminUserListPageTest extends TestCase
 
     public function test_the_access_type_filter_lists_only_users_with_that_role_and_ignores_a_path(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null, 'name' => 'Ada Admin']);
-        User::factory()->create(['role' => 'coach', 'training_path' => null, 'name' => 'Cole Coach']);
-        User::factory()->create(['training_path' => 'manual', 'name' => 'Max Manual']);
-        User::factory()->create(['training_path' => null, 'name' => 'Nia Nopath']);
+        $admin = User::factory()->create(['role' => 'admin', 'name' => 'Ada Admin']);
+        User::factory()->create(['role' => 'coach', 'name' => 'Cole Coach']);
+        User::factory()->create(['name' => 'Max Manual']);
+        User::factory()->create(['name' => 'Nia Nopath']);
 
         $this->actingAs($admin)->get(route('admin.users.index', ['access_type' => 'participant', 'path' => 'automation']))
             ->assertOk()
@@ -103,7 +103,7 @@ class AdminUserListPageTest extends TestCase
 
     public function test_the_access_type_filter_rejects_the_former_qa_access_types(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         foreach (['qa_manual', 'qa_automation', 'qa_automation_manual'] as $formerAccessType) {
             $this->actingAs($admin)->get(route('admin.users.index', ['access_type' => $formerAccessType]))
@@ -113,7 +113,7 @@ class AdminUserListPageTest extends TestCase
 
     public function test_searching_for_an_employee_id_finds_that_user(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
         User::factory()->create(['name' => 'Ava Automation', 'employee_id' => 'EMP-1234']);
         User::factory()->create(['name' => 'Max Manual', 'employee_id' => 'EMP-9876']);
 
@@ -128,7 +128,7 @@ class AdminUserListPageTest extends TestCase
     {
         config(['password_setup.expire' => 45]);
 
-        $this->actingAs(User::factory()->create(['role' => 'admin', 'training_path' => null]))
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->withSession(['password_setup_url' => 'https://example.test/password/setup/token'])
             ->get(route('admin.users.index'))
             ->assertOk()

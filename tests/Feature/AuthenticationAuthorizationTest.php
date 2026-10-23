@@ -108,33 +108,6 @@ class AuthenticationAuthorizationTest extends TestCase
         ]);
     }
 
-    public function test_a_participant_without_a_training_path_can_save_their_profile(): void
-    {
-        $participant = User::factory()->create(['training_path' => null]);
-
-        $this->actingAs($participant)
-            ->patch(route('profile.update'), ['first_name' => 'Updated', 'last_name' => 'Participant', 'email' => $participant->email])
-            ->assertSessionHasNoErrors()
-            ->assertRedirect(route('profile.show'));
-
-        $this->assertDatabaseHas('users', ['id' => $participant->id, 'name' => 'Updated Participant', 'training_path' => null]);
-    }
-
-    public function test_registration_and_profile_updates_ignore_a_posted_training_path(): void
-    {
-        $this->post(route('register.store'), [...$this->registrationFields(), 'training_path' => 'automation'])
-            ->assertSessionHasNoErrors()
-            ->assertRedirect(route('profile.show'));
-        $this->assertDatabaseHas('users', ['email' => 'manual@example.test', 'training_path' => null]);
-
-        $participant = User::factory()->create(['training_path' => 'manual']);
-        $this->actingAs($participant)
-            ->patch(route('profile.update'), ['first_name' => $participant->first_name, 'last_name' => $participant->last_name, 'email' => $participant->email, 'training_path' => 'performance'])
-            ->assertSessionHasNoErrors()
-            ->assertRedirect(route('profile.show'));
-        $this->assertDatabaseHas('users', ['id' => $participant->id, 'training_path' => 'manual']);
-    }
-
     public function test_invalid_credentials_are_rejected_without_authenticating_the_user(): void
     {
         $participant = User::factory()->create(['email' => 'participant@example.test']);
@@ -228,8 +201,8 @@ class AuthenticationAuthorizationTest extends TestCase
     public function test_coaches_and_admins_can_review_training_records_while_participants_cannot_modify_gate_results(): void
     {
         $participant = User::factory()->create();
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $coach->assignedParticipants()->attach($participant->id);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->create();
         $gateEvaluation = GateEvaluation::factory()->for(TrainingGate::factory(), 'gate')->for($participant, 'participant')->create();
@@ -246,8 +219,8 @@ class AuthenticationAuthorizationTest extends TestCase
     public function test_only_participants_can_create_training_records(): void
     {
         $participant = User::factory()->create();
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         foreach ([ActivitySubmission::class, SubmissionVersion::class, SubmissionEvidence::class] as $record) {
             $this->assertTrue($participant->can('create', $record), $record);
@@ -259,8 +232,8 @@ class AuthenticationAuthorizationTest extends TestCase
     public function test_only_admins_can_create_users_or_update_another_user(): void
     {
         $participant = User::factory()->create();
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->assertTrue($admin->can('create', User::class));
         $this->assertTrue($admin->can('update', $coach));
@@ -273,8 +246,8 @@ class AuthenticationAuthorizationTest extends TestCase
     public function test_role_helpers_accept_only_role_cases(): void
     {
         $participant = User::factory()->create();
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->assertTrue($coach->hasAnyRole(UserRole::Coach));
         $this->assertTrue($coach->hasAnyRole(UserRole::Participant, UserRole::Coach));
@@ -306,7 +279,7 @@ class AuthenticationAuthorizationTest extends TestCase
     {
         Route::middleware(['web', 'auth', 'role:admin,superuser'])->get('/testing/unknown-role', fn (): string => 'reached');
         Route::middleware(['web', 'auth', 'role'])->get('/testing/missing-role', fn (): string => 'reached');
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->withoutExceptionHandling();
 
@@ -326,9 +299,9 @@ class AuthenticationAuthorizationTest extends TestCase
     {
         $participant = User::factory()->create();
         $otherParticipant = User::factory()->create();
-        $assignedCoach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
-        $otherCoach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $assignedCoach = User::factory()->create(['role' => 'coach']);
+        $otherCoach = User::factory()->create(['role' => 'coach']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $assignedCoach->assignedParticipants()->attach($participant->id);
 
         $this->assertTrue($admin->canManageParticipant($participant));
@@ -349,7 +322,7 @@ class AuthenticationAuthorizationTest extends TestCase
     public function test_daily_log_pages_are_gone(): void
     {
         $participant = User::factory()->create();
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $coach = User::factory()->create(['role' => 'coach']);
 
         $this->actingAs($participant)->get('/daily-logs')->assertNotFound();
         $this->actingAs($coach)->get('/coach/reports/daily-logs')->assertNotFound();

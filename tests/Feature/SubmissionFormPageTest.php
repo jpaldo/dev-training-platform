@@ -220,7 +220,7 @@ class SubmissionFormPageTest extends TestCase
      */
     private function activityFixture(int $weekNumber = 2, int $position = 2): array
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => $weekNumber, 'position' => 1]);
         $activity = Activity::factory()->for($week, 'week')->create(['position' => $position]);
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();

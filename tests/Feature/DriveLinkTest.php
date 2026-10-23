@@ -28,10 +28,10 @@ class DriveLinkTest extends TestCase
 
     public function test_coach_and_admin_can_view_drive_link_but_participant_cannot_view_other_profiles(): void
     {
-        $participant = User::factory()->create(['drive_link' => 'https://drive.google.com/drive/folders/example', 'training_path' => 'automation']);
+        $participant = User::factory()->create(['drive_link' => 'https://drive.google.com/drive/folders/example']);
         $other = User::factory()->create(['drive_link' => 'https://drive.google.com/drive/folders/private']);
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($coach)->get(route('coach.participants.show', $participant))->assertOk()->assertSee('Open Training Drive')->assertSee('target="_blank"', false)->assertSee('rel="noopener noreferrer"', false)->assertSee($participant->drive_link);
         $this->actingAs($admin)->get(route('admin.users.edit', $participant))->assertOk()->assertSee('Open Training Drive')->assertSee($participant->drive_link);
@@ -41,7 +41,7 @@ class DriveLinkTest extends TestCase
     public function test_missing_drive_link_is_displayed_as_not_provided(): void
     {
         $participant = User::factory()->create(['drive_link' => null]);
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $coach = User::factory()->create(['role' => 'coach']);
 
         $this->actingAs($coach)->get(route('coach.participants.show', $participant))->assertOk()->assertSee('Training Drive')->assertSee('Not provided');
     }

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Enums\TrainingPath;
 use App\Models\ParticipantNotification;
 use App\Models\Program;
 use App\Models\User;
@@ -151,16 +150,10 @@ class HomeNavigationTest extends TestCase
         $this->actingAs($participant)->get(route('training.gates.show', [$week1, $gate]))->assertOk()->assertSee($gate->criteria->first()->title)->assertSee('Awaiting Review');
     }
 
-    public function test_combined_training_path_is_eligible_for_both_path_requirements(): void
-    {
-        $participant = User::factory()->create(['training_path' => 'automation_manual']);
-        $this->assertSame([TrainingPath::Manual, TrainingPath::Automation, TrainingPath::AutomationManual], $participant->eligibleTrainingPaths());
-    }
-
     public function test_dashboard_shows_assigned_mentors_or_neutral_unassigned_state(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee('Mentor')->assertSee('Not assigned');
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Ely Mentor']);
         $participant->assignedCoaches()->attach($coach);

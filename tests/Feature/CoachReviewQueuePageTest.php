@@ -141,7 +141,7 @@ class CoachReviewQueuePageTest extends TestCase
         $this->submission($weekThreeActivity, 'Manual Three', 'submitted', now());
         $automation = ActivitySubmission::factory()
             ->for($weekTwoActivity)
-            ->for(User::factory()->state(['name' => 'Automation Two', 'training_path' => 'automation']), 'participant')
+            ->for(User::factory()->state(['name' => 'Automation Two']), 'participant')
             ->create(['status' => 'submitted', 'submitted_at' => now()]);
 
         $this->actingAs($coach)->get(route('coach.reviews', ['week' => 3]))

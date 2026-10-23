@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Enums\JobRole;
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -36,7 +35,6 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'role' => UserRole::Participant,
-            'training_path' => TrainingPath::Manual,
             'job_role' => JobRole::Developer,
             'remember_token' => Str::random(10),
         ];

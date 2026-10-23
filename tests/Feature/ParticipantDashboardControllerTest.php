@@ -38,21 +38,19 @@ class ParticipantDashboardControllerTest extends TestCase
         $this->assertSame($singleRowQueryCount, $threeRowQueryCount);
     }
 
-    public function test_header_and_attendance_card_do_not_show_a_training_path(): void
+    public function test_header_shows_the_participant_name_and_start_week(): void
     {
-        $participant = User::factory()->create(['name' => 'Hal Hybrid', 'training_path' => 'automation_manual']);
+        $participant = User::factory()->create(['name' => 'Hal Hybrid']);
         TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
 
         $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Hal Hybrid · Start at Week 2.')
-            ->assertDontSee('Automation / Manual')
-            ->assertDontSee('Training path');
+            ->assertSee('Hal Hybrid · Start at Week 2.');
     }
 
     public function test_dashboard_shows_the_published_score_of_an_activity_but_not_a_draft_score(): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
 
@@ -73,7 +71,7 @@ class ParticipantDashboardControllerTest extends TestCase
     #[DataProvider('latestAttemptStatuses')]
     public function test_activity_row_shows_the_label_tone_and_action_of_the_latest_attempt_status(?string $status, string $label, string $badgeClasses, string $action, bool $isClosed): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
         $activity = Activity::factory()->for($week, 'week')->create(['title' => 'Exploratory charter', 'position' => 1]);
         if ($status !== null) {
@@ -119,7 +117,7 @@ class ParticipantDashboardControllerTest extends TestCase
 
     public function test_gate_card_shows_the_saved_evaluation_status_or_the_readiness_status(): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
         $evaluatedGate = TrainingGate::factory()->for($week, 'week')->create(['title' => 'Evaluated Gate', 'position' => 1]);
         TrainingGate::factory()->for($week, 'week')->create(['title' => 'Unevaluated Gate', 'position' => 2]);
@@ -136,7 +134,7 @@ class ParticipantDashboardControllerTest extends TestCase
 
     public function test_only_the_panel_of_a_week_whose_checklist_has_a_video_item_shows_the_video_row(): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $program = Program::factory()->create();
         [$weekOne, $weekTwo, $weekThree] = collect([1, 2, 3])
             ->map(fn (int $number): TrainingWeek => TrainingWeek::factory()->for($program)->create(['week_number' => $number, 'position' => $number]))
@@ -168,7 +166,7 @@ class ParticipantDashboardControllerTest extends TestCase
 
     public function test_week_panels_show_no_daily_log_progress(): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
         Activity::factory()->for($week, 'week')->create();
 
@@ -181,7 +179,7 @@ class ParticipantDashboardControllerTest extends TestCase
 
     public function test_week_panels_show_no_training_guide_card(): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
         Activity::factory()->for($week, 'week')->create();
 
@@ -194,7 +192,7 @@ class ParticipantDashboardControllerTest extends TestCase
 
     public function test_a_week_four_activity_two_is_listed_like_any_other_activity_without_peer_or_mentor_interviews(): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 4, 'position' => 1]);
         Activity::factory()->for($week, 'week')->create(['title' => 'Mock Level 3 Interview', 'position' => 2]);
 
@@ -217,7 +215,7 @@ class ParticipantDashboardControllerTest extends TestCase
      */
     private function dashboardQueryCount(int $rows): int
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $program = Program::factory()->create();
 
         foreach (range(1, $rows) as $position) {

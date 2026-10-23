@@ -37,18 +37,6 @@ class SubmissionVersionPageTest extends TestCase
             ->assertDontSee('submission-main-action', false);
     }
 
-    public function test_summary_does_not_show_a_training_path(): void
-    {
-        [$participant, $week, $activity] = $this->activityFixture();
-        $participant->update(['training_path' => 'automation_manual']);
-        $version = $this->submittedVersion($participant, $activity, 'submitted');
-
-        $this->actingAs($participant)->get(route('training.submission.show', [$week, $activity, $version]))
-            ->assertOk()
-            ->assertSee(e($activity->title).'</p>', false)
-            ->assertDontSee('Automation / Manual');
-    }
-
     public function test_evidence_rows_distinguish_links_and_text_evidence(): void
     {
         [$participant, $week, $activity] = $this->activityFixture();
@@ -263,7 +251,7 @@ class SubmissionVersionPageTest extends TestCase
      */
     private function activityFixture(int $weekNumber = 2, int $position = 2): array
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => $weekNumber, 'position' => 1]);
         $activity = Activity::factory()->for($week, 'week')->create(['position' => $position]);
 

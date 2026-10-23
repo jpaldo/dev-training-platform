@@ -69,7 +69,6 @@ class ProfilePageTest extends TestCase
             ], false)
             ->assertDontSee('name="employee_id"', false)
             ->assertDontSee('name="job_role"', false)
-            ->assertDontSee('name="training_path"', false)
             ->assertDontSee('Training path')
             ->assertDontSee('data-drive-picker', false)
             ->assertDontSee('apis.google.com/js/api.js', false)

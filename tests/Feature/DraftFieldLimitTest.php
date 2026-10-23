@@ -33,7 +33,7 @@ class DraftFieldLimitTest extends TestCase
                 'configuration' => [...$field, 'required' => false],
             ]);
         }
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
 
         return [$week, $activity, $participant];
     }

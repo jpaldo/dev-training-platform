@@ -16,7 +16,7 @@ class AdminUserManagementTest extends TestCase
 
     public function test_only_admins_can_manage_users(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin)->get(route('admin.users.index'))->assertOk()->assertSee('User Management');
         $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('admin.users.index'))->assertForbidden();
         $this->actingAs(User::factory()->create())->get(route('admin.users.index'))->assertForbidden();
@@ -24,7 +24,7 @@ class AdminUserManagementTest extends TestCase
 
     public function test_non_admins_cannot_change_a_users_employee_id(): void
     {
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $coach = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create(['employee_id' => 'EMP-OLD']);
 
         $this->actingAs($coach)
@@ -34,21 +34,21 @@ class AdminUserManagementTest extends TestCase
         $this->assertSame('EMP-OLD', $participant->fresh()->employee_id);
     }
 
-    public function test_admin_can_create_each_access_type_as_that_role_without_a_training_path(): void
+    public function test_admin_can_create_each_access_type_as_that_role(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
         foreach (['admin', 'coach', 'participant'] as $access) {
             $email = $access.'-'.fake()->unique()->safeEmail();
             $this->actingAs($admin)->post(route('admin.users.store'), $this->userPayload(['employee_id' => 'EMP-'.$access, 'email' => $email, 'access_type' => $access]))->assertRedirect(route('admin.users.index'))->assertSessionHas('password_setup_url');
-            $this->assertDatabaseHas('users', ['email' => $email, 'employee_id' => 'EMP-'.$access, 'role' => $access, 'training_path' => null, 'is_active' => 1]);
+            $this->assertDatabaseHas('users', ['email' => $email, 'employee_id' => 'EMP-'.$access, 'role' => $access, 'is_active' => 1]);
             $this->assertDatabaseHas('admin_audit_logs', ['actor_id' => $admin->id, 'action' => 'user_created', 'metadata->access_type' => $access]);
         }
     }
 
     public function test_the_former_qa_access_types_fail_validation_on_create_and_edit(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $participant = User::factory()->create();
 
         foreach (['qa_manual', 'qa_automation', 'qa_automation_manual'] as $formerAccessType) {
             $this->actingAs($admin)
@@ -65,7 +65,7 @@ class AdminUserManagementTest extends TestCase
 
     public function test_admin_can_create_a_coach_with_an_employee_id_and_correct_it_later(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->post(route('admin.users.store'), $this->userPayload(['employee_id' => 'EMP-1001', 'email' => 'cora@example.test', 'job_role' => 'project_manager']))
@@ -95,8 +95,8 @@ class AdminUserManagementTest extends TestCase
 
     public function test_saving_a_user_without_changing_the_employee_id_records_that_it_did_not_change(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null, 'employee_id' => 'EMP-2002']);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $coach = User::factory()->create(['role' => 'coach', 'employee_id' => 'EMP-2002']);
 
         $this->actingAs($admin)
             ->put(route('admin.users.update', $coach), $this->userPayload(['employee_id' => 'EMP-2002', 'email' => $coach->email]))
@@ -108,7 +108,7 @@ class AdminUserManagementTest extends TestCase
 
     public function test_adding_a_user_requires_an_employee_id_and_rejects_an_unknown_job_role(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->post(route('admin.users.store'), $this->userPayload(['employee_id' => '', 'email' => 'no-id@example.test', 'job_role' => 'designer']))
@@ -119,7 +119,7 @@ class AdminUserManagementTest extends TestCase
 
     public function test_adding_a_user_with_a_taken_employee_id_shows_an_error_and_saves_nothing(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
         User::factory()->create(['employee_id' => 'EMP-3003']);
 
         $this->actingAs($admin)
@@ -132,9 +132,9 @@ class AdminUserManagementTest extends TestCase
 
     public function test_correcting_an_employee_id_to_a_taken_one_shows_an_error_and_saves_nothing(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
         User::factory()->create(['employee_id' => 'EMP-4004']);
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null, 'employee_id' => 'EMP-4005', 'name' => 'Cora Coach']);
+        $coach = User::factory()->create(['role' => 'coach', 'employee_id' => 'EMP-4005', 'name' => 'Cora Coach']);
 
         $this->actingAs($admin)
             ->put(route('admin.users.update', $coach), $this->userPayload(['employee_id' => 'EMP-4004', 'first_name' => 'Renamed', 'email' => $coach->email]))
@@ -148,8 +148,8 @@ class AdminUserManagementTest extends TestCase
 
     public function test_clearing_an_existing_employee_id_shows_an_error_and_saves_nothing(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null, 'employee_id' => 'EMP-5005', 'name' => 'Cora Coach']);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $coach = User::factory()->create(['role' => 'coach', 'employee_id' => 'EMP-5005', 'name' => 'Cora Coach']);
 
         $this->actingAs($admin)
             ->put(route('admin.users.update', $coach), $this->userPayload(['employee_id' => '', 'first_name' => 'Renamed', 'email' => $coach->email]))
@@ -163,8 +163,8 @@ class AdminUserManagementTest extends TestCase
 
     public function test_a_user_without_an_employee_id_can_still_be_edited(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
-        $legacy = User::factory()->create(['role' => 'coach', 'training_path' => null, 'employee_id' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $legacy = User::factory()->create(['role' => 'coach', 'employee_id' => null]);
 
         $this->actingAs($admin)
             ->put(route('admin.users.update', $legacy), $this->userPayload(['employee_id' => '', 'first_name' => 'Lea', 'last_name' => 'Legacy', 'email' => $legacy->email]))
@@ -178,8 +178,8 @@ class AdminUserManagementTest extends TestCase
 
     public function test_admin_can_change_access_type_without_deleting_history_and_disable_enable_account(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
-        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $participant = User::factory()->create(['role' => 'participant']);
         $this->actingAs($admin)->put(route('admin.users.update', $participant), $this->userPayload(['employee_id' => $participant->employee_id, 'email' => $participant->email, 'access_type' => 'coach']))->assertRedirect();
         $participant->refresh();
         $this->assertSame(UserRole::Coach, $participant->role);
@@ -192,14 +192,14 @@ class AdminUserManagementTest extends TestCase
 
     public function test_last_active_admin_cannot_be_disabled_or_demoted(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->actingAs($admin)->post(route('admin.users.disable', $admin))->assertSessionHasErrors('user');
         $this->actingAs($admin)->put(route('admin.users.update', $admin), $this->userPayload(['employee_id' => $admin->employee_id, 'email' => $admin->email, 'access_type' => 'coach']))->assertSessionHasErrors('access_type');
     }
 
     public function test_last_active_admin_can_update_their_own_details_while_keeping_admin_access(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->put(route('admin.users.update', $admin), $this->userPayload(['employee_id' => $admin->employee_id, 'first_name' => 'Renamed', 'last_name' => 'Admin', 'email' => $admin->email, 'access_type' => 'admin']))
@@ -214,7 +214,7 @@ class AdminUserManagementTest extends TestCase
 
     public function test_last_active_admin_cannot_be_disabled_from_the_edit_form(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->put(route('admin.users.update', $admin), $this->userPayload(['employee_id' => $admin->employee_id, 'email' => $admin->email, 'access_type' => 'admin', 'is_active' => 0]))
@@ -231,7 +231,7 @@ class AdminUserManagementTest extends TestCase
 
     public function test_admin_can_assign_and_remove_active_coaches_from_a_participant(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
         $participant = User::factory()->create(['role' => 'participant']);
         $coach = User::factory()->create(['role' => 'coach', 'is_active' => true]);
 
@@ -244,7 +244,7 @@ class AdminUserManagementTest extends TestCase
 
     public function test_admin_assignment_rejects_inactive_or_non_coach_users(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
         $participant = User::factory()->create(['role' => 'participant']);
         $inactiveCoach = User::factory()->create(['role' => 'coach', 'is_active' => false]);
         $otherParticipant = User::factory()->create(['role' => 'participant']);
@@ -255,7 +255,7 @@ class AdminUserManagementTest extends TestCase
 
     public function test_admin_assignment_returns_not_found_for_non_participant_before_validating_input(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $admin = User::factory()->create(['role' => 'admin']);
         $coach = User::factory()->create(['role' => 'coach', 'is_active' => true]);
 
         $this->actingAs($admin)

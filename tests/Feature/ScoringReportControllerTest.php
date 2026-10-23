@@ -40,8 +40,8 @@ class ScoringReportControllerTest extends TestCase
         $firstActivity = Activity::factory()->for($weekTwo, 'week')->create(['position' => 1]);
         $secondActivity = Activity::factory()->for($weekTwo, 'week')->create(['position' => 2]);
         $weekThreeActivity = Activity::factory()->for($weekThree, 'week')->create(['position' => 1]);
-        $ada = User::factory()->create(['name' => 'Ada', 'email' => 'ada@example.com', 'training_path' => 'manual', 'employee_id' => 'EMP-1001']);
-        $ben = User::factory()->create(['name' => 'Ben', 'email' => 'ben@example.com', 'training_path' => 'automation', 'employee_id' => null]);
+        $ada = User::factory()->create(['name' => 'Ada', 'email' => 'ada@example.com', 'employee_id' => 'EMP-1001']);
+        $ben = User::factory()->create(['name' => 'Ben', 'email' => 'ben@example.com', 'employee_id' => null]);
         $ada->assignedCoaches()->attach($coach->id);
 
         $this->createScoredSubmission($ada, $firstActivity, $coach, 80);
@@ -101,7 +101,7 @@ class ScoringReportControllerTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Casey Coach']);
         $program = Program::factory()->create();
         $week = TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 1]);
-        $participant = User::factory()->create(['training_path' => 'manual', 'employee_id' => 'EMP-2001']);
+        $participant = User::factory()->create(['employee_id' => 'EMP-2001']);
         $published = Activity::factory()->for($week, 'week')->create(['title' => 'Published activity', 'position' => 1]);
         $draft = Activity::factory()->for($week, 'week')->create(['title' => 'Draft activity', 'position' => 2]);
         $unscored = Activity::factory()->for($week, 'week')->create(['title' => 'Unscored activity', 'position' => 3]);

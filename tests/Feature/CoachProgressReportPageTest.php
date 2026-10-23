@@ -26,13 +26,13 @@ class CoachProgressReportPageTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Coach Avery']);
         $admin = User::factory()->create(['role' => 'admin', 'name' => 'Admin Blake']);
 
-        $risky = User::factory()->create(['name' => 'Riley Risk', 'email' => 'riley@example.test', 'training_path' => 'automation_manual']);
+        $risky = User::factory()->create(['name' => 'Riley Risk', 'email' => 'riley@example.test']);
         $risky->assignedCoaches()->attach([$admin->id, $coach->id]);
         $revision = ActivitySubmission::factory()->for($risky, 'participant')->create(['status' => 'needs_revision']);
         $failedGate = GateEvaluation::factory()->for($risky, 'participant')->create(['status' => 'failed']);
         GateEvaluation::factory()->for($risky, 'participant')->create(['status' => 'passed']);
 
-        $steady = User::factory()->create(['name' => 'Sam Steady', 'email' => 'sam@example.test', 'training_path' => 'manual', 'is_active' => false]);
+        $steady = User::factory()->create(['name' => 'Sam Steady', 'email' => 'sam@example.test', 'is_active' => false]);
         ActivitySubmission::factory()->for($steady, 'participant')->create(['status' => 'approved']);
 
         $response = $this->actingAs($coach)->get(route('coach.reports'))
@@ -113,8 +113,8 @@ class CoachProgressReportPageTest extends TestCase
 
     public function test_an_old_path_filter_is_ignored_by_the_report_and_its_exports(): void
     {
-        User::factory()->create(['name' => 'Mia Manual', 'training_path' => 'manual']);
-        User::factory()->create(['name' => 'Abe Automation', 'training_path' => 'automation']);
+        User::factory()->create(['name' => 'Mia Manual']);
+        User::factory()->create(['name' => 'Abe Automation']);
         $coach = User::factory()->create(['role' => 'coach']);
 
         $this->actingAs($coach)->get(route('coach.reports', ['path' => 'automation']))

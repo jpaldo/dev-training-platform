@@ -19,7 +19,7 @@ class CoachReportsTest extends TestCase
     {
         $this->seed(L4TrainingProgramSeeder::class);
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Mentor Ely']);
-        $participant = User::factory()->create(['name' => 'Combined Path', 'training_path' => 'automation_manual']);
+        $participant = User::factory()->create(['name' => 'Combined Path']);
         $participant->assignedCoaches()->attach($coach->id);
 
         $this->actingAs($coach)->get(route('coach.reports', ['mentor' => $coach->id]))
@@ -58,7 +58,7 @@ class CoachReportsTest extends TestCase
     {
         $this->seed(L4TrainingProgramSeeder::class);
         $admin = User::factory()->create(['role' => 'admin']);
-        $participant = User::factory()->create(['training_path' => 'automation_manual']);
+        $participant = User::factory()->create();
         $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
         $draftActivity = $week->activities()->where('position', 1)->firstOrFail();
         $submittedActivity = $week->activities()->where('position', 2)->firstOrFail();
@@ -86,7 +86,7 @@ class CoachReportsTest extends TestCase
     {
         $this->seed(L4TrainingProgramSeeder::class);
         $admin = User::factory()->create(['role' => 'admin']);
-        $participant = User::factory()->create(['training_path' => 'automation_manual']);
+        $participant = User::factory()->create();
         $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
         $missingActivity = $week->activities()->where('position', 1)->firstOrFail();
         $submittedActivity = $week->activities()->where('position', 2)->firstOrFail();
@@ -104,7 +104,7 @@ class CoachReportsTest extends TestCase
     {
         $this->seed(L4TrainingProgramSeeder::class);
         $admin = User::factory()->create(['role' => 'admin', 'name' => 'Mentor Ely']);
-        $participant = User::factory()->create(['name' => 'Combined QA', 'training_path' => 'automation_manual', 'employee_id' => 'EMP-6001']);
+        $participant = User::factory()->create(['name' => 'Combined QA', 'employee_id' => 'EMP-6001']);
         $participant->assignedCoaches()->attach($admin->id);
 
         $response = $this->actingAs($admin)->get(route('coach.reports.missing-submissions', [

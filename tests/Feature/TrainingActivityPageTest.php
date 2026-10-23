@@ -263,7 +263,7 @@ class TrainingActivityPageTest extends TestCase
      */
     private function activityFixture(): array
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
         $activity = Activity::factory()->for($week, 'week')->create(['position' => 2]);
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();

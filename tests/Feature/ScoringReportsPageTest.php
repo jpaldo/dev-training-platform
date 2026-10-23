@@ -150,8 +150,8 @@ class ScoringReportsPageTest extends TestCase
         $weekTwoActivity = Activity::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 2]), 'week')->create();
         $weekThreeActivity = Activity::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 3, 'position' => 3]), 'week')->create();
         TrainingWeek::factory()->for($program)->create(['week_number' => 4, 'position' => 4]);
-        $ada = User::factory()->create(['training_path' => 'automation']);
-        $ben = User::factory()->create(['training_path' => 'manual']);
+        $ada = User::factory()->create();
+        $ben = User::factory()->create();
 
         $this->score($this->version($ada, $weekTwoActivity), 'published', 83, 'Proficient');
         $this->score($this->version($ada, $weekThreeActivity), 'draft', 65, 'Developing');

@@ -38,7 +38,6 @@ class DevelopmentAccountProvisioningTest extends TestCase
             $this->assertSame("{$firstName} {$lastName}", $user->name);
             $this->assertSame($role, $user->role);
             $this->assertSame($jobRole, $user->job_role);
-            $this->assertNull($user->training_path);
             $this->assertTrue($user->is_active);
             $this->assertTrue(Hash::check($password, $user->password));
         }
@@ -70,7 +69,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
 
     public function test_baseline_command_restores_the_l4_program_idempotently_without_deleting_users(): void
     {
-        $participant = User::factory()->create(['role' => 'participant', 'training_path' => 'manual']);
+        $participant = User::factory()->create(['role' => 'participant']);
 
         $this->artisan('app:ensure-development-baseline')
             ->expectsOutput('Ensured the L4 training baseline.')

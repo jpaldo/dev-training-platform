@@ -51,7 +51,7 @@ class BootstrapAdminCommandTest extends TestCase
 
     public function test_bootstrap_refuses_when_an_admin_exists(): void
     {
-        $existing = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $existing = User::factory()->create(['role' => 'admin']);
 
         $this->assertSame(1, Artisan::call('admin:bootstrap'));
         $this->assertSame(1, User::query()->count());

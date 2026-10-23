@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Enums\TrainingPath;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\GateCriterion;
@@ -13,7 +12,6 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class MissingSubmissionReportPageTest extends TestCase
@@ -27,7 +25,7 @@ class MissingSubmissionReportPageTest extends TestCase
         $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);
         Activity::factory()->for($week, 'week')->create(['title' => 'Explore checkout']);
         GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
-        $ada = User::factory()->create(['name' => 'Ada Alpha', 'email' => 'ada@example.test', 'training_path' => 'automation_manual']);
+        $ada = User::factory()->create(['name' => 'Ada Alpha', 'email' => 'ada@example.test']);
         $ada->assignedCoaches()->attach([$admin->id, $coach->id]);
 
         $response = $this->actingAs($coach)->get(route('coach.reports.missing-submissions'))
@@ -114,8 +112,8 @@ class MissingSubmissionReportPageTest extends TestCase
     {
         $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);
         Activity::factory()->for($week, 'week')->create(['title' => 'Explore checkout']);
-        User::factory()->create(['name' => 'Mia Manual', 'training_path' => 'manual']);
-        User::factory()->create(['name' => 'Abe Automation', 'training_path' => 'automation']);
+        User::factory()->create(['name' => 'Mia Manual']);
+        User::factory()->create(['name' => 'Abe Automation']);
         $coach = User::factory()->create(['role' => 'coach']);
 
         $this->actingAs($coach)->get(route('coach.reports.missing-submissions', ['path' => 'automation']))
@@ -192,16 +190,15 @@ class MissingSubmissionReportPageTest extends TestCase
             ->assertSessionHasErrors(['category', 'week', 'status']);
     }
 
-    #[DataProvider('participantPaths')]
-    public function test_activities_formerly_tied_to_a_path_are_missing_for_every_participant(?TrainingPath $trainingPath): void
+    public function test_every_activity_is_missing_for_a_participant_without_submissions(): void
     {
         $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);
         Activity::factory()->for($week, 'week')->create(['title' => 'Shared activity', 'position' => 1]);
         $manualActivity = Activity::factory()->for($week, 'week')->create(['title' => 'Manual activity', 'position' => 2]);
-        ActivityRequirement::factory()->for($manualActivity)->create(['participant_path' => TrainingPath::Manual]);
+        ActivityRequirement::factory()->for($manualActivity)->create();
         $automationActivity = Activity::factory()->for($week, 'week')->create(['title' => 'Automation activity', 'position' => 3]);
-        ActivityRequirement::factory()->for($automationActivity)->create(['participant_path' => TrainingPath::Automation]);
-        $participant = User::factory()->create(['training_path' => $trainingPath]);
+        ActivityRequirement::factory()->for($automationActivity)->create();
+        $participant = User::factory()->create();
 
         $html = $this->actingAs(User::factory()->create(['role' => 'coach']))
             ->get(route('coach.reports.missing-submissions', ['participant' => $participant->id, 'category' => 'activities']))
@@ -210,17 +207,6 @@ class MissingSubmissionReportPageTest extends TestCase
 
         preg_match_all('/<strong>([^<]+ activity)<\/strong>/', $html, $titles);
         $this->assertSame(['Automation activity', 'Manual activity', 'Shared activity'], $titles[1]);
-    }
-
-    /**
-     * @return array<string, array{?TrainingPath}>
-     */
-    public static function participantPaths(): array
-    {
-        return [
-            'no path' => [null],
-            'manual' => [TrainingPath::Manual],
-        ];
     }
 
     public function test_without_missing_requirements_the_notice_replaces_the_table(): void

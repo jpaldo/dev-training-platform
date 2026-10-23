@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Enums\TrainingPath;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
@@ -18,12 +17,12 @@ class ParticipantFieldGuidanceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_fields_and_evidence_include_requirements_formerly_tied_to_a_path(): void
+    public function test_fields_and_evidence_include_every_requirement_of_the_activity(): void
     {
         $activity = Activity::factory()->create();
-        foreach ([TrainingPath::Manual, TrainingPath::Automation] as $position => $path) {
-            $requirement = ActivityRequirement::factory()->for($activity)->create(['participant_path' => $path, 'requirement_type' => 'submission_field', 'position' => $position + 1, 'configuration' => ['key' => $path->value.'_notes']]);
-            EvidenceRequirement::factory()->for($requirement)->create(['title' => $path->value.' evidence', 'position' => $position + 1]);
+        foreach (['manual', 'automation'] as $position => $key) {
+            $requirement = ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => $position + 1, 'configuration' => ['key' => $key.'_notes']]);
+            EvidenceRequirement::factory()->for($requirement)->create(['title' => $key.' evidence', 'position' => $position + 1]);
         }
         $workflow = app(SubmissionWorkflowService::class);
 
@@ -113,7 +112,7 @@ class ParticipantFieldGuidanceTest extends TestCase
     {
         $week = TrainingWeek::factory()->create(['week_number' => 1, 'position' => 1]);
         $activity = Activity::factory()->for($week, 'week')->create();
-        $participant = User::factory()->create(['training_path' => TrainingPath::Manual]);
+        $participant = User::factory()->create();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         return [$week, $activity, $participant];

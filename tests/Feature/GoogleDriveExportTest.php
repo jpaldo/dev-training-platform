@@ -194,8 +194,8 @@ class GoogleDriveExportTest extends TestCase
         ApplicationSetting::create(['key' => 'google_drive.client_id', 'value' => 'client', 'is_encrypted' => false]);
         ApplicationSetting::create(['key' => 'google_drive.redirect_uri', 'value' => 'https://example.test/callback', 'is_encrypted' => false]);
         ApplicationSetting::create(['key' => 'google_drive.client_secret', 'value' => Crypt::encryptString('secret'), 'is_encrypted' => true]);
-        $participant = User::factory()->create(['training_path' => 'manual', 'drive_link' => 'https://drive.google.com/drive/folders/folder']);
-        $other = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create(['drive_link' => 'https://drive.google.com/drive/folders/folder']);
+        $other = User::factory()->create();
         GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'a', 'google_email' => 'p@example.com', 'access_token' => 'token', 'token_expires_at' => now()->addHour(), 'connected_at' => now(), 'drive_folder_id' => 'folder']);
         Http::fake(['https://www.googleapis.com/drive/v3/files/folder*' => Http::response(['id' => 'folder', 'mimeType' => 'application/vnd.google-apps.folder', 'capabilities' => ['canAddChildren' => true]], 200)]);
         $activity = Activity::query()->whereHas('week', fn ($q) => $q->where('week_number', 1))->firstOrFail();
@@ -239,7 +239,7 @@ class GoogleDriveExportTest extends TestCase
         ApplicationSetting::create(['key' => 'google_drive.client_id', 'value' => 'client', 'is_encrypted' => false]);
         ApplicationSetting::create(['key' => 'google_drive.redirect_uri', 'value' => 'https://example.test/callback', 'is_encrypted' => false]);
         ApplicationSetting::create(['key' => 'google_drive.client_secret', 'value' => Crypt::encryptString('secret'), 'is_encrypted' => true]);
-        $participant = User::factory()->create(['training_path' => 'manual', 'drive_link' => 'https://drive.google.com/drive/folders/inaccessible']);
+        $participant = User::factory()->create(['drive_link' => 'https://drive.google.com/drive/folders/inaccessible']);
         GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => 'account', 'google_email' => 'p@example.com', 'access_token' => 'token', 'token_expires_at' => now()->addHour(), 'connected_at' => now(), 'drive_folder_id' => 'old-folder']);
         $activity = Activity::query()->whereHas('week', fn ($query) => $query->where('week_number', 1))->firstOrFail();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();

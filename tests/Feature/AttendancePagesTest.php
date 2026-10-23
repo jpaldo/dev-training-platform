@@ -17,7 +17,7 @@ class AttendancePagesTest extends TestCase
 
     public function test_participant_without_an_open_session_gets_check_in_now_as_the_single_main_action(): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $this->seed(L4TrainingProgramSeeder::class);
         $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
         $returnTo = route('training.submission.edit', [$week, $week->activities()->firstOrFail()]);
@@ -98,9 +98,9 @@ class AttendancePagesTest extends TestCase
 
     public function test_coach_attendance_page_shows_filters_sessions_and_an_export_main_action_for_the_same_query(): void
     {
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
-        $manual = User::factory()->create(['name' => 'Ana Manual', 'training_path' => 'manual']);
-        $automation = User::factory()->create(['name' => 'Ben Automation', 'training_path' => 'automation']);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $manual = User::factory()->create(['name' => 'Ana Manual']);
+        $automation = User::factory()->create(['name' => 'Ben Automation']);
         $this->attendanceSession($manual, '2026-09-09 09:00:00', '2026-09-09 11:30:00');
         $this->attendanceSession($automation, '2026-09-10 08:00:00');
         $this->attendanceSession($automation, '2026-09-08 08:00:00', '2026-09-08 09:00:00');
@@ -140,8 +140,8 @@ class AttendancePagesTest extends TestCase
 
     public function test_admin_attendance_page_exports_through_the_admin_route_and_shows_the_empty_state(): void
     {
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
-        $participant = User::factory()->create(['training_path' => 'automation_manual']);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $participant = User::factory()->create();
         $this->attendanceSession($participant, '2026-09-09 09:00:00', '2026-09-09 11:30:00');
 
         $this->actingAs($admin)->get(route('admin.attendance.index'))
@@ -188,7 +188,7 @@ class AttendancePagesTest extends TestCase
     private function managePageQueryCount(int $participants): int
     {
         AttendanceSession::query()->delete();
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $coach = User::factory()->create(['role' => 'coach']);
         foreach (range(1, $participants) as $day) {
             $this->attendanceSession(User::factory()->create(), "2026-09-0{$day} 09:00:00", "2026-09-0{$day} 10:00:00");
         }

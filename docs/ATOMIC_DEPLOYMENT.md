@@ -128,6 +128,9 @@ held QA training data, skip steps 1 and 2.
      interview notifications and settings, and drop the Validation Lab, daily
      log, Week 3 workspace, Week 4 peer interview and mentor interview
      booking tables.
+   - `2026_10_23_121319_drop_training_path_columns` drops the training path
+     columns (`users.training_path`, `activity_requirements.participant_path`)
+     and their indexes.
 
    The new release starts with fresh framework directories, so it is not in
    maintenance mode once activated.

@@ -57,7 +57,7 @@ class AuthPagesTest extends TestCase
             ->assertDontSee('wrong-password');
     }
 
-    public function test_guest_sees_the_registration_form_with_every_job_role_and_no_training_path_and_sign_in_link(): void
+    public function test_guest_sees_the_registration_form_with_every_job_role_and_no_path_and_sign_in_link(): void
     {
         $response = $this->get(route('register'))
             ->assertOk()
@@ -92,7 +92,6 @@ class AuthPagesTest extends TestCase
             ], false)
             ->assertDontSee('role="alert"', false)
             ->assertDontSee('id="name"', false)
-            ->assertDontSee('name="training_path"', false)
             ->assertDontSee('Training path');
 
         $this->assertStringStartsWith('<!doctype html>', ltrim($response->getContent()));

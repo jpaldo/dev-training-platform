@@ -63,7 +63,7 @@ class EmptyTrainingDataTest extends TestCase
     public function test_page_opens_without_any_program_or_training_data(string $role, string $routeName, array $parameters): void
     {
         $participant = User::factory()->create();
-        $viewer = $role === 'participant' ? $participant : User::factory()->create(['role' => $role, 'training_path' => null]);
+        $viewer = $role === 'participant' ? $participant : User::factory()->create(['role' => $role]);
 
         $this->actingAs($viewer)->get(route($routeName, $parameters))->assertOk();
     }
@@ -72,7 +72,7 @@ class EmptyTrainingDataTest extends TestCase
     {
         $participant = User::factory()->create();
 
-        $this->actingAs(User::factory()->create(['role' => 'coach', 'training_path' => null]))
+        $this->actingAs(User::factory()->create(['role' => 'coach']))
             ->get(route('coach.participants.show', $participant))
             ->assertOk();
     }
@@ -90,7 +90,7 @@ class EmptyTrainingDataTest extends TestCase
     {
         User::factory()->create(['name' => 'Ada Lovelace']);
 
-        $this->actingAs(User::factory()->create(['role' => 'coach', 'training_path' => null]))
+        $this->actingAs(User::factory()->create(['role' => 'coach']))
             ->get(route('coach.scoring.index'))
             ->assertOk()
             ->assertSeeInOrder([self::NO_ACTIVE_PROGRAM_NOTICE, 'Ada Lovelace', '0 / 0 (0%)'])
@@ -101,7 +101,7 @@ class EmptyTrainingDataTest extends TestCase
     {
         $participant = User::factory()->create();
 
-        $this->actingAs(User::factory()->create(['role' => 'coach', 'training_path' => null]))
+        $this->actingAs(User::factory()->create(['role' => 'coach']))
             ->get(route('coach.scoring.participant', $participant))
             ->assertOk()
             ->assertSeeInOrder([self::NO_ACTIVE_PROGRAM_NOTICE, 'OVERALL SCORE', '— / 100', 'OVERALL COMPLETION', '0 / 0'])
@@ -110,7 +110,7 @@ class EmptyTrainingDataTest extends TestCase
 
     public function test_admin_dashboard_says_no_program_is_active_in_the_training_overview(): void
     {
-        $this->actingAs(User::factory()->create(['role' => 'admin', 'training_path' => null]))
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('admin.dashboard'))
             ->assertOk()
             ->assertSeeInOrder(['Training overview', self::NO_ACTIVE_PROGRAM_NOTICE, 'Review / Gate overview']);
@@ -120,7 +120,7 @@ class EmptyTrainingDataTest extends TestCase
     {
         User::factory()->create(['name' => 'Ada Lovelace', 'employee_id' => 'EMP-000001', 'email' => 'ada@example.com']);
 
-        $csv = $this->actingAs(User::factory()->create(['role' => 'coach', 'training_path' => null]))
+        $csv = $this->actingAs(User::factory()->create(['role' => 'coach']))
             ->get(route('coach.reports.participant-summary'))
             ->assertOk()
             ->assertDownload('participant-score-summary.csv')
@@ -136,12 +136,12 @@ class EmptyTrainingDataTest extends TestCase
     {
         TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
         $participant = User::factory()->create();
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $coach = User::factory()->create(['role' => 'coach']);
 
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE);
         $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk()->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE);
         $this->actingAs($coach)->get(route('coach.scoring.participant', $participant))->assertOk()->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE);
-        $this->actingAs(User::factory()->create(['role' => 'admin', 'training_path' => null]))
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('admin.dashboard'))
             ->assertOk()
             ->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE);

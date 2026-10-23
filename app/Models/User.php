@@ -4,7 +4,6 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\JobRole;
-use App\Enums\TrainingPath;
 use App\Enums\UserRole;
 use App\Observers\ParticipantProgressObserver;
 use Database\Factories\UserFactory;
@@ -18,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'first_name', 'last_name', 'employee_id', 'job_role', 'email', 'password', 'training_path', 'drive_link', 'role', 'is_active'])]
+#[Fillable(['name', 'first_name', 'last_name', 'employee_id', 'job_role', 'email', 'password', 'drive_link', 'role', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
 #[ObservedBy([ParticipantProgressObserver::class])]
 class User extends Authenticatable
@@ -37,7 +36,6 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
-            'training_path' => TrainingPath::class,
             'role' => UserRole::class,
             'job_role' => JobRole::class,
         ];
@@ -91,21 +89,6 @@ class User extends Authenticatable
     public function hasAnyRole(UserRole ...$roles): bool
     {
         return in_array($this->role, $roles, true);
-    }
-
-    public function trainingPathLabel(): string
-    {
-        return $this->training_path?->label() ?? 'Unassigned';
-    }
-
-    /**
-     * Paths whose requirements should be available to this participant (none without a path).
-     *
-     * @return list<TrainingPath>
-     */
-    public function eligibleTrainingPaths(): array
-    {
-        return $this->training_path?->eligiblePaths() ?? [];
     }
 
     public function isCoachOrAdmin(): bool

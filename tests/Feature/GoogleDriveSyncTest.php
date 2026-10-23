@@ -122,7 +122,7 @@ class GoogleDriveSyncTest extends TestCase
     public function test_participant_week_workbook_contains_no_internal_scoring_or_path_columns(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $activity = Activity::query()->whereHas('week', fn ($q) => $q->where('week_number', 1))->firstOrFail();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'field_values' => []]);
@@ -151,7 +151,7 @@ class GoogleDriveSyncTest extends TestCase
     public function test_week_workbook_prefers_the_latest_submitted_version_over_a_newer_revision_draft(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $activity = Activity::query()->whereHas('week', fn (Builder $query): Builder => $query->where('week_number', 1))->firstOrFail();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 1, 'status' => 'submitted', 'participant_note' => 'Submitted note']);
@@ -166,7 +166,7 @@ class GoogleDriveSyncTest extends TestCase
     public function test_week_workbooks_print_the_submission_status_and_configured_answers_of_the_activity(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         foreach ([1 => 'under_review', 2 => 'needs_revision'] as $weekNumber => $status) {
             $activity = Activity::query()->whereHas('week', fn (Builder $query): Builder => $query->where('week_number', $weekNumber))->where('is_active', true)->orderBy('position')->firstOrFail();
             $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $status]);

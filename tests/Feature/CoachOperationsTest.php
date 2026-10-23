@@ -108,8 +108,8 @@ class CoachOperationsTest extends TestCase
     {
         $this->seedProgram();
         $coach = User::factory()->create(['role' => 'coach']);
-        $manual = User::factory()->create(['name' => 'Manual Tester', 'email' => 'manual@example.test', 'training_path' => 'manual', 'drive_link' => 'https://drive.google.com/drive/folders/manual']);
-        $automation = User::factory()->create(['name' => 'Automation Tester', 'email' => 'automation@example.test', 'training_path' => 'automation']);
+        $manual = User::factory()->create(['name' => 'Manual Tester', 'email' => 'manual@example.test', 'drive_link' => 'https://drive.google.com/drive/folders/manual']);
+        $automation = User::factory()->create(['name' => 'Automation Tester', 'email' => 'automation@example.test']);
         AttendanceSession::create(['user_id' => $manual->id, 'check_in_at' => now()->subHour()]);
         AttendanceSession::create(['user_id' => $automation->id, 'check_in_at' => now()->subHours(2), 'check_out_at' => now()->subHour(), 'total_seconds' => 3600]);
 
@@ -160,8 +160,8 @@ class CoachOperationsTest extends TestCase
     {
         $this->seedProgram();
         $coach = User::factory()->create(['role' => 'coach']);
-        $manual = User::factory()->create(['name' => 'Gate Manual', 'email' => 'gate-manual@example.test', 'training_path' => 'manual']);
-        $automation = User::factory()->create(['name' => 'Gate Automation', 'email' => 'gate-auto@example.test', 'training_path' => 'automation']);
+        $manual = User::factory()->create(['name' => 'Gate Manual', 'email' => 'gate-manual@example.test']);
+        $automation = User::factory()->create(['name' => 'Gate Automation', 'email' => 'gate-auto@example.test']);
         $program = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail();
         $week1 = $program->weeks()->where('week_number', 1)->firstOrFail();
         $gate = $week1->gates()->firstOrFail();
@@ -304,8 +304,8 @@ class CoachOperationsTest extends TestCase
     {
         $this->seedProgram();
         $coach = User::factory()->create(['role' => 'coach']);
-        $manual = User::factory()->create(['training_path' => 'manual', 'employee_id' => 'EMP-4001']);
-        $automation = User::factory()->create(['training_path' => 'automation']);
+        $manual = User::factory()->create(['employee_id' => 'EMP-4001']);
+        $automation = User::factory()->create();
         $program = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first();
         $w1 = $program->weeks()->where('week_number', 1)->first()->gates()->first();
         $w2 = $program->weeks()->where('week_number', 2)->first()->gates()->first();

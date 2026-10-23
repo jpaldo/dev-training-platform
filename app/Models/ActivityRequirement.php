@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\TrainingPath;
 use Database\Factories\ActivityRequirementFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,12 +13,11 @@ class ActivityRequirement extends Model
     /** @use HasFactory<ActivityRequirementFactory> */
     use HasFactory;
 
-    protected $fillable = ['activity_id', 'participant_path', 'requirement_type', 'title', 'description', 'is_required', 'position', 'configuration'];
+    protected $fillable = ['activity_id', 'requirement_type', 'title', 'description', 'is_required', 'position', 'configuration'];
 
     protected function casts(): array
     {
         return [
-            'participant_path' => TrainingPath::class,
             'is_required' => 'boolean',
             'configuration' => 'array',
         ];

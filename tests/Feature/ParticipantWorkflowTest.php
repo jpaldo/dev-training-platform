@@ -658,7 +658,7 @@ class ParticipantWorkflowTest extends TestCase
     public function test_participant_sees_only_finalized_score_and_feedback_for_own_submission(): void
     {
         [$participant, $week2, $activity] = $this->trainingFixture();
-        $other = User::factory()->create(['training_path' => 'manual']);
+        $other = User::factory()->create();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'approved']);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'approved']);
         $coach = User::factory()->create(['role' => 'coach']);
@@ -918,18 +918,18 @@ class ParticipantWorkflowTest extends TestCase
     {
         [, $week2] = $this->trainingFixture();
         $week3 = TrainingWeek::factory()->for($week2->program)->create(['week_number' => 3, 'position' => 2]);
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        $coach = User::factory()->create(['role' => 'coach']);
         $this->actingAs($coach)->get(route('training.weeks.show', $week3))->assertOk();
     }
 
-    public function test_participants_without_a_path_and_coaches_see_requirements_formerly_tied_to_a_path(): void
+    public function test_participants_and_coaches_see_every_requirement_of_the_activity(): void
     {
         [, $week2, $activity] = $this->trainingFixture();
-        $participant = User::factory()->create(['training_path' => null]);
+        $participant = User::factory()->create();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        ActivityRequirement::factory()->for($activity)->create(['participant_path' => 'manual', 'title' => 'Manual-only requirement', 'position' => 1]);
-        ActivityRequirement::factory()->for($activity)->create(['participant_path' => 'automation', 'title' => 'Automation-only requirement', 'position' => 2]);
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
+        ActivityRequirement::factory()->for($activity)->create(['title' => 'Manual-only requirement', 'position' => 1]);
+        ActivityRequirement::factory()->for($activity)->create(['title' => 'Automation-only requirement', 'position' => 2]);
+        $coach = User::factory()->create(['role' => 'coach']);
 
         $this->actingAs($participant)->get(route('training.activities.show', [$week2, $activity]))
             ->assertOk()
@@ -939,13 +939,13 @@ class ParticipantWorkflowTest extends TestCase
             ->assertSeeInOrder(['Manual-only requirement', 'Automation-only requirement']);
     }
 
-    public function test_a_requirement_formerly_tied_to_a_path_is_required_for_a_participant_without_a_path(): void
+    public function test_required_fields_and_evidence_of_every_requirement_block_submission_until_provided(): void
     {
         [, $week2, $activity] = $this->trainingFixture();
-        $participant = User::factory()->create(['training_path' => null]);
+        $participant = User::factory()->create();
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        ActivityRequirement::factory()->for($activity)->create(['participant_path' => 'automation', 'requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea', 'required' => true]]);
-        $deliverable = ActivityRequirement::factory()->for($activity)->create(['participant_path' => 'automation', 'requirement_type' => 'deliverable', 'position' => 2]);
+        ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea', 'required' => true]]);
+        $deliverable = ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable', 'position' => 2]);
         $evidenceRequirement = EvidenceRequirement::factory()->for($deliverable)->create(['title' => 'Automation run log', 'evidence_type' => 'text', 'is_required' => true, 'minimum_count' => 1]);
 
         $this->actingAs($participant)->post(route('training.submission.draft', [$week2, $activity]), ['field_values' => ['finding' => '']])->assertRedirect();
@@ -1016,7 +1016,7 @@ class ParticipantWorkflowTest extends TestCase
 
     private function trainingFixture(): array
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $program = Program::factory()->create();
         $week2 = TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 1]);
         $activity = Activity::factory()->for($week2, 'week')->create(['position' => 1]);

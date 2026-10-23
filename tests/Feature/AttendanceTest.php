@@ -15,31 +15,29 @@ class AttendanceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_manual_and_automation_participants_can_check_in_and_out_with_server_duration(): void
+    public function test_participants_can_check_in_and_out_with_server_duration(): void
     {
-        foreach (['manual', 'automation'] as $path) {
-            $participant = User::factory()->create(['training_path' => $path]);
-            Carbon::setTestNow(Carbon::parse('2026-09-10 09:05:00', config('app.timezone')));
-            $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-            $this->assertDatabaseHas('attendance_sessions', ['user_id' => $participant->id, 'check_out_at' => null]);
-            $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-            $this->assertSame(1, AttendanceSession::where('user_id', $participant->id)->count());
+        $participant = User::factory()->create();
+        Carbon::setTestNow(Carbon::parse('2026-09-10 09:05:00', config('app.timezone')));
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+        $this->assertDatabaseHas('attendance_sessions', ['user_id' => $participant->id, 'check_out_at' => null]);
+        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
+        $this->assertSame(1, AttendanceSession::where('user_id', $participant->id)->count());
 
-            Carbon::setTestNow(Carbon::parse('2026-09-10 11:40:00', config('app.timezone')));
-            $this->actingAs($participant)->post(route('participant.attendance.check-out'))->assertRedirect();
-            $session = AttendanceSession::where('user_id', $participant->id)->firstOrFail();
-            $this->assertSame(9300, $session->total_seconds);
-            $this->assertSame(2.58, $session->totalHours());
-            $this->actingAs($participant)->post(route('participant.attendance.check-out'))->assertRedirect();
-            $this->assertSame(1, AttendanceSession::where('user_id', $participant->id)->count());
-        }
+        Carbon::setTestNow(Carbon::parse('2026-09-10 11:40:00', config('app.timezone')));
+        $this->actingAs($participant)->post(route('participant.attendance.check-out'))->assertRedirect();
+        $session = AttendanceSession::where('user_id', $participant->id)->firstOrFail();
+        $this->assertSame(9300, $session->total_seconds);
+        $this->assertSame(2.58, $session->totalHours());
+        $this->actingAs($participant)->post(route('participant.attendance.check-out'))->assertRedirect();
+        $this->assertSame(1, AttendanceSession::where('user_id', $participant->id)->count());
         Carbon::setTestNow();
     }
 
     public function test_participant_only_sees_own_history_and_cannot_use_another_users_id(): void
     {
         $participant = User::factory()->create();
-        $other = User::factory()->create(['training_path' => 'automation']);
+        $other = User::factory()->create();
         AttendanceSession::create(['user_id' => $other->id, 'check_in_at' => now()->subHour(), 'check_out_at' => now(), 'total_seconds' => 3600]);
 
         $this->actingAs($participant)->get(route('participant.attendance.index'))->assertOk()->assertDontSee($other->name);
@@ -51,7 +49,7 @@ class AttendanceTest extends TestCase
 
     public function test_activity_check_in_redirect_preserves_only_a_safe_internal_return_destination(): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $this->seed(L4TrainingProgramSeeder::class);
         $program = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail();
         $week = $program->weeks()->where('week_number', 1)->firstOrFail();
@@ -71,10 +69,10 @@ class AttendanceTest extends TestCase
 
     public function test_coach_and_admin_can_filter_and_export_participant_attendance_and_an_old_path_filter_is_ignored(): void
     {
-        $manual = User::factory()->create(['training_path' => 'manual']);
-        $automation = User::factory()->create(['training_path' => 'automation']);
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $manual = User::factory()->create();
+        $automation = User::factory()->create();
+        $coach = User::factory()->create(['role' => 'coach']);
+        $admin = User::factory()->create(['role' => 'admin']);
         AttendanceSession::create(['user_id' => $manual->id, 'check_in_at' => now()->subHours(2), 'check_out_at' => now(), 'total_seconds' => 7200]);
         AttendanceSession::create(['user_id' => $automation->id, 'check_in_at' => now()->subHour(), 'check_out_at' => null]);
 
@@ -89,8 +87,8 @@ class AttendanceTest extends TestCase
 
     public function test_export_applies_date_participant_and_completed_status_filters(): void
     {
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
-        $participant = User::factory()->create(['training_path' => 'automation_manual', 'employee_id' => 'EMP-1001']);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $participant = User::factory()->create(['employee_id' => 'EMP-1001']);
         $otherParticipant = User::factory()->create();
         $inRange = Carbon::parse('2026-09-10 09:00:00', config('app.timezone'));
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => $inRange, 'check_out_at' => $inRange->copy()->addHour(), 'total_seconds' => 3600]);
@@ -137,7 +135,7 @@ class AttendanceTest extends TestCase
 
     public function test_dashboard_places_attendance_before_training_content_and_preserves_actions(): void
     {
-        $participant = User::factory()->create(['training_path' => 'automation']);
+        $participant = User::factory()->create();
         $this->seed(L4TrainingProgramSeeder::class);
 
         $response = $this->actingAs($participant)->get(route('dashboard'))->assertOk();
@@ -154,7 +152,7 @@ class AttendanceTest extends TestCase
 
     public function test_active_dashboard_renders_a_browser_live_elapsed_timer_from_check_in_timestamp(): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $this->seed(L4TrainingProgramSeeder::class);
         $checkIn = Carbon::parse('2026-09-11 16:59:00', config('app.timezone'));
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => $checkIn]);
@@ -184,7 +182,7 @@ class AttendanceTest extends TestCase
     public function test_current_week_activity_requires_check_in_and_direct_urls_cannot_bypass_it(): void
     {
         config(['services.google_drive.enabled' => false]);
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $this->seed(L4TrainingProgramSeeder::class);
         ApplicationSetting::query()->where('key', 'google_drive.enabled')->delete();
         $week = Program::firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
@@ -206,7 +204,7 @@ class AttendanceTest extends TestCase
 
     public function test_checkout_relocks_new_current_week_activity_but_preserves_existing_work(): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $this->seed(L4TrainingProgramSeeder::class);
         $week = Program::firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 2)->firstOrFail();
@@ -222,7 +220,7 @@ class AttendanceTest extends TestCase
 
     public function test_checkout_blocks_continuing_an_existing_editable_draft_but_allows_read_only_activity_view(): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
+        $participant = User::factory()->create();
         $this->seed(L4TrainingProgramSeeder::class);
         $week = Program::firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 2)->firstOrFail();
@@ -238,9 +236,9 @@ class AttendanceTest extends TestCase
 
     public function test_check_in_does_not_unlock_future_weeks_and_does_not_restrict_coaches_or_admins(): void
     {
-        $participant = User::factory()->create(['training_path' => 'manual']);
-        $coach = User::factory()->create(['role' => 'coach', 'training_path' => null]);
-        $admin = User::factory()->create(['role' => 'admin', 'training_path' => null]);
+        $participant = User::factory()->create();
+        $coach = User::factory()->create(['role' => 'coach']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->seed(L4TrainingProgramSeeder::class);
         $program = Program::firstOrFail();
         $week1 = $program->weeks()->where('week_number', 1)->firstOrFail();

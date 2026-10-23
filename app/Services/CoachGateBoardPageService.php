@@ -4,9 +4,11 @@ namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
 use App\Enums\TrainingPath;
+use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
 use App\Models\User;
+use App\Models\WeeklyVideoRecording;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
 
@@ -101,7 +103,7 @@ class CoachGateBoardPageService
      * One table row: the Gate and its week, the participant with their path, the status with its badge tone, the
      * required criteria met, the weekly video (a link when uploaded, otherwise Missing, or Not required when the Gate has no weekly video criterion), the blocker count (null without blockers) and the link to review (or, once passed, view) the Gate.
      *
-     * @param  array{gate: TrainingGate, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, criteria_met: int, criteria_total: int, loom: array<string, mixed>}  $row
+     * @param  array{gate: TrainingGate, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, criteria_met: int, criteria_total: int, weekly_video: array{status: string, url: ?string, criterion: ?GateCriterion, recording: ?WeeklyVideoRecording}}  $row
      * @return array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, path: string, status_label: string, status_tone: string, criteria_met: int, criteria_total: int, video: array{url: ?string, label: string}, blocker_label: ?string, action_label: string, action_url: string}
      */
     private function gateRow(array $row): array
@@ -128,8 +130,8 @@ class CoachGateBoardPageService
             'criteria_met' => $row['criteria_met'],
             'criteria_total' => $row['criteria_total'],
             'video' => [
-                'url' => $row['loom']['url'],
-                'label' => match ($row['loom']['status']) {
+                'url' => $row['weekly_video']['url'],
+                'label' => match ($row['weekly_video']['status']) {
                     'not_required' => 'Not required',
                     'missing' => 'Missing',
                     'met' => '✓ Uploaded',

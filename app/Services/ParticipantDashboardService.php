@@ -18,7 +18,7 @@ use Illuminate\Support\Collection;
 
 class ParticipantDashboardService
 {
-    public function __construct(private readonly WeekProgressionService $progression, private readonly WeekTwoGateService $gateService) {}
+    public function __construct(private readonly WeekProgressionService $progression, private readonly GateReadinessService $gateService) {}
 
     /**
      * Build the dashboard rows for every week of the program, with the participant's activity progress attached.

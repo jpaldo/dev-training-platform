@@ -15,6 +15,7 @@ use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Models\WeeklyVideoRecording;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -105,8 +106,8 @@ class CoachOperationsControllerTest extends TestCase
 
     /**
      * Create an active program with the given number of Week 2+ Gates and participants. Every participant has
-     * a submitted Activity 3 with evidence and a Gate evaluation per week; every Gate accepts a
-     * legacy Weekly Loom link and has no Weekly Video Recording, so the legacy lookup runs for every row.
+     * a submitted activity with evidence, a Weekly Video Recording and a Gate evaluation per week, and every Gate
+     * has a weekly video criterion, so the video lookup runs for every row.
      *
      * @return Collection<int, User>
      */
@@ -118,18 +119,17 @@ class CoachOperationsControllerTest extends TestCase
         foreach (range(1, $rows) as $position) {
             $week = TrainingWeek::factory()->for($program)->create(['week_number' => $position + 1, 'position' => $position]);
             $gate = TrainingGate::factory()->for($week, 'week')->create();
-            $loomCriterion = GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_loom']);
-            $activity = Activity::factory()->for($week, 'week')->create(['position' => 3]);
+            $videoCriterion = GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
+            $activity = Activity::factory()->for($week, 'week')->create();
             $deliverable = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create())->create();
-            $loomLink = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'gate_evidence']))->create(['evidence_type' => 'url']);
 
             foreach ($participants as $participant) {
                 $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted']);
                 $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
                 SubmissionEvidence::factory()->for($version, 'submissionVersion')->for($deliverable, 'evidenceRequirement')->create();
-                SubmissionEvidence::factory()->for($version, 'submissionVersion')->for($loomLink, 'evidenceRequirement')->create(['evidence_type' => 'url', 'url' => "https://www.loom.com/share/{$participant->id}-{$week->id}"]);
+                WeeklyVideoRecording::create(['user_id' => $participant->id, 'training_week_id' => $week->id, 'disk' => 'local', 'path' => "weekly-video/{$participant->id}-{$week->id}.mp4", 'original_filename' => 'week.mp4', 'mime_type' => 'video/mp4', 'size_bytes' => 100, 'uploaded_at' => now()]);
                 $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
-                GateCriterionEvaluation::factory()->for($evaluation, 'gateEvaluation')->for($loomCriterion, 'criterion')->create(['status' => 'met']);
+                GateCriterionEvaluation::factory()->for($evaluation, 'gateEvaluation')->for($videoCriterion, 'criterion')->create(['status' => 'met']);
             }
         }
 

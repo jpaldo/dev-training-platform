@@ -12,10 +12,10 @@ use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\CoachGateReviewPageService;
+use App\Services\GateReadinessService;
 use App\Services\ParticipantGatePageService;
 use App\Services\TrainingExportCoordinator;
 use App\Services\TrainingSyncCoordinator;
-use App\Services\WeekTwoGateService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -42,7 +42,7 @@ class GateReviewController extends Controller
         return view('coach.gate_review', $page->showData($trainingWeek, $participant, $trainingGate, $evaluation, request()->user()));
     }
 
-    public function update(StoreGateReviewRequest $request, TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, WeekTwoGateService $service, TrainingExportCoordinator $exports, TrainingSyncCoordinator $syncs): RedirectResponse
+    public function update(StoreGateReviewRequest $request, TrainingWeek $trainingWeek, User $participant, TrainingGate $trainingGate, GateReadinessService $service, TrainingExportCoordinator $exports, TrainingSyncCoordinator $syncs): RedirectResponse
     {
         $this->guard($trainingWeek, $participant, $trainingGate);
         abort_unless($request->user()->canManageParticipant($participant), 403);
@@ -53,9 +53,9 @@ class GateReviewController extends Controller
         $criteria = $trainingGate->criteria()->where('is_required', true)->get();
         $missing = $criteria->filter(fn (GateCriterion $criterion): bool => $request->criterionStatus($criterion) !== GateCriterionStatus::Met);
         $readiness = $service->readiness($participant, $trainingGate);
-        $weeklyLoomCriterion = $criteria->first(fn (GateCriterion $criterion): bool => in_array($criterion->criterion_type, ['weekly_video', 'weekly_loom'], true));
-        if ($decision !== GateEvaluationStatus::Passed && $weeklyLoomCriterion && $request->criterionStatus($weeklyLoomCriterion) === GateCriterionStatus::Met && $service->weeklyVideo($participant, $trainingGate)['status'] === 'missing') {
-            throw ValidationException::withMessages(['criteria.'.$weeklyLoomCriterion->id => 'The Weekly Video Recording cannot be marked Met until a video is uploaded.']);
+        $weeklyVideoCriterion = $criteria->first(fn (GateCriterion $criterion): bool => $criterion->isWeeklyVideo());
+        if ($decision !== GateEvaluationStatus::Passed && $weeklyVideoCriterion && $request->criterionStatus($weeklyVideoCriterion) === GateCriterionStatus::Met && $service->weeklyVideo($participant, $trainingGate)['status'] === 'missing') {
+            throw ValidationException::withMessages(['criteria.'.$weeklyVideoCriterion->id => 'The Weekly Video Recording cannot be marked Met until a video is uploaded.']);
         }
         if ($decision === GateEvaluationStatus::Passed && ($missing->isNotEmpty() || $readiness !== [])) {
             throw ValidationException::withMessages(['gate' => "The Week {$trainingWeek->week_number} Gate cannot pass until every required criterion and objective requirement is satisfied."]);

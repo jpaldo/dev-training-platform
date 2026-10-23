@@ -464,14 +464,14 @@ class QaTrainingProgramSeeder extends Seeder
 
     private function weeklyVideoCriterion(TrainingGate $gate, int $position, string $description): void
     {
-        $criterion = $gate->criteria()->whereIn('criterion_type', ['loom_link', 'weekly_loom', 'weekly_video'])->first();
+        $criterion = $gate->criteria()->whereIn('criterion_type', ['loom_link', GateCriterion::TYPE_WEEKLY_VIDEO])->first();
         if ($criterion) {
-            $criterion->update(['criterion_type' => 'weekly_video', 'title' => 'Required Weekly Video Recording', 'description' => $description, 'is_required' => true, 'position' => $position, 'configuration' => []]);
+            $criterion->update(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO, 'title' => 'Required Weekly Video Recording', 'description' => $description, 'is_required' => true, 'position' => $position, 'configuration' => []]);
 
             return;
         }
         GateCriterion::query()->updateOrCreate(
-            ['training_gate_id' => $gate->id, 'criterion_type' => 'weekly_video'],
+            ['training_gate_id' => $gate->id, 'criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO],
             ['position' => $position, 'title' => 'Required Weekly Video Recording', 'description' => $description, 'is_required' => true, 'configuration' => []],
         );
     }

@@ -13,9 +13,7 @@ use App\Models\User;
 
 class CoachGateReviewPageService
 {
-    private const VIDEO_CRITERION_TYPES = ['weekly_video', 'weekly_loom'];
-
-    public function __construct(private readonly WeekTwoGateService $gates) {}
+    public function __construct(private readonly GateReadinessService $gates) {}
 
     /**
      * Everything the coach Gate review page renders: the readiness summary (the required criteria met: the weekly
@@ -36,7 +34,7 @@ class CoachGateReviewPageService
         $readiness = $this->gates->readiness($participant, $gate);
         $weeklyVideo = $this->gates->weeklyVideo($participant, $gate);
         $metCriteriaCount = $requiredCriteria
-            ->filter(fn (GateCriterion $criterion): bool => in_array($criterion->criterion_type, self::VIDEO_CRITERION_TYPES, true)
+            ->filter(fn (GateCriterion $criterion): bool => $criterion->isWeeklyVideo()
                 ? $weeklyVideo['status'] === 'met'
                 : $evaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id)?->isMet() === true)
             ->count();
@@ -58,7 +56,7 @@ class CoachGateReviewPageService
             ],
             'blockers' => array_values($readiness),
             'criteria' => $requiredCriteria->map(function (GateCriterion $criterion) use ($weeklyVideo, $evaluation): array {
-                $isVideo = in_array($criterion->criterion_type, self::VIDEO_CRITERION_TYPES, true);
+                $isVideo = $criterion->isWeeklyVideo();
                 $savedStatus = $evaluation?->criterionEvaluations->firstWhere('gate_criterion_id', $criterion->id)?->status;
 
                 return [

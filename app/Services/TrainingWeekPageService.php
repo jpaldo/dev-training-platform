@@ -14,7 +14,7 @@ class TrainingWeekPageService
 {
     public function __construct(
         private readonly ParticipantGatePageService $gatePage,
-        private readonly WeekTwoGateService $gates,
+        private readonly GateReadinessService $gates,
     ) {}
 
     /**

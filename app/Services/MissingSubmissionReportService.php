@@ -33,7 +33,7 @@ class MissingSubmissionReportService
             ->orderBy('name')
             ->get();
 
-        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $query): Relation => $query->whereIn('week_number', [2, 3, 4])->where('is_active', true)->with(['activities' => fn (Relation $activities): Relation => $activities->where('is_active', true)->with('requirements')->orderBy('position')])])->first();
+        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $query): Relation => $query->whereIn('week_number', [2, 3, 4])->where('is_active', true)->with(['activities' => fn (Relation $activities): Relation => $activities->where('is_active', true)->with('requirements')->orderBy('position'), 'gates' => fn (Relation $gates): Relation => $gates->where('is_active', true)->whereHas('criteria', fn (Builder $criteria): Builder => $criteria->weeklyVideo())])])->first();
         if (! $program) {
             return collect();
         }
@@ -48,7 +48,7 @@ class MissingSubmissionReportService
                     continue;
                 }
 
-                if (! $participant->weeklyVideoRecordings->contains('training_week_id', $week->id)) {
+                if ($week->gates->isNotEmpty() && ! $participant->weeklyVideoRecordings->contains('training_week_id', $week->id)) {
                     $rows->push($this->row($participant, $mentor, 'Video Recording', $week->week_number, 'Weekly Video Recording', 1, 0, 'Not Uploaded', 0));
                 }
 

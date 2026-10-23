@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\TrainingPath;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
+use App\Models\GateCriterion;
 use App\Models\Program;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
@@ -25,6 +26,7 @@ class MissingSubmissionReportPageTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin', 'name' => 'Admin Blake']);
         $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);
         Activity::factory()->for($week, 'week')->create(['title' => 'Explore checkout']);
+        GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
         $ada = User::factory()->create(['name' => 'Ada Alpha', 'email' => 'ada@example.test', 'training_path' => 'automation_manual']);
         $ada->assignedCoaches()->attach([$admin->id, $coach->id]);
 
@@ -106,6 +108,23 @@ class MissingSubmissionReportPageTest extends TestCase
             ->assertSee('>Page Person 26</a>', false);
 
         $this->assertSame(1, substr_count($secondPage->getContent(), 'data-missing-row'));
+    }
+
+    public function test_a_week_without_an_active_weekly_video_criterion_has_no_missing_video_row(): void
+    {
+        $week = TrainingWeek::factory()->for(Program::factory(), 'program')->create(['week_number' => 2, 'position' => 1]);
+        Activity::factory()->for($week, 'week')->create(['title' => 'Explore checkout']);
+        GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_DELIVERABLE]);
+        GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week')->state(['is_active' => false]), 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
+        User::factory()->create();
+
+        $response = $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.reports.missing-submissions'))
+            ->assertOk()
+            ->assertSeeInOrder(['Missing Activities', '>1</dd>', 'Missing Video Recordings', '>0</dd>', '1 row(s)'], false)
+            ->assertSee('<strong>Explore checkout</strong>', false)
+            ->assertDontSee('<strong>Weekly Video Recording</strong>', false);
+
+        $this->assertSame(1, substr_count($response->getContent(), 'data-missing-row'));
     }
 
     public function test_participants_with_missing_requirements_are_counted_by_id_not_by_name(): void
@@ -190,7 +209,7 @@ class MissingSubmissionReportPageTest extends TestCase
     }
 
     /**
-     * Build a new active program with Weeks 2 and 3 (an activity and a Gate each) and the given number of new
+     * Build a new active program with Weeks 2 and 3 (an activity and a Gate with a weekly video criterion each) and the given number of new
      * participants, and count the queries of a coach's report request after a warm-up request.
      */
     private function reportQueryCount(int $participantCount): int
@@ -201,7 +220,7 @@ class MissingSubmissionReportPageTest extends TestCase
         foreach ([2 => 1, 3 => 2] as $weekNumber => $position) {
             $week = TrainingWeek::factory()->for($program)->create(['week_number' => $weekNumber, 'position' => $position]);
             Activity::factory()->for($week, 'week')->create();
-            TrainingGate::factory()->for($week, 'week')->create();
+            GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
         }
 
         User::factory()->count($participantCount)->create();

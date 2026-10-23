@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 
 class ParticipantGatePageService
 {
-    public function __construct(private readonly WeekTwoGateService $gates) {}
+    public function __construct(private readonly GateReadinessService $gates) {}
 
     /**
      * Everything the participant Gate page renders: the Gate status, the readiness summary, the Weekly Video Recording

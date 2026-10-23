@@ -12,6 +12,7 @@ use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\ParticipantNotification;
 use App\Models\Program;
+use App\Models\TrainingGate;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
 use Illuminate\Database\Eloquent\Collection;
@@ -19,7 +20,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 
 class ParticipantNotificationService
 {
-    public function __construct(private readonly WeekProgressionService $progression, private readonly WeekTwoGateService $gates) {}
+    public function __construct(private readonly WeekProgressionService $progression, private readonly GateReadinessService $gates) {}
 
     public function unreadCount(User $participant): int
     {
@@ -32,7 +33,7 @@ class ParticipantNotificationService
             return;
         }
 
-        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $q): Relation => $q->whereIn('week_number', [2, 3, 4])->where('is_active', true)->with(['activities' => fn (Relation $a): Relation => $a->where('is_active', true)->orderBy('position'), 'gates'])])->first();
+        $program = Program::query()->where('is_active', true)->with(['weeks' => fn (Relation $q): Relation => $q->whereIn('week_number', [2, 3, 4])->where('is_active', true)->with(['activities' => fn (Relation $a): Relation => $a->where('is_active', true)->orderBy('position'), 'gates' => fn (Relation $g): Relation => $g->with(['criteria' => fn (Relation $c): Relation => $c->weeklyVideo()])])])->first();
         if (! $program) {
             return;
         }
@@ -65,7 +66,8 @@ class ParticipantNotificationService
 
                 return in_array($status, [...SubmissionStatus::handedIn(), SubmissionStatus::UnderReview], true);
             });
-            $videoMissing = $allSubmitted && ! WeeklyVideoRecording::query()->where('user_id', $participant->id)->where('training_week_id', $week->id)->exists();
+            $requiresVideo = $week->gates->contains(fn (TrainingGate $gate): bool => $gate->is_active && $gate->criteria->isNotEmpty());
+            $videoMissing = $requiresVideo && $allSubmitted && ! WeeklyVideoRecording::query()->where('user_id', $participant->id)->where('training_week_id', $week->id)->exists();
             $this->state($participant, "week:{$week->id}:video", ParticipantNotificationType::MissingVideo, 'Weekly Video Recording missing', "Upload your Week {$week->week_number} Video Recording to complete the weekly requirements.", route('training.video-recording.edit', $week), $videoMissing);
 
             $gate = $week->gates->first();

@@ -6,11 +6,16 @@ use App\Enums\ParticipantNotificationPriority;
 use App\Enums\ParticipantNotificationType;
 use App\Enums\ReviewDecision;
 use App\Jobs\GenerateParticipantNotificationsJob;
+use App\Models\Activity;
 use App\Models\ActivitySubmission;
+use App\Models\GateCriterion;
+use App\Models\GateEvaluation;
 use App\Models\ParticipantNotification;
 use App\Models\Program;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
+use App\Models\TrainingGate;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\ParticipantNotificationService;
 use Database\Seeders\QaTrainingProgramSeeder;
@@ -166,6 +171,27 @@ class ParticipantNotificationsTest extends TestCase
             'handed in or under review' => [['under_review', 'submitted', 'resubmitted', 'approved', 'completed'], true],
             'one still a draft' => [['draft', 'approved', 'approved', 'approved', 'approved'], false],
         ];
+    }
+
+    public function test_weekly_video_reminder_is_raised_only_for_weeks_whose_gate_has_a_weekly_video_criterion(): void
+    {
+        $participant = User::factory()->create();
+        $program = Program::factory()->create();
+        $weeks = collect([2 => true, 3 => false])->map(function (bool $hasVideoCriterion, int $weekNumber) use ($program, $participant): TrainingWeek {
+            $week = TrainingWeek::factory()->for($program)->create(['week_number' => $weekNumber, 'position' => $weekNumber]);
+            $gate = TrainingGate::factory()->for($week, 'week')->create();
+            GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => $hasVideoCriterion ? GateCriterion::TYPE_WEEKLY_VIDEO : GateCriterion::TYPE_DELIVERABLE]);
+            ActivitySubmission::factory()->for($participant, 'participant')->for(Activity::factory()->for($week, 'week'))->create(['status' => 'submitted']);
+
+            return $week;
+        });
+        GateEvaluation::factory()->for($weeks[2]->gates()->sole(), 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+
+        app(ParticipantNotificationService::class)->sync($participant);
+
+        $this->assertTrue($participant->participantNotifications()->active()->where('key', "week:{$weeks[2]->id}:video")->exists());
+        $this->assertTrue($participant->participantNotifications()->where('key', "week:{$weeks[3]->id}:activity:{$weeks[3]->activities()->sole()->id}:incomplete")->exists());
+        $this->assertFalse($participant->participantNotifications()->active()->where('key', "week:{$weeks[3]->id}:video")->exists());
     }
 
     public function test_dashboard_next_action_skips_notifications_awaiting_review(): void

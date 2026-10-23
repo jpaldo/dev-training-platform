@@ -5,9 +5,11 @@ namespace App\Services;
 use App\Enums\GateCriterionStatus;
 use App\Enums\GateEvaluationStatus;
 use App\Enums\UserRole;
+use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\TrainingGate;
 use App\Models\User;
+use App\Models\WeeklyVideoRecording;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
@@ -24,13 +26,13 @@ class CoachGateOverviewService
         GateEvaluationStatus::Passed->value => 6,
     ];
 
-    public function __construct(private readonly WeekTwoGateService $readiness) {}
+    public function __construct(private readonly GateReadinessService $readiness) {}
 
     /**
      * Build the coach Gate board: one row per active Gate and participant, sorted by status, with summary counts.
      *
      * @param  array{week?: int|string|null, path?: string|null, search?: string|null, status?: GateEvaluationStatus|null}  $filters
-     * @return array{rows: Collection<int, array{gate: TrainingGate, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, criteria_met: int, criteria_total: int, loom: array<string, mixed>}>, summary: array{total: int, ready: int, awaiting: int, passed: int, not_ready: int}}
+     * @return array{rows: Collection<int, array{gate: TrainingGate, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, criteria_met: int, criteria_total: int, weekly_video: array{status: string, url: ?string, criterion: ?GateCriterion, recording: ?WeeklyVideoRecording}}>, summary: array{total: int, ready: int, awaiting: int, passed: int, not_ready: int}}
      */
     public function board(array $filters): array
     {
@@ -55,7 +57,7 @@ class CoachGateOverviewService
                     'status' => $status,
                     'criteria_met' => $evaluation?->criterionEvaluations->where('status', GateCriterionStatus::Met)->count() ?? 0,
                     'criteria_total' => $gate->criteria->where('is_required', true)->count(),
-                    'loom' => $weeklyVideosByParticipant->get($participant->id)->get($gate->id),
+                    'weekly_video' => $weeklyVideosByParticipant->get($participant->id)->get($gate->id),
                 ]);
             }
         }

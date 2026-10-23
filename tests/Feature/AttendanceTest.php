@@ -143,8 +143,8 @@ class AttendanceTest extends TestCase
 
         $response = $this->actingAs($participant)->get(route('dashboard'))->assertOk();
         $html = $response->getContent();
-        $this->assertLessThan(strpos($html, 'role="tablist"'), strpos($html, 'TRAINING SESSION'));
-        $this->assertLessThan(strpos($html, 'TRAINING OVERVIEW'), strpos($html, 'TRAINING SESSION'));
+        $this->assertLessThan(strpos($html, '>My trainings</h2>'), strpos($html, '>ATTENDANCE</div>'));
+        $this->assertLessThan(strpos($html, '>Past trainings</h2>'), strpos($html, '>ATTENDANCE</div>'));
         $response->assertSee('NOT CHECKED IN')->assertSee('CHECK IN')->assertSee('View attendance history');
 
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subHours(2), 'check_out_at' => now()->subHour(), 'total_seconds' => 3600]);
@@ -193,7 +193,7 @@ class AttendanceTest extends TestCase
         $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
         $activityUrl = route('training.activities.show', [$session, $week, $activity]);
 
-        $this->actingAs($participant)->get(route('dashboard'))
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))
             ->assertOk()
             ->assertSee('Please check in to access this week')
             ->assertSee('aria-disabled="true"', false)

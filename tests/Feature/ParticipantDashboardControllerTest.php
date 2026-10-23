@@ -2,332 +2,91 @@
 
 namespace Tests\Feature;
 
-use App\Enums\ActivityScoreStatus;
-use App\Enums\GateEvaluationStatus;
-use App\Models\Activity;
-use App\Models\ActivityRequirement;
-use App\Models\ActivityScore;
-use App\Models\ActivitySubmission;
-use App\Models\EvidenceRequirement;
-use App\Models\GateCriterion;
-use App\Models\GateEvaluation;
 use App\Models\Program;
-use App\Models\SubmissionEvidence;
-use App\Models\SubmissionVersion;
-use App\Models\TrainingGate;
 use App\Models\TrainingSession;
-use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Models\WeeklyVideoRecording;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
-use Illuminate\Support\Facades\DB;
-use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ParticipantDashboardControllerTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_dashboard_query_count_does_not_grow_with_weeks_activities_and_gates(): void
-    {
-        $singleRowQueryCount = $this->dashboardQueryCount(1);
-
-        Program::query()->update(['is_active' => false]);
-
-        $threeRowQueryCount = $this->dashboardQueryCount(3);
-
-        $this->assertSame($singleRowQueryCount, $threeRowQueryCount);
-    }
-
-    public function test_header_shows_the_participant_name_and_start_week(): void
-    {
-        $participant = User::factory()->create(['name' => 'Hal Hybrid']);
-        TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
-
-        $this->actingAs($participant)->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee('Hal Hybrid · Start at Week 2.');
-    }
-
-    public function test_dashboard_shows_the_published_score_of_an_activity_but_not_a_draft_score(): void
+    public function test_the_landing_page_lists_current_sessions_under_my_trainings_and_completed_ones_under_past_trainings(): void
     {
         $participant = User::factory()->create();
-        $coach = User::factory()->create(['role' => 'coach']);
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
-        TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-
-        foreach ([[1, ActivityScoreStatus::Published, 88], [2, ActivityScoreStatus::Draft, 41]] as [$position, $status, $totalScore]) {
-            $activity = Activity::factory()->for($week, 'week')->withScoringDimensions()->create(['position' => $position]);
-            $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted']);
-            $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
-            ActivityScore::create(['submission_version_id' => $version->id, 'scorer_id' => $coach->id, 'status' => $status, 'total_score' => $totalScore, 'performance_band' => 'Proficient']);
-        }
-
-        $html = $this->actingAs($participant)->get(route('dashboard'))->assertOk()->getContent();
-
-        $this->assertSame(1, substr_count($html, 'Score: <strong'));
-        $this->assertStringContainsString('>88 / 100</strong>', $html);
-        $this->assertStringNotContainsString('41 / 100', $html);
-    }
-
-    #[DataProvider('latestAttemptStatuses')]
-    public function test_activity_row_shows_the_label_tone_and_action_of_the_latest_attempt_status(?string $status, string $label, string $badgeClasses, string $action, bool $isClosed): void
-    {
-        $participant = User::factory()->create();
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
-        $activity = Activity::factory()->for($week, 'week')->create(['title' => 'Exploratory charter', 'position' => 1]);
-        TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        if ($status !== null) {
-            $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => $status]);
-            SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => $status === 'draft' ? 'draft' : 'submitted']);
-        }
-
-        $response = $this->actingAs($participant)->get(route('dashboard'))
-            ->assertOk()
-            ->assertSeeInOrder([
-                '<strong>Exploratory charter</strong>',
-                '<span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold '.$badgeClasses.'">'.$label.'</span>',
-                '>'.$action.'</',
-            ], false);
-
-        if ($isClosed) {
-            $response->assertSee('Attempt 1 is closed. Waiting for mentor to create a retry.');
-        } else {
-            $response->assertDontSee('is closed.');
-        }
-    }
-
-    /**
-     * The latest attempt status (none before the first attempt), its badge label and tone classes, the action button
-     * text and whether the closed-attempt note shows.
-     *
-     * @return array<string, array{?string, string, string, string, bool}>
-     */
-    public static function latestAttemptStatuses(): array
-    {
-        return [
-            'not started' => [null, 'Not Started', 'border-line text-muted', 'Start', false],
-            'draft' => ['draft', 'Draft', 'border-brand text-violet-200', 'Continue', false],
-            'submitted' => ['submitted', 'Submitted', 'border-accent text-cyan-200', 'View', false],
-            'resubmitted' => ['resubmitted', 'Resubmitted', 'border-accent text-cyan-200', 'View', false],
-            'under review' => ['under_review', 'Under review', 'border-accent text-cyan-200', 'View', false],
-            'needs revision' => ['needs_revision', 'Needs revision', 'border-amber-500 text-amber-200', 'Revise', false],
-            'approved' => ['approved', 'Approved', 'border-emerald-400 text-emerald-200', 'View', false],
-            'completed' => ['completed', 'Completed', 'border-emerald-400 text-emerald-200', 'View', false],
-            'failed' => ['failed', 'Failed', 'border-danger text-rose-200', 'View attempts', true],
-        ];
-    }
-
-    public function test_week_and_activity_links_open_the_week_in_the_participants_session(): void
-    {
-        $participant = User::factory()->create();
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
-        $activity = Activity::factory()->for($week, 'week')->create(['title' => 'Set up the repository']);
-        TrainingSession::factory()->forWeek($week)->create();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-
-        $this->actingAs($participant)->get(route('dashboard'))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'href="'.route('training.weeks.show', [$session, $week]).'"',
-                'Open week →',
-                '<strong>Set up the repository</strong>',
-                'href="'.route('training.activities.show', [$session, $week, $activity]).'"',
-                '>Start</',
-            ], false);
-    }
-
-    public function test_activity_progress_comes_only_from_the_attempts_in_the_session_the_week_opens_in(): void
-    {
-        $participant = User::factory()->create();
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
-        $activity = Activity::factory()->for($week, 'week')->create(['title' => 'Set up the repository']);
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        $otherSession = TrainingSession::factory()->forWeek($week)->completed()->withParticipants($participant)->create();
-        ActivitySubmission::factory()->for($otherSession)->for($activity)->for($participant, 'participant')->create(['status' => 'approved']);
-
-        $this->actingAs($participant)->get(route('dashboard'))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'href="'.route('training.weeks.show', [$session, $week]).'"',
-                '<strong>Set up the repository</strong>',
-                '>Not Started</span>',
-                '>Start</',
-            ], false)
-            ->assertDontSee('>Approved</span>', false);
-    }
-
-    public function test_a_participant_in_no_session_with_the_week_sees_the_week_without_links_to_it(): void
-    {
-        $participant = User::factory()->create();
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
-        Activity::factory()->for($week, 'week')->create(['title' => 'Set up the repository']);
-        TrainingSession::factory()->forWeek($week)->create();
-
-        $this->actingAs($participant)->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee('<strong>Set up the repository</strong>', false)
-            ->assertDontSee('Open week →')
-            ->assertDontSee('>Start</', false)
-            ->assertDontSee('/training/sessions/', false);
-    }
-
-    public function test_gate_card_shows_the_saved_evaluation_status_or_the_readiness_status(): void
-    {
-        $participant = User::factory()->create();
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        $evaluatedGate = TrainingGate::factory()->for($week, 'week')->create(['title' => 'Evaluated Gate', 'position' => 1]);
-        TrainingGate::factory()->for($week, 'week')->create(['title' => 'Unevaluated Gate', 'position' => 2]);
-        Activity::factory()->for($week, 'week')->create();
-        GateEvaluation::factory()->for($evaluatedGate, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
-
-        $this->actingAs($participant)->get(route('dashboard'))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'Week 2 Gate · Evaluated Gate', 'Status: <strong>Incomplete</strong>', 'href="'.route('training.gates.show', [$session, $week, $evaluatedGate]).'"',
-                'Week 2 Gate · Unevaluated Gate', 'Status: <strong>Not ready</strong>',
-            ], false);
-    }
-
-    public function test_only_the_panel_of_a_week_whose_checklist_has_a_video_item_shows_the_video_row(): void
-    {
-        $participant = User::factory()->create();
-        $program = Program::factory()->create();
-        [$weekOne, $weekTwo, $weekThree] = collect([1, 2, 3])
-            ->map(fn (int $number): TrainingWeek => TrainingWeek::factory()->for($program)->create(['week_number' => $number, 'position' => $number]))
-            ->all();
-        $session = TrainingSession::factory()->forWeek($weekOne)->withParticipants($participant)->create();
-        $weekOneGate = TrainingGate::factory()->for($weekOne, 'week')->create();
-        GateCriterion::factory()->for($weekOneGate, 'gate')->create(['criterion_type' => 'deliverable']);
-        $weekTwoGate = TrainingGate::factory()->for($weekTwo, 'week')->create();
-        GateCriterion::factory()->for($weekTwoGate, 'gate')->create(['criterion_type' => 'weekly_video']);
-        foreach ([$weekOneGate, $weekTwoGate] as $gate) {
-            GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::Passed]);
-        }
+        $program = Program::factory()->create(['name' => 'L4 Accelerator Training']);
+        $active = TrainingSession::factory()->for($program)->active()->withParticipants($participant)->create(['title' => 'Active run']);
+        $upcoming = TrainingSession::factory()->for($program)->upcoming()->withParticipants($participant)->create(['title' => 'Upcoming run']);
+        $completed = TrainingSession::factory()->for($program)->completed()->withParticipants($participant)->create(['title' => 'Completed run']);
+        TrainingSession::factory()->for($program)->active()->create(['title' => 'Someone else’s run']);
 
         $html = $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                'aria-label="Week 2 progress"',
-                '>Video Recording</h3>',
-                'Not chosen',
-                'href="'.route('training.video-recording.edit', [$session, $weekTwo]).'"',
-                '>Choose Video</',
-                'aria-label="Week 3 progress"',
+                '>My trainings</h2>',
+                'href="'.route('training.sessions.show', $active).'"',
+                '>Active run</a>',
+                'L4 Accelerator Training',
+                $active->dateRangeLabel(),
+                '>Active</span>',
+                'href="'.route('training.sessions.show', $upcoming).'"',
+                '>Upcoming run</a>',
+                '>Upcoming</span>',
+                '>Past trainings</h2>',
+                'href="'.route('training.sessions.show', $completed).'"',
+                '>Completed run</a>',
+                '>Completed</span>',
             ], false)
-            ->assertDontSee(route('training.video-recording.edit', [$session, $weekOne]), false)
-            ->assertDontSee(route('training.video-recording.edit', [$session, $weekThree]), false)
+            ->assertDontSee('Someone else’s run')
+            ->assertDontSee('You are not in a training yet.')
+            ->assertDontSee('No past trainings yet.')
             ->getContent();
 
-        $this->assertSame(1, substr_count($html, '>Video Recording</h3>'));
+        $this->assertSame(1, substr_count($html, '>Completed run</a>'));
+
+        $this->actingAs($participant)->get(route('training.sessions.show', $active))->assertOk();
+        $this->actingAs($participant)->get(route('training.sessions.show', $completed))->assertOk();
     }
 
-    public function test_the_video_row_shows_the_chosen_video_with_its_preview_and_the_change_action(): void
+    public function test_past_trainings_list_the_latest_session_first(): void
     {
         $participant = User::factory()->create();
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
-        GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO]);
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        $recording = WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create(['name' => 'week-1-walkthrough.mp4']);
+        TrainingSession::factory()->withParticipants($participant)->create(['title' => 'Earlier run', 'starts_on' => today()->subWeeks(12), 'ends_on' => today()->subWeeks(8)]);
+        TrainingSession::factory()->withParticipants($participant)->create(['title' => 'Later run', 'starts_on' => today()->subWeeks(6), 'ends_on' => today()->subWeeks(2)]);
+
+        $this->actingAs($participant)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder(['>Past trainings</h2>', '>Later run</a>', '>Earlier run</a>'], false);
+    }
+
+    public function test_a_participant_in_no_session_sees_both_empty_states(): void
+    {
+        $participant = User::factory()->create();
+        TrainingSession::factory()->create();
 
         $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                'aria-label="Week 1 progress"',
-                '>Video Recording</h3>',
-                'Chosen',
-                '>week-1-walkthrough.mp4</p>',
-                'href="'.$recording->driveViewUrl().'"',
-                'href="'.route('training.video-recording.edit', [$session, $week]).'"',
-                '>Change Video</',
-                'data-preview-src="'.$recording->drivePreviewUrl().'"',
-                'unshared in your Google Drive. Choose it again.',
+                '>My trainings</h2>',
+                'You are not in a training yet.',
+                '>Past trainings</h2>',
+                'No past trainings yet.',
             ], false)
-            ->assertDontSee('Not chosen')
-            ->assertDontSee('>Choose Video</', false);
+            ->assertDontSee('/training/sessions/', false);
     }
 
-    public function test_week_panels_show_no_daily_log_progress(): void
+    public function test_the_landing_page_keeps_the_attendance_card_and_has_no_week_tabs(): void
     {
-        $participant = User::factory()->create();
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
-        Activity::factory()->for($week, 'week')->create();
+        $participant = User::factory()->create(['first_name' => 'Hal', 'last_name' => 'Hybrid']);
+        TrainingSession::factory()->withParticipants($participant)->create();
 
         $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('aria-label="Week 2 progress"', false)
-            ->assertDontSee('Daily logs')
-            ->assertDontSee('daily log');
-    }
-
-    public function test_week_panels_show_no_training_guide_card(): void
-    {
-        $participant = User::factory()->create();
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
-        Activity::factory()->for($week, 'week')->create();
-
-        $this->actingAs($participant)->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee('aria-label="Week 2 progress"', false)
-            ->assertDontSee('Training Guide')
-            ->assertDontSee('/training/guides/', false);
-    }
-
-    public function test_a_week_four_activity_two_is_listed_like_any_other_activity_without_peer_or_mentor_interviews(): void
-    {
-        $participant = User::factory()->create();
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 4, 'position' => 1]);
-        Activity::factory()->for($week, 'week')->create(['title' => 'Mock Level 3 Interview', 'position' => 2]);
-        TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-
-        $this->actingAs($participant)->get(route('dashboard'))
-            ->assertOk()
-            ->assertSeeInOrder(['<strong>Mock Level 3 Interview</strong>', '>Start</'], false)
-            ->assertDontSee('MENTOR MOCK INTERVIEW')
-            ->assertDontSee('id="dashboard-tab-mentoring"', false)
-            ->assertDontSee('Waiting for Partner Assignment')
-            ->assertDontSee('MOCK INTERVIEW PARTNERS')
-            ->assertDontSee('Peer practice');
-    }
-
-    /**
-     * Build an active program with the given number of weeks, activities per week and gates, fill it with
-     * participant progress, and count the queries of a dashboard request after a warm-up request.
-     *
-     * Weeks are numbered up to Week 4, so every week falls inside the Weeks 2–4 that ParticipantNotificationService::sync()
-     * covers (the sync runs when progress is written, never on a dashboard request).
-     */
-    private function dashboardQueryCount(int $rows): int
-    {
-        $participant = User::factory()->create();
-        $program = Program::factory()->create();
-        TrainingSession::factory()->for($program)->withParticipants($participant)->create(['weeks_count' => 4]);
-
-        foreach (range(1, $rows) as $position) {
-            $week = TrainingWeek::factory()->for($program)->create(['week_number' => $position + 4 - $rows, 'position' => $position]);
-            $gate = TrainingGate::factory()->for($week, 'week')->create();
-            GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_video']);
-            GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => $position < $rows ? 'passed' : 'not_ready']);
-            WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create();
-
-            foreach (range(2, $rows + 1) as $activityPosition) {
-                $activity = Activity::factory()->for($week, 'week')->create(['position' => $activityPosition]);
-                $evidenceRequirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create())->create();
-                $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted']);
-                $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
-                SubmissionEvidence::factory()->for($version, 'submissionVersion')->for($evidenceRequirement, 'evidenceRequirement')->create();
-            }
-        }
-
-        $this->actingAs($participant)->get(route('dashboard'))->assertOk();
-
-        DB::flushQueryLog();
-        DB::enableQueryLog();
-        $this->actingAs($participant)->get(route('dashboard'))->assertOk();
-        DB::disableQueryLog();
-
-        return count(DB::getQueryLog());
+            ->assertSeeInOrder(['Welcome, Hal', 'ATTENDANCE', 'NOT CHECKED IN', 'CHECK IN'], false)
+            ->assertDontSee('TRAINING SESSION</div>', false)
+            ->assertDontSee('Start at Week 2.')
+            ->assertDontSee('data-page-tabs', false)
+            ->assertDontSee('No training program is active yet.');
     }
 }

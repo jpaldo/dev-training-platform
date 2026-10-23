@@ -16,6 +16,7 @@ class TrainingWeekPageService
     public function __construct(
         private readonly ParticipantGatePageService $gatePage,
         private readonly GateReadinessService $gates,
+        private readonly ParticipantTrainingSessionPageService $sessionPage,
     ) {}
 
     /**
@@ -25,7 +26,7 @@ class TrainingWeekPageService
      * participants in a week that asks for it, the Weekly Video Recording state. A participant's main action is Choose
      * Weekly Video while such a week has no video chosen yet; in a week that does not ask for the video it is the link
      * to the Gate page (then not repeated on the Gate card), or none without a Gate. The Gate and video links stay
-     * within the session.
+     * within the session. A participant's Back link opens the week's tab on the session page.
      *
      * @return array{trainingWeek: TrainingWeek, activities: list<array{position: int, title: string, description: ?string, url: string}>, gate: ?array{title: string, status_label: string, status_tone: string, criteria: list<array{title: string, description: ?string, is_met: bool, status_label: string, status_tone: string}>, url: ?string}, showsWeeklyVideo: bool, videoRecording: ?WeeklyVideoRecording, mainAction: ?array{label: string, url: string}, changeVideoUrl: string, backUrl: string}
      */
@@ -67,7 +68,7 @@ class TrainingWeekPageService
             'videoRecording' => $videoRecording,
             'mainAction' => $mainAction,
             'changeVideoUrl' => $videoUrl,
-            'backUrl' => $isParticipant ? route('dashboard') : route('profile.show'),
+            'backUrl' => $isParticipant ? $this->sessionPage->weekTabUrl($trainingSession, $week) : route('profile.show'),
         ];
     }
 

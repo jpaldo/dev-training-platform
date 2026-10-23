@@ -88,6 +88,31 @@ class TrainingSessionAccessTest extends TestCase
         }
     }
 
+    public function test_only_a_participant_in_the_session_opens_its_session_page(): void
+    {
+        ['session' => $session, 'week' => $week] = $this->sessionFixture();
+        $member = User::factory()->create();
+        $session->participants()->attach($member, ['joined_at' => now()]);
+        $outsider = User::factory()->create();
+        TrainingSession::factory()->forWeek($week)->withParticipants($outsider)->create();
+
+        $this->actingAs($member)->get(route('training.sessions.show', $session))->assertOk()->assertSee($session->title);
+        $this->actingAs($outsider)->get(route('training.sessions.show', $session))->assertForbidden();
+
+        app(TrainingSessionService::class)->removeParticipant($session, $member, User::factory()->create(['role' => 'admin']));
+
+        $this->actingAs($member)->get(route('training.sessions.show', $session))->assertForbidden();
+    }
+
+    public function test_admins_and_coaches_are_forbidden_from_the_participant_session_page(): void
+    {
+        ['session' => $session] = $this->sessionFixture();
+
+        foreach (['admin', 'coach'] as $role) {
+            $this->actingAs(User::factory()->create(['role' => $role]))->get(route('training.sessions.show', $session))->assertForbidden();
+        }
+    }
+
     /**
      * A 4-week session of a program whose Week 1 has one activity.
      *

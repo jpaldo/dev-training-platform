@@ -72,7 +72,7 @@ class AdminTrainingSessionPageService
         return [
             'title' => $trainingSession->title,
             'program' => $trainingSession->program->name,
-            'dateRange' => $this->dateRange($trainingSession),
+            'dateRange' => $trainingSession->dateRangeLabel(),
             'weeksLabel' => $trainingSession->weeks_count.' '.Str::plural('week', $trainingSession->weeks_count),
             'statusLabel' => $status->label(),
             'statusTone' => $status->tone(),
@@ -156,23 +156,13 @@ class AdminTrainingSessionPageService
         return [
             'title' => $session->title,
             'program' => $session->program->name,
-            'date_range' => $this->dateRange($session),
+            'date_range' => $session->dateRangeLabel(),
             'status_label' => $status->label(),
             'status_tone' => $status->tone(),
             'participant_count' => (int) $session->participants_count,
             'show_url' => route('admin.sessions.show', $session),
             'edit_url' => route('admin.sessions.edit', $session),
         ];
-    }
-
-    /**
-     * The session's dates, naming the year once when both dates fall in it ("9 Nov – 6 Dec 2026").
-     */
-    private function dateRange(TrainingSession $session): string
-    {
-        $startFormat = $session->starts_on->year === $session->ends_on->year ? 'j M' : 'j M Y';
-
-        return $session->starts_on->format($startFormat).' – '.$session->ends_on->format('j M Y');
     }
 
     /**

@@ -64,7 +64,7 @@ class TrainingWeekPageTest extends TestCase
                 'Video Recording',
                 'Status:',
                 'Not chosen',
-                'href="'.route('dashboard').'"',
+                'href="'.route('training.sessions.show', $session).'#week-'.$week->week_number.'"',
                 'Back',
             ], false)
             ->assertDontSee('Optional stretch goal')

@@ -94,6 +94,16 @@ class TrainingSession extends Model
     }
 
     /**
+     * The session's dates, naming the year once when both dates fall in it ("9 Nov – 6 Dec 2026").
+     */
+    public function dateRangeLabel(): string
+    {
+        $startFormat = $this->starts_on->year === $this->ends_on->year ? 'j M' : 'j M Y';
+
+        return $this->starts_on->format($startFormat).' – '.$this->ends_on->format('j M Y');
+    }
+
+    /**
      * Whether anyone has joined the session. Once someone has, its program can no longer change.
      */
     public function hasParticipants(): bool

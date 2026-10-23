@@ -77,13 +77,13 @@ class EmptyTrainingDataTest extends TestCase
             ->assertOk();
     }
 
-    public function test_participant_dashboard_says_no_program_is_active_and_lists_no_weeks(): void
+    public function test_participant_dashboard_shows_empty_training_lists_without_any_training_data(): void
     {
         $this->actingAs(User::factory()->create())
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSeeInOrder(['>No active program</h1>', self::NO_ACTIVE_PROGRAM_NOTICE, 'id="dashboard-tab-overview"'], false)
-            ->assertDontSee('id="dashboard-tab-week-', false);
+            ->assertSeeInOrder(['You are not in a training yet.', 'No past trainings yet.'])
+            ->assertDontSee('data-page-tabs', false);
     }
 
     public function test_scoring_overview_says_no_program_is_active_and_lists_participants_without_weeks(): void

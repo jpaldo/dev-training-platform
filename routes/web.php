@@ -35,6 +35,7 @@ use App\Http\Controllers\ScoringReportController;
 use App\Http\Controllers\SubmissionEvidenceController;
 use App\Http\Controllers\SummaryExportController;
 use App\Http\Controllers\TrainingActivityController;
+use App\Http\Controllers\TrainingSessionController;
 use App\Http\Controllers\TrainingSyncController;
 use App\Http\Controllers\TrainingWeekController;
 use App\Http\Controllers\WeeklyVideoRecordingController;
@@ -158,6 +159,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
     Route::post('/markdown/preview', MarkdownPreviewController::class)->name('markdown.preview');
 
     Route::prefix('training')->name('training.')->group(function () {
+        Route::get('/sessions/{trainingSession}', [TrainingSessionController::class, 'show'])->middleware(['can:view,trainingSession', 'role:participant'])->name('sessions.show');
         Route::prefix('sessions/{trainingSession}/weeks/{trainingWeek}')->middleware(['can:view,trainingSession', 'session.week'])->group(function (): void {
             Route::get('/', [TrainingWeekController::class, 'show'])->name('weeks.show');
             Route::get('/activities/{activity}', [TrainingActivityController::class, 'show'])->name('activities.show');

@@ -67,7 +67,7 @@ class SidebarNavigationService
         if (! $user->isCoachOrAdmin()) {
             return [
                 'Training' => [
-                    ['label' => 'Dashboard', 'route' => 'dashboard', 'active' => ['dashboard', 'training.weeks.*', 'training.activities.*', 'training.submission.*', 'training.gates.*', 'training.video-recording.*']],
+                    ['label' => 'Dashboard', 'route' => 'dashboard', 'active' => ['dashboard', 'training.sessions.*', 'training.weeks.*', 'training.activities.*', 'training.submission.*', 'training.gates.*', 'training.video-recording.*']],
                     ['label' => 'Attendance', 'route' => 'participant.attendance.index', 'active' => ['participant.attendance.*']],
                     ['label' => 'Notifications', 'route' => 'participant.notifications', 'active' => ['participant.notifications'], 'count' => $this->notifications->unreadCount($user)],
                 ],

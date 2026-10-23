@@ -102,16 +102,18 @@ class HomeNavigationTest extends TestCase
         $submission = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'needs_revision']);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => [], 'submitted_at' => now()]);
         $version->reviews()->create(['reviewer_id' => User::factory()->create(['role' => 'coach'])->id, 'decision' => 'needs_revision', 'comments' => 'Please revise this activity.', 'reviewed_at' => now()]);
-        $this->actingAs($participant)->get(route('dashboard'))->assertOk()->assertSee($activity->title)->assertSee('Revise');
+        $this->actingAs($participant)->get(route('training.sessions.show', $session))->assertOk()->assertSee($activity->title)->assertSee('Revise');
         $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week1, $activity]))->assertOk()->assertSee('Please revise this activity.');
     }
 
-    public function test_participant_dashboard_shows_training_overview_before_week_cards(): void
+    public function test_session_page_shows_the_training_overview_tab(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create();
+        $week1 = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first();
+        $session = TrainingSession::factory()->forWeek($week1)->withParticipants($participant)->create();
 
-        $response = $this->actingAs($participant)->get(route('dashboard'));
+        $response = $this->actingAs($participant)->get(route('training.sessions.show', $session));
 
         $response->assertOk()
             ->assertSeeInOrder([
@@ -132,19 +134,24 @@ class HomeNavigationTest extends TestCase
         $participant = User::factory()->create();
         ParticipantNotification::factory()->create(['user_id' => $participant->id, 'title' => 'Current work', 'body' => 'Complete your next activity.', 'resolved_at' => null]);
 
-        $response = $this->actingAs($participant)->get(route('dashboard'))->assertOk();
-        $html = $response->getContent();
-        $this->assertMatchesRegularExpression('/id="dashboard-tab-week-1"[^>]*aria-selected="true"/', $html);
-        $this->assertMatchesRegularExpression('/id="dashboard-tab-overview"[^>]*aria-selected="false"/', $html);
-        $this->assertMatchesRegularExpression('/id="dashboard-panel-week-1"(?:(?!hidden)[^>])*>/', $html);
-        $this->assertMatchesRegularExpression('/id="dashboard-panel-overview"[^>]*\shidden\b/', $html);
-        $response->assertSee('data-dashboard-disclosure', false)
+        $week1 = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first();
+        $session = TrainingSession::factory()->forWeek($week1)->withParticipants($participant)->create();
+
+        $this->actingAs($participant)->get(route('dashboard'))->assertOk()
+            ->assertSee('data-dashboard-disclosure', false)
             ->assertSee('aria-controls="dashboard-missing-content"', false)
             ->assertSee('aria-expanded="true"', false)
             ->assertSee('Complete your next activity.')
-            ->assertSee('How this training works')
-            ->assertSee('Gates &amp; progression', false)
-            ->assertSee('TRAINING SESSION');
+            ->assertSee('ATTENDANCE');
+
+        $response = $this->actingAs($participant)->get(route('training.sessions.show', $session))->assertOk();
+        $html = $response->getContent();
+        $this->assertMatchesRegularExpression('/id="session-tab-week-1"[^>]*aria-selected="true"/', $html);
+        $this->assertMatchesRegularExpression('/id="session-tab-overview"[^>]*aria-selected="false"/', $html);
+        $this->assertMatchesRegularExpression('/id="session-panel-week-1"(?:(?!hidden)[^>])*>/', $html);
+        $this->assertMatchesRegularExpression('/id="session-panel-overview"[^>]*\shidden\b/', $html);
+        $response->assertSee('How this training works')
+            ->assertSee('Gates &amp; progression', false);
     }
 
     public function test_participant_dashboard_and_gate_page_show_authoritative_gate_status_and_criteria(): void
@@ -154,7 +161,7 @@ class HomeNavigationTest extends TestCase
         $week1 = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first();
         $gate = $week1->gates()->with('criteria')->firstOrFail();
         $session = TrainingSession::factory()->forWeek($week1)->withParticipants($participant)->create();
-        $response = $this->actingAs($participant)->get(route('dashboard'));
+        $response = $this->actingAs($participant)->get(route('training.sessions.show', $session));
         $response->assertOk()->assertSee($gate->title)->assertSee('Not ready')->assertSee('View Gate');
         $this->actingAs($participant)->get(route('training.gates.show', [$session, $week1, $gate]))->assertOk()->assertSee($gate->criteria->first()->title)->assertSee('Awaiting Review');
     }

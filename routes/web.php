@@ -7,6 +7,7 @@ use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\AdminGoogleDriveController;
 use App\Http\Controllers\AdminInterviewSchedulingController;
 use App\Http\Controllers\AdminSettingsController;
+use App\Http\Controllers\AdminTrainingSessionController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AuthenticatedSessionController;
@@ -96,6 +97,9 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::get('/settings/google-drive', [AdminGoogleDriveController::class, 'edit'])->name('settings.google-drive');
         Route::put('/settings/google-drive', [AdminGoogleDriveController::class, 'update'])->name('settings.google-drive.update');
         Route::post('/settings/google-drive/test', [AdminGoogleDriveController::class, 'test'])->name('settings.google-drive.test');
+        Route::get('/sessions', [AdminTrainingSessionController::class, 'index'])->name('sessions.index');
+        Route::get('/sessions/create', [AdminTrainingSessionController::class, 'create'])->name('sessions.create');
+        Route::post('/sessions', [AdminTrainingSessionController::class, 'store'])->name('sessions.store');
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');
         Route::post('/users', [AdminUserController::class, 'store'])->name('users.store');

@@ -26,6 +26,11 @@ class Program extends Model
         return $this->hasMany(TrainingWeek::class);
     }
 
+    public function trainingSessions(): HasMany
+    {
+        return $this->hasMany(TrainingSession::class);
+    }
+
     /**
      * The numbers of the program's active weeks that have no checklist to review: no active Gate with at least one
      * required item. Every active week of an active program needs one, so the mentor has something to tick.

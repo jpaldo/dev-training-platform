@@ -114,12 +114,13 @@ class AppLayoutTest extends TestCase
         $this->assertSame(['Overview', 'People', 'Review', 'Admin'], $this->groupLabels($sidebar));
         $this->assertSame([
             ['Admin Dashboard', route('admin.dashboard'), false, 0],
+            ['Training Sessions', route('admin.sessions.index'), false, 0],
             ['Users / Participants', route('admin.users.index'), false, 0],
             ['Settings', route('admin.settings.index'), false, 0],
             ['Google Drive', route('admin.settings.google-drive'), true, 0],
             ['AI', route('admin.settings.ai'), false, 0],
             ['Profile', route('profile.show'), false, 0],
-        ], array_slice($this->sidebarLinks($sidebar), -6));
+        ], array_slice($this->sidebarLinks($sidebar), -7));
         $this->assertSame(1, substr_count($sidebar, 'aria-current="page"'));
         $this->assertStringContainsString('>Admin</span>', $sidebar);
     }

@@ -173,4 +173,15 @@ class User extends Authenticatable
     {
         return $this->hasMany(ParticipantNotification::class);
     }
+
+    /**
+     * The training sessions the user is a participant in.
+     */
+    public function trainingSessions(): BelongsToMany
+    {
+        return $this->belongsToMany(TrainingSession::class, 'training_session_participants')
+            ->using(TrainingSessionParticipant::class)
+            ->withPivot(['joined_at', 'added_by'])
+            ->withTimestamps();
+    }
 }

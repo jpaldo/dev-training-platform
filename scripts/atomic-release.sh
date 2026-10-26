@@ -6,12 +6,17 @@ usage() {
 Usage:
   atomic-release.sh simulate
   atomic-release.sh prepare --archive ARCHIVE --sha SHA --app-link LINK --releases-root ROOT --shared-root ROOT [--php PHP] [--composer COMPOSER]
-  atomic-release.sh activate --app-link LINK --release RELEASE [--health-url URL]
-  atomic-release.sh rollback --app-link LINK --release RELEASE [--health-url URL]
+  atomic-release.sh activate --app-link LINK --release RELEASE [--health-url URL] [--php PHP] [--after-switch CMD]
+  atomic-release.sh rollback --app-link LINK --release RELEASE [--health-url URL] [--php PHP] [--after-switch CMD]
 
 The app link must already be a symlink for activate/rollback. The one-time
 conversion of the existing live directory to this layout requires a planned
 maintenance operation and is intentionally refused by this script.
+
+After the symlink switch, activate and rollback run `php artisan queue:restart`
+from the activated release so a long-running queue worker (Supervisor, systemd)
+reloads onto it, then run the optional --after-switch shell command (for
+example `sudo systemctl reload php8.4-fpm`) before the health check.
 EOF
 }
 
@@ -126,12 +131,14 @@ case "$MODE" in
         printf 'release prepared: %s\n' "$release"
         ;;
     activate|rollback)
-        app_link= release= health_url=
+        app_link= release= health_url= php_bin=php after_switch=
         while [ "$#" -gt 0 ]; do
             case "$1" in
                 --app-link) app_link="$2"; shift 2 ;;
                 --release|--target) release="$2"; shift 2 ;;
                 --health-url) health_url="$2"; shift 2 ;;
+                --php) php_bin="$2"; shift 2 ;;
+                --after-switch) after_switch="$2"; shift 2 ;;
                 *) usage; die "unknown argument: $1" ;;
             esac
         done
@@ -142,6 +149,11 @@ case "$MODE" in
         test -s "$release/public/build/manifest.json" || die "release manifest is missing"
         ln -s "$release" "$app_link.next.$$"
         mv -Tf "$app_link.next.$$" "$app_link"
+        # The worker keeps running the release it started with until told to restart.
+        (cd "$release" && "$php_bin" artisan queue:restart --no-ansi >/dev/null) || die "queue:restart failed; the queue worker is still on the previous release"
+        if [ -n "$after_switch" ]; then
+            bash -c "$after_switch" || die "after-switch command failed: $after_switch"
+        fi
         if [ -n "$health_url" ]; then
             code="$(curl -L -s -o /dev/null -w '%{http_code}' "$health_url")"
             [ "$code" = 200 ] || die "post-switch health check returned HTTP $code"

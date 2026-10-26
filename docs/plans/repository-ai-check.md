@@ -110,30 +110,27 @@ The deterministic part is the source of truth for "committed or not". The AI par
 
 ## Infrastructure on AWS
 
-Production will run on **one EC2 instance with nginx and php-fpm** (decided 2026-10-27; Elastic Beanstalk is not used, and the "Production runs on AWS Elastic Beanstalk" line in the main plan's Open decisions is outdated). The database is **MySQL on Amazon RDS** (decided 2026-10-27: automatic backups, point-in-time recovery and no database memory on the instance). The app uses the `database` driver for queue, cache and sessions. The check needs exactly one new piece of infrastructure: **a queue worker process** kept alive by systemd. Everything else is a cron line or an environment variable.
+Production runs on **one EC2 instance with nginx and php-fpm** and **MySQL on Amazon RDS** (decided 2026-10-27; Elastic Beanstalk is not used, and the "Production runs on AWS Elastic Beanstalk" line in the main plan's Open decisions is outdated). The infrastructure is specified in `docs/AWS_DEPLOYMENT.md` (committed 2026-10-27), which is the source of truth: release layout (`/var/www/training/current` → `releases/<sha>`, shared `.env` and `storage`), the Supervisor-managed queue worker (§6), the `schedule:run` cron line (§6) and the release procedure, whose `activate` step already runs `php artisan queue:restart`. There is no Hostinger environment and `queue-cron.sh` is being removed (that document's §11). This plan does not repeat any of that; it lists only what the feature **changes** in it.
 
 | Component | Needed for this feature? | Why |
 |---|---|---|
-| **Queue worker** (`php artisan queue:work database --queue=checks,default`) | **Yes** | The check runs in a job (RC-2). Without a worker the row stays `queued` forever. A systemd service on the instance (below). |
+| **Queue worker** (Supervisor, `docs/AWS_DEPLOYMENT.md` §6) | **Yes, with changes** (Phase 4) | The check runs in a job (RC-2). Without a worker the row stays `queued` forever. The worker exists for the notification jobs already; this feature needs `--queue=checks,default` so checks go first, and a longer `--timeout` (a check makes 6–14 GitHub requests and one OpenRouter call, so 170 s instead of the current 60 s), which in turn raises `DB_QUEUE_RETRY_AFTER` (300 > 170) and Supervisor's `stopwaitsecs` (180 > 170). |
 | **Redis** | No | The `database` queue driver handles this volume (a few hundred checks over a 4-week session, each a few seconds). `WithoutOverlapping` uses cache locks, and the `database` cache store has the `cache_locks` table, so locks work without Redis. Revisit only for Horizon or a high-throughput queue. |
-| **Scheduler** (`schedule:run` from cron) | **Not for this feature** (RC-14: checks are manual) | But the app already schedules `notifications:sync-participants` hourly, so the instance needs one crontab line for `schedule:run` anyway (Phase 4). The check does not depend on it. |
+| **Scheduler** (`schedule:run` from cron) | **Not for this feature** (RC-14: checks are manual) | Already required by the hourly `notifications:sync-participants`; the check does not depend on it. It only carries the `queue:monitor` line below. |
 | **SQS** | No | A managed queue only pays off with several instances or very high volume. It would need the `aws/aws-sdk-php` package (a dependency change that needs approval) and an IAM role. The `database` driver is enough on one instance. |
-| **S3** | No | Nothing is written to disk: the job reads files through the GitHub API into memory, capped at 80 KB per check, and stores JSON in MySQL. (The main plan's open decision on evidence uploads is a separate question; one instance with an EBS volume does keep files across deploys, unlike Beanstalk.) |
-| **RDS MySQL** | Already decided | One new table (`repository_checks`); the `jobs`, `failed_jobs`, `cache` and `cache_locks` tables already exist. The RDS security group must allow 3306 from the instance's security group only; automated backups on with a retention of at least 7 days. |
-| **Secrets** | Yes, existing mechanism | `OPENROUTER_API_KEY` and `GITHUB_TOKEN` in the instance's `.env` (mode 600, owned by the deploy user), or saved on the admin settings pages, where they are encrypted with `APP_KEY` in MySQL. SSM Parameter Store is optional. |
-| **Outbound HTTPS** | Yes | The instance must reach `api.github.com` and `openrouter.ai`: an outbound rule for 443 in the security group (allowed by default) and a public IP or NAT. |
-| **CloudWatch** | Optional | The CloudWatch agent can ship `storage/logs/laravel.log` and the worker's journal; `journalctl -u laravel-queue` and `php artisan queue:failed` are enough to start with. |
-| **Load balancer, auto scaling** | No | One instance; nginx terminates TLS (Let's Encrypt via certbot) or sits behind a single ALB if TLS is managed there. |
+| **S3** | No | Nothing is written to disk: the job reads files through the GitHub API into memory, capped at 80 KB per check, and stores JSON in MySQL. |
+| **RDS MySQL** | Already decided | One new table (`repository_checks`); the `jobs`, `failed_jobs`, `cache` and `cache_locks` tables already exist. |
+| **Secrets** | Yes, existing mechanism | `OPENROUTER_API_KEY` and `GITHUB_TOKEN` in `shared/.env` (kept in Secrets Manager / SSM as `docs/AWS_DEPLOYMENT.md` §2 describes), or saved on the admin settings pages, where they are encrypted with `APP_KEY` in MySQL. |
+| **Outbound HTTPS** | Yes | The instance must reach `api.github.com` and `openrouter.ai`: an outbound rule for 443 in the security group (allowed by default) and the Elastic IP. |
+| **CloudWatch** | Optional | The CloudWatch agent already ships `shared/logs/laravel-*.log` and `worker.log` (`docs/AWS_DEPLOYMENT.md` §9); `php artisan queue:failed` and `supervisorctl status training-worker` are enough to start with. |
+| **php-fpm and nginx** | No | The web request only inserts a row and dispatches; the job runs in the CLI worker, so `max_execution_time`, `fastcgi_read_timeout` and `client_max_body_size` are unaffected. |
 
-### Single EC2 instance setup (Phase 4)
+### What Phase 4 changes in `docs/AWS_DEPLOYMENT.md`
 
-- **Worker service** `/etc/systemd/system/laravel-queue.service`: `ExecStart=/usr/bin/php /var/www/training-platform/current/artisan queue:work database --queue=checks,default --sleep=3 --tries=3 --timeout=170 --max-time=3600 --max-jobs=500`, `Restart=always`, `RestartSec=5`, `User=www-data` (the php-fpm user, so `storage/` permissions match), `WorkingDirectory=` the current release, `After=network-online.target` (MySQL is on RDS). `systemctl enable --now laravel-queue`. `--max-time` and `--max-jobs` make the worker exit periodically so systemd restarts it with fresh code and memory.
-- **Deploy step**: after the release symlink switches (the same release layout as `docs/ATOMIC_DEPLOYMENT.md`, a `current` symlink to `releases/<sha>`), run `php artisan queue:restart`; the worker finishes its current job, exits and systemd restarts it on the new release. Because the unit's `WorkingDirectory` points at the `current` symlink, no unit edit is needed per release.
-- **Scheduler cron** in `/etc/cron.d/laravel-schedule`: `* * * * * www-data /usr/bin/php /var/www/training-platform/current/artisan schedule:run >> /dev/null 2>&1`. One line, one instance, no leader election needed.
-- **`.env`**: `QUEUE_CONNECTION=database`, `DB_QUEUE_RETRY_AFTER=300`, `CACHE_STORE=database`, `SESSION_DRIVER=database`, `OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `AI_SCORING_ENABLED` as the admin prefers (the admin page overrides).
-- **php-fpm and nginx**: nothing for this feature. The web request only inserts a row and dispatches; the job runs in the CLI worker, so `max_execution_time`, `fastcgi_read_timeout` and `client_max_body_size` are unaffected.
-- **Health**: `php artisan queue:monitor database:checks --max=20` on the schedule (logs a warning when the queue backs up), `systemctl status laravel-queue`, `php artisan queue:failed`. The QA environment on Hostinger keeps `queue-cron.sh` and must pass `--queue=checks,default` so checks also run there.
-- **Sizing**: the worker and the scheduler add one PHP process each; a `t3.small` or `t3.medium` is plenty for the first session.
+- **§6 Queue worker**: `command=… queue:work database --queue=checks,default --sleep=3 --tries=3 --timeout=170 --max-time=3600 --max-jobs=500` and `stopwaitsecs=180`; the note that `--timeout` < `DB_QUEUE_RETRY_AFTER` keeps its reasoning with the new numbers.
+- **§5 `.env`**: `DB_QUEUE_RETRY_AFTER=300`, plus `OPENROUTER_API_KEY`, `GITHUB_TOKEN` and `AI_SCORING_ENABLED` as the admin prefers (the admin page overrides).
+- **§9 Health**: `php artisan queue:monitor database:checks --max=20` on the schedule, next to the `database:default` monitor that §11 already asks for.
+- **Sizing**: unchanged; the worker and the scheduler are one PHP process each, and a `t3.small` is plenty for the first session.
 
 ### Volume and cost
 
@@ -154,7 +151,7 @@ Production will run on **one EC2 instance with nginx and php-fpm** (decided 2026
 - **Q3 — Participant visibility.** Should participants see the latest check on their own gate page ("Your repository is missing: …")? It would reduce mentor back-and-forth but changes LOG-3's intent (the mentor's checklist is the verdict). Mentors and admins only until decided.
 - **Q4 — Provider.** OpenRouter only (as requested), or also OpenAI / Anthropic / Gemini through their existing providers? OpenRouter only in v1; the assessor contract allows the others later.
 - **Q5 — Where else to trigger.** The gate review page only, or also the submission review page (per activity) and the admin session dashboard? Gate review page only in v1; the service is per week so other entry points are a route and a button.
-- **Q6 — MySQL on the instance or RDS.** **Decided 2026-10-27: RDS**, for its automatic backups. The queue, cache and checks are plain tables, so nothing in this plan changes; the systemd unit waits only for the network.
+- **Q6 — MySQL on the instance or RDS.** **Decided 2026-10-27: RDS**, for its automatic backups. The queue, cache and checks are plain tables, so nothing in this plan changes.
 
 ## Phase 1 — Data, settings and expected files
 
@@ -204,11 +201,11 @@ Production will run on **one EC2 instance with nginx and php-fpm** (decided 2026
 
 ## Phase 4 — Infrastructure
 
-- [ ] **4.1 Queue worker and scheduler on the EC2 instance** (RC-2; Infrastructure on AWS)
-  - **Do:** `deploy/systemd/laravel-queue.service` and `deploy/cron/laravel-schedule` committed to the repo (new `deploy/` folder, approved by this plan) with the contents from "Single EC2 instance setup"; `docs/DEPLOYMENT_AWS.md` (new, requested by this plan): instance layout (`/var/www/training-platform/releases/<sha>` and `current`, shared `.env` and `storage`), nginx server block pointing at `current/public`, php-fpm pool user, the `.env` keys, installing the unit and the cron file, and the deploy sequence ending in `php artisan queue:restart`; `queue:monitor database:checks --max=20` added to `routes/console.php`; `queue-cron.sh` gains `--queue=checks,default` for the QA host.
-  - **Tests:** none for the unit and cron files; the `routes/console.php` change is covered by `php artisan schedule:list` in the acceptance.
-  - **Acceptance:** on the instance, `systemctl status laravel-queue` is active; a check started from the page finishes within a minute and `php artisan queue:failed` is empty; after a deploy and `queue:restart` the worker is running the new release and the next check still runs.
-- [ ] **4.2 Hostinger QA environment** — confirm `queue-cron.sh` runs every minute with the new queue list and that `GITHUB_TOKEN` / the admin token is set; record the result here.
+- [ ] **4.1 Queue worker settings for the check** (RC-2; Infrastructure on AWS)
+  - **Do:** apply "What Phase 4 changes in `docs/AWS_DEPLOYMENT.md`": the Supervisor `command` and `stopwaitsecs` in §6, `DB_QUEUE_RETRY_AFTER=300` and the three new keys in §5, the `database:checks` monitor in §9; `Schedule::command('queue:monitor database:checks --max=20')->hourly()` added to `routes/console.php`. No new `deploy/` folder: the document holds the config. If the instance is already set up when this batch ships, apply the same edits to `/etc/supervisor/conf.d/training-worker.conf` and `shared/.env`, then `supervisorctl update` and `php artisan queue:restart`.
+  - **Tests:** none for the document; the `routes/console.php` change is covered by `php artisan schedule:list` in the acceptance.
+  - **Acceptance:** on the instance, `supervisorctl status training-worker` is `RUNNING` with `--queue=checks,default` in its command line; a check started from the page finishes within a minute and `php artisan queue:failed` is empty; after a release (`atomic-release.sh activate` runs `queue:restart`) the worker is on the new release and the next check still runs.
+- [-] **4.2 Hostinger QA environment** — dropped 2026-10-27: there is no Hostinger environment; production is the EC2 instance above and `queue-cron.sh` is being removed (`docs/AWS_DEPLOYMENT.md` §11).
 
 ## Out of scope / follow-ups
 

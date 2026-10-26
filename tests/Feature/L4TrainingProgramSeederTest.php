@@ -76,7 +76,7 @@ class L4TrainingProgramSeederTest extends TestCase
                 ['deliverable', '/plan-feature skill'],
                 ['deliverable', 'Implementation plans (6)'],
                 ['session_logs', 'Session logs committed for this week'],
-                ['weekly_video', 'Weekly video chosen from Google Drive'],
+                ['weekly_video', 'Video walkthrough'],
             ],
             $this->requiredChecklistItems($weekOne),
         );
@@ -103,7 +103,7 @@ class L4TrainingProgramSeederTest extends TestCase
                     ['deliverable', "Placeholder Activity {$week->week_number}.1 deliverable submitted"],
                     ['deliverable', "Placeholder Activity {$week->week_number}.2 deliverable submitted"],
                     ['session_logs', 'Session logs committed for this week'],
-                    ['weekly_video', 'Weekly video chosen from Google Drive'],
+                    ['weekly_video', 'Video walkthrough'],
                 ],
                 $this->requiredChecklistItems($week),
             );
@@ -145,7 +145,7 @@ class L4TrainingProgramSeederTest extends TestCase
         $this->assertDatabaseCount('gate_criteria', 19);
         $this->assertDatabaseMissing('gate_criteria', ['title' => 'Weekly video recording uploaded']);
         $renamedItems = GateCriterion::query()->whereKey($oldItemIds)->orderBy('id')->get();
-        $this->assertSame(array_fill(0, 4, 'Weekly video chosen from Google Drive'), $renamedItems->pluck('title')->all());
+        $this->assertSame(array_fill(0, 4, 'Video walkthrough'), $renamedItems->pluck('title')->all());
         $this->assertSame(array_fill(0, 4, 'A video walking through this week\'s work is chosen from Google Drive.'), $renamedItems->pluck('description')->all());
         $this->assertTrue($renamedItems->every(fn (GateCriterion $item): bool => $item->is_required && $item->isWeeklyVideo()));
     }
@@ -206,7 +206,7 @@ class L4TrainingProgramSeederTest extends TestCase
         $gate = TrainingGate::query()->whereHas('week', fn (Builder $week): Builder => $week->where('week_number', 2))->sole();
         $this->assertSame(4, $gate->criteria()->count());
         $this->assertSame(
-            ['Placeholder Activity 2.1 deliverable submitted', 'Session logs committed for this week', 'Weekly video chosen from Google Drive'],
+            ['Placeholder Activity 2.1 deliverable submitted', 'Session logs committed for this week', 'Video walkthrough'],
             $gate->criteria()->where('is_required', true)->orderBy('position')->pluck('title')->all(),
         );
     }

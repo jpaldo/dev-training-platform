@@ -98,7 +98,7 @@ class L4TrainingProgramSeeder extends Seeder
     /**
      * Week 1: set up the starting repo, then build the /spec-feature and /plan-feature skills and use them to spec and
      * plan the six core features. Its checklist has one item per expected deliverable, then the session logs and
-     * weekly video items.
+     * video walkthrough items.
      *
      * @return array{number: int, title: string, description: string, activities: list<array<string, mixed>>, checklist: array<string, mixed>}
      */
@@ -201,7 +201,7 @@ class L4TrainingProgramSeeder extends Seeder
 
     /**
      * One placeholder week: two activities and a checklist with one deliverable item per activity, the session logs
-     * item and the weekly video item, all required.
+     * item and the video walkthrough item, all required.
      *
      * @return array{number: int, title: string, description: string, activities: list<array<string, mixed>>, checklist: array<string, mixed>}
      */
@@ -232,7 +232,8 @@ class L4TrainingProgramSeeder extends Seeder
 
     /**
      * A week's checklist: one required deliverable item per given deliverable, then the required session logs and
-     * weekly video items.
+     * video walkthrough items. The video walkthrough is the weekly video item, so it shows the video the participant
+     * chose from Google Drive.
      *
      * @param  list<array{title: string, description: string}>  $deliverables
      * @return array{title: string, description: string, items: list<array{type: string, title: string, description: string, required: bool}>}
@@ -256,7 +257,7 @@ class L4TrainingProgramSeeder extends Seeder
                 ],
                 [
                     'type' => GateCriterion::TYPE_WEEKLY_VIDEO,
-                    'title' => 'Weekly video chosen from Google Drive',
+                    'title' => 'Video walkthrough',
                     'description' => 'A video walking through this week\'s work is chosen from Google Drive.',
                     'required' => true,
                 ],

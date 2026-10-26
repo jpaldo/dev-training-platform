@@ -131,6 +131,7 @@ Production runs on **one EC2 instance with nginx and php-fpm** and **MySQL on Am
 - **§5 `.env`**: `DB_QUEUE_RETRY_AFTER=300`, plus `OPENROUTER_API_KEY`, `GITHUB_TOKEN` and `AI_SCORING_ENABLED` as the admin prefers (the admin page overrides).
 - **§9 Health**: `php artisan queue:monitor database:checks --max=20` on the schedule, next to the `database:default` monitor that §11 already asks for.
 - **Sizing**: unchanged; the worker and the scheduler are one PHP process each, and a `t3.small` is plenty for the first session.
+- **Ordering**: these settings must be live **before or with** the release that ships 2.5. `RunRepositoryCheckJob` dispatches on the `checks` queue, which the current worker command does not consume, and its `$timeout = 170` overrides the worker's `--timeout=60` (`Worker::timeoutForJob()`), so with the current `DB_QUEUE_RETRY_AFTER=90` the database queue would hand a still-running check to a second attempt after 90 s. `WithoutOverlapping` would stop the duplicate running concurrently, but the first attempt's result could still be overwritten by the retry.
 
 ### Volume and cost
 
@@ -202,7 +203,7 @@ Production runs on **one EC2 instance with nginx and php-fpm** and **MySQL on Am
 ## Phase 4 — Infrastructure
 
 - [ ] **4.1 Queue worker settings for the check** (RC-2; Infrastructure on AWS)
-  - **Do:** apply "What Phase 4 changes in `docs/AWS_DEPLOYMENT.md`": the Supervisor `command` and `stopwaitsecs` in §6, `DB_QUEUE_RETRY_AFTER=300` and the three new keys in §5, the `database:checks` monitor in §9; `Schedule::command('queue:monitor database:checks --max=20')->hourly()` added to `routes/console.php`. No new `deploy/` folder: the document holds the config. If the instance is already set up when this batch ships, apply the same edits to `/etc/supervisor/conf.d/training-worker.conf` and `shared/.env`, then `supervisorctl update` and `php artisan queue:restart`.
+  - **Do:** apply "What Phase 4 changes in `docs/AWS_DEPLOYMENT.md`": the Supervisor `command` and `stopwaitsecs` in §6, `DB_QUEUE_RETRY_AFTER=300` and the three new keys in §5, the `database:checks` monitor in §9; `Schedule::command('queue:monitor database:checks --max=20')->hourly()` added to `routes/console.php`. No new `deploy/` folder: the document holds the config. This batch ships in the same release as 2.5 or before it (see "Ordering" above). If the instance is already set up when it ships, apply the same edits to `/etc/supervisor/conf.d/training-worker.conf` and `shared/.env` **before** activating that release, then `supervisorctl update`; the release's `activate` step runs `queue:restart`.
   - **Tests:** none for the document; the `routes/console.php` change is covered by `php artisan schedule:list` in the acceptance.
   - **Acceptance:** on the instance, `supervisorctl status training-worker` is `RUNNING` with `--queue=checks,default` in its command line; a check started from the page finishes within a minute and `php artisan queue:failed` is empty; after a release (`atomic-release.sh activate` runs `queue:restart`) the worker is on the new release and the next check still runs.
 - [-] **4.2 Hostinger QA environment** — dropped 2026-10-27: there is no Hostinger environment; production is the EC2 instance above and `queue-cron.sh` is being removed (`docs/AWS_DEPLOYMENT.md` §11).

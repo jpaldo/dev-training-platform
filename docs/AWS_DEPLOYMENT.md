@@ -28,7 +28,7 @@ Three processes share one codebase and one `.env`:
 | Process   | Runs                                              | Needed for                                                                 |
 |-----------|---------------------------------------------------|----------------------------------------------------------------------------|
 | web       | nginx → php-fpm                                   | all HTTP traffic                                                           |
-| worker    | `queue:work database` under Supervisor, always on | every queued job: notification sync, training data sync                    |
+| worker    | `queue:work database` under Supervisor, always on | every queued job: notification sync, training data sync; later the repository checks (`docs/plans/repository-ai-check.md`, which changes the worker settings in section 6) |
 | scheduler | `schedule:run` from cron every minute             | `notifications:sync-participants` hourly (`routes/console.php`)            |
 
 The scheduler only *queues* jobs; the worker processes them. Both must run or
@@ -55,9 +55,10 @@ up by the hourly run; see `WeekProgressionService::sessionWeekStates()`).
 - Root EBS gp3, 30 GB, **encrypted**, `DeleteOnTermination=false`. Uploaded
   evidence lives on this volume (`shared/private`), so it is the only
   stateful disk.
-- IAM instance role `training-ec2` with `AmazonSSMManagedInstanceCore` and
-  `CloudWatchAgentServerPolicy`. Add S3 read for the release bucket if
-  releases are shipped through S3 (section 7).
+- IAM instance role `training-ec2` with `AmazonSSMManagedInstanceCore`,
+  `CloudWatchAgentServerPolicy` and `s3:GetObject` on the release bucket
+  (section 7 ships releases through it). The AWS CLI on the instance picks
+  these credentials up from the instance metadata; no keys in `.env`.
 - Enable **EC2 auto-recovery** (CloudWatch `StatusCheckFailed_System` alarm
   with the recover action) so a host failure restarts the instance on new
   hardware with the same EBS volume and Elastic IP.
@@ -110,9 +111,20 @@ sudo apt install -y nginx supervisor unzip git acl mysql-client \
 # Composer
 curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
+# AWS CLI (pulls release archives from S3 with the instance role)
+sudo snap install aws-cli --classic
+
 # Unattended security updates
 sudo apt install -y unattended-upgrades && sudo dpkg-reconfigure -plow unattended-upgrades
+
+# Let the release steps (run as www-data) reload php-fpm after a switch (section 7)
+echo 'www-data ALL=(root) NOPASSWD: /usr/bin/systemctl reload php8.4-fpm' | sudo tee /etc/sudoers.d/training-release
+sudo chmod 440 /etc/sudoers.d/training-release
 ```
+
+`composer.json` declares no `ext-*` requirements, so the extension list above
+is what Laravel and the installed packages need (`pdo_mysql`, `mbstring`,
+`xml`, `curl`, `zip`, `bcmath`, `intl`, `gd`).
 
 Node is **not** installed on the server: `public/build` is produced by
 `npm run build` on the build side and shipped inside the release archive
@@ -138,7 +150,12 @@ a fresh `opcache` because `php-fpm` is reloaded after activation, section 7).
     .env                                           # production environment
     private/                                       # storage/app/private (submission evidence)
     logs/                                          # storage/logs
+  atomic-release.sh                                # copy of scripts/atomic-release.sh from the release being deployed
 ```
+
+`atomic-release.sh` has to exist before `prepare` extracts the archive, so
+each release first copies its own `scripts/atomic-release.sh` here (section
+7). That keeps the script in step with the release that uses it.
 
 Create it once:
 
@@ -311,49 +328,56 @@ the worker.
 ```bash
 SHA=$(git rev-parse --short HEAD)
 npm ci && npm run build                                  # produces public/build
-composer install --no-dev --prefer-dist --optimize-autoloader
+mkdir -p /tmp/release-$SHA
 git archive --format=tar HEAD | tar -xf - -C /tmp/release-$SHA
 cp -R public/build /tmp/release-$SHA/public/build
-cp -R vendor /tmp/release-$SHA/vendor                     # optional; prepare installs it if absent
 tar -czf release-$SHA.tar.gz -C /tmp/release-$SHA .
 ```
 
-Ship with `aws s3 cp release-$SHA.tar.gz s3://<release-bucket>/` and pull it
-on the instance (the instance role needs read on that bucket), or `scp`
+`vendor` is not shipped: `prepare` runs `composer install --no-dev` on the
+instance from the committed `composer.lock`, with the server's PHP, so the
+platform check matches the runtime. (Shipping a `vendor` built on a
+developer machine works too and skips that step, but ties the archive to
+that machine's PHP version.)
+
+Ship with `aws s3 cp release-$SHA.tar.gz s3://<release-bucket>/`, or `scp`
 through Session Manager port forwarding.
 
 ### On the instance
 
 ```bash
-cd /var/www/training
+ROOT=/var/www/training
 sudo -u www-data aws s3 cp s3://<release-bucket>/release-$SHA.tar.gz /tmp/
 
-# 1. Prepare: extracts, links shared .env/private/logs, composer install if needed,
-#    builds caches and refuses if migrations are pending.
-sudo -u www-data scripts/atomic-release.sh prepare \
+# 0. Take the release script from the archive (it must exist before prepare extracts).
+sudo -u www-data tar -xzf /tmp/release-$SHA.tar.gz -C $ROOT --strip-components=2 ./scripts/atomic-release.sh
+
+# 1. Prepare: extracts, links shared .env/private/logs, composer install, builds
+#    caches and refuses if migrations are pending.
+sudo -u www-data $ROOT/atomic-release.sh prepare \
   --archive /tmp/release-$SHA.tar.gz --sha $SHA \
-  --app-link /var/www/training/current \
-  --releases-root /var/www/training/releases \
-  --shared-root /var/www/training/shared
+  --app-link $ROOT/current --releases-root $ROOT/releases --shared-root $ROOT/shared
 
 # 2. Migrate (only when prepare stopped on "unexpected pending migrations"). The
 #    script never migrates on its own. Write schema changes expand/migrate/contract
 #    (add first, switch code, drop later) so the still-live old release keeps
-#    working during the switch and `rollback` stays possible.
-sudo -u www-data php /var/www/training/releases/$SHA/artisan migrate --force
-sudo -u www-data scripts/atomic-release.sh prepare ...   # re-run, now passes
+#    working during the switch and `rollback` stays possible. Re-running prepare
+#    wipes and re-extracts the release directory, composer install included.
+sudo -u www-data php $ROOT/releases/$SHA/artisan migrate --force
+sudo -u www-data $ROOT/atomic-release.sh prepare ...     # same arguments; now passes
 
 # 3. Activate: single mv -T of the symlink, then `queue:restart` so the Supervisor
 #    worker reloads onto the new release, then the after-switch command (drop the old
-#    opcache; validate_timestamps=0), then the HTTP health check.
-sudo -u www-data scripts/atomic-release.sh activate \
-  --app-link /var/www/training/current \
-  --release /var/www/training/releases/$SHA \
+#    opcache; validate_timestamps=0; allowed by the sudoers line in section 3), then
+#    the HTTP health check.
+sudo -u www-data $ROOT/atomic-release.sh activate \
+  --app-link $ROOT/current --release $ROOT/releases/$SHA \
   --after-switch 'sudo systemctl reload php8.4-fpm' \
   --health-url https://<host>/up
 
-# 4. Prune: keep the last 5 releases for rollback.
-ls -dt /var/www/training/releases/*/ | tail -n +6 | xargs -r sudo rm -rf
+# 4. Prune: keep the live release plus the 4 newest others for rollback.
+LIVE=$(readlink -f $ROOT/current)
+ls -dt $ROOT/releases/*/ | grep -vx "$LIVE/" | tail -n +5 | xargs -r sudo rm -rf
 ```
 
 `/up` is the framework health route registered in `bootstrap/app.php`.
@@ -388,6 +412,13 @@ One-off steps for the first production release on an empty RDS database.
 migration files; the `app:adopt-squashed-migrations` command exists only for
 databases that ran the pre-squash files, and no such database is being
 carried over.
+
+On an empty database the first `prepare` does not stop at "unexpected
+pending migrations": its `migrate:status` call exits with "Migration table
+not found" and the script dies there. That is expected. Run
+`php artisan migrate --force` from the extracted release directory as in
+section 7 step 2, then re-run `prepare`; from the second release on, the
+normal flow applies.
 
 ### Before: Google Drive works in production
 
@@ -451,9 +482,11 @@ either is safe.
   `app:ensure-development-baseline` there; both refuse the production
   environment.
 - Create the first admin: set `BOOTSTRAP_ADMIN_TEMPORARY_PASSWORD` in
-  `shared/.env`, run `php artisan admin:bootstrap` (it refuses in production
-  unless `APP_URL` is `https`), sign in and change the password, then clear
-  the variable from `.env` (section 5).
+  `shared/.env`, run `php artisan admin:bootstrap` (it creates the admin
+  account whose email is fixed in `BootstrapAdminCommand`, and refuses in
+  production unless `APP_URL` is `https`), sign in and change the password,
+  then clear the variable from `.env` (section 5). Further admins are
+  created from the admin user pages.
 
 ## 9. Backups, monitoring, recovery
 
@@ -479,28 +512,23 @@ scheduled hourly, or just watch `worker.log` for `Processed`/`Failed`
 lines. Failed jobs land in `failed_jobs`; retry with
 `php artisan queue:retry all`.
 
-## 10. One-time cutover from the current EC2 instance
+## 10. Go-live order
 
-The current instance was not set up with this layout. Either rebuild on a
-fresh instance (preferred: the provisioning steps above are the test) or
-convert in place during a short maintenance window:
+The existing EC2 instance is fresh and carries no data, so there is nothing
+to migrate from it: build the new environment as sections 2 to 6 describe
+(on that instance or a new one), then:
 
-1. Take an RDS snapshot (or `mysqldump` if the DB is still on the instance)
-   and an EBS snapshot. If the database is still local, import the dump into
-   RDS now and point `.env` at it: `mysql -h <rds endpoint> -u dev_training_app -p dev_training_platform < dump.sql`.
-2. `php artisan down` on the old app.
-3. Create `/var/www/training/{releases,shared}`; move the old `.env` to
-   `shared/.env`, the old `storage/app/private` to `shared/private`, the old
-   `storage/logs` to `shared/logs`.
-4. Prepare and activate the first release as in section 7 (the `current`
-   placeholder symlink from section 4 makes `prepare` pass its symlink check).
-5. Point nginx `root` at `/var/www/training/current/public`, reload nginx,
-   install the Supervisor program and cron entry, start the worker.
-6. Verify: `/up` returns 200, log in, open an evidence file (proves
-   `shared/private` is linked), `supervisorctl status`, and check that
-   `php artisan schedule:list` shows the hourly command.
-7. Stop and remove the old cron entry that ran `queue-cron.sh`, if any.
-8. Keep the old directory for a week, then delete it.
+1. Prepare and activate the first release (section 7, with the first-release
+   notes of section 8); the `current` placeholder symlink from section 4
+   makes `prepare` pass its symlink check.
+2. Install the Supervisor program and the cron entry, `supervisorctl update`.
+3. Verify: `/up` returns 200 over HTTPS, `supervisorctl status
+   training-worker` is `RUNNING`, `php artisan schedule:list` shows the
+   hourly command, and the Google Drive and mail checks of sections 5 and 8
+   pass.
+4. Seed the program and bootstrap the admin (section 8).
+5. Point the production DNS record at the Elastic IP, then switch on the
+   backups and alarms of section 9. Terminate any earlier throwaway instance.
 
 ## 11. Repository changes this plan needs
 

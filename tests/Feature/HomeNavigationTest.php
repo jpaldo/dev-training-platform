@@ -135,6 +135,7 @@ class HomeNavigationTest extends TestCase
         $participant = User::factory()->create();
         $week1 = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first();
         $session = TrainingSession::factory()->forWeek($week1)->withParticipants($participant)->create();
+        $this->travel(1)->minute();
         ParticipantNotification::factory()->create(['user_id' => $participant->id, 'title' => 'Current work', 'body' => 'Complete your next activity.', 'resolved_at' => null]);
 
         $this->actingAs($participant)->get(route('dashboard'))->assertOk()

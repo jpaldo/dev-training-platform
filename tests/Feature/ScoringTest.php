@@ -199,7 +199,7 @@ class ScoringTest extends TestCase
     public function test_completion_is_independent_from_score_and_zero_band_is_reserved_for_missing_score(): void
     {
         [$participant, $coach, $version] = $this->fixture();
-        $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk()->assertSee('1 / 2');
+        $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk()->assertSee('1 / 7');
         $this->assertSame('Not submitted / Not evidenced', app(ScoringService::class)->band(0));
         $this->assertSame('Exemplary', app(ScoringService::class)->band(90));
         $this->assertSame('Minimal', app(ScoringService::class)->band(34));

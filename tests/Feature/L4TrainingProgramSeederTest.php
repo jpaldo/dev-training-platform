@@ -24,7 +24,7 @@ class L4TrainingProgramSeederTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_seeds_the_active_l4_program_with_four_weeks_of_placeholder_activities_and_checklists(): void
+    public function test_seeds_the_active_l4_program_with_four_weeks_of_activities_and_checklists(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
 
@@ -39,14 +39,55 @@ class L4TrainingProgramSeederTest extends TestCase
         $this->assertTrue($weeks->every('is_active'));
 
         foreach ($weeks as $week) {
+            $gate = $week->gates->sole();
+            $this->assertTrue($gate->is_active);
+
+            foreach ($week->activities as $activity) {
+                $this->assertTrue($activity->is_active);
+                $this->assertSame(['D1' => 40, 'D2' => 30, 'D3' => 20, 'D4' => 10], array_column($activity->scoringDimensions(), 'max', 'key'));
+            }
+        }
+
+        $weekOne = $weeks->firstWhere('week_number', 1);
+        $this->assertSame('Repo setup, feature specs and plans', $weekOne->title);
+        $this->assertSame(
+            [
+                'Set up the starting repo' => [['deliverable_url', 'github_url', true], ['notes', 'textarea', false]],
+                'Explore the starting skills' => [['skills_findings', 'textarea', true], ['notes', 'textarea', false]],
+                'Choose the tech stack' => [['deliverable_url', 'github_url', true], ['notes', 'textarea', false]],
+                'Create the /spec-feature skill' => [['deliverable_url', 'github_url', true], ['notes', 'textarea', false]],
+                'Write the six feature specs' => [['deliverable_url', 'github_url', true], ['notes', 'textarea', false]],
+                'Create the /plan-feature skill' => [['deliverable_url', 'github_url', true], ['notes', 'textarea', false]],
+                'Plan the six features' => [['deliverable_url', 'github_url', true], ['pull_requests', 'textarea', true], ['notes', 'textarea', false]],
+            ],
+            $weekOne->activities->sortBy('position')->mapWithKeys(fn (Activity $activity): array => [
+                $activity->title => $activity->requirements->sortBy('position')->map(fn (ActivityRequirement $field): array => [
+                    $field->configuration['key'],
+                    $field->configuration['type'],
+                    $field->is_required,
+                ])->values()->all(),
+            ])->all(),
+        );
+        $this->assertSame(
+            [
+                ['deliverable', 'Repo setup'],
+                ['deliverable', '/spec-feature skill'],
+                ['deliverable', 'Feature specs (6)'],
+                ['deliverable', '/plan-feature skill'],
+                ['deliverable', 'Implementation plans (6)'],
+                ['session_logs', 'Session logs committed for this week'],
+                ['weekly_video', 'Weekly video chosen from Google Drive'],
+            ],
+            $this->requiredChecklistItems($weekOne),
+        );
+
+        foreach ($weeks->where('week_number', '>', 1) as $week) {
             $this->assertSame(
                 ["Placeholder Activity {$week->week_number}.1", "Placeholder Activity {$week->week_number}.2"],
                 $week->activities->sortBy('position')->pluck('title')->all(),
             );
 
             foreach ($week->activities as $activity) {
-                $this->assertTrue($activity->is_active);
-                $this->assertSame(['D1' => 40, 'D2' => 30, 'D3' => 20, 'D4' => 10], array_column($activity->scoringDimensions(), 'max', 'key'));
                 $this->assertSame(
                     [['deliverable_url', 'github_url', true], ['notes', 'textarea', false]],
                     $activity->requirements->sortBy('position')->map(fn (ActivityRequirement $field): array => [
@@ -57,8 +98,6 @@ class L4TrainingProgramSeederTest extends TestCase
                 );
             }
 
-            $gate = $week->gates->sole();
-            $this->assertTrue($gate->is_active);
             $this->assertSame(
                 [
                     ['deliverable', "Placeholder Activity {$week->week_number}.1 deliverable submitted"],
@@ -66,10 +105,7 @@ class L4TrainingProgramSeederTest extends TestCase
                     ['session_logs', 'Session logs committed for this week'],
                     ['weekly_video', 'Weekly video chosen from Google Drive'],
                 ],
-                $gate->criteria->where('is_required', true)->sortBy('position')->map(fn (GateCriterion $item): array => [
-                    $item->criterion_type,
-                    $item->title,
-                ])->values()->all(),
+                $this->requiredChecklistItems($week),
             );
         }
     }
@@ -84,18 +120,19 @@ class L4TrainingProgramSeederTest extends TestCase
         $this->assertSame($firstRunIds, $this->seededIds());
         $this->assertDatabaseCount('programs', 1);
         $this->assertDatabaseCount('training_weeks', 4);
-        $this->assertDatabaseCount('activities', 8);
+        $this->assertDatabaseCount('activities', 13);
         $this->assertDatabaseCount('training_gates', 4);
-        $this->assertDatabaseCount('gate_criteria', 16);
-        $this->assertDatabaseCount('activity_requirements', 16);
+        $this->assertDatabaseCount('gate_criteria', 19);
+        $this->assertDatabaseCount('activity_requirements', 27);
     }
 
     public function test_running_again_renames_the_old_weekly_video_item_in_place(): void
     {
         $this->runSeederWithDefinition(function (array $definition): array {
             foreach ($definition['weeks'] as $weekIndex => $week) {
-                $definition['weeks'][$weekIndex]['checklist']['items'][3]['title'] = 'Weekly video recording uploaded';
-                $definition['weeks'][$weekIndex]['checklist']['items'][3]['description'] = 'A video recording walking through this week\'s work is uploaded.';
+                $videoItemIndex = array_key_last($week['checklist']['items']);
+                $definition['weeks'][$weekIndex]['checklist']['items'][$videoItemIndex]['title'] = 'Weekly video recording uploaded';
+                $definition['weeks'][$weekIndex]['checklist']['items'][$videoItemIndex]['description'] = 'A video recording walking through this week\'s work is uploaded.';
             }
 
             return $definition;
@@ -105,7 +142,7 @@ class L4TrainingProgramSeederTest extends TestCase
 
         $this->seed(L4TrainingProgramSeeder::class);
 
-        $this->assertDatabaseCount('gate_criteria', 16);
+        $this->assertDatabaseCount('gate_criteria', 19);
         $this->assertDatabaseMissing('gate_criteria', ['title' => 'Weekly video recording uploaded']);
         $renamedItems = GateCriterion::query()->whereKey($oldItemIds)->orderBy('id')->get();
         $this->assertSame(array_fill(0, 4, 'Weekly video chosen from Google Drive'), $renamedItems->pluck('title')->all());
@@ -116,7 +153,7 @@ class L4TrainingProgramSeederTest extends TestCase
     public function test_running_again_leaves_a_submission_made_between_runs_untouched(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
-        $activity = Activity::query()->where('title', 'Placeholder Activity 1.1')->sole();
+        $activity = Activity::query()->where('title', 'Set up the starting repo')->sole();
         $submission = ActivitySubmission::factory()->for($activity)->for(User::factory(), 'participant')->create([
             'status' => SubmissionStatus::Submitted,
             'submitted_at' => now(),
@@ -151,7 +188,7 @@ class L4TrainingProgramSeederTest extends TestCase
         $weekFour = $weeks->firstWhere('week_number', 4);
         $this->assertSame([false, false], $weekFour->activities()->pluck('is_active')->all());
         $this->assertFalse($weekFour->gates()->sole()->is_active);
-        $this->assertSame(6, Activity::query()->where('is_active', true)->count());
+        $this->assertSame(11, Activity::query()->where('is_active', true)->count());
     }
 
     public function test_running_without_an_activity_deactivates_it_and_drops_its_checklist_item(): void
@@ -159,17 +196,17 @@ class L4TrainingProgramSeederTest extends TestCase
         $this->seed(L4TrainingProgramSeeder::class);
 
         $this->runSeederWithDefinition(function (array $definition): array {
-            array_splice($definition['weeks'][0]['activities'], 1, 1);
-            array_splice($definition['weeks'][0]['checklist']['items'], 1, 1);
+            array_splice($definition['weeks'][1]['activities'], 1, 1);
+            array_splice($definition['weeks'][1]['checklist']['items'], 1, 1);
 
             return $definition;
         });
 
-        $this->assertFalse(Activity::query()->where('title', 'Placeholder Activity 1.2')->sole()->is_active);
-        $gate = TrainingGate::query()->whereHas('week', fn (Builder $week): Builder => $week->where('week_number', 1))->sole();
+        $this->assertFalse(Activity::query()->where('title', 'Placeholder Activity 2.2')->sole()->is_active);
+        $gate = TrainingGate::query()->whereHas('week', fn (Builder $week): Builder => $week->where('week_number', 2))->sole();
         $this->assertSame(4, $gate->criteria()->count());
         $this->assertSame(
-            ['Placeholder Activity 1.1 deliverable submitted', 'Session logs committed for this week', 'Weekly video chosen from Google Drive'],
+            ['Placeholder Activity 2.1 deliverable submitted', 'Session logs committed for this week', 'Weekly video chosen from Google Drive'],
             $gate->criteria()->where('is_required', true)->orderBy('position')->pluck('title')->all(),
         );
     }
@@ -179,12 +216,12 @@ class L4TrainingProgramSeederTest extends TestCase
         $this->seed(L4TrainingProgramSeeder::class);
 
         $this->runSeederWithDefinition(function (array $definition): array {
-            $definition['weeks'][0]['activities'][0]['fields'] = [$definition['weeks'][0]['activities'][0]['fields'][0]];
+            $definition['weeks'][1]['activities'][0]['fields'] = [$definition['weeks'][1]['activities'][0]['fields'][0]];
 
             return $definition;
         });
 
-        $activity = Activity::query()->where('title', 'Placeholder Activity 1.1')->sole();
+        $activity = Activity::query()->where('title', 'Placeholder Activity 2.1')->sole();
         $this->assertSame(['deliverable_url'], array_keys(app(SubmissionWorkflowService::class)->fieldDefinitions($activity)));
         $notes = $activity->requirements()->where('title', 'Notes')->sole();
         $this->assertFalse($notes->is_required);
@@ -220,6 +257,19 @@ class L4TrainingProgramSeederTest extends TestCase
         $week(5, isActive: false);
 
         $this->assertSame([2, 3, 4], $program->weekNumbersWithoutChecklist()->all());
+    }
+
+    /**
+     * The week's required checklist items as [type, title] pairs, in checklist order.
+     *
+     * @return list<array{string, string}>
+     */
+    private function requiredChecklistItems(TrainingWeek $week): array
+    {
+        return $week->gates->sole()->criteria->where('is_required', true)->sortBy('position')->map(fn (GateCriterion $item): array => [
+            $item->criterion_type,
+            $item->title,
+        ])->values()->all();
     }
 
     /**

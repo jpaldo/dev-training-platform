@@ -13,9 +13,9 @@ use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
- * Seeds the L4 Accelerator Training program with placeholder content until the training team delivers the real
- * curriculum. Re-running updates every record in place; records the definition no longer contains are deactivated,
- * never deleted, so participants' submissions and reviews stay intact.
+ * Seeds the L4 Accelerator Training program: week 1 holds the real curriculum, weeks 2 to 4 hold placeholder content
+ * until the training team delivers theirs. Re-running updates every record in place; records the definition no longer
+ * contains are deactivated, never deleted, so participants' submissions and reviews stay intact.
  */
 class L4TrainingProgramSeeder extends Seeder
 {
@@ -88,7 +88,114 @@ class L4TrainingProgramSeeder extends Seeder
         return [
             'name' => self::PROGRAM_NAME,
             'description' => 'Placeholder — the L4 Accelerator Training curriculum is coming soon.',
-            'weeks' => array_map($this->placeholderWeek(...), range(1, 4)),
+            'weeks' => [
+                $this->weekOne(),
+                ...array_map($this->placeholderWeek(...), range(2, 4)),
+            ],
+        ];
+    }
+
+    /**
+     * Week 1: set up the starting repo, then build the /spec-feature and /plan-feature skills and use them to spec and
+     * plan the six core features. Its checklist has one item per expected deliverable, then the session logs and
+     * weekly video items.
+     *
+     * @return array{number: int, title: string, description: string, activities: list<array<string, mixed>>, checklist: array<string, mixed>}
+     */
+    private function weekOne(): array
+    {
+        return [
+            'number' => 1,
+            'title' => 'Repo setup, feature specs and plans',
+            'description' => 'Set up the starting repo with Claude Code, then build the /spec-feature and /plan-feature skills and use them to spec and plan the six core features.',
+            'activities' => [
+                $this->activity(
+                    'Set up the starting repo',
+                    'Clone the starting repo and connect Claude Code through OpenRouter.',
+                    'Claude Code runs in the starting repo through OpenRouter, and every session writes a session log.',
+                    'Clone the starting repo, connect Claude Code through OpenRouter, and confirm with /status. Run one session and check that a row appears in activity-outputs/session-logs/.',
+                    [$this->deliverableField('Repository link', 'Paste the GitHub link to your copy of the starting repo.')],
+                ),
+                $this->activity(
+                    'Explore the starting skills',
+                    'Try the skills that come with the starting repo.',
+                    'You know how a skill is invoked directly and how Claude Code loads one from a plain-words request.',
+                    'Explore the skills already in the starting repo. Invoke one with / and trigger another by describing the task in plain words. Note which loaded and why.',
+                    [[
+                        'key' => 'skills_findings',
+                        'label' => 'Which skills loaded and why',
+                        'type' => 'textarea',
+                        'required' => true,
+                        'help' => 'Name the skill you invoked with / and the one you triggered in plain words, and explain why each loaded.',
+                    ]],
+                ),
+                $this->activity(
+                    'Choose the tech stack',
+                    'Pick the tech stack for the product and record it.',
+                    'CLAUDE.md records the tech stack, so every later session builds on the same choices.',
+                    'Choose the tech stack and record it in CLAUDE.md.',
+                    [$this->deliverableField('CLAUDE.md link', 'Paste the GitHub link to the CLAUDE.md that records your tech stack.')],
+                ),
+                $this->activity(
+                    'Create the /spec-feature skill',
+                    'Build a skill that writes a feature spec with the product owner.',
+                    'A reusable skill turns a feature ID into a complete spec by asking instead of guessing.',
+                    'Create /spec-feature in .claude/skills/spec-feature/. It reads docs/specs/product.md and one feature ID, asks the product owner whatever it cannot answer instead of guessing, and writes docs/specs/features/F<n>-<name>.md from a spec template kept in a supporting file. It makes no technical choices.',
+                    [$this->deliverableField('Skill link', 'Paste the GitHub link to .claude/skills/spec-feature/.')],
+                ),
+                $this->activity(
+                    'Write the six feature specs',
+                    'Spec the six core features with /spec-feature.',
+                    'Each core feature has an approved spec with every open question answered.',
+                    'Run /spec-feature for all 6 core features. Answer every open question, record each answer under Decisions, and mark the spec Approved.',
+                    [$this->deliverableField('Feature specs link', 'Paste the GitHub link to docs/specs/features/ with the six approved specs.')],
+                ),
+                $this->activity(
+                    'Create the /plan-feature skill',
+                    'Build a skill that turns an approved spec into an implementation plan.',
+                    'A reusable skill plans a feature from its approved spec and maps every acceptance criterion to tests.',
+                    'Create /plan-feature in .claude/skills/plan-feature/. It runs only on an approved spec, reads the spec, CLAUDE.md and docs/rules/, and writes docs/plans/F<n>-<name>.md from a plan template. It maps every acceptance criterion to tests and never edits the spec.',
+                    [$this->deliverableField('Skill link', 'Paste the GitHub link to .claude/skills/plan-feature/.')],
+                ),
+                $this->activity(
+                    'Plan the six features',
+                    'Plan the six core features with /plan-feature and merge them.',
+                    'Each core feature has a reviewed plan, merged with its spec through a pull request.',
+                    'Run /plan-feature on the 6 approved specs, review and edit each plan, and merge each feature\'s spec and plan through a pull request.',
+                    [
+                        $this->deliverableField('Implementation plans link', 'Paste the GitHub link to docs/plans/ with the six plans.'),
+                        [
+                            'key' => 'pull_requests',
+                            'label' => 'Pull request links',
+                            'type' => 'textarea',
+                            'required' => true,
+                            'help' => 'List the merged pull request for each feature, one link per line.',
+                        ],
+                    ],
+                ),
+            ],
+            'checklist' => $this->checklist(1, [
+                [
+                    'title' => 'Repo setup',
+                    'description' => 'The starting repo is cloned, Claude Code connects through OpenRouter, a session log row is committed in activity-outputs/session-logs/, and CLAUDE.md records the tech stack.',
+                ],
+                [
+                    'title' => '/spec-feature skill',
+                    'description' => 'The skill in .claude/skills/spec-feature/ reads the product spec and one feature ID, asks instead of guessing, writes from a spec template kept in a supporting file, and makes no technical choices.',
+                ],
+                [
+                    'title' => 'Feature specs (6)',
+                    'description' => 'All six specs are in docs/specs/features/, every open question is answered under Decisions, and each spec is marked Approved.',
+                ],
+                [
+                    'title' => '/plan-feature skill',
+                    'description' => 'The skill in .claude/skills/plan-feature/ runs only on an approved spec, reads the spec, CLAUDE.md and docs/rules/, writes from a plan template, maps every acceptance criterion to tests, and never edits the spec.',
+                ],
+                [
+                    'title' => 'Implementation plans (6)',
+                    'description' => 'All six plans are in docs/plans/, reviewed, and merged with their specs through one pull request per feature.',
+                ],
+            ]),
         ];
     }
 
@@ -101,7 +208,13 @@ class L4TrainingProgramSeeder extends Seeder
     private function placeholderWeek(int $weekNumber): array
     {
         $activities = array_map(
-            fn (int $activityNumber): array => $this->placeholderActivity($weekNumber, $activityNumber),
+            fn (int $activityNumber): array => $this->activity(
+                'Placeholder Activity '.$weekNumber.'.'.$activityNumber,
+                self::PLACEHOLDER_TEXT,
+                self::PLACEHOLDER_TEXT,
+                self::PLACEHOLDER_TEXT,
+                [$this->deliverableField('Deliverable link', 'Paste the GitHub link to your deliverable for this activity.')],
+            ),
             [1, 2],
         );
 
@@ -110,53 +223,63 @@ class L4TrainingProgramSeeder extends Seeder
             'title' => 'Placeholder topic',
             'description' => 'Placeholder — the goals of this week are coming soon.',
             'activities' => $activities,
-            'checklist' => [
-                'title' => 'Week '.$weekNumber.' checklist',
-                'description' => 'Your mentor ticks each item once it is done.',
-                'items' => [
-                    ...array_map(fn (array $activity): array => [
-                        'type' => GateCriterion::TYPE_DELIVERABLE,
-                        'title' => $activity['title'].' deliverable submitted',
-                        'description' => 'The deliverable link for '.$activity['title'].' is submitted and works.',
-                        'required' => true,
-                    ], $activities),
-                    [
-                        'type' => GateCriterion::TYPE_SESSION_LOGS,
-                        'title' => 'Session logs committed for this week',
-                        'description' => 'The session logs for every session of this week are committed to your repository.',
-                        'required' => true,
-                    ],
-                    [
-                        'type' => GateCriterion::TYPE_WEEKLY_VIDEO,
-                        'title' => 'Weekly video chosen from Google Drive',
-                        'description' => 'A video walking through this week\'s work is chosen from Google Drive.',
-                        'required' => true,
-                    ],
+            'checklist' => $this->checklist($weekNumber, array_map(fn (array $activity): array => [
+                'title' => $activity['title'].' deliverable submitted',
+                'description' => 'The deliverable link for '.$activity['title'].' is submitted and works.',
+            ], $activities)),
+        ];
+    }
+
+    /**
+     * A week's checklist: one required deliverable item per given deliverable, then the required session logs and
+     * weekly video items.
+     *
+     * @param  list<array{title: string, description: string}>  $deliverables
+     * @return array{title: string, description: string, items: list<array{type: string, title: string, description: string, required: bool}>}
+     */
+    private function checklist(int $weekNumber, array $deliverables): array
+    {
+        return [
+            'title' => 'Week '.$weekNumber.' checklist',
+            'description' => 'Your mentor ticks each item once it is done.',
+            'items' => [
+                ...array_map(fn (array $deliverable): array => [
+                    'type' => GateCriterion::TYPE_DELIVERABLE,
+                    ...$deliverable,
+                    'required' => true,
+                ], $deliverables),
+                [
+                    'type' => GateCriterion::TYPE_SESSION_LOGS,
+                    'title' => 'Session logs committed for this week',
+                    'description' => 'The session logs for every session of this week are committed to your repository.',
+                    'required' => true,
+                ],
+                [
+                    'type' => GateCriterion::TYPE_WEEKLY_VIDEO,
+                    'title' => 'Weekly video chosen from Google Drive',
+                    'description' => 'A video walking through this week\'s work is chosen from Google Drive.',
+                    'required' => true,
                 ],
             ],
         ];
     }
 
     /**
-     * One placeholder activity with a required GitHub deliverable link, optional notes and scoring dimensions D1 to D4.
+     * One activity: the given submission fields followed by optional notes, with scoring dimensions D1 to D4 (still
+     * placeholders for every week until the training team supplies its own).
      *
+     * @param  list<array{key: string, label: string, type: string, required: bool, help: string}>  $fields
      * @return array{title: string, description: string, objectives: string, instructions: string, fields: list<array{key: string, label: string, type: string, required: bool, help: string}>, scoring_dimensions: list<array{key: string, label: string, max: int}>}
      */
-    private function placeholderActivity(int $weekNumber, int $activityNumber): array
+    private function activity(string $title, string $description, string $objectives, string $instructions, array $fields): array
     {
         return [
-            'title' => 'Placeholder Activity '.$weekNumber.'.'.$activityNumber,
-            'description' => self::PLACEHOLDER_TEXT,
-            'objectives' => self::PLACEHOLDER_TEXT,
-            'instructions' => self::PLACEHOLDER_TEXT,
+            'title' => $title,
+            'description' => $description,
+            'objectives' => $objectives,
+            'instructions' => $instructions,
             'fields' => [
-                [
-                    'key' => 'deliverable_url',
-                    'label' => 'Deliverable link',
-                    'type' => 'github_url',
-                    'required' => true,
-                    'help' => 'Paste the GitHub link to your deliverable for this activity.',
-                ],
+                ...$fields,
                 [
                     'key' => 'notes',
                     'label' => 'Notes',
@@ -171,6 +294,22 @@ class L4TrainingProgramSeeder extends Seeder
                 ['key' => 'D3', 'label' => 'Testing', 'max' => 20],
                 ['key' => 'D4', 'label' => 'Reflection', 'max' => 10],
             ],
+        ];
+    }
+
+    /**
+     * The required GitHub deliverable link field.
+     *
+     * @return array{key: string, label: string, type: string, required: bool, help: string}
+     */
+    private function deliverableField(string $label, string $help): array
+    {
+        return [
+            'key' => 'deliverable_url',
+            'label' => $label,
+            'type' => 'github_url',
+            'required' => true,
+            'help' => $help,
         ];
     }
 

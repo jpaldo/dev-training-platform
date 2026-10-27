@@ -79,7 +79,6 @@
                     <div class="grid min-w-0 gap-2">
                         <label for="ends_on" class="{{ $labelClasses }}">End date *</label>
                         <input id="ends_on" name="ends_on" type="date" value="{{ old('ends_on', $endsOn) }}" required aria-describedby="ends-on-hint" class="{{ $controlClasses }}" data-session-ends-on>
-                        <p id="ends-on-hint" class="{{ $hintClasses }}">Filled in from the start date and weeks: the last day of the last week.</p>
                         @error('ends_on')
                             <p class="{{ $fieldErrorClasses }}" role="alert">{{ $message }}</p>
                         @enderror

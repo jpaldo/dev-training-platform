@@ -87,21 +87,27 @@
                         <h2 id="week-activities-title" class="text-xl font-extrabold">Activities</h2>
                         @if($activities !== [])
                             <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="week-activities-title" tabindex="0">
-                                <table class="w-full min-w-100 border-collapse text-sm" aria-labelledby="week-activities-title">
+                                <table class="w-full min-w-120 border-collapse text-sm" aria-labelledby="week-activities-title">
                                     <thead>
                                         <tr>
                                             <th scope="col" class="{{ $headerCellClasses }} text-right">#</th>
                                             <th scope="col" class="{{ $headerCellClasses }}">Activity</th>
                                             <th scope="col" class="{{ $headerCellClasses }}">Status</th>
+                                            <th scope="col" class="{{ $headerCellClasses }}">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         @foreach($activities as $activity)
                                             <tr data-activity-row>
                                                 <td class="{{ $cellClasses }} w-12 text-right text-muted tabular-nums">{{ $loop->iteration }}</td>
-                                                <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">{{ $activity['title'] }}</th>
+                                                <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">
+                                                    <a href="{{ $activity['edit_url'] }}" class="text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">{{ $activity['title'] }}</a>
+                                                </th>
                                                 <td class="{{ $cellClasses }}">
                                                     <x-ui.badge :tone="$activity['status_tone']">{{ $activity['status_label'] }}</x-ui.badge>
+                                                </td>
+                                                <td class="{{ $cellClasses }}">
+                                                    <x-ui.button variant="secondary" :href="$activity['edit_url']" aria-label="Edit {{ $activity['title'] }}">Edit</x-ui.button>
                                                 </td>
                                             </tr>
                                         @endforeach

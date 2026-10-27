@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\TrainingSessionStatus;
 use App\Models\Activity;
+use App\Models\ActivityRequirement;
 use App\Models\GateCriterion;
 use App\Models\Program;
 use App\Models\TrainingGate;
@@ -82,12 +83,12 @@ class CurriculumPageService
     /**
      * Everything the week page renders: the title "Week N: {title}", the week's status, the link back to the program,
      * the sessions notice and the three tabs. Details holds the title and description with the URL and error bag of
-     * their form; Activities lists every activity in position order with whether it is active; Checklist holds the
+     * their form; Activities lists every activity in position order with whether it is active and the link to its page; Checklist holds the
      * week's checklist (its first active Gate) with the items on it in position order and, apart, its retired items,
      * or null when the week has none.
      * Reads the activities, the checklist and its items in three queries, plus the notice's one.
      *
-     * @return array{title: string, statusLabel: string, statusTone: string, programName: string, programUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, update_url: string, error_bag: string}, activities: list<array{title: string, status_label: string, status_tone: string}>, checklist: ?array{title: string, description: ?string, items: list<array{title: string, description: ?string, type_label: string}>, removed_items: list<array{title: string, description: ?string, type_label: string}>}}
+     * @return array{title: string, statusLabel: string, statusTone: string, programName: string, programUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, update_url: string, error_bag: string}, activities: list<array{title: string, status_label: string, status_tone: string, edit_url: string}>, checklist: ?array{title: string, description: ?string, items: list<array{title: string, description: ?string, type_label: string}>, removed_items: list<array{title: string, description: ?string, type_label: string}>}}
      */
     public function weekData(Program $program, TrainingWeek $week): array
     {
@@ -120,10 +121,88 @@ class CurriculumPageService
                     'title' => $activity->title,
                     'status_label' => $activity->is_active ? 'Active' : 'Inactive',
                     'status_tone' => $activity->is_active ? 'success' : 'neutral',
+                    'edit_url' => route('admin.programs.activities.edit', [$program, $week, $activity]),
                 ])
                 ->all(),
             'checklist' => $this->checklistData($week->checklist),
         ];
+    }
+
+    /**
+     * Everything the activity page renders: the activity's title and status, the week and program it belongs to with
+     * the link back to the week's Activities tab, the sessions notice and the three tabs. Details holds the title,
+     * description, objectives and instructions with the URL and error bag of their form; Submission fields lists the
+     * activity's submission fields in position order and, apart, its removed ones; Scoring lists the scoring dimensions
+     * in rubric order with their total.
+     * Reads the submission fields in one query, plus the notice's one.
+     *
+     * @return array{title: string, statusLabel: string, statusTone: string, weekLabel: string, programName: string, weekUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, objectives: ?string, instructions: ?string, update_url: string, error_bag: string}, fields: list<array{key: string, label: string, help: ?string, type_label: string, required_label: string, required_tone: string}>, removedFields: list<array{key: string, label: string, help: ?string, type_label: string, required_label: string, required_tone: string}>, scoring: array{dimensions: list<array{key: string, label: string, max: int}>, total: int}}
+     */
+    public function activityData(Program $program, TrainingWeek $week, Activity $activity): array
+    {
+        [$fields, $removedFields] = $activity->requirements()
+            ->where('requirement_type', 'submission_field')
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get()
+            ->partition(fn (ActivityRequirement $field): bool => ! ($field->configuration['deprecated'] ?? false));
+
+        return [
+            'title' => $activity->title,
+            'statusLabel' => $activity->is_active ? 'Active' : 'Inactive',
+            'statusTone' => $activity->is_active ? 'success' : 'neutral',
+            'weekLabel' => "Week {$week->week_number}: {$week->title}",
+            'programName' => $program->name,
+            'weekUrl' => route('admin.programs.weeks.show', [$program, $week]).'#activities',
+            'notice' => $this->sessionsNotice($program),
+            'tabs' => [
+                ['key' => 'details', 'label' => 'Details'],
+                ['key' => 'fields', 'label' => 'Submission fields'],
+                ['key' => 'scoring', 'label' => 'Scoring'],
+            ],
+            'selectedTab' => 'details',
+            'details' => [
+                'title' => $activity->title,
+                'description' => $activity->description,
+                'objectives' => $activity->objectives,
+                'instructions' => $activity->instructions,
+                'update_url' => route('admin.programs.activities.update', [$program, $week, $activity]),
+                'error_bag' => 'activity',
+            ],
+            'fields' => $this->submissionFieldRows($fields),
+            'removedFields' => $this->submissionFieldRows($removedFields),
+            'scoring' => [
+                'dimensions' => $activity->scoringDimensions(),
+                'total' => $activity->scoringMaximum(),
+            ],
+        ];
+    }
+
+    /**
+     * One row per submission field, in the given order, with its key, label, help, type and whether it is required.
+     * The type label is the headline of the stored type until the field types get their own labels.
+     *
+     * @param  Collection<int, ActivityRequirement>  $fields
+     * @return list<array{key: string, label: string, help: ?string, type_label: string, required_label: string, required_tone: string}>
+     */
+    private function submissionFieldRows(Collection $fields): array
+    {
+        return $fields
+            ->map(function (ActivityRequirement $field): array {
+                $configuration = $field->configuration ?? [];
+                $isRequired = (bool) ($configuration['required'] ?? $field->is_required);
+
+                return [
+                    'key' => (string) ($configuration['key'] ?? ''),
+                    'label' => (string) ($configuration['label'] ?? $field->title),
+                    'help' => $configuration['help'] ?? $field->description,
+                    'type_label' => Str::headline((string) ($configuration['type'] ?? 'text')),
+                    'required_label' => $isRequired ? 'Required' : 'Optional',
+                    'required_tone' => $isRequired ? 'accent' : 'neutral',
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**

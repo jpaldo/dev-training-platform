@@ -34,11 +34,33 @@ class UpdateTrainingWeekRequest extends FormRequest
     }
 
     /**
+     * Browsers send textarea line breaks as "\r\n", so the description stores "\n" instead and an untouched save of a
+     * multi-line description changes nothing.
+     */
+    protected function prepareForValidation(): void
+    {
+        $this->merge($this->withUnixLineEndings(['description']));
+    }
+
+    /**
      * A failed save returns to the week page's Details tab.
      */
     protected function getRedirectUrl(): string
     {
         return route('admin.programs.weeks.show', [$this->program(), $this->week()]).'#details';
+    }
+
+    /**
+     * The given inputs that were sent, with each string's "\r\n" and lone "\r" line breaks turned into "\n".
+     *
+     * @param  list<string>  $fields
+     * @return array<string, mixed>
+     */
+    private function withUnixLineEndings(array $fields): array
+    {
+        return collect($this->only($fields))
+            ->map(fn (mixed $value): mixed => is_string($value) ? str_replace(["\r\n", "\r"], "\n", $value) : $value)
+            ->all();
     }
 
     private function program(): Program

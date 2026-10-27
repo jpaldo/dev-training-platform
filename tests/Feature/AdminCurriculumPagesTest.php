@@ -210,10 +210,13 @@ class AdminCurriculumPagesTest extends TestCase
             ->assertDontSee('Old checklist')
             ->assertDontSee('This week has no checklist.')
             ->assertDontSee('Removed items')
-            ->assertViewHas('activities', fn (array $activities): bool => $activities === [
-                ['title' => 'Unit testing basics', 'status_label' => 'Active', 'status_tone' => 'success'],
-                ['title' => 'Retired mocking drill', 'status_label' => 'Inactive', 'status_tone' => 'neutral'],
-                ['title' => 'Refactor kata', 'status_label' => 'Active', 'status_tone' => 'success'],
+            ->assertViewHas('activities', fn (array $activities): bool => array_map(
+                fn (array $activity): array => [$activity['title'], $activity['status_label'], $activity['status_tone']],
+                $activities,
+            ) === [
+                ['Unit testing basics', 'Active', 'success'],
+                ['Retired mocking drill', 'Inactive', 'neutral'],
+                ['Refactor kata', 'Active', 'success'],
             ])
             ->assertViewHas('checklist', fn (array $checklist): bool => $checklist['title'] === 'Week 2 checklist'
                 && array_column($checklist['items'], 'type_label') === ['Deliverable', 'Session logs', 'Weekly video']

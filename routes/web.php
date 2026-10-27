@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActivityExportController;
 use App\Http\Controllers\ActivitySubmissionController;
+use App\Http\Controllers\AdminActivityController;
 use App\Http\Controllers\AdminAiSettingsController;
 use App\Http\Controllers\AdminCurriculumController;
 use App\Http\Controllers\AdminDashboardController;
@@ -123,6 +124,8 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
             Route::get('/{program}', [AdminCurriculumController::class, 'show'])->name('show');
             Route::get('/{program}/weeks/{week}', [AdminCurriculumController::class, 'week'])->name('weeks.show');
             Route::put('/{program}/weeks/{week}', [AdminTrainingWeekController::class, 'update'])->name('weeks.update');
+            Route::get('/{program}/weeks/{week}/activities/{activity}/edit', [AdminActivityController::class, 'edit'])->name('activities.edit');
+            Route::put('/{program}/weeks/{week}/activities/{activity}', [AdminActivityController::class, 'update'])->name('activities.update');
         });
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');

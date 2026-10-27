@@ -157,6 +157,27 @@ class AdminCurriculumWeekTest extends TestCase
         $this->assertDatabaseCount('admin_audit_logs', 0);
     }
 
+    public function test_an_unchanged_save_with_browser_line_breaks_in_the_description_writes_no_audit_row(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $week = $this->week(['title' => 'Foundations', 'description' => "Set up the repo.\nPlan the features.\nShip one."]);
+        $updatedAt = $week->updated_at;
+        $this->travel(5)->minutes();
+
+        $this->actingAs($admin)
+            ->put(route('admin.programs.weeks.update', [$week->program_id, $week]), [
+                'title' => 'Foundations',
+                'description' => "Set up the repo.\r\nPlan the features.\rShip one.",
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('admin.programs.weeks.show', [$week->program_id, $week]).'#details');
+
+        $week->refresh();
+        $this->assertEquals($updatedAt, $week->updated_at);
+        $this->assertSame("Set up the repo.\nPlan the features.\nShip one.", $week->description);
+        $this->assertDatabaseCount('admin_audit_logs', 0);
+    }
+
     public function test_extra_input_cannot_change_the_weeks_number_position_status_or_program(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

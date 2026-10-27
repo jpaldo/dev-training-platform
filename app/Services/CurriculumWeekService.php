@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Activity;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -43,6 +44,37 @@ class CurriculumWeekService
             ]);
 
             return $week;
+        });
+    }
+
+    /**
+     * Give the activity a new title, description, objectives and instructions and record `curriculum_activity_updated`
+     * with the changed values before and after. Text left out of the details is kept. The activity's position, whether
+     * it is active and its `configuration` (scoring dimensions, expected files) never change here.
+     *
+     * @param  array{title: string, description?: ?string, objectives?: ?string, instructions?: ?string}  $details
+     */
+    public function updateActivity(Activity $activity, array $details, User $admin): Activity
+    {
+        $activity->fill(Arr::only($details, ['title', 'description', 'objectives', 'instructions']));
+
+        if (! $activity->isDirty()) {
+            return $activity;
+        }
+
+        $changes = $this->changes($activity);
+
+        return DB::transaction(function () use ($activity, $changes, $admin): Activity {
+            $activity->save();
+
+            $this->audit->record($admin, 'curriculum_activity_updated', metadata: [
+                'program_id' => $activity->week->program_id,
+                'training_week_id' => $activity->training_week_id,
+                'activity_id' => $activity->id,
+                'changes' => $changes,
+            ]);
+
+            return $activity;
         });
     }
 

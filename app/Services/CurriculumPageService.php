@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\TrainingSessionStatus;
+use App\Http\Requests\UpdateActivityFieldRequest;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\GateCriterion;
@@ -134,11 +135,12 @@ class CurriculumPageService
      * Everything the activity page renders: the activity's title and status, the week and program it belongs to with
      * the link back to the week's Activities tab, the sessions notice and the three tabs. Details holds the title,
      * description, objectives and instructions with the URL and error bag of their form; Submission fields lists the
-     * activity's submission fields in position order and, apart, its removed ones; Scoring lists the scoring dimensions
-     * in rubric order with their total.
+     * activity's submission fields in position order, each with the URL and error bag of its form (see fieldFormRows()),
+     * the field types an admin can choose and, apart, the removed fields; Scoring lists the scoring dimensions in rubric
+     * order with their total.
      * Reads the submission fields in one query, plus the notice's one.
      *
-     * @return array{title: string, statusLabel: string, statusTone: string, weekLabel: string, programName: string, weekUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, objectives: ?string, instructions: ?string, update_url: string, error_bag: string}, fields: list<array{key: string, label: string, help: ?string, type_label: string, required_label: string, required_tone: string}>, removedFields: list<array{key: string, label: string, help: ?string, type_label: string, required_label: string, required_tone: string}>, scoring: array{dimensions: list<array{key: string, label: string, max: int}>, total: int}}
+     * @return array{title: string, statusLabel: string, statusTone: string, weekLabel: string, programName: string, weekUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, objectives: ?string, instructions: ?string, update_url: string, error_bag: string}, fields: list<array{id: int, key: string, label: string, help: ?string, type: string, type_label: string, is_select: bool, is_required: bool, required_label: string, required_tone: string, update_url: string, error_bag: string}>, fieldTypes: list<array{value: string, label: string}>, removedFields: list<array{key: string, label: string, help: ?string, type: string, type_label: string, is_select: bool, is_required: bool, required_label: string, required_tone: string}>, scoring: array{dimensions: list<array{key: string, label: string, max: int}>, total: int}}
      */
     public function activityData(Program $program, TrainingWeek $week, Activity $activity): array
     {
@@ -147,7 +149,7 @@ class CurriculumPageService
             ->orderBy('position')
             ->orderBy('id')
             ->get()
-            ->partition(fn (ActivityRequirement $field): bool => ! $this->isRemovedField($field));
+            ->partition(fn (ActivityRequirement $field): bool => ! $field->isRemovedField());
 
         return [
             'title' => $activity->title,
@@ -171,8 +173,12 @@ class CurriculumPageService
                 'update_url' => route('admin.programs.activities.update', [$program, $week, $activity]),
                 'error_bag' => 'activity',
             ],
-            'fields' => $this->submissionFieldRows($fields),
-            'removedFields' => $this->submissionFieldRows($removedFields),
+            'fields' => $this->fieldFormRows($program, $week, $activity, $fields),
+            'fieldTypes' => collect(ActivityRequirement::FIELD_TYPES)
+                ->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])
+                ->values()
+                ->all(),
+            'removedFields' => $removedFields->map($this->submissionFieldRow(...))->values()->all(),
             'scoring' => [
                 'dimensions' => $activity->scoringDimensions(),
                 'total' => $activity->scoringMaximum(),
@@ -198,7 +204,7 @@ class CurriculumPageService
                 'status_label' => $activity->is_active ? 'Active' : 'Inactive',
                 'status_tone' => $activity->is_active ? 'success' : 'neutral',
                 'is_active' => $activity->is_active,
-                'field_count' => $activity->requirements->reject($this->isRemovedField(...))->count(),
+                'field_count' => $activity->requirements->reject(fn (ActivityRequirement $field): bool => $field->isRemovedField())->count(),
                 'edit_url' => route('admin.programs.activities.edit', [$program, $week, $activity]),
                 'move_url' => route('admin.programs.activities.move', [$program, $week, $activity]),
                 'can_move_up' => $index > 0,
@@ -211,38 +217,46 @@ class CurriculumPageService
     }
 
     /**
-     * Whether the submission field was removed from its activity (`configuration.deprecated`).
+     * One row per active submission field, in the given order (see submissionFieldRow()), with its id and the URL and
+     * error bag of its form.
+     *
+     * @param  Collection<int, ActivityRequirement>  $fields
+     * @return list<array{id: int, key: string, label: string, help: ?string, type: string, type_label: string, is_select: bool, is_required: bool, required_label: string, required_tone: string, update_url: string, error_bag: string}>
      */
-    private function isRemovedField(ActivityRequirement $field): bool
+    private function fieldFormRows(Program $program, TrainingWeek $week, Activity $activity, Collection $fields): array
     {
-        return (bool) ($field->configuration['deprecated'] ?? false);
+        return $fields
+            ->map(fn (ActivityRequirement $field): array => [
+                'id' => $field->id,
+                ...$this->submissionFieldRow($field),
+                'update_url' => route('admin.programs.fields.update', [$program, $week, $activity, $field]),
+                'error_bag' => UpdateActivityFieldRequest::errorBagFor($field),
+            ])
+            ->values()
+            ->all();
     }
 
     /**
-     * One row per submission field, in the given order, with its key, label, help, type and whether it is required.
-     * The type label is the headline of the stored type until the field types get their own labels.
+     * A submission field's key, label, help, type with its label (`ActivityRequirement::FIELD_TYPES`), whether it is a
+     * `select` field, whose type cannot be chosen, and whether it is required.
      *
-     * @param  Collection<int, ActivityRequirement>  $fields
-     * @return list<array{key: string, label: string, help: ?string, type_label: string, required_label: string, required_tone: string}>
+     * @return array{key: string, label: string, help: ?string, type: string, type_label: string, is_select: bool, is_required: bool, required_label: string, required_tone: string}
      */
-    private function submissionFieldRows(Collection $fields): array
+    private function submissionFieldRow(ActivityRequirement $field): array
     {
-        return $fields
-            ->map(function (ActivityRequirement $field): array {
-                $configuration = $field->configuration ?? [];
-                $isRequired = (bool) ($configuration['required'] ?? $field->is_required);
+        $settings = $field->fieldSettings();
 
-                return [
-                    'key' => (string) ($configuration['key'] ?? ''),
-                    'label' => (string) ($configuration['label'] ?? $field->title),
-                    'help' => $configuration['help'] ?? $field->description,
-                    'type_label' => Str::headline((string) ($configuration['type'] ?? 'text')),
-                    'required_label' => $isRequired ? 'Required' : 'Optional',
-                    'required_tone' => $isRequired ? 'accent' : 'neutral',
-                ];
-            })
-            ->values()
-            ->all();
+        return [
+            'key' => (string) ($field->configuration['key'] ?? ''),
+            'label' => $settings['label'],
+            'help' => $settings['help'],
+            'type' => $settings['type'],
+            'type_label' => $field->fieldTypeLabel(),
+            'is_select' => $settings['type'] === 'select',
+            'is_required' => $settings['required'],
+            'required_label' => $settings['required'] ? 'Required' : 'Optional',
+            'required_tone' => $settings['required'] ? 'accent' : 'neutral',
+        ];
     }
 
     /**

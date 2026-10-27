@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActivityExportController;
 use App\Http\Controllers\ActivitySubmissionController;
 use App\Http\Controllers\AdminActivityController;
+use App\Http\Controllers\AdminActivityFieldController;
 use App\Http\Controllers\AdminAiSettingsController;
 use App\Http\Controllers\AdminCurriculumController;
 use App\Http\Controllers\AdminDashboardController;
@@ -130,6 +131,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
             Route::patch('/{program}/weeks/{week}/activities/{activity}/move', [AdminActivityController::class, 'move'])->name('activities.move');
             Route::patch('/{program}/weeks/{week}/activities/{activity}/deactivate', [AdminActivityController::class, 'deactivate'])->name('activities.deactivate');
             Route::patch('/{program}/weeks/{week}/activities/{activity}/reactivate', [AdminActivityController::class, 'reactivate'])->name('activities.reactivate');
+            Route::put('/{program}/weeks/{week}/activities/{activity}/fields/{requirement}', [AdminActivityFieldController::class, 'update'])->name('fields.update');
         });
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');

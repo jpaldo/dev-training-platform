@@ -59,8 +59,8 @@ class AdminCurriculumActivityTest extends TestCase
                 '>Save Details<',
             ], false)
             ->assertSeeInOrder([
-                'Pull request link', 'Github Url', 'Required', 'pull_request',
-                'Notes', 'Textarea', 'Optional', 'Anything your mentor should know.', 'notes',
+                'Pull request link', 'GitHub link', 'Required', 'pull_request',
+                'Notes', 'Long text', 'Optional', 'Anything your mentor should know.', 'notes',
                 'Removed fields', 'Retired link', 'old_link',
                 'D1', 'Deliverable', '40', 'D4', 'Reflection', '10', 'Total', '100',
             ])

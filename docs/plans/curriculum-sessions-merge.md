@@ -55,7 +55,7 @@ A curriculum (`Program`) is the thing people join, mentor and run. Its weeks car
 - **Policies.** `TrainingSessionPolicy` (`viewAny`, `view` for admin/member/mentor, `join`, `create`, `update`, `manage`). `ProgramPolicy` (`viewAny`, `view`, `update`; admin only) is used by `AdminCurriculumController` and 14 curriculum Form Requests (`can('update', $program)`). No Blade `@can`.
 - **Seeders/factories/demo.** `L4FirstSessionSeeder` (Nov 9 2026, 4 weeks) is called by `DatabaseSeeder`, `EnsureDevelopmentBaselineCommand` and `docs/AWS_DEPLOYMENT.md` § "After: seed the program"; `DevelopmentAccountProvisioner::enrollInFirstSession()` finds it by title. `TrainingSessionFactory::defaultForWeek()` is how `ActivitySubmissionFactory`, `GateEvaluationFactory` and `WeeklyVideoRecordingFactory` get a session; `forWeek()` is what makes "the week opened today" in tests. `TrainingWeekFactory` gives a random `week_number` 2..99.
 - **Notifications and Drive.** `ParticipantNotificationService` keys are `session:{id}:week:{weekId}:…` and `session:{id}:event:…` and it deletes keys not starting with `session:`. `SyncTrainingDataJob` uses `google_drive_exports.scope_key` `session:{id}`, `session:{id}:week:{weekId}`, `…:activity:{id}` with `export_type` `session_folder`; `TrainingWorkbookService::forWeek()` filters by session.
-- **Tests that pin the old schema:** `RequireTrainingSessionOnTrainingRecordsMigrationTest`, `TurnTrainingSessionResourcesIntoLinksMigrationTest`, `SessionScopedRecordsTest`, `TrainingSessionModelTest`, `L4FirstSessionSeederTest`.
+- **Tests that pin the old schema:** `SessionScopedRecordsTest` (its delete-restrict case was rewritten in 1.1; `RequireTrainingSessionOnTrainingRecordsMigrationTest` and `TurnTrainingSessionResourcesIntoLinksMigrationTest` were deleted in 1.1), `TrainingSessionModelTest`, `L4FirstSessionSeederTest`.
 
 ### Traps
 
@@ -184,7 +184,7 @@ None blocking. See Open decisions for `AdoptSquashedMigrationsCommand`.
 
 ## Phase 1 — Expand (old code untouched, suite green)
 
-- [ ] **1.1 Expand migrations and data move** (MRG-1, SCH-1, MIG-1, MIG-2) — size M
+- [x] **1.1 Expand migrations and data move** (MRG-1, SCH-1, MIG-1, MIG-2) — size M
   - **Do:**
     - `2026_10_28_000001_add_schedule_to_training_weeks_table`: `starts_on`, `ends_on` date nullable.
     - `…000002_create_program_participants_table`, `…000003_create_program_mentors_table`, `…000004_create_program_resources_table` (Design › Data model).
@@ -192,9 +192,10 @@ None blocking. See Open decisions for `AdoptSquashedMigrationsCommand`.
     - `…000006_make_training_session_optional_on_training_records`: for `activity_submissions`, `gate_evaluations`, `weekly_video_recordings`: `dropForeign(['training_session_id'])` then `->nullable()->change()`. Keep the old indexes for now.
     - `…000007_move_training_sessions_onto_programs`: `DB::table()` only. First `training_sessions` grouped by `program_id` having count > 1 → `throw new RuntimeException("Program {id} has {n} training sessions; merge them by hand before running this migration.")` before any write. Then per session: insert `program_participants` (program_id, user_id, joined_at, added_by, repository_url, timestamps), `program_mentors`, `program_resources`; `update mentor_assignments set program_id`; date the program's weeks with `week_number ≤ weeks_count`: `starts_on + 7×(N−1)` days, `ends_on = +6` (Carbon per row). `down()` drops what was added and restores the FKs (data not reversed; say so in the docblock).
     - Delete `tests/Feature/RequireTrainingSessionOnTrainingRecordsMigrationTest.php` and `TurnTrainingSessionResourcesIntoLinksMigrationTest.php`.
-  - **Acceptance:** `migrate:fresh` on SQLite and `migrate` on dev MySQL succeed; dev shows 1 `program_participants` row, the 4 weeks dated 9 Nov–6 Dec 2026, the evaluation still present; `Schema::getForeignKeys('activity_submissions')` has no `training_sessions` key; the old pages still work.
+  - **Acceptance:** `migrate:fresh` on SQLite and `migrate` on dev MySQL succeed; dev shows 1 `program_participants` row, the weeks dated from the session (dev's only session is `weeks_count` 1 from 18 Nov 2026, so week 1 is 18–24 Nov and weeks 2–4 are unscheduled; see Open decisions), the evaluation still present; `Schema::getForeignKeys('activity_submissions')` has no `training_sessions` key; the old pages still work.
   - **Tests:** new `tests/Feature/MoveTrainingSessionsOntoProgramsMigrationTest.php` (plain `TestCase`, no `RefreshDatabase`; `tearDown` resets `RefreshDatabaseState::$migrated`): `migrate:fresh --realpath --path=` the 43 squashed files plus 000001..000006, insert a program with 4 weeks, one session (`weeks_count` 3, start 2026-11-09), two participants (one with a repository URL), a mentor, a current and an ended assignment, two resources, a submission, evaluation and video via `DB::table()`; run 000007; assert the moved rows, `mentor_assignments.program_id`, weeks 1–3 dated (`2026-11-09..15`, `16..22`, `23..29`), week 4 null, work rows untouched. Second case: two sessions for one program → `RuntimeException` and empty new tables. Third: on the head schema, `training_session_id` is nullable on the three work tables and `mentor_assignments`.
   - **Depends on:** nothing.
+  - **Done 2026-10-28:** migrations `2026_10_28_000001`…`000007` (run on dev MySQL, batch 8; up → down → up checked on SQLite), `MoveTrainingSessionsOntoProgramsMigrationTest` (3 cases), the two old migration tests deleted. `SessionScopedRecordsTest::test_a_session_with_training_records_cannot_be_deleted` pinned the dropped restricting FK and now asserts `test_deleting_a_session_keeps_its_training_records`. Suite 1506 green.
 
 - [ ] **1.2 Program absorbs the session model** (MRG-1, SCH-1, STA-1, STA-3) — size M
   - **Do:**
@@ -273,5 +274,8 @@ None blocking. See Open decisions for `AdoptSquashedMigrationsCommand`.
 ## Open decisions
 
 - `AdoptSquashedMigrationsCommand` and its test can be deleted once the user confirms no other database still runs the pre-squash files.
+- (1.1) Dev's only training session is `weeks_count` 1 starting 2026-11-18, not the seeder's 4 weeks from 9 Nov, so the data move dated week 1 only (18–24 Nov); weeks 2–4 are unscheduled. Decide whether to re-date dev with the 1.3 schedule form (start 2026-11-09 or 2026-11-18) or re-seed in 2.1.
+- (1.1) The data move ran once. Participants, mentors, resources and mentor assignments added through the old session pages between 1.1 and 2.1 are not copied to `program_*` / `mentor_assignments.program_id`. Either keep dev unchanged until 2.1 or have 2.1 re-copy them (e.g. a one-off re-sync in its migration).
+- (1.1) With the session foreign keys gone, deleting a training session no longer cascades to its mentor assignments or is blocked by work rows. No route deletes a session today, and 3.1 drops the column; recorded so 2.1 does not add a session delete path.
 - If the implementer finds 2.1's six-commit split still too wide to review, the fallback is to land steps 1+2 with the old routes temporarily broken on a branch and finish in the same PR, never on `main`.
 

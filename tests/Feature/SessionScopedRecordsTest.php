@@ -70,13 +70,13 @@ class SessionScopedRecordsTest extends TestCase
         ]);
     }
 
-    public function test_a_session_with_training_records_cannot_be_deleted(): void
+    public function test_deleting_a_session_keeps_its_training_records(): void
     {
         $submission = ActivitySubmission::factory()->create();
 
-        $this->expectException(QueryException::class);
-
         $submission->trainingSession->delete();
+
+        $this->assertModelExists($submission);
     }
 
     public function test_the_factories_put_records_in_a_session_of_their_program_that_includes_their_week(): void

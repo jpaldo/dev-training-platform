@@ -1,0 +1,277 @@
+# Curriculum Sessions Merge Plan
+
+Source: user request of 2026-10-27/28 ("participants should be tied to curriculum, not to specific weekly sessions … make the weeks itself the training sessions directly tied to the curriculum"). The **Requirements** table is the spec of record until `docs/specs/training-plan.md` is rewritten (4.2) · Last updated: 2026-10-28
+
+**Status legend:** `[x]` done · `[ ]` to do · `[~]` in progress · `[-]` deferred
+
+## Goal
+
+A curriculum (`Program`) is the thing people join, mentor and run. Its weeks carry their own dates, so the curriculum's status (Unscheduled, Upcoming, Active, Completed) and every "week N opens on…" rule derive from the weeks. Participants, mentors, mentor assignments and resources hang off the curriculum; a participant joins once and is in every week. Submissions, Gate evaluations and weekly videos reach the curriculum through their activity, Gate or week and carry no session id. The admin session dashboard folds into the admin Curriculum page as tabs. `training_sessions` and its three child tables are dropped by new migrations that move the one existing session's data onto its program.
+
+## Rules for every batch
+
+- Follow the "Code Quality Rules" in `CLAUDE.md`. `php` is `~/.config/herd-lite/bin/php`.
+- The framework is **Laravel 13.30** (`composer.lock`). Check schema APIs against `vendor/laravel/framework`, not memory.
+- Definition of done: `vendor/bin/pint --dirty --format agent`, `php artisan test --compact` green, `npm run build` when Blade/Tailwind changed, the item ticked here, one commit per batch, and new migrations run on the dev MySQL database (confirm first if destructive).
+- **Expand → cut-over → contract.** Phase 1 adds schema and code beside the old; Phase 2 is the one unavoidable cut-over batch; Phase 3 drops the old schema. Never edit or delete the squashed `2026_10_24_*` files; every schema change is a new `2026_10_28_*` migration that runs on SQLite (suite) and MySQL (dev): portable Blueprint calls, `DB::table()` plus Carbon for data, no raw date SQL. Do not add the new files to `AdoptSquashedMigrationsCommand::SQUASHED_MIGRATIONS`.
+- **UI words:** "Curriculum" / "curricula" wherever a user reads it (page titles, eyebrows, badges, CSV headers, flash messages, audit action names). "Training session" and "session" go, except "Week N session" where a week is named as a session.
+- **Writes go through services** in `DB::transaction()` with an `AdminAuditService::record()` row; an unchanged save writes nothing. Audit metadata uses `program_id`, never `training_session_id`.
+- Unchanged: week locking after an incomplete review (WK-2/WK-3), mentor scope (MEN-4), retiring instead of deleting, and every rule of `docs/plans/admin-curriculum-editing.md`.
+- Record new problems under "Open decisions" instead of fixing them on the spot.
+
+## Requirements
+
+| ID | Requirement | Covered by |
+|---|---|---|
+| MRG-1 | A curriculum holds its participants, mentors, mentor assignments and resources. The training-session model, tables, routes and pages are gone | 1.1, 1.2, 2.1, 3.1 |
+| MRG-2 | A participant joins a curriculum once (Join button, registration tick, or an admin adding them); joining twice changes nothing; a completed curriculum cannot be joined; removing a participant keeps their work | 2.1 |
+| MRG-3 | Submissions, Gate evaluations and weekly videos belong to the curriculum through activity → week, Gate → week and week. A participant has one evaluation per Gate and one video per week | 2.1, 3.1 |
+| SCH-1 | Every week has optional `starts_on` / `ends_on`. A week without dates is unscheduled and never opens | 1.1, 1.2 |
+| SCH-2 | On the admin Curriculum page an admin enters a start date and every week N gets `start + (N−1)×7 days` to `+6 days` | 1.3 |
+| SCH-3 | An admin edits one week's dates on its Details form: both or neither, end ≥ start, weeks stay in number order without overlapping | 1.3 |
+| STA-1 | Curriculum status derives from its active weeks' dates: Unscheduled (none dated), Upcoming (before the first start), Completed (after the last end), else Active. `ProgramStatus` replaces `TrainingSessionStatus` and shows wherever the session badge showed | 1.2, 2.1 |
+| STA-2 | Week N is open for a participant when `starts_on ≤ today` and no earlier week locks it; coaches and admins open every week. An unscheduled week shows "Not scheduled yet" | 2.1 |
+| STA-3 | A curriculum accepts new work until its last dated active week has ended; after that only a reopened attempt can be worked on (PAR-5 unchanged) | 1.2, 2.1 |
+| STA-4 | A week resource opens on its week's `starts_on`, or earlier once the participant passed week N−1; every resource is open once the curriculum completed; a resource of an unscheduled week shows "Not scheduled yet" | 2.1 |
+| MEM-1 | Every participant of a curriculum is in all its active weeks; nothing about membership is per week | 2.1 |
+| MEM-2 | A coach sees and reviews only participants they currently mentor in that curriculum; an admin sees everyone | 2.1 |
+| ADM-1 | `admin/programs/{program}` has tabs **Overview, Weeks, Participants, Mentors, Resources, Activities, Schedule**; tab labels carry counts; every tab action returns to its `#tab` | 1.3, 2.1, 4.1 |
+| ADM-2 | The admin dashboard lists up to 5 curricula (first week start, newest first; unscheduled last) with status and participant count; the curricula list shows status, dates, weeks and participants | 2.1 |
+| ADM-3 | The participant landing page lists My / Available / Past curricula; registration offers the curricula open to join (`program_ids`) | 2.1 |
+| MIG-1 | New migrations move each program's single session's participants, mentors, assignments and resources onto the program and date weeks 1..`weeks_count` from the session; a program with 2+ sessions aborts before anything is written | 1.1 |
+| MIG-2 | The session tables and the `training_session_id` columns are dropped; unique keys become (`training_gate_id`, `user_id`) and (`user_id`, `training_week_id`); submissions are indexed (`user_id`, `activity_id`, `attempt_number`) | 1.1 (nullable), 3.1 |
+| RPT-1 | Coach filters use `?program=`; reports and CSVs name the curriculum; notification keys are `program:{id}:…`; Drive export scope keys are `program:{id}` / `program:{id}:week:{weekId}…` | 2.1 |
+| SEED-1 | `L4TrainingProgramSeeder` creates the program with its weeks dated from Mon 9 Nov 2026; `L4FirstSessionSeeder` is gone; demo provisioning enrolls in the L4 program; `docs/AWS_DEPLOYMENT.md` names one seeder | 2.1 |
+| FOL-1 | An admin creates a curriculum (name, description, number of weeks, optional start date) | 5.1 |
+| FOL-2 | An admin duplicates a curriculum's content under a new name with an optional start date | 5.2 |
+
+## Current state
+
+- **Scale.** `TrainingSession|training_session|trainingSession` appears in 107 `app/` files (heaviest: `AdminTrainingSessionPageService` 680 lines, `WeekProgressionService` ~900, `ParticipantTrainingSessionPageService`, `ParticipantNotificationService`, `CoachReportService`, `GateReadinessService`), `routes/web.php`, 7 views, 15 database files and 70 test files (~1,850 lines; `TrainingSession::factory()` ~350 uses, mostly `->forWeek($week)->withParticipants(...)->create()`; `MentorAssignment::factory()` 88 uses; `'session' =>` filter payloads 132 uses).
+- **Schema** (`database/migrations/2026_10_24_0000{20..25,35,37}`): `training_sessions` (program FK restrict, `title`, `weeks_count`, `starts_on`, `ends_on`, `created_by`), `training_session_participants` (unique session+user, `joined_at`, `added_by`, `repository_url`), `training_session_mentors`, `training_session_resources` (`week_number` nullable, `title`, `url`, `added_by`), `mentor_assignments.training_session_id` (index `mentor_assignments_session_participant_ended_index`). Work rows: `activity_submissions.training_session_id` restrict FK + index `activity_submissions_session_attempt_idx`; `gate_evaluations` unique `gate_evaluations_session_gate_user_unique`; `weekly_video_recordings` unique `weekly_videos_session_user_week_unique`. `training_weeks` has no dates.
+- **Session semantics** live in `app/Models/TrainingSession.php`: `status()`, `acceptsWork()`, `weeks()` (a *query*, not a relation: active program weeks `1..weeks_count`), `includesWeek()`, `weekOpensOn(N)`, `includesParticipant()/includesMentor()`, scopes `notCompleted/openToJoin/completed`. `WeekProgressionService` builds `Support/SessionWeekState` per week from `weekOpensOn()` and filters evaluations/submissions by `training_session_id`. `MentorAssignment::scopeCurrentOfRow()` correlates `mentor_assignments.training_session_id` with the outer table's `training_session_id`: the root of `currentlyMentoredBy` on `TrainingSessionParticipant`, `ActivitySubmission`, `GateEvaluation` and of `currentMentorNameOfRow`. `User::mentorsParticipantInSession()` is called by `GateEvaluationPolicy`, `SubmissionVersionPolicy`, `SubmissionEvidencePolicy`, `GateReviewController`, `ScoringController`, `CoachParticipantController`, `StoreGateReviewRequest`.
+- **Routes** (`routes/web.php` L112–125, 165, 180, 197–222): admin `admin/sessions…`, coach `coach/sessions/{trainingSession}/participants/{participant}`, `coach/scoring/sessions/…`, participant `training/sessions/{trainingSession}` (show/join/repository) and `training/sessions/{trainingSession}/weeks/{trainingWeek}/…` behind `can:view,trainingSession` + `session.week` (`EnsureWeekBelongsToSession`), coach Gate review under `training/coach/sessions/…`. `SidebarNavigationService` lists "Training Sessions" beside "Curriculum" and marks `training.sessions.*` active for participants.
+- **Admin pages.** `AdminTrainingSessionController` + `AdminTrainingSessionPageService` (`indexData`, `recentSessionRows`, `showData` with tabs Overview/Participants/Mentors/Activities/Resources, `formData`) + `resources/views/admin/sessions/{index,form,show}.blade.php`. The Curriculum area (`AdminCurriculumController`, `CurriculumPageService`, `admin/curriculum/{index,program,week,activity,sessions-notice}.blade.php`) counts `trainingSessions` and shows `sessionsNotice()` on every page. `AdminDashboardPageService` renders "Recent sessions".
+- **Policies.** `TrainingSessionPolicy` (`viewAny`, `view` for admin/member/mentor, `join`, `create`, `update`, `manage`). `ProgramPolicy` (`viewAny`, `view`, `update`; admin only) is used by `AdminCurriculumController` and 14 curriculum Form Requests (`can('update', $program)`). No Blade `@can`.
+- **Seeders/factories/demo.** `L4FirstSessionSeeder` (Nov 9 2026, 4 weeks) is called by `DatabaseSeeder`, `EnsureDevelopmentBaselineCommand` and `docs/AWS_DEPLOYMENT.md` § "After: seed the program"; `DevelopmentAccountProvisioner::enrollInFirstSession()` finds it by title. `TrainingSessionFactory::defaultForWeek()` is how `ActivitySubmissionFactory`, `GateEvaluationFactory` and `WeeklyVideoRecordingFactory` get a session; `forWeek()` is what makes "the week opened today" in tests. `TrainingWeekFactory` gives a random `week_number` 2..99.
+- **Notifications and Drive.** `ParticipantNotificationService` keys are `session:{id}:week:{weekId}:…` and `session:{id}:event:…` and it deletes keys not starting with `session:`. `SyncTrainingDataJob` uses `google_drive_exports.scope_key` `session:{id}`, `session:{id}:week:{weekId}`, `…:activity:{id}` with `export_type` `session_folder`; `TrainingWorkbookService::forWeek()` filters by session.
+- **Tests that pin the old schema:** `RequireTrainingSessionOnTrainingRecordsMigrationTest`, `TurnTrainingSessionResourcesIntoLinksMigrationTest`, `SessionScopedRecordsTest`, `TrainingSessionModelTest`, `L4FirstSessionSeederTest`.
+
+### Traps
+
+- `TrainingSession::weeks()` is a Builder; after the merge "the curriculum's weeks" are every active week (`Program::activeWeeks()` relation, eager-loadable), no count.
+- `ActivitySubmission::isForActivityInSession()` and every `->where('training_session_id', …)` filter (~25 in `app/Services`, 9 in `WeekProgressionService`) simply go.
+- **SQLite:** `dropForeign(['training_session_id'])` and `change()` trigger a table rebuild with `PRAGMA foreign_keys=OFF` (child rows of `activity_submissions` survive); `dropColumn` fails while the column is in an index, so inside one `Schema::table()`: `dropUnique()/dropIndex()` first, then `dropColumn()`, then add the new keys. Always pass the column array to `dropForeign`, never the name.
+- **MySQL:** the FK must go before a composite index that starts with its column can drop; dropping the FK in 1.1 and the index in 3.1 keeps the order right on both drivers.
+- `data-page-tabs` (`initializePageTabs`) selects the tab from the URL hash; the merged program page uses `id-prefix="program"` and keys `overview, weeks, participants, mentors, resources, activities, schedule`. Every redirect `->to(route(...).'#participants')` must point at `admin.programs.show`.
+- `TrainingWeekFactory`'s random `week_number` means a date default of "today − (N−1) weeks" would make most factory programs Completed; the default must be "opens today" regardless of number.
+- `ParticipantProgressObserver` is attached to `TrainingSessionParticipant` via `#[ObservedBy]`; it moves to `ProgramParticipant`.
+- `StoreRegisteredUserRequest` validates `training_session_ids.*` against `openToJoin()`; `register.blade.php` posts `training_session_ids[]`.
+- Audit action names and metadata keys are asserted with `assertDatabaseHas('admin_audit_logs', …)` in tests.
+- `AdminCurriculumController` calls `Gate::authorize('view', $program)`; after `view` widens to members and mentors, the `role:admin` route middleware is what keeps the curriculum pages admin-only. Keep it.
+- A migration test that runs `migrate:fresh --path=…` must reset `RefreshDatabaseState::$migrated = false` in `tearDown()`, or the next test reuses the half-built schema.
+
+## Design
+
+### Data model (after Phase 3)
+
+| Table | Change |
+|---|---|
+| `training_weeks` | + `starts_on` date nullable, + `ends_on` date nullable |
+| `program_participants` (new) | `id`, `program_id` FK cascade, `user_id` FK cascade, `joined_at` datetime, `added_by` FK users nullOnDelete, `repository_url` string nullable, timestamps; unique (`program_id`, `user_id`); index `user_id` |
+| `program_mentors` (new) | `id`, `program_id`, `user_id`, timestamps; unique pair; index `user_id` |
+| `program_resources` (new) | `id`, `program_id` FK cascade, `week_number` smallint nullable, `title`, `url` text, `added_by` nullOnDelete, timestamps; index (`program_id`, `week_number`) |
+| `mentor_assignments` | `training_session_id` → `program_id` FK cascade; index (`program_id`, `participant_id`, `ended_at`) |
+| `activity_submissions` | − `training_session_id`, − `activity_submissions_session_attempt_idx`; + index (`user_id`, `activity_id`, `attempt_number`) `activity_submissions_user_activity_attempt_idx` |
+| `gate_evaluations` | − `training_session_id`, − old unique; + unique (`training_gate_id`, `user_id`) `gate_evaluations_gate_user_unique` |
+| `weekly_video_recordings` | − `training_session_id`, − old unique; + unique (`user_id`, `training_week_id`) `weekly_videos_user_week_unique` |
+| `training_sessions`, `training_session_participants`, `training_session_mentors`, `training_session_resources` | dropped |
+
+### Dates, status and openness
+
+- `TrainingWeek`: casts `starts_on`/`ends_on` as `date`; `isScheduled()`, `isOpen()` (`starts_on !== null && starts_on->lte(today())`), `hasEnded()`, `dateRangeLabel()` ("9 – 15 Nov 2026").
+- `Program`: `activeWeeks()` (hasMany, `is_active`, by `week_number`) replaces `TrainingSession::weeks()`; `includesWeek(TrainingWeek)` = same program and active; `scheduleStartsOn()` / `scheduleEndsOn()` = min `starts_on` / max `ends_on` of active dated weeks (read from `schedule_starts_on` / `schedule_ends_on` when `scopeWithScheduleBounds()` (`withMin`/`withMax`) loaded them, else one query); `status(): ProgramStatus`; `isCompleted()`; `acceptsWork(?ActivitySubmission)` as today; `dateRangeLabel()` ("Not scheduled" when none); scopes `notCompleted()` (no dated active week, or max `ends_on ≥ today`), `openToJoin()` (= `is_active` and `notCompleted()`), `completed()`; `includesParticipant()`, `includesMentor()`, `hasParticipants()`; `ENDED_MESSAGE = 'This curriculum has ended.'`.
+- `ProgramStatus` (`php artisan make:enum ProgramStatus --string --no-interaction`): `Unscheduled`, `Upcoming`, `Active`, `Completed` with `label()` and `tone()`. `TrainingSessionStatus` deleted in 2.1.
+- `Support/ProgramWeekState` replaces `SessionWeekState`: `opensOn` becomes `?CarbonInterface`, `sessionCompleted` → `programCompleted`; `lockedMessage()` returns "Not scheduled yet" when `opensOn` is null. `WeekProgressionService` reads `$week->starts_on` (not open when null); `currentWeekId()` requires `Program::status() === Active`.
+- Schedule form (SCH-2): `CurriculumScheduleService::scheduleFromStart(Program, CarbonInterface $startsOn, User $admin)` sets every week by `week_number` (active or not, A2) to `start + (N−1)×7 … +6 days` in one transaction; audit `curriculum_scheduled` with `changes` per week; unchanged → nothing. Week form (SCH-3): `UpdateTrainingWeekRequest` gains `starts_on` (nullable date), `ends_on` (nullable date, `required_with:starts_on`, `after_or_equal:starts_on`) and an `after()` check against the program's other dated weeks ("Week 2 must start after Week 1 ends (15 Nov 2026)."); `CurriculumWeekService::updateWeek()` records both dates under `changes`.
+
+### Renames
+
+| Today | After |
+|---|---|
+| `Models\TrainingSession` | deleted; `Program` absorbs it |
+| `TrainingSessionParticipant`, `TrainingSessionMentor`, `TrainingSessionResource` | `ProgramParticipant` (Pivot, `#[ObservedBy]`), `ProgramMentor`, `ProgramResource` |
+| `Enums\TrainingSessionStatus` | `Enums\ProgramStatus` |
+| `Policies\TrainingSessionPolicy` | merged into `ProgramPolicy` |
+| `Services\TrainingSessionService` | `ProgramEnrollmentService` (`join`, `addParticipants`, `removeParticipant`, `saveRepositoryUrl`, `registrationChoices`); `create`/`update`/`endsOn` deleted |
+| `Services\TrainingSessionResourceService` | `ProgramResourceService` |
+| `Services\AdminTrainingSessionPageService` | 2.1: `AdminProgramDashboardService` (`showData(Program)` only); 4.1: split into `ProgramPeopleTabService` + `ProgramOverviewTabService` |
+| `Services\ParticipantTrainingSessionPageService` | `ParticipantProgramPageService` |
+| `Services\CoachSessionFilterService` | `CoachProgramFilterService` |
+| `Middleware\EnsureWeekBelongsToSession` (`session.week`) | `EnsureWeekBelongsToProgram` (`program.week`) |
+| `Support\SessionWeekState` | `Support\ProgramWeekState` |
+| `AdminTrainingSessionController` | deleted (`show` → `AdminCurriculumController@show`) |
+| `AdminTrainingSession{Participant,Mentor,MentorAssignment,Resource}Controller` | `AdminProgram{…}Controller` |
+| `TrainingSessionController` | `TrainingProgramController` (`show`, `join`, `updateRepository`) |
+| `StoreTrainingSessionRequest`, `UpdateTrainingSessionRequest` | deleted |
+| `StoreTrainingSession{Participants,Mentor,Resource}Request`, `UpdateTrainingSessionResourceRequest`, `UpdateSessionRepositoryRequest` | `StoreProgram{…}Request`, `UpdateProgramResourceRequest`, `UpdateProgramRepositoryRequest` |
+| `User::trainingSessions()`, `mentoredSessions()`, `mentorsParticipantInSession()` | `programs()`, `mentoredPrograms()`, `mentorsParticipantInProgram(User, Program)` |
+| `TrainingSessionFactory`, `TrainingSessionResourceFactory` | deleted; `ProgramResourceFactory`; states on `ProgramFactory` / `TrainingWeekFactory` (1.2) |
+| `L4FirstSessionSeeder` | deleted; dates in `L4TrainingProgramSeeder` |
+| views `admin/sessions/*`, `training-sessions/*`, `admin/curriculum/sessions-notice` | deleted / `training-programs/*` / `admin/curriculum/schedule-notice` |
+
+### Routes (before → after)
+
+| Before | After (name) |
+|---|---|
+| `admin.sessions.index|create|store|edit|update` | gone (`admin.programs.index` is the list; 5.1 adds `create|store`) |
+| `GET admin/sessions/{trainingSession}` `admin.sessions.show` | `GET admin/programs/{program}` `admin.programs.show` (tabbed) |
+| — | `PUT admin/programs/{program}/schedule` `admin.programs.schedule.update` (1.3) |
+| `admin.sessions.participants.store|destroy`, `.assignments.update`, `.mentors.store|destroy`, `.resources.store|update|destroy` | `admin.programs.participants.*`, `.assignments.update`, `.mentors.*`, `.resources.*` (scoped through `Program::participants()/mentors()/resources()`) |
+| `coach/sessions/{trainingSession}/participants/{participant}` `coach.participants.show` | `coach/programs/{program}/participants/{participant}` (same name) |
+| `coach/scoring/sessions/{trainingSession}/participants/{participant}` `coach.scoring.participant` | `coach/scoring/programs/{program}/participants/{participant}` |
+| `?session=` on every coach filter and CSV export | `?program=` (`Rule::exists(Program::class, 'id')`) |
+| `training/sessions/{trainingSession}` `training.sessions.show|join|repository.update` | `training/programs/{program}` `training.programs.show|join|repository.update` (`can:view,program`) |
+| `training/sessions/{trainingSession}/weeks/{trainingWeek}/…` (`can:view,trainingSession`, `session.week`) | `training/programs/{program}/weeks/{trainingWeek}/…` (`can:view,program`, `program.week`); inner route names unchanged |
+| `training/coach/sessions/{trainingSession}/weeks/…/gates/{trainingGate}` | `training/coach/programs/{program}/weeks/…` (`training.coach.gates.show|update`) |
+
+Sidebar: participant active pattern `training.programs.*`; the admin group loses "Training Sessions". `bootstrap/app.php`: alias `program.week`. `AdminDashboardPageService`: `sessionsUrl` → `admin.programs.index`; the create link returns in 5.1.
+
+### Authorization (`ProgramPolicy` after 2.1)
+
+- `viewAny` admin · `view(User, Program)`: admin → true; coach → `includesMentor`; participant → `includesParticipant` · `join`: active participant, not a member, program not completed · `update` admin (content, schedule) · `manage` admin (people, resources) · `create` admin (5.1).
+- Callers to change: `Gate::authorize('manage', …)` in the admin people/resource controllers, `Gate::authorize('join', …)` in `TrainingProgramController`, `can('manage', $this->program())` in the people/resource Form Requests, `can:view,program` on both route groups. `TrainingSessionPolicy` is deleted.
+
+### Mentor scope and reports
+
+- `MentorAssignment::scopeCurrentOfRow(Builder $query, Builder $outer, string $programIdColumn)` correlates `participant_id` with the outer `user_id` and `program_id` with `$programIdColumn`; `currentForMentorOfRow()` and `currentMentorNameOfRow()` take the same column. `ProgramParticipant::scopeCurrentlyMentoredBy()` passes `'program_participants.program_id'`; `ActivitySubmission` / `GateEvaluation` wrap it in `whereHas('activity.week' | 'gate.week', …)` with `'training_weeks.program_id'`. `forParticipantInSession()` → `forParticipantInProgram(int $programId, int $participantId)`.
+- `User::mentorsParticipantInProgram(User, Program)`; policies pass `$submission->activity->week->program` / `$gateEvaluation->gate->week->program` (`loadMissing`).
+- `ScoringReportService::memberships()` and `CoachReportService` work on `ProgramParticipant`; ordering "latest session first" → by program schedule start, then name. CSV headers "Training session" → "Curriculum".
+- `ScoringService::sessionSummaries()` → `programSummaries(Collection<ProgramParticipant>)`.
+- `GateReadinessService`: `readiness(User, TrainingGate)` / `readinessForGates(User, Collection)` drop the session parameter; the `…ForMemberships` variants key by `user_id`.
+- `WeekProgressionService`: every `TrainingSession` parameter becomes `Program`; `hasCompletedSession` → `hasCompletedProgram`; `ensureSessionAcceptsWork` → `ensureProgramAcceptsWork`; `latestAttempt(User, Activity)`.
+- `ParticipantNotificationService`: memberships = `ProgramParticipant` of `Program::notCompleted()`; keys `program:{id}:…`; the cleanup deletes keys not like `program:%`.
+- `SyncTrainingDataJob`: `programFolders()` from `$participant->programs()`, folder name = program name (`(#id)` suffix when two share a name); `export_type` `program_folder`; scope keys `program:{id}…`. `TrainingWorkbookService::forWeek(User, TrainingWeek)`.
+- The remaining page services (`MissingSubmissionReportService`, `ParticipantDashboardService`, `CoachGateOverviewService`, `Coach*PageService`, `ScoringPageService`, `TrainingWeekPageService`, `TrainingActivityPageService`, `ActivitySubmissionPageService`, `WeeklyVideoRecording*Service`, `GateReviewService`, `SubmissionWorkflowService`, `ActivitySubmissionService`) change mechanically: type, relation, dropped filters.
+
+### Admin page merge (ADM-1)
+
+`AdminCurriculumController@show` returns `admin.curriculum.program` with `CurriculumPageService::programData($program)` merged with `AdminProgramDashboardService::showData($program)`:
+- `programData()` keeps the header (name, description, status badge, date range), a `schedule-notice` include ("Active 9 Nov – 6 Dec 2026: changes show to its participants and mentors right away" / "Not scheduled: participants cannot open any week yet"), the **Weeks** tab (today's table plus each week's dates) and the **Schedule** tab. `sessionsNotice()` is deleted; `indexData()` gains status, dates and `participants_count`.
+- `AdminProgramDashboardService::showData()` (the old `showData` minus index/form/recent) supplies **Overview**, **Participants**, **Mentors**, **Activities**, **Resources**. 4.1 splits it into `ProgramPeopleTabService` (~200 lines) and `ProgramOverviewTabService` (~250 lines); `ProgramResourceService::tabData()` already stands alone.
+- `admin/curriculum/program.blade.php` becomes the tab host (`id-prefix="program"`) with one include per tab under `admin/curriculum/tabs/`; panels move from `admin/sessions/show.blade.php`, which is deleted with `index` and `form`. The admin dashboard's "Training sessions" card becomes "Curricula" (`CurriculumPageService::recentProgramRows(5)`).
+
+### Batch strategy
+
+The domain core is one graph: work-row columns ↔ `MentorAssignment` scopes ↔ `WeekProgressionService` / `GateReadinessService` ↔ every page service, controller and route. Splitting the cut-over by area would need a throwaway bridge (double-written `training_session_id`, `TrainingSession` delegating to `Program`, duplicate `Program`-typed copies of the domain services) larger and harder to review than the cut-over itself, so **Phase 2 is one batch**. What keeps it reviewable: Phase 1 lands everything that can exist beside the old code (schema, data copy, new models/relations/enum/factories, week dates, schedule UI) with its own tests; the cut-over is then renames, type swaps and dropped filters, committed in six steps (models → domain services → routes/controllers/requests/policy → page services/views → jobs/seeders/docs → tests); Phase 3 is pure schema. Expand makes `training_session_id` nullable and drops its FK so the cut-over code can stop writing it; the new unique keys arrive with the drops in 3.1.
+
+## Assumptions
+
+- A1 Every program has at most one session (dev: one; production: empty). The 1.1 migration aborts otherwise and nothing is written.
+- A2 The schedule form and the migration date every week by `week_number`, inactive weeks included (a reactivated week keeps its slot); status, openness and `activeWeeks()` read active weeks only.
+- A3 `programs.is_active` stays the "offered" flag; Available curricula = `is_active` and not completed (Unscheduled and Upcoming can be joined).
+- A4 An inactive week stays 404 under `program.week`, as today.
+- A5 `repository_url` stays one per participant per curriculum.
+- A6 Old notification keys and export rows need no data migration (0 rows in dev, none in production).
+- A7 CSV column "Training session" → "Curriculum"; the Drive folder name is the curriculum name.
+- A8 The read-only banner and the 403 read "This curriculum has ended." (tests assert the exact text).
+- A9 A curriculum created in 5.1 gets, per week, a checklist "Week N Checklist" with one session-logs item ("Session logs committed for this week"), so `Program::weekNumbersWithoutChecklist()` never trips.
+- A10 `docs/plans/admin-curriculum-editing.md` CUR-13 "names the sessions that use the program" becomes "shows the curriculum's status and dates" (4.2).
+
+## Open questions
+
+None blocking. See Open decisions for `AdoptSquashedMigrationsCommand`.
+
+## Phase 1 — Expand (old code untouched, suite green)
+
+- [ ] **1.1 Expand migrations and data move** (MRG-1, SCH-1, MIG-1, MIG-2) — size M
+  - **Do:**
+    - `2026_10_28_000001_add_schedule_to_training_weeks_table`: `starts_on`, `ends_on` date nullable.
+    - `…000002_create_program_participants_table`, `…000003_create_program_mentors_table`, `…000004_create_program_resources_table` (Design › Data model).
+    - `…000005_add_program_to_mentor_assignments_table`: `program_id` nullable FK cascade + the new index; `dropForeign(['training_session_id'])` and `foreignId('training_session_id')->nullable()->change()`.
+    - `…000006_make_training_session_optional_on_training_records`: for `activity_submissions`, `gate_evaluations`, `weekly_video_recordings`: `dropForeign(['training_session_id'])` then `->nullable()->change()`. Keep the old indexes for now.
+    - `…000007_move_training_sessions_onto_programs`: `DB::table()` only. First `training_sessions` grouped by `program_id` having count > 1 → `throw new RuntimeException("Program {id} has {n} training sessions; merge them by hand before running this migration.")` before any write. Then per session: insert `program_participants` (program_id, user_id, joined_at, added_by, repository_url, timestamps), `program_mentors`, `program_resources`; `update mentor_assignments set program_id`; date the program's weeks with `week_number ≤ weeks_count`: `starts_on + 7×(N−1)` days, `ends_on = +6` (Carbon per row). `down()` drops what was added and restores the FKs (data not reversed; say so in the docblock).
+    - Delete `tests/Feature/RequireTrainingSessionOnTrainingRecordsMigrationTest.php` and `TurnTrainingSessionResourcesIntoLinksMigrationTest.php`.
+  - **Acceptance:** `migrate:fresh` on SQLite and `migrate` on dev MySQL succeed; dev shows 1 `program_participants` row, the 4 weeks dated 9 Nov–6 Dec 2026, the evaluation still present; `Schema::getForeignKeys('activity_submissions')` has no `training_sessions` key; the old pages still work.
+  - **Tests:** new `tests/Feature/MoveTrainingSessionsOntoProgramsMigrationTest.php` (plain `TestCase`, no `RefreshDatabase`; `tearDown` resets `RefreshDatabaseState::$migrated`): `migrate:fresh --realpath --path=` the 43 squashed files plus 000001..000006, insert a program with 4 weeks, one session (`weeks_count` 3, start 2026-11-09), two participants (one with a repository URL), a mentor, a current and an ended assignment, two resources, a submission, evaluation and video via `DB::table()`; run 000007; assert the moved rows, `mentor_assignments.program_id`, weeks 1–3 dated (`2026-11-09..15`, `16..22`, `23..29`), week 4 null, work rows untouched. Second case: two sessions for one program → `RuntimeException` and empty new tables. Third: on the head schema, `training_session_id` is nullable on the three work tables and `mentor_assignments`.
+  - **Depends on:** nothing.
+
+- [ ] **1.2 Program absorbs the session model** (MRG-1, SCH-1, STA-1, STA-3) — size M
+  - **Do:**
+    - `ProgramStatus` enum with `label()`, `tone()`.
+    - Models `ProgramParticipant` (Pivot, `$incrementing`, casts `joined_at`, `scopeForParticipantInProgram`, `scopeCurrentlyMentoredBy`, `program()`, `participant()`, `addedBy()`), `ProgramMentor`, `ProgramResource` (`googleDriveLink()`); `ProgramResourceFactory`.
+    - `Program`: `participants()`, `mentors()`, `mentorAssignments()`, `resources()`, `activeWeeks()`, `includesWeek()`, `includesParticipant()`, `includesMentor()`, `hasParticipants()`, `status()`, `isCompleted()`, `acceptsWork()`, `scheduleStartsOn()/scheduleEndsOn()`, `dateRangeLabel()`, scopes `withScheduleBounds`, `notCompleted`, `openToJoin`, `completed`, `ENDED_MESSAGE`. Keep `trainingSessions()` until 2.1.
+    - `TrainingWeek`: casts, fillable dates, `isScheduled()`, `isOpen()`, `hasEnded()`, `dateRangeLabel()`.
+    - `MentorAssignment`: `program()`, fillable `program_id`, the new `$programIdColumn` scopes **beside** the old ones (old removed in 2.1).
+    - `User`: `programs()`, `mentoredPrograms()`, `mentorsParticipantInProgram()` beside the session versions.
+    - Factories: `TrainingWeekFactory` default `starts_on = today()`, `ends_on = today()->addDays(6)`; states `opensOn(CarbonInterface)`, `upcoming()`, `ended()`, `unscheduled()`; `ProgramFactory::withParticipants(User ...)`, `withMentors(User ...)`, `withWeeks(int $count, ?CarbonInterface $startsOn = null)`, `completed()` / `upcoming()` / `unscheduled()`; `MentorAssignmentFactory` adds `program_id => Program::factory()` (keeps `training_session_id` until 2.1).
+  - **Acceptance:** `Program::factory()->withWeeks(4, today())->create()->status()` is Active; `withWeeks(4, today()->addWeek())` Upcoming; no weeks → Unscheduled; a week with `starts_on` null is not open; `acceptsWork()` false after the last week and true for a reopened attempt.
+  - **Tests:** new `ProgramStatusTest` (four boundaries, bounds with/without `withScheduleBounds`, `openToJoin`, `acceptsWork`), `TrainingWeekScheduleTest` (`isOpen` today/tomorrow/null, labels), `ProgramMembershipTest` (relations, `includesParticipant/Mentor`, `mentorsParticipantInProgram`, `ProgramParticipant::currentlyMentoredBy`).
+  - **Depends on:** 1.1.
+
+- [ ] **1.3 Admin schedule editing** (SCH-2, SCH-3, ADM-1 partly) — size M
+  - **Do:**
+    - Route `PUT admin/programs/{program}/schedule` `admin.programs.schedule.update` → `AdminCurriculumScheduleController@update` with `ScheduleProgramRequest` (`#[ErrorBag('schedule')]`, `starts_on` required date, `authorize` = `can('update', $program)`, redirect to `#schedule`).
+    - `CurriculumScheduleService::scheduleFromStart()`; audit `curriculum_scheduled` (`program_id`, `starts_on`, `changes` per week number); unchanged → no save, no audit.
+    - `UpdateTrainingWeekRequest` + `CurriculumWeekService::updateWeek()` take the dates (SCH-3); the week Details form gets two date inputs; `curriculum_week_updated` `changes` gains `starts_on`/`ends_on`.
+    - `CurriculumPageService::programData()` adds the status badge and date range to the header, a Dates column to the Weeks table and a `schedule` block (form URL, error bag, current start, per-week rows), rendered as a card under the Weeks table until 2.1 adds the tab host; `indexData()` adds status and dates (`withScheduleBounds`).
+  - **Acceptance:** entering 2026-11-09 on a 4-week program dates the weeks 9–15 Nov, 16–22 Nov, 23–29 Nov, 30 Nov–6 Dec; a week end before its start, or week 2 starting on week 1's last day, fails beside the week form and saves nothing; the badge reads Upcoming/Active/Completed accordingly. Participants' pages are still driven by the old session; say so in the batch note.
+  - **Tests:** new `AdminCurriculumScheduleTest`: schedule from start (incl. an inactive week per A2), re-schedule overwrites, unchanged writes no audit, week date edits, the three validation failures, role access; `AdminCurriculumPagesTest` for the new columns.
+  - **Depends on:** 1.2.
+
+## Phase 2 — Cut-over
+
+- [ ] **2.1 Program replaces TrainingSession everywhere** (MRG-1–3, STA-1–4, MEM-1–2, ADM-1–3, RPT-1, SEED-1) — size XL (~100 `app/` files, 7 views, routes, ~70 test files). One batch, committed in six steps so each diff reads as one concern:
+  - **Do:**
+    1. *Models:* delete `TrainingSession`, `TrainingSessionParticipant`, `TrainingSessionMentor`, `TrainingSessionResource`, `TrainingSessionStatus`, `SessionWeekState` (→ `ProgramWeekState`); remove `training_session_id` from the fillables of `ActivitySubmission`, `GateEvaluation`, `WeeklyVideoRecording`, `MentorAssignment`; `isForActivityInSession()` → `isForActivity(Activity)`; swap `currentlyMentoredBy` scopes to the program column form and delete the old `MentorAssignment` scopes and `User` session relations; move `#[ObservedBy]` to `ProgramParticipant`; `Program::trainingSessions()` gone. Delete `TrainingSessionFactory` / `TrainingSessionResourceFactory`; work-row factories and `MentorAssignmentFactory` drop `training_session_id`.
+    2. *Domain services:* `WeekProgressionService`, `GateReadinessService`, `ScoringService`, `ScoringReportService`, `CoachReportService`, `MissingSubmissionReportService`, `ParticipantNotificationService`, `MentorAssignmentService`, `ProgramEnrollmentService`, `ProgramResourceService` (`week_number` validated against the highest active week number), `GateReviewService`, `SubmissionWorkflowService`, `ActivitySubmissionService`, `WeeklyVideoRecordingService`, `TrainingWorkbookService`, `SyncTrainingDataJob` per Design › Mentor scope and reports.
+    3. *Routes, middleware, policy, controllers, requests:* the route table; `EnsureWeekBelongsToProgram` + alias; `ProgramPolicy` merged, `TrainingSessionPolicy` deleted; controllers renamed/deleted per Renames; the nine `Filter*` / `ExportCoachReportRequest` `session` → `program`; `StoreRegisteredUserRequest` `program_ids` (+ `register.blade.php`, `RegisteredUserController`); `StoreGateReviewRequest`, `StoreWeeklyVideoRecordingRequest`, `UpdateProgramRepositoryRequest` read `$this->route('program')`; `AssignMentorRequest` exists-rule on `program_mentors`; `ScoringController` / `CoachReviewController` redirects use `activity->week->program_id`.
+    4. *Page services and views:* `ParticipantProgramPageService` (landing lists from `Program::openToJoin()` / `$participant->programs()`, eyebrow "CURRICULUM", resource unlock by `starts_on`), `CoachProgramFilterService`, `AdminProgramDashboardService` + the tabbed `admin/curriculum/program.blade.php` with `admin/curriculum/tabs/*` (panels moved from `admin/sessions/show.blade.php`; `schedule-notice` replaces `sessions-notice` on program, week and activity pages), `admin/curriculum/index` columns, admin dashboard "Curricula" card, `training-programs/*` views, `coach/participant.blade.php` card "Curriculum", `SidebarNavigationService`, every coach filter select `name="program"` with "All curricula"; status badges read `ProgramStatus`; the ended banner text (A8).
+    5. *Seeders, provisioning, docs:* `L4TrainingProgramSeeder` week definitions gain `starts_on`/`ends_on` (9 Nov 2026 + 7(N−1)); delete `L4FirstSessionSeeder` and its calls in `DatabaseSeeder`, `EnsureDevelopmentBaselineCommand`; `DevelopmentAccountProvisioner::enrollInL4Program()` finds the program by `PROGRAM_NAME` and uses `ProgramEnrollmentService::join()` / `MentorAssignmentService`; `docs/AWS_DEPLOYMENT.md` § "After: seed the program" keeps one command; `AdminAuditService` docblock and action names (`program_participant_added|removed`, `program_mentor_added|removed|assigned`, `program_resource_added|renamed|removed`, metadata `program_id`, `program_resource_id`); `GitHubRepositoryUrl` docblock.
+    6. *Tests:* delete `TrainingSessionModelTest`, `L4FirstSessionSeederTest` (dates asserted in `L4TrainingProgramSeederTest`), `AdminTrainingSessionTest` (role-access cases move to `AdminCurriculumPagesTest`); rename and rewrite `AdminTrainingSessionDashboardTest` → `AdminCurriculumDashboardTest`, `AdminTrainingSession{Participant,Mentor,Resource}Test` → `AdminProgram{…}Test`, `ParticipantTrainingSessionPageTest` → `ParticipantProgramPageTest`, `JoinTrainingSessionTest` → `JoinProgramTest`, `SessionRepositoryUrlTest` → `ProgramRepositoryUrlTest`, `TrainingSessionAccessTest` → `ProgramAccessTest` (drop "beyond the session length" and "another session of the program"; add "unscheduled week is not open" and "week opens on its own date"), `CompletedTrainingSessionTest` → `CompletedProgramTest`; `SessionScopedRecordsTest` is replaced in 3.1. The other ~55 files change mechanically: `TrainingSession::factory()->forWeek($week)->withParticipants($p)->create()` → `Program::factory()->withParticipants($p)` with factory weeks (which open today by default) or `$program->participants()->attach(...)`, `MentorAssignment::factory()->for($session)` → `['program_id' => $program->id]`, `'session' => $id` → `'program' => $id`, route params `[$session, $week, …]` → `[$program, $week, …]`, audit assertions, notification keys, `scope_key` strings, CSV headers.
+  - **Acceptance:** every route in the "After" column answers; a participant in a curriculum with weeks dated today/next week sees week 1 open and week 2 "Opens on …", an unscheduled week "Not scheduled yet"; a coach who mentors the participant opens their pages, another coach gets 403; the admin page shows seven tabs with counts and every action returns to its tab; `db:seed` on a fresh database yields the dated L4 curriculum with the demo participants enrolled; `GoogleDriveSyncTest` asserts `program:` scope keys; `grep -rE 'TrainingSession|training_session|trainingSession' app resources routes database/seeders database/factories` returns nothing.
+  - **Tests:** step 6; full suite green; `npm run build`.
+  - **Depends on:** 1.3.
+
+## Phase 3 — Contract
+
+- [ ] **3.1 Drop the session schema** (MIG-2, MRG-3) — size S
+  - **Do:** `2026_10_28_000008_drop_training_sessions`: guard queries that throw `RuntimeException` on duplicate (`training_gate_id`, `user_id`) in `gate_evaluations`, duplicate (`user_id`, `training_week_id`) in `weekly_video_recordings`, or a null `mentor_assignments.program_id`; then per table, inside one `Schema::table()` each: `activity_submissions` `dropIndex('activity_submissions_session_attempt_idx')`, `dropColumn('training_session_id')`, new index; `gate_evaluations` `dropUnique`, `dropColumn`, new unique; `weekly_video_recordings` likewise; `mentor_assignments` `dropIndex(...)`, `dropColumn`, `program_id` to NOT NULL; `Schema::dropIfExists` in order `training_session_resources`, `training_session_mentors`, `training_session_participants`, `training_sessions`. `down()` recreates the four tables as the squashed files define them and re-adds nullable columns (no data).
+  - **Acceptance:** `migrate:fresh` (SQLite) and `migrate` (dev MySQL) succeed; `Schema::hasTable('training_sessions')` false; the three key names exist; the evaluation row survives on dev.
+  - **Tests:** new `DropTrainingSessionsMigrationTest` (`LazilyRefreshDatabase`): columns and tables gone, `Schema::hasIndex(...)` for the three keys, a second evaluation of the same Gate for the same participant and a second video for the same week throw `QueryException` (replaces `SessionScopedRecordsTest`, deleted); `MoveTrainingSessionsOntoProgramsMigrationTest` gains a step that runs 000008 after 000007.
+  - **Depends on:** 2.1.
+
+## Phase 4 — Cleanup and documentation
+
+- [ ] **4.1 Split the admin dashboard service** (ADM-1) — size M, no behavior change
+  - **Do:** `AdminProgramDashboardService` → `ProgramPeopleTabService` + `ProgramOverviewTabService`; `AdminCurriculumController@show` composes three services.
+  - **Acceptance:** `AdminCurriculumDashboardTest` unchanged and green, including its query-count case; each service under ~300 lines.
+  - **Depends on:** 2.1.
+
+- [ ] **4.2 Specs and plans** — size S
+  - **Do:** `docs/specs/training-plan.md`: terms and SES/MEN/ADM/PAR/WK rules rewritten for curricula (week opens on its own start date; unscheduled never opens); `docs/plans/developer-program-and-training-sessions.md` Design › "Data model", "Session rules", "Roles and permissions", "Routes", "Main services and screens": strike the session rows with "Superseded by curriculum-sessions-merge X.Y: …"; `docs/plans/admin-curriculum-editing.md`: CUR-1/CUR-13 wording (A10) and a note on the "No migrations" rule; `docs/CODE_QUALITY_PLAN.md` entries naming `AdminTrainingSessionPageService` / `TrainingSessionResourceService`; re-read `docs/AWS_DEPLOYMENT.md` for stale "session" wording.
+  - **Acceptance:** `grep -ri "training session" docs` lists only struck-through or "superseded" lines.
+  - **Depends on:** 3.1.
+
+## Phase 5 — Follow-ups (optional)
+
+- [ ] **5.1 Create a curriculum** (FOL-1) — size M
+  - **Do:** `admin.programs.create|store`; `StoreProgramRequest` (name required, unique; description nullable; `weeks_count` 1–12; `starts_on` nullable date); `CurriculumService::create()` creates the program, weeks "Week N" each with the A9 checklist, schedules through `CurriculumScheduleService`; audit `curriculum_created`; `ProgramPolicy::create`; "New curriculum" buttons on the list and the admin dashboard. Lift the "creating programs/weeks is out of scope" line in `admin-curriculum-editing.md`.
+  - **Tests:** `AdminCurriculumCreateTest`: creates with weeks and schedule, validation, role access, audit.
+  - **Depends on:** 4.2.
+- [ ] **5.2 Duplicate a curriculum** (FOL-2) — size M
+  - **Do:** `POST admin/programs/{program}/duplicate` `admin.programs.duplicate` with `DuplicateProgramRequest` (name, description, `starts_on` nullable); `CurriculumService::duplicate()` copies weeks (dated only when `starts_on` given), activities with their `is_active`, requirements, `configuration`, Gates and criteria in one transaction with position/key fidelity; no participants, mentors, resources or work; audit `curriculum_duplicated` with `source_program_id`; a "Duplicate" action on the program page.
+  - **Tests:** `AdminCurriculumDuplicateTest`: structural equality of the copy, independence, schedule applied, validation, role access.
+  - **Depends on:** 5.1.
+
+## Out of scope / follow-ups
+
+- Running two cohorts of one curriculum at once (that is a second curriculum via 5.2), per-week membership, moving a participant between curricula, any change to Gate review, scoring, recovery or evidence rules.
+- Deleting `AdoptSquashedMigrationsCommand`, re-squashing migrations, editing the `2026_10_24_*` files.
+- Drive sync changes beyond keys and folder names.
+
+## Open decisions
+
+- `AdoptSquashedMigrationsCommand` and its test can be deleted once the user confirms no other database still runs the pre-squash files.
+- If the implementer finds 2.1's six-commit split still too wide to review, the fallback is to land steps 1+2 with the old routes temporarily broken on a branch and finish in the same PR, never on `main`.
+

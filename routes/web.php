@@ -144,6 +144,8 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
             Route::post('/{program}/weeks/{week}/checklist/items', [AdminChecklistItemController::class, 'store'])->name('checklist-items.store');
             Route::put('/{program}/weeks/{week}/checklist/items/{checklistItem}', [AdminChecklistItemController::class, 'update'])->name('checklist-items.update');
             Route::patch('/{program}/weeks/{week}/checklist/items/{checklistItem}/move', [AdminChecklistItemController::class, 'move'])->name('checklist-items.move');
+            Route::delete('/{program}/weeks/{week}/checklist/items/{checklistItem}', [AdminChecklistItemController::class, 'destroy'])->name('checklist-items.destroy');
+            Route::patch('/{program}/weeks/{week}/checklist/items/{checklistItem}/restore', [AdminChecklistItemController::class, 'restore'])->name('checklist-items.restore');
         });
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');

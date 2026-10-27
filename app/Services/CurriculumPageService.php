@@ -89,11 +89,11 @@ class CurriculumPageService
      * their form; Activities lists every activity in position order (see activityRows()) with the error bag of their
      * row buttons, and holds the URL and error bag of the "Add activity" form; Checklist holds the week's checklist (its
      * first active Gate) with the URL and error bag of its form, the items on it in position order with theirs, the
-     * item types an admin can choose, the URL and error bag of the "Add item" form and, apart, its retired items, or
-     * null when the week has none (see checklistData()).
+     * item types an admin can choose, the URL and error bag of the "Add item" form and, apart, its retired items with
+     * their Restore URLs, or null when the week has none (see checklistData()).
      * Reads the activities, their submission fields, the checklist and its items in four queries, plus the notice's one.
      *
-     * @return array{title: string, statusLabel: string, statusTone: string, programName: string, programUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, update_url: string, error_bag: string}, activities: list<array{title: string, status_label: string, status_tone: string, is_active: bool, field_count: int, edit_url: string, move_url: string, can_move_up: bool, can_move_down: bool, deactivate_url: string, deactivate_confirmation: string, reactivate_url: string}>, activitiesErrorBag: string, addActivity: array{store_url: string, error_bag: string}, checklist: ?array{title: string, description: ?string, update_url: string, error_bag: string, items: list<array{id: int, type: string, has_fixed_type: bool, fixed_type_note: string, title: string, description: ?string, type_label: string, update_url: string, error_bag: string, move_url: string, can_move_up: bool, can_move_down: bool}>, item_types: list<array{value: string, label: string}>, add_item: array{store_url: string, error_bag: string, default_type: string}, removed_items: list<array{title: string, description: ?string, type_label: string}>}}
+     * @return array{title: string, statusLabel: string, statusTone: string, programName: string, programUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, update_url: string, error_bag: string}, activities: list<array{title: string, status_label: string, status_tone: string, is_active: bool, field_count: int, edit_url: string, move_url: string, can_move_up: bool, can_move_down: bool, deactivate_url: string, deactivate_confirmation: string, reactivate_url: string}>, activitiesErrorBag: string, addActivity: array{store_url: string, error_bag: string}, checklist: ?array{title: string, description: ?string, update_url: string, error_bag: string, items: list<array{id: int, type: string, has_fixed_type: bool, fixed_type_note: string, title: string, description: ?string, type_label: string, update_url: string, error_bag: string, move_url: string, can_move_up: bool, can_move_down: bool, destroy_url: string, remove_confirmation: string}>, item_types: list<array{value: string, label: string}>, add_item: array{store_url: string, error_bag: string, default_type: string}, removed_items: list<array{title: string, description: ?string, type_label: string, restore_url: string}>}}
      */
     public function weekData(Program $program, TrainingWeek $week): array
     {
@@ -322,11 +322,12 @@ class CurriculumPageService
      * The checklist tab's content: the checklist's title and description with the URL and error bag of their form, the
      * items on it in position order, each with its id, its type and whether that type is not offered (and so cannot
      * change, with the note shown in place of the type select), the URL and error bag of its form and the URL of its
-     * Move buttons (the first item cannot move up and the last cannot move down), the item types an admin can choose
-     * (`GateCriterion::TYPE_LABELS`), the URL, error bag and preselected type of the "Add item" form, and its retired
-     * items in position order, or null when the week has no checklist.
+     * Move buttons (the first item cannot move up and the last cannot move down) and of its Remove button with the
+     * confirmation that names it, the item types an admin can choose (`GateCriterion::TYPE_LABELS`), the URL, error bag
+     * and preselected type of the "Add item" form, and its retired items in position order with their Restore URLs, or
+     * null when the week has no checklist.
      *
-     * @return ?array{title: string, description: ?string, update_url: string, error_bag: string, items: list<array{id: int, type: string, has_fixed_type: bool, fixed_type_note: string, title: string, description: ?string, type_label: string, update_url: string, error_bag: string, move_url: string, can_move_up: bool, can_move_down: bool}>, item_types: list<array{value: string, label: string}>, add_item: array{store_url: string, error_bag: string, default_type: string}, removed_items: list<array{title: string, description: ?string, type_label: string}>}
+     * @return ?array{title: string, description: ?string, update_url: string, error_bag: string, items: list<array{id: int, type: string, has_fixed_type: bool, fixed_type_note: string, title: string, description: ?string, type_label: string, update_url: string, error_bag: string, move_url: string, can_move_up: bool, can_move_down: bool, destroy_url: string, remove_confirmation: string}>, item_types: list<array{value: string, label: string}>, add_item: array{store_url: string, error_bag: string, default_type: string}, removed_items: list<array{title: string, description: ?string, type_label: string, restore_url: string}>}
      */
     private function checklistData(Program $program, TrainingWeek $week, ?TrainingGate $checklist): ?array
     {
@@ -355,6 +356,8 @@ class CurriculumPageService
                     'move_url' => route('admin.programs.checklist-items.move', [$program, $week, $item]),
                     'can_move_up' => $index > 0,
                     'can_move_down' => $index < $lastIndex,
+                    'destroy_url' => route('admin.programs.checklist-items.destroy', [$program, $week, $item]),
+                    'remove_confirmation' => "Remove {$item->title}? Mentors' earlier ticks are kept; the item leaves the checklist of every session.",
                 ])
                 ->all(),
             'item_types' => collect(GateCriterion::TYPE_LABELS)
@@ -366,7 +369,13 @@ class CurriculumPageService
                 'error_bag' => 'addChecklistItem',
                 'default_type' => GateCriterion::TYPE_DELIVERABLE,
             ],
-            'removed_items' => $removedItems->map($this->checklistItemRow(...))->values()->all(),
+            'removed_items' => $removedItems
+                ->map(fn (GateCriterion $item): array => [
+                    ...$this->checklistItemRow($item),
+                    'restore_url' => route('admin.programs.checklist-items.restore', [$program, $week, $item]),
+                ])
+                ->values()
+                ->all(),
         ];
     }
 

@@ -9,6 +9,7 @@
         $addActivityErrors = $errors->getBag($addActivity['error_bag']);
         $activityErrors = $errors->getBag($activitiesErrorBag);
         $checklistErrors = $errors->getBag($checklist['error_bag'] ?? 'checklist');
+        $hasChecklistFormErrors = $checklistErrors->hasAny(['title', 'description']);
         $addItemErrors = $errors->getBag($checklist['add_item']['error_bag'] ?? 'addChecklistItem');
         $addItemType = $addItemErrors->any() ? old('type') : ($checklist['add_item']['default_type'] ?? null);
     @endphp
@@ -238,6 +239,9 @@
                         <h2 id="week-checklist-title" class="text-xl font-extrabold">Checklist</h2>
                         @if($checklist)
                             <p class="text-sm/relaxed text-muted">Participants see the checklist on their week's pages, and their mentor ticks each item. Changes show in every session at once; an edited item keeps its ticks.</p>
+                            @if($checklistErrors->has('item'))
+                                <x-ui.alert tone="error" role="alert" data-checklist-error>{{ $checklistErrors->first('item') }}</x-ui.alert>
+                            @endif
 
                             <form method="POST" action="{{ $checklist['update_url'] }}" class="grid min-w-0 grid-cols-1 gap-4 lg:max-w-2xl" aria-labelledby="week-checklist-title" data-checklist-form>
                                 @csrf
@@ -251,7 +255,7 @@
                                         type="text"
                                         required
                                         maxlength="255"
-                                        value="{{ $checklistErrors->any() ? old('title') : $checklist['title'] }}"
+                                        value="{{ $hasChecklistFormErrors ? old('title') : $checklist['title'] }}"
                                         @if($checklistErrors->has('title')) aria-invalid="true" aria-describedby="checklist-title-error" @endif
                                         class="{{ $controlClasses }}"
                                     >
@@ -271,7 +275,7 @@
                                         aria-describedby="checklist-description-hint{{ $checklistErrors->has('description') ? ' checklist-description-error' : '' }}"
                                         @if($checklistErrors->has('description')) aria-invalid="true" @endif
                                         class="{{ $controlClasses }} min-h-20 resize-y"
-                                    >{{ $checklistErrors->any() ? old('description') : $checklist['description'] }}</textarea>
+                                    >{{ $hasChecklistFormErrors ? old('description') : $checklist['description'] }}</textarea>
                                     @if($checklistErrors->has('description'))
                                         <p id="checklist-description-error" class="text-sm text-rose-200" role="alert">{{ $checklistErrors->first('description') }}</p>
                                     @endif
@@ -298,12 +302,19 @@
                                                     <h4 id="{{ $itemId }}-heading" class="text-base font-extrabold wrap-break-word">{{ $item['title'] }}</h4>
                                                     <x-ui.badge tone="accent">{{ $item['type_label'] }}</x-ui.badge>
                                                 </div>
-                                                <form method="POST" action="{{ $item['move_url'] }}" class="flex flex-wrap gap-2" data-move-checklist-item-form>
-                                                    @csrf
-                                                    @method('PATCH')
-                                                    <x-ui.button variant="secondary" type="submit" name="direction" value="up" :disabled="! $item['can_move_up']" aria-label="Move {{ $item['title'] }} up">Move Up</x-ui.button>
-                                                    <x-ui.button variant="secondary" type="submit" name="direction" value="down" :disabled="! $item['can_move_down']" aria-label="Move {{ $item['title'] }} down">Move Down</x-ui.button>
-                                                </form>
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <form method="POST" action="{{ $item['move_url'] }}" class="flex flex-wrap gap-2" data-move-checklist-item-form>
+                                                        @csrf
+                                                        @method('PATCH')
+                                                        <x-ui.button variant="secondary" type="submit" name="direction" value="up" :disabled="! $item['can_move_up']" aria-label="Move {{ $item['title'] }} up">Move Up</x-ui.button>
+                                                        <x-ui.button variant="secondary" type="submit" name="direction" value="down" :disabled="! $item['can_move_down']" aria-label="Move {{ $item['title'] }} down">Move Down</x-ui.button>
+                                                    </form>
+                                                    <form method="POST" action="{{ $item['destroy_url'] }}" data-confirm="{{ $item['remove_confirmation'] }}" data-remove-checklist-item-form>
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <x-ui.button variant="secondary" type="submit" aria-label="Remove {{ $item['title'] }}">Remove</x-ui.button>
+                                                    </form>
+                                                </div>
 
                                                 <form method="POST" action="{{ $item['update_url'] }}" class="grid min-w-0 grid-cols-1 gap-4 border-t border-line pt-4 lg:max-w-2xl" aria-labelledby="{{ $itemId }}-heading" data-checklist-item-form>
                                                     @csrf
@@ -451,7 +462,7 @@
                             @if($checklist['removed_items'] !== [])
                                 <section class="grid grid-cols-1 gap-3" aria-labelledby="week-removed-items-title" data-removed-checklist-items>
                                     <h3 id="week-removed-items-title" class="text-base font-extrabold">Removed items</h3>
-                                    <p class="text-sm/relaxed text-muted">These items left the checklist. Mentors' earlier ticks on them are kept.</p>
+                                    <p class="text-sm/relaxed text-muted">These items left the checklist. Mentors' earlier ticks on them are kept. A restored item comes back last on the checklist, with those ticks.</p>
                                     <ul class="grid grid-cols-1 gap-3">
                                         @foreach($checklist['removed_items'] as $item)
                                             <li class="grid grid-cols-1 gap-2 rounded-xl border border-line bg-surface-sunken px-4 py-3.5" data-removed-checklist-item>
@@ -462,6 +473,11 @@
                                                 @if($item['description'])
                                                     <p class="text-sm/relaxed whitespace-pre-line wrap-break-word text-subtle">{{ $item['description'] }}</p>
                                                 @endif
+                                                <form method="POST" action="{{ $item['restore_url'] }}" data-restore-checklist-item-form>
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <x-ui.button variant="secondary" type="submit" aria-label="Restore {{ $item['title'] }}">Restore</x-ui.button>
+                                                </form>
                                             </li>
                                         @endforeach
                                     </ul>

@@ -7,14 +7,18 @@ use App\Models\TrainingGate;
 use App\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Admin edits to a week's checklist (its first active Gate) and its items on the Curriculum pages. Items keep their ids,
- * so mentors' ticks stay with them. Every edit is saved in a transaction with its `AdminAuditService` row; an edit that
- * changes nothing is neither saved nor recorded.
+ * so mentors' ticks stay with them, and an item with ticks is retired rather than deleted. Every edit is saved in a
+ * transaction with its `AdminAuditService` row; an edit that changes nothing is neither saved nor recorded.
  */
 class ChecklistService
 {
+    /** The error when an admin tries to remove a checklist's last item (A6). */
+    public const LAST_ITEM_MESSAGE = 'A checklist needs at least one item.';
+
     public function __construct(private AdminAuditService $audit, private CurriculumOrderService $order) {}
 
     /**
@@ -147,6 +151,89 @@ class ChecklistService
             ]);
 
             return true;
+        });
+    }
+
+    /**
+     * Take the item off its checklist and record `curriculum_checklist_item_removed` with whether it was deleted and its
+     * type, title and position. An item no mentor has ticked (no `gate_criterion_evaluations` row) is deleted; one with
+     * ticks is retired (`is_required = false`), so its ticks keep their rows and stay with it, and it can be restored.
+     * Either way it leaves the participant and mentor checklists of every session, and no other item's tick changes.
+     * The checklist (Gate) row and the item row are locked while this is decided, so the item cannot get its first tick
+     * or be removed twice in the meantime, and two removals at once cannot take a checklist's last two items. Returns
+     * whether the item was deleted; an item already off the checklist stays as it is and nothing is recorded.
+     *
+     * @throws ValidationException when the item is the last one on its checklist (`item`).
+     */
+    public function removeItem(GateCriterion $item, User $admin): bool
+    {
+        return DB::transaction(function () use ($item, $admin): bool {
+            TrainingGate::query()->whereKey($item->training_gate_id)->lockForUpdate()->firstOrFail();
+            GateCriterion::query()->whereKey($item->id)->lockForUpdate()->firstOrFail();
+            $item->refresh();
+
+            if (! $item->isOnChecklist()) {
+                return false;
+            }
+
+            if ($item->gate->criteria()->onChecklist()->whereKeyNot($item->id)->doesntExist()) {
+                throw ValidationException::withMessages(['item' => self::LAST_ITEM_MESSAGE]);
+            }
+
+            $isDeleted = $item->evaluations()->doesntExist();
+            $metadata = [
+                ...$this->ids($item->gate),
+                'gate_criterion_id' => $item->id,
+                'deleted' => $isDeleted,
+                'type' => $item->criterion_type,
+                'title' => $item->title,
+                'position' => $item->position,
+            ];
+
+            if ($isDeleted) {
+                $item->delete();
+            } else {
+                $item->update(['is_required' => false]);
+            }
+
+            $this->audit->record($admin, 'curriculum_checklist_item_removed', metadata: $metadata);
+
+            return $isDeleted;
+        });
+    }
+
+    /**
+     * Put a removed item back on its checklist, at the end after every item of the Gate (removed ones included), and
+     * record `curriculum_checklist_item_restored` with the position before and after. Its id is unchanged, so mentors'
+     * earlier ticks on it show again. The checklist (Gate) row is locked while the position is chosen. An item already
+     * on the checklist stays as it is and nothing is recorded.
+     */
+    public function restoreItem(GateCriterion $item, User $admin): GateCriterion
+    {
+        return DB::transaction(function () use ($item, $admin): GateCriterion {
+            TrainingGate::query()->whereKey($item->training_gate_id)->lockForUpdate()->firstOrFail();
+            $item->refresh();
+
+            if ($item->isOnChecklist()) {
+                return $item;
+            }
+
+            $from = $item->position;
+            $item->update([
+                'is_required' => true,
+                'position' => (int) $item->gate->criteria()->max('position') + 1,
+            ]);
+
+            $this->audit->record($admin, 'curriculum_checklist_item_restored', metadata: [
+                ...$this->ids($item->gate),
+                'gate_criterion_id' => $item->id,
+                'changes' => [
+                    'removed' => ['from' => true, 'to' => false],
+                    'position' => ['from' => $from, 'to' => $item->position],
+                ],
+            ]);
+
+            return $item;
         });
     }
 

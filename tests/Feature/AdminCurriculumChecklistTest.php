@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\GateCriterionStatus;
+use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\AdminAuditLog;
 use App\Models\GateCriterion;
@@ -26,7 +27,7 @@ class AdminCurriculumChecklistTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $checklist = $this->checklist();
-        [$deliverable, $sessionLogs] = $this->items($checklist);
+        [$deliverable, $sessionLogs, $video] = $this->items($checklist);
         $removed = $this->addItem($checklist, GateCriterion::TYPE_DELIVERABLE, 'Retired deliverable', 4, onChecklist: false);
 
         $this->actingAs($admin)
@@ -39,6 +40,10 @@ class AdminCurriculumChecklistTest extends TestCase
                 'value="Week 1 checklist"',
                 '>Your mentor ticks each item once it is done.</textarea>',
                 '>Save Checklist<',
+                'action="'.$this->moveUrl($deliverable).'"',
+                'name="_method" value="PATCH"',
+                '<button type="submit" disabled name="direction" value="up" aria-label="Move Feature shipped up"',
+                '<button type="submit"  name="direction" value="down" aria-label="Move Feature shipped down"',
                 'action="'.$this->itemUrl($deliverable).'"',
                 'id="checklist-item-'.$deliverable->id.'-title"',
                 'value="Feature shipped"',
@@ -49,10 +54,19 @@ class AdminCurriculumChecklistTest extends TestCase
                 'aria-label="Save Item Feature shipped"',
                 'action="'.$this->itemUrl($sessionLogs).'"',
                 '<option value="session_logs" selected>Session logs</option>',
+                'action="'.$this->moveUrl($video).'"',
+                '<button type="submit"  name="direction" value="up" aria-label="Move Video walkthrough up"',
+                '<button type="submit" disabled name="direction" value="down" aria-label="Move Video walkthrough down"',
+                'Add item',
+                'action="'.$this->storeUrl($checklist).'"',
+                'id="add-checklist-item-title"',
+                '<option value="deliverable" selected>Deliverable</option>',
+                '>Add Item<',
                 'Removed items',
                 'Retired deliverable',
             ], false)
-            ->assertDontSee('action="'.$this->itemUrl($removed).'"', false);
+            ->assertDontSee('action="'.$this->itemUrl($removed).'"', false)
+            ->assertDontSee('action="'.$this->moveUrl($removed).'"', false);
     }
 
     public function test_admin_saves_the_checklists_title_and_description_and_it_is_audited(): void
@@ -429,6 +443,275 @@ class AdminCurriculumChecklistTest extends TestCase
         $this->assertDatabaseCount('admin_audit_logs', 0);
     }
 
+    public function test_admin_adds_an_item_last_on_the_checklist_after_removed_items_and_it_is_audited(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $checklist = $this->checklist();
+        $this->items($checklist);
+        $this->addItem($checklist, GateCriterion::TYPE_DELIVERABLE, 'Retired deliverable', 4, onChecklist: false);
+
+        $this->actingAs($admin)
+            ->post($this->storeUrl($checklist), [
+                'type' => GateCriterion::TYPE_DELIVERABLE,
+                'title' => 'Demo recorded',
+                'description' => "Record the demo.\r\nShare the link.",
+                'position' => 1,
+                'is_required' => '0',
+                'configuration' => ['expected_files' => ['demo.mp4']],
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect($this->weekUrl($checklist).'#checklist')
+            ->assertSessionHas('status', 'Added "Demo recorded".');
+
+        $item = $checklist->criteria()->where('title', 'Demo recorded')->sole();
+        $this->assertSame(GateCriterion::TYPE_DELIVERABLE, $item->criterion_type);
+        $this->assertSame("Record the demo.\nShare the link.", $item->description);
+        $this->assertSame(5, $item->position);
+        $this->assertTrue($item->is_required);
+        $this->assertNull($item->configuration);
+
+        $audit = AdminAuditLog::query()->sole();
+        $this->assertSame($admin->id, $audit->actor_id);
+        $this->assertSame('curriculum_checklist_item_added', $audit->action);
+        $this->assertSame([
+            'program_id' => $checklist->week->program_id,
+            'training_week_id' => $checklist->training_week_id,
+            'training_gate_id' => $checklist->id,
+            'gate_criterion_id' => $item->id,
+            'type' => GateCriterion::TYPE_DELIVERABLE,
+            'title' => 'Demo recorded',
+            'position' => 5,
+        ], $audit->metadata);
+    }
+
+    public function test_a_new_item_shows_last_as_awaiting_review_to_the_participant_and_unticked_to_the_mentor_while_a_completed_review_stays_completed(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $checklist = $this->checklist();
+        $deliverable = $this->addItem($checklist, GateCriterion::TYPE_DELIVERABLE, 'Feature shipped', 1);
+        $sessionLogs = $this->addItem($checklist, GateCriterion::TYPE_SESSION_LOGS, 'Session logs committed', 2);
+        [$session, $participant, $mentor] = $this->sessionWithMentor($checklist);
+        $review = GateEvaluation::factory()->for($session)->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::Passed]);
+        GateCriterionEvaluation::factory()->for($review)->for($deliverable, 'criterion')->create(['status' => GateCriterionStatus::Met]);
+        GateCriterionEvaluation::factory()->for($review)->for($sessionLogs, 'criterion')->create(['status' => GateCriterionStatus::Met]);
+
+        $this->actingAs($admin)
+            ->post($this->storeUrl($checklist), ['type' => GateCriterion::TYPE_DELIVERABLE, 'title' => 'Demo recorded', 'description' => 'Record a short demo.'])
+            ->assertSessionHasNoErrors();
+        $item = $checklist->criteria()->where('title', 'Demo recorded')->sole();
+
+        $this->assertSame(GateEvaluationStatus::Passed, $review->refresh()->status);
+        $this->actingAs($participant)
+            ->get(route('training.gates.show', [$session, $checklist->week, $checklist]))
+            ->assertOk()
+            ->assertSeeInOrder(['COMPLETED', 'Feature shipped', 'Met', 'Session logs committed', 'Met', 'Demo recorded', 'Awaiting Review', 'Record a short demo.']);
+        $reviewPage = $this->actingAs($mentor)
+            ->get(route('training.coach.gates.show', [$session, $checklist->week, $participant, $checklist]))
+            ->assertOk()
+            ->assertSeeInOrder(['Feature shipped', 'Session logs committed', 'Demo recorded</label>', 'Record a short demo.'], false)
+            ->getContent();
+        $this->assertStringContainsString('checked', $this->reviewCheckbox($reviewPage, $deliverable));
+        $this->assertStringNotContainsString('checked', $this->reviewCheckbox($reviewPage, $item));
+    }
+
+    public function test_a_review_saved_after_an_item_is_added_without_ticking_it_can_only_be_incomplete(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $checklist = $this->checklist();
+        $deliverable = $this->addItem($checklist, GateCriterion::TYPE_DELIVERABLE, 'Feature shipped', 1);
+        [$session, $participant, $mentor] = $this->sessionWithMentor($checklist);
+        $review = GateEvaluation::factory()->for($session)->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::Passed]);
+        GateCriterionEvaluation::factory()->for($review)->for($deliverable, 'criterion')->create(['status' => GateCriterionStatus::Met]);
+        $this->actingAs($admin)
+            ->post($this->storeUrl($checklist), ['type' => GateCriterion::TYPE_DELIVERABLE, 'title' => 'Demo recorded', 'description' => null])
+            ->assertSessionHasNoErrors();
+        $reviewUrl = route('training.coach.gates.update', [$session, $checklist->week, $participant, $checklist]);
+        $ticks = ['criteria' => [$deliverable->id => GateCriterionStatus::Met->value]];
+
+        $this->actingAs($mentor)
+            ->post($reviewUrl, ['status' => GateEvaluationStatus::Passed->value, ...$ticks])
+            ->assertSessionHasErrors(['criteria' => 'Tick every checklist item to mark the week completed.']);
+        $this->assertSame(GateEvaluationStatus::Passed, $review->refresh()->status);
+
+        $this->actingAs($mentor)
+            ->post($reviewUrl, ['status' => GateEvaluationStatus::NeedsRevision->value, ...$ticks])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(GateEvaluationStatus::NeedsRevision, $review->refresh()->status);
+        $this->actingAs($participant)
+            ->get(route('training.gates.show', [$session, $checklist->week, $checklist]))
+            ->assertOk()
+            ->assertSeeInOrder(['INCOMPLETE', 'Feature shipped', 'Met', 'Demo recorded', 'Missing']);
+    }
+
+    public function test_moving_an_item_changes_the_order_on_the_participant_gate_page_and_ticks_stay_with_their_items(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $checklist = $this->checklist();
+        [$deliverable, $sessionLogs, $video] = $this->items($checklist);
+        [$session, $participant] = $this->sessionWithMentor($checklist);
+        $review = GateEvaluation::factory()->for($session)->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
+        $deliverableTick = GateCriterionEvaluation::factory()->for($review)->for($deliverable, 'criterion')->create(['status' => GateCriterionStatus::Met]);
+        $sessionLogsTick = GateCriterionEvaluation::factory()->for($review)->for($sessionLogs, 'criterion')->create(['status' => GateCriterionStatus::NotMet]);
+
+        $this->actingAs($admin)
+            ->patch($this->moveUrl($sessionLogs), ['direction' => 'up'])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect($this->weekUrl($checklist).'#checklist')
+            ->assertSessionHas('status', 'Moved "Session logs committed" up.');
+
+        $this->assertSame(1, $sessionLogs->refresh()->position);
+        $this->assertSame(2, $deliverable->refresh()->position);
+        $this->assertSame(3, $video->refresh()->position);
+        $this->assertDatabaseHas('gate_criterion_evaluations', ['id' => $deliverableTick->id, 'gate_criterion_id' => $deliverable->id, 'status' => 'met']);
+        $this->assertDatabaseHas('gate_criterion_evaluations', ['id' => $sessionLogsTick->id, 'gate_criterion_id' => $sessionLogs->id, 'status' => 'not_met']);
+        $this->actingAs($participant)
+            ->get(route('training.gates.show', [$session, $checklist->week, $checklist]))
+            ->assertOk()
+            ->assertSeeInOrder(['Session logs committed', 'Missing', 'Feature shipped', 'Met', 'Video walkthrough', 'Awaiting Review']);
+
+        $audit = AdminAuditLog::query()->sole();
+        $this->assertSame($admin->id, $audit->actor_id);
+        $this->assertSame('curriculum_checklist_item_moved', $audit->action);
+        $this->assertSame([
+            'program_id' => $checklist->week->program_id,
+            'training_week_id' => $checklist->training_week_id,
+            'training_gate_id' => $checklist->id,
+            'gate_criterion_id' => $sessionLogs->id,
+            'direction' => 'up',
+            'changes' => ['position' => ['from' => 2, 'to' => 1]],
+        ], $audit->metadata);
+    }
+
+    public function test_an_item_moves_past_removed_items_and_the_first_and_last_items_on_the_checklist_stay_put(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $checklist = $this->checklist();
+        $deliverable = $this->addItem($checklist, GateCriterion::TYPE_DELIVERABLE, 'Feature shipped', 1);
+        $removed = $this->addItem($checklist, GateCriterion::TYPE_DELIVERABLE, 'Retired deliverable', 2, onChecklist: false);
+        $sessionLogs = $this->addItem($checklist, GateCriterion::TYPE_SESSION_LOGS, 'Session logs committed', 3);
+        $this->addItem($checklist, GateCriterion::TYPE_DELIVERABLE, 'Older retired deliverable', 4, onChecklist: false);
+
+        $this->actingAs($admin)
+            ->patch($this->moveUrl($deliverable), ['direction' => 'up'])
+            ->assertRedirect($this->weekUrl($checklist).'#checklist')
+            ->assertSessionMissing('status');
+        $this->actingAs($admin)
+            ->patch($this->moveUrl($sessionLogs), ['direction' => 'down'])
+            ->assertRedirect($this->weekUrl($checklist).'#checklist')
+            ->assertSessionMissing('status');
+        $this->assertDatabaseCount('admin_audit_logs', 0);
+
+        $this->actingAs($admin)
+            ->patch($this->moveUrl($deliverable), ['direction' => 'down'])
+            ->assertSessionHas('status', 'Moved "Feature shipped" down.');
+
+        $this->assertSame(3, $deliverable->refresh()->position);
+        $this->assertSame(1, $sessionLogs->refresh()->position);
+        $this->assertSame(2, $removed->refresh()->position);
+        $this->assertDatabaseCount('admin_audit_logs', 1);
+    }
+
+    /**
+     * @param  'session_logs'|'weekly_video'  $type
+     */
+    #[DataProvider('oneItemPerChecklistTypes')]
+    public function test_adding_a_second_session_logs_or_weekly_video_item_fails_in_the_add_bag_and_creates_nothing(string $type, string $message): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $checklist = $this->checklist();
+        $this->items($checklist);
+
+        $this->actingAs($admin)
+            ->post($this->storeUrl($checklist), ['type' => $type, 'title' => 'Second one', 'description' => null])
+            ->assertRedirect($this->weekUrl($checklist).'#checklist')
+            ->assertSessionHasErrorsIn('addChecklistItem', ['type' => $message]);
+
+        $this->assertSame(3, $checklist->criteria()->count());
+        $this->assertDatabaseCount('admin_audit_logs', 0);
+    }
+
+    public function test_a_failed_add_shows_its_errors_beside_the_add_form_and_keeps_the_typed_input(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $checklist = $this->checklist();
+        [$deliverable] = $this->items($checklist);
+
+        $this->actingAs($admin)
+            ->followingRedirects()
+            ->post($this->storeUrl($checklist), ['type' => GateCriterion::TYPE_SESSION_LOGS, 'title' => '', 'description' => 'Typed description.'])
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="checklist-item-'.$deliverable->id.'-title"',
+                'value="Feature shipped"',
+                'id="add-checklist-item-title"',
+                'value=""',
+                'aria-invalid="true" aria-describedby="add-checklist-item-title-error"',
+                '<p id="add-checklist-item-title-error" class="text-sm text-rose-200" role="alert">The title field is required.</p>',
+                '<option value="session_logs" selected>Session logs</option>',
+                '>Typed description.</textarea>',
+            ], false)
+            ->assertDontSee('id="checklist-item-'.$deliverable->id.'-title-error"', false)
+            ->assertDontSee('role="status"', false);
+
+        $this->assertSame(3, $checklist->criteria()->count());
+        $this->assertDatabaseCount('admin_audit_logs', 0);
+    }
+
+    public function test_adding_to_a_week_without_a_checklist_or_moving_an_item_off_the_weeks_checklist_is_not_found(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $checklist = $this->checklist();
+        $removed = $this->addItem($checklist, GateCriterion::TYPE_DELIVERABLE, 'Retired deliverable', 4, onChecklist: false);
+        $otherWeek = TrainingWeek::factory()->for($checklist->week->program)->create(['week_number' => 2, 'position' => 2]);
+        $otherWeeksItem = $this->addItem(TrainingGate::factory()->for($otherWeek, 'week')->create(['is_active' => false]), GateCriterion::TYPE_DELIVERABLE, 'Other week item', 1);
+        $inactiveGatesItem = $this->addItem(TrainingGate::factory()->for($checklist->week, 'week')->create(['position' => 2, 'is_active' => false]), GateCriterion::TYPE_DELIVERABLE, 'Old gate item', 1);
+
+        $this->actingAs($admin)
+            ->post(route('admin.programs.checklist-items.store', [$otherWeek->program_id, $otherWeek]), ['type' => GateCriterion::TYPE_DELIVERABLE, 'title' => 'New', 'description' => null])
+            ->assertNotFound();
+        $this->actingAs($admin)->patch($this->moveUrl($removed), ['direction' => 'up'])->assertNotFound();
+        $this->actingAs($admin)
+            ->patch(route('admin.programs.checklist-items.move', [$checklist->week->program_id, $checklist->week, $otherWeeksItem]), ['direction' => 'up'])
+            ->assertNotFound();
+        $this->actingAs($admin)->patch($this->moveUrl($inactiveGatesItem), ['direction' => 'up'])->assertNotFound();
+
+        $this->assertSame(1, $otherWeeksItem->gate->criteria()->count());
+        $this->assertSame(4, $removed->refresh()->position);
+        $this->assertDatabaseCount('admin_audit_logs', 0);
+    }
+
+    public function test_an_item_with_a_type_that_is_not_offered_keeps_it_read_only(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $checklist = $this->checklist();
+        $legacy = $this->addItem($checklist, 'activity_completion', 'All activities handed in', 1);
+        $itemId = 'checklist-item-'.$legacy->id;
+
+        $this->actingAs($admin)
+            ->get($this->weekUrl($checklist))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'action="'.$this->itemUrl($legacy).'"',
+                'Activity Completion. This type cannot change here.',
+                '<input type="hidden" name="type" value="activity_completion">',
+                'id="'.$itemId.'-description"',
+            ], false)
+            ->assertDontSee('id="'.$itemId.'-type"', false);
+
+        $this->actingAs($admin)
+            ->put($this->itemUrl($legacy), ['type' => 'activity_completion', 'title' => 'Every activity handed in', 'description' => null])
+            ->assertSessionHasNoErrors();
+        $this->actingAs($admin)
+            ->put($this->itemUrl($legacy), ['type' => 'manual_check', 'title' => 'Checked by hand', 'description' => null])
+            ->assertSessionHasErrorsIn('checklistItem'.$legacy->id, ['type' => 'The selected type is invalid.']);
+
+        $legacy->refresh();
+        $this->assertSame('activity_completion', $legacy->criterion_type);
+        $this->assertSame('Every activity handed in', $legacy->title);
+        $this->assertSame(['title' => ['from' => 'All activities handed in', 'to' => 'Every activity handed in']], AdminAuditLog::query()->sole()->metadata['changes']);
+    }
+
     public function test_participants_and_coaches_are_forbidden_and_guests_are_sent_to_login(): void
     {
         $checklist = $this->checklist();
@@ -438,15 +721,21 @@ class AdminCurriculumChecklistTest extends TestCase
 
         $this->put($this->checklistUrl($checklist), $checklistPayload)->assertRedirect(route('login'));
         $this->put($this->itemUrl($deliverable), $itemPayload)->assertRedirect(route('login'));
+        $this->post($this->storeUrl($checklist), $itemPayload)->assertRedirect(route('login'));
+        $this->patch($this->moveUrl($deliverable), ['direction' => 'down'])->assertRedirect(route('login'));
 
         foreach (['participant', 'coach'] as $role) {
             $user = User::factory()->create(['role' => $role]);
             $this->actingAs($user)->put($this->checklistUrl($checklist), $checklistPayload)->assertForbidden();
             $this->actingAs($user)->put($this->itemUrl($deliverable), $itemPayload)->assertForbidden();
+            $this->actingAs($user)->post($this->storeUrl($checklist), $itemPayload)->assertForbidden();
+            $this->actingAs($user)->patch($this->moveUrl($deliverable), ['direction' => 'down'])->assertForbidden();
         }
 
         $this->assertSame('Week 1 checklist', $checklist->refresh()->title);
         $this->assertSame('Feature shipped', $deliverable->refresh()->title);
+        $this->assertSame(1, $deliverable->position);
+        $this->assertSame(3, $checklist->criteria()->count());
         $this->assertDatabaseCount('admin_audit_logs', 0);
     }
 
@@ -507,5 +796,41 @@ class AdminCurriculumChecklistTest extends TestCase
     private function itemUrl(GateCriterion $item): string
     {
         return route('admin.programs.checklist-items.update', [$item->gate->week->program_id, $item->gate->week, $item]);
+    }
+
+    private function storeUrl(TrainingGate $checklist): string
+    {
+        return route('admin.programs.checklist-items.store', [$checklist->week->program_id, $checklist->week]);
+    }
+
+    private function moveUrl(GateCriterion $item): string
+    {
+        return route('admin.programs.checklist-items.move', [$item->gate->week->program_id, $item->gate->week, $item]);
+    }
+
+    /**
+     * A session of the checklist's week with one participant and their mentor.
+     *
+     * @return array{TrainingSession, User, User}
+     */
+    private function sessionWithMentor(TrainingGate $checklist): array
+    {
+        $participant = User::factory()->create(['role' => 'participant']);
+        $mentor = User::factory()->create(['role' => 'coach']);
+        $session = TrainingSession::factory()->forWeek($checklist->week)->withParticipants($participant)->create();
+        $session->mentors()->attach($mentor->id);
+        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $mentor->id]);
+
+        return [$session, $participant, $mentor];
+    }
+
+    /**
+     * The checkbox of a checklist item on the mentor's review page.
+     */
+    private function reviewCheckbox(string $page, GateCriterion $item): string
+    {
+        $this->assertSame(1, preg_match('/<input[^>]*id="criterion-'.$item->id.'"[^>]*>/', $page, $match));
+
+        return $match[0];
     }
 }

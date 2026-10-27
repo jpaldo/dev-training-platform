@@ -9,6 +9,8 @@
         $addActivityErrors = $errors->getBag($addActivity['error_bag']);
         $activityErrors = $errors->getBag($activitiesErrorBag);
         $checklistErrors = $errors->getBag($checklist['error_bag'] ?? 'checklist');
+        $addItemErrors = $errors->getBag($checklist['add_item']['error_bag'] ?? 'addChecklistItem');
+        $addItemType = $addItemErrors->any() ? old('type') : ($checklist['add_item']['default_type'] ?? null);
     @endphp
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -296,6 +298,12 @@
                                                     <h4 id="{{ $itemId }}-heading" class="text-base font-extrabold wrap-break-word">{{ $item['title'] }}</h4>
                                                     <x-ui.badge tone="accent">{{ $item['type_label'] }}</x-ui.badge>
                                                 </div>
+                                                <form method="POST" action="{{ $item['move_url'] }}" class="flex flex-wrap gap-2" data-move-checklist-item-form>
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <x-ui.button variant="secondary" type="submit" name="direction" value="up" :disabled="! $item['can_move_up']" aria-label="Move {{ $item['title'] }} up">Move Up</x-ui.button>
+                                                    <x-ui.button variant="secondary" type="submit" name="direction" value="down" :disabled="! $item['can_move_down']" aria-label="Move {{ $item['title'] }} down">Move Down</x-ui.button>
+                                                </form>
 
                                                 <form method="POST" action="{{ $item['update_url'] }}" class="grid min-w-0 grid-cols-1 gap-4 border-t border-line pt-4 lg:max-w-2xl" aria-labelledby="{{ $itemId }}-heading" data-checklist-item-form>
                                                     @csrf
@@ -320,18 +328,24 @@
                                                         </div>
 
                                                         <div class="grid min-w-0 grid-cols-1 content-start gap-2">
-                                                            <label for="{{ $itemId }}-type" class="text-sm font-extrabold">Type</label>
-                                                            <select
-                                                                id="{{ $itemId }}-type"
-                                                                name="type"
-                                                                required
-                                                                @if($itemErrors->has('type')) aria-invalid="true" aria-describedby="{{ $itemId }}-type-error" @endif
-                                                                class="{{ $controlClasses }}"
-                                                            >
-                                                                @foreach($checklist['item_types'] as $type)
-                                                                    <option value="{{ $type['value'] }}" @selected($typeValue === $type['value'])>{{ $type['label'] }}</option>
-                                                                @endforeach
-                                                            </select>
+                                                            @if($item['has_fixed_type'])
+                                                                <span class="text-sm font-extrabold">Type</span>
+                                                                <p class="py-3 text-sm/relaxed text-muted">{{ $item['fixed_type_note'] }}</p>
+                                                                <input type="hidden" name="type" value="{{ $item['type'] }}">
+                                                            @else
+                                                                <label for="{{ $itemId }}-type" class="text-sm font-extrabold">Type</label>
+                                                                <select
+                                                                    id="{{ $itemId }}-type"
+                                                                    name="type"
+                                                                    required
+                                                                    @if($itemErrors->has('type')) aria-invalid="true" aria-describedby="{{ $itemId }}-type-error" @endif
+                                                                    class="{{ $controlClasses }}"
+                                                                >
+                                                                    @foreach($checklist['item_types'] as $type)
+                                                                        <option value="{{ $type['value'] }}" @selected($typeValue === $type['value'])>{{ $type['label'] }}</option>
+                                                                    @endforeach
+                                                                </select>
+                                                            @endif
                                                             @if($itemErrors->has('type'))
                                                                 <p id="{{ $itemId }}-type-error" class="text-sm text-rose-200" role="alert">{{ $itemErrors->first('type') }}</p>
                                                             @endif
@@ -365,6 +379,73 @@
                                 @else
                                     <p class="text-muted">This checklist has no items.</p>
                                 @endif
+                            </section>
+
+                            <section class="grid grid-cols-1 gap-4 border-t border-line pt-4" aria-labelledby="week-add-checklist-item-title" data-add-checklist-item>
+                                <h3 id="week-add-checklist-item-title" class="text-base font-extrabold">Add item</h3>
+                                <p class="text-sm/relaxed text-muted">The new item goes last on the checklist. Participants see it as Awaiting Review; a week already marked Completed stays Completed until the mentor saves the review again.</p>
+
+                                <form method="POST" action="{{ $checklist['add_item']['store_url'] }}" class="grid min-w-0 grid-cols-1 gap-4 lg:max-w-2xl" aria-labelledby="week-add-checklist-item-title" data-add-checklist-item-form>
+                                    @csrf
+
+                                    <div class="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+                                        <div class="grid min-w-0 grid-cols-1 content-start gap-2">
+                                            <label for="add-checklist-item-title" class="text-sm font-extrabold">Title</label>
+                                            <input
+                                                id="add-checklist-item-title"
+                                                name="title"
+                                                type="text"
+                                                required
+                                                maxlength="255"
+                                                value="{{ $addItemErrors->any() ? old('title') : '' }}"
+                                                @if($addItemErrors->has('title')) aria-invalid="true" aria-describedby="add-checklist-item-title-error" @endif
+                                                class="{{ $controlClasses }}"
+                                            >
+                                            @if($addItemErrors->has('title'))
+                                                <p id="add-checklist-item-title-error" class="text-sm text-rose-200" role="alert">{{ $addItemErrors->first('title') }}</p>
+                                            @endif
+                                        </div>
+
+                                        <div class="grid min-w-0 grid-cols-1 content-start gap-2">
+                                            <label for="add-checklist-item-type" class="text-sm font-extrabold">Type</label>
+                                            <select
+                                                id="add-checklist-item-type"
+                                                name="type"
+                                                required
+                                                @if($addItemErrors->has('type')) aria-invalid="true" aria-describedby="add-checklist-item-type-error" @endif
+                                                class="{{ $controlClasses }}"
+                                            >
+                                                @foreach($checklist['item_types'] as $type)
+                                                    <option value="{{ $type['value'] }}" @selected($addItemType === $type['value'])>{{ $type['label'] }}</option>
+                                                @endforeach
+                                            </select>
+                                            @if($addItemErrors->has('type'))
+                                                <p id="add-checklist-item-type-error" class="text-sm text-rose-200" role="alert">{{ $addItemErrors->first('type') }}</p>
+                                            @endif
+                                        </div>
+                                    </div>
+
+                                    <div class="grid min-w-0 grid-cols-1 gap-2">
+                                        <label for="add-checklist-item-description" class="text-sm font-extrabold">Description</label>
+                                        <p id="add-checklist-item-description-hint" class="text-sm/relaxed text-muted">Optional plain text, shown under the item's title.</p>
+                                        <textarea
+                                            id="add-checklist-item-description"
+                                            name="description"
+                                            rows="3"
+                                            maxlength="2000"
+                                            aria-describedby="add-checklist-item-description-hint{{ $addItemErrors->has('description') ? ' add-checklist-item-description-error' : '' }}"
+                                            @if($addItemErrors->has('description')) aria-invalid="true" @endif
+                                            class="{{ $controlClasses }} min-h-20 resize-y"
+                                        >{{ $addItemErrors->any() ? old('description') : '' }}</textarea>
+                                        @if($addItemErrors->has('description'))
+                                            <p id="add-checklist-item-description-error" class="text-sm text-rose-200" role="alert">{{ $addItemErrors->first('description') }}</p>
+                                        @endif
+                                    </div>
+
+                                    <div>
+                                        <x-ui.button type="submit">Add Item</x-ui.button>
+                                    </div>
+                                </form>
                             </section>
 
                             @if($checklist['removed_items'] !== [])

@@ -90,6 +90,15 @@ class GateCriterion extends Model
     }
 
     /**
+     * Whether the item's stored type is not one an admin can choose (TYPE_LABELS), such as the legacy
+     * `activity_completion`, so the item keeps it and an admin cannot change it.
+     */
+    public function hasFixedType(): bool
+    {
+        return ! array_key_exists($this->criterion_type, self::TYPE_LABELS);
+    }
+
+    /**
      * The item's type for display: its TYPE_LABELS label, or the stored type in headline case for a type without one.
      */
     public function typeLabel(): string

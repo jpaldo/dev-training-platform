@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
  */
 class ChecklistService
 {
-    public function __construct(private AdminAuditService $audit) {}
+    public function __construct(private AdminAuditService $audit, private CurriculumOrderService $order) {}
 
     /**
      * Give the checklist a new title and description and record `curriculum_checklist_updated` with the changed values
@@ -42,6 +42,41 @@ class ChecklistService
             ]);
 
             return $checklist;
+        });
+    }
+
+    /**
+     * Add an item with the given type, title and description to the end of the checklist, after every item including
+     * removed ones, and record `curriculum_checklist_item_added`. It goes on the checklist with no `configuration`, so
+     * every session's participants see it as awaiting review and their mentors as an unticked box; reviews already saved
+     * keep their decision until the mentor saves the review again. The checklist (Gate) row is locked while the
+     * position is chosen, so two adds at once cannot take the same position.
+     *
+     * @param  array{type: string, title: string, description: ?string}  $details
+     */
+    public function addItem(TrainingGate $checklist, array $details, User $admin): GateCriterion
+    {
+        return DB::transaction(function () use ($checklist, $details, $admin): GateCriterion {
+            TrainingGate::query()->whereKey($checklist->id)->lockForUpdate()->firstOrFail();
+
+            $item = $checklist->criteria()->create([
+                'criterion_type' => $details['type'],
+                'title' => $details['title'],
+                'description' => $details['description'],
+                'is_required' => true,
+                'position' => (int) $checklist->criteria()->max('position') + 1,
+                'configuration' => null,
+            ]);
+
+            $this->audit->record($admin, 'curriculum_checklist_item_added', metadata: [
+                ...$this->ids($checklist),
+                'gate_criterion_id' => $item->id,
+                'type' => $item->criterion_type,
+                'title' => $item->title,
+                'position' => $item->position,
+            ]);
+
+            return $item;
         });
     }
 
@@ -80,6 +115,38 @@ class ChecklistService
             ]);
 
             return $item;
+        });
+    }
+
+    /**
+     * Move the item one place up or down among the items on its checklist, by swapping positions with its neighbour,
+     * and record `curriculum_checklist_item_moved` with the direction and the position before and after. Removed items
+     * keep their positions, and mentors' ticks stay with their items. The checklist (Gate) row is locked while the
+     * positions are read and swapped, so two moves at once cannot collide. Returns whether it moved: the first item
+     * moved up or the last moved down stays put and nothing is recorded.
+     *
+     * @param  'up'|'down'  $direction
+     */
+    public function moveItem(GateCriterion $item, string $direction, User $admin): bool
+    {
+        return DB::transaction(function () use ($item, $direction, $admin): bool {
+            TrainingGate::query()->whereKey($item->training_gate_id)->lockForUpdate()->firstOrFail();
+            $item->refresh();
+            $from = $item->position;
+            $itemsOnTheChecklist = GateCriterion::query()->where('training_gate_id', $item->training_gate_id)->onChecklist();
+
+            if (! $this->order->move($item, $itemsOnTheChecklist, $direction)) {
+                return false;
+            }
+
+            $this->audit->record($admin, 'curriculum_checklist_item_moved', metadata: [
+                ...$this->ids($item->gate),
+                'gate_criterion_id' => $item->id,
+                'direction' => $direction,
+                'changes' => ['position' => ['from' => $from, 'to' => $item->position]],
+            ]);
+
+            return true;
         });
     }
 

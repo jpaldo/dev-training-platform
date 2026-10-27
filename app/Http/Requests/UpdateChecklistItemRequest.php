@@ -17,8 +17,9 @@ use Illuminate\Validation\Validator as ValidationValidator;
 /**
  * An admin edits a checklist item's type, title and description on the week page's Checklist tab. An item that was
  * removed from the checklist, or that belongs to another Gate than the week's checklist, is not found. A checklist has
- * at most one session logs item and one weekly video item (A5). Each item's errors go to its own bag (see
- * errorBagFor()), so the tab shows them beside the right form, and the admin returns to that tab.
+ * at most one session logs item and one weekly video item (A5). An item whose stored type is not offered keeps it.
+ * Each item's errors go to its own bag (see errorBagFor()), so the tab shows them beside the right form, and the admin
+ * returns to that tab.
  */
 class UpdateChecklistItemRequest extends FormRequest
 {
@@ -32,14 +33,15 @@ class UpdateChecklistItemRequest extends FormRequest
     }
 
     /**
-     * One of the item types (`GateCriterion::TYPE_*`), a title and an optional description, both plain text.
+     * One of the item types (`GateCriterion::TYPE_*`; an item whose stored type is not one of them may keep it
+     * unchanged), a title and an optional description, both plain text.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'type' => ['required', 'string', Rule::in(array_keys(GateCriterion::TYPE_LABELS))],
+            'type' => ['required', 'string', Rule::in($this->allowedTypes())],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
         ];
@@ -117,6 +119,23 @@ class UpdateChecklistItemRequest extends FormRequest
     protected function getRedirectUrl(): string
     {
         return route('admin.programs.weeks.show', [$this->program(), $this->week()]).'#checklist';
+    }
+
+    /**
+     * The types the item may take: the offered types (TYPE_LABELS), plus the item's own stored type when it is not
+     * offered (such as the legacy `activity_completion`), which then cannot change.
+     *
+     * @return list<string>
+     */
+    private function allowedTypes(): array
+    {
+        $types = array_keys(GateCriterion::TYPE_LABELS);
+
+        if ($this->item()->hasFixedType()) {
+            $types[] = $this->item()->criterion_type;
+        }
+
+        return $types;
     }
 
     private function program(): Program

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Program;
+use App\Models\TrainingWeek;
 use App\Services\CurriculumPageService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
@@ -21,5 +22,12 @@ class AdminCurriculumController extends Controller
         Gate::authorize('view', $program);
 
         return view('admin.curriculum.program', $page->programData($program));
+    }
+
+    public function week(Program $program, TrainingWeek $week, CurriculumPageService $page): View
+    {
+        Gate::authorize('view', $program);
+
+        return view('admin.curriculum.week', $page->weekData($program, $week));
     }
 }

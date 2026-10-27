@@ -20,20 +20,7 @@
         </x-ui.main-action>
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
-            <x-ui.alert :tone="$notice['tone']" class="grid grid-cols-1 gap-2" data-sessions-notice="{{ $notice['tone'] }}">
-                <p>{{ $notice['message'] }}</p>
-                @if($notice['sessions'] !== [])
-                    <ul class="grid grid-cols-1 gap-1.5">
-                        @foreach($notice['sessions'] as $session)
-                            <li class="flex flex-wrap items-center gap-x-3 gap-y-1" data-notice-session>
-                                <a href="{{ $session['url'] }}" class="font-bold underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">{{ $session['title'] }}</a>
-                                <span class="whitespace-nowrap">{{ $session['dates'] }}</span>
-                                <x-ui.badge :tone="$session['status_tone']">{{ $session['status_label'] }}</x-ui.badge>
-                            </li>
-                        @endforeach
-                    </ul>
-                @endif
-            </x-ui.alert>
+            @include('admin.curriculum.sessions-notice')
 
             <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="program-weeks-title">
                 <h2 id="program-weeks-title" class="text-xl font-extrabold">Weeks</h2>
@@ -47,18 +34,24 @@
                                     <th scope="col" class="{{ $headerCellClasses }}">Status</th>
                                     <th scope="col" class="{{ $headerCellClasses }} text-right">Active activities</th>
                                     <th scope="col" class="{{ $headerCellClasses }} text-right">Checklist items</th>
+                                    <th scope="col" class="{{ $headerCellClasses }}">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach($weeks as $week)
                                     <tr data-week-row>
-                                        <th scope="row" class="{{ $cellClasses }} font-bold whitespace-nowrap">{{ $week['label'] }}</th>
+                                        <th scope="row" class="{{ $cellClasses }} font-bold whitespace-nowrap">
+                                            <a href="{{ $week['url'] }}" class="text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">{{ $week['label'] }}</a>
+                                        </th>
                                         <td class="{{ $cellClasses }} wrap-break-word">{{ $week['title'] }}</td>
                                         <td class="{{ $cellClasses }}">
                                             <x-ui.badge :tone="$week['status_tone']">{{ $week['status_label'] }}</x-ui.badge>
                                         </td>
                                         <td class="{{ $cellClasses }} text-right tabular-nums" data-active-activity-count>{{ $week['active_activity_count'] }}</td>
                                         <td class="{{ $cellClasses }} text-right tabular-nums" data-checklist-item-count>{{ $week['checklist_item_count'] }}</td>
+                                        <td class="{{ $cellClasses }}">
+                                            <x-ui.button variant="secondary" :href="$week['url']" aria-label="Open {{ $week['label'] }}">Open</x-ui.button>
+                                        </td>
                                     </tr>
                                 @endforeach
                             </tbody>

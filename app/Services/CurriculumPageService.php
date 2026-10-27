@@ -3,10 +3,15 @@
 namespace App\Services;
 
 use App\Enums\TrainingSessionStatus;
+use App\Models\Activity;
+use App\Models\GateCriterion;
 use App\Models\Program;
+use App\Models\TrainingGate;
 use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class CurriculumPageService
@@ -39,9 +44,10 @@ class CurriculumPageService
     /**
      * Everything the program page renders: the program's name and description, the link back to the list, the
      * sessions notice (one query) and the weeks in number order, each with whether it is active, its number of active
-     * activities and of items on its checklist (the required items of its active Gates), read in one query.
+     * activities and of items on its checklist (the required items of its active Gates) and a link to its page, read in
+     * one query.
      *
-     * @return array{name: string, description: ?string, indexUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, weeks: list<array{number: int, label: string, title: string, status_label: string, status_tone: string, active_activity_count: int, checklist_item_count: int}>}
+     * @return array{name: string, description: ?string, indexUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, weeks: list<array{number: int, label: string, title: string, status_label: string, status_tone: string, active_activity_count: int, checklist_item_count: int, url: string}>}
      */
     public function programData(Program $program): array
     {
@@ -67,9 +73,94 @@ class CurriculumPageService
                     'status_tone' => $week->is_active ? 'success' : 'neutral',
                     'active_activity_count' => (int) $week->active_activities_count,
                     'checklist_item_count' => (int) $week->checklist_items_count,
+                    'url' => route('admin.programs.weeks.show', [$program, $week]),
                 ])
                 ->all(),
         ];
+    }
+
+    /**
+     * Everything the week page renders: the title "Week N: {title}", the week's status, the link back to the program,
+     * the sessions notice and the three tabs. Details holds the title and description; Activities lists every
+     * activity in position order with whether it is active; Checklist holds the week's checklist (its first active
+     * Gate) with the items on it in position order and, apart, its retired items, or null when the week has none.
+     * Reads the activities, the checklist and its items in three queries, plus the notice's one.
+     *
+     * @return array{title: string, statusLabel: string, statusTone: string, programName: string, programUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string}, activities: list<array{title: string, status_label: string, status_tone: string}>, checklist: ?array{title: string, description: ?string, items: list<array{title: string, description: ?string, type_label: string}>, removed_items: list<array{title: string, description: ?string, type_label: string}>}}
+     */
+    public function weekData(Program $program, TrainingWeek $week): array
+    {
+        $week->load([
+            'activities' => fn (HasMany $activities): HasMany => $activities->orderBy('position')->orderBy('id'),
+            'checklist.criteria' => fn (HasMany $items): HasMany => $items->orderBy('position')->orderBy('id'),
+        ]);
+
+        return [
+            'title' => "Week {$week->week_number}: {$week->title}",
+            'statusLabel' => $week->is_active ? 'Active' : 'Inactive',
+            'statusTone' => $week->is_active ? 'success' : 'neutral',
+            'programName' => $program->name,
+            'programUrl' => route('admin.programs.show', $program),
+            'notice' => $this->sessionsNotice($program),
+            'tabs' => [
+                ['key' => 'details', 'label' => 'Details'],
+                ['key' => 'activities', 'label' => 'Activities'],
+                ['key' => 'checklist', 'label' => 'Checklist'],
+            ],
+            'selectedTab' => 'details',
+            'details' => [
+                'title' => $week->title,
+                'description' => $week->description,
+            ],
+            'activities' => $week->activities
+                ->map(fn (Activity $activity): array => [
+                    'title' => $activity->title,
+                    'status_label' => $activity->is_active ? 'Active' : 'Inactive',
+                    'status_tone' => $activity->is_active ? 'success' : 'neutral',
+                ])
+                ->all(),
+            'checklist' => $this->checklistData($week->checklist),
+        ];
+    }
+
+    /**
+     * The checklist tab's content: the checklist's title and description, the items on it and its retired items,
+     * each in position order with its type label, or null when the week has no checklist.
+     *
+     * @return ?array{title: string, description: ?string, items: list<array{title: string, description: ?string, type_label: string}>, removed_items: list<array{title: string, description: ?string, type_label: string}>}
+     */
+    private function checklistData(?TrainingGate $checklist): ?array
+    {
+        if ($checklist === null) {
+            return null;
+        }
+
+        [$items, $removedItems] = $checklist->criteria->partition(fn (GateCriterion $item): bool => $item->isOnChecklist());
+
+        return [
+            'title' => $checklist->title,
+            'description' => $checklist->description,
+            'items' => $this->checklistItemRows($items),
+            'removed_items' => $this->checklistItemRows($removedItems),
+        ];
+    }
+
+    /**
+     * One row per checklist item, in the given order, with its type label.
+     *
+     * @param  Collection<int, GateCriterion>  $items
+     * @return list<array{title: string, description: ?string, type_label: string}>
+     */
+    private function checklistItemRows(Collection $items): array
+    {
+        return $items
+            ->map(fn (GateCriterion $item): array => [
+                'title' => $item->title,
+                'description' => $item->description,
+                'type_label' => $item->typeLabel(),
+            ])
+            ->values()
+            ->all();
     }
 
     /**

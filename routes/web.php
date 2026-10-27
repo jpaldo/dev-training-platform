@@ -120,6 +120,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::scopeBindings()->prefix('programs')->name('programs.')->group(function (): void {
             Route::get('/', [AdminCurriculumController::class, 'index'])->name('index');
             Route::get('/{program}', [AdminCurriculumController::class, 'show'])->name('show');
+            Route::get('/{program}/weeks/{week}', [AdminCurriculumController::class, 'week'])->name('weeks.show');
         });
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');

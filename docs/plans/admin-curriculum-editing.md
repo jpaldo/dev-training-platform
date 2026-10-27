@@ -248,7 +248,7 @@ How each scoped binding is checked:
     - notice tones and empty state
     - an inactive week shows "Inactive"
     - Extend `AdminTrainingSessionDashboardTest` for the link and `tests/Feature/AppLayoutTest.php` (sidebar) for the new link.
-- [ ] **1.3 Week page (read-only)** (CUR-1, CUR-13)
+- [x] **1.3 Week page (read-only)** (CUR-1, CUR-13) — done 2026-10-27. The sessions notice moved to the include `admin/curriculum/sessions-notice` (program and week pages; 2.2 reuses it). The program page's week rows link here by the week label and an "Open" button; 2.1 renames the button "Edit week" once the page edits. `GateCriterion::typeLabel()` reads `TYPE_LABELS` and falls back to the headline of the stored type (the factory's legacy `activity_completion`). The Activities tab has no "number of fields" column yet (Design › Screens); it needs a count of active submission fields (not `deprecated`) and is left to the batch that makes the tab editable (2.3/2.4).
   - **Do:**
     - Add the route `admin.programs.weeks.show` with scoped bindings, and `AdminCurriculumController@week`.
     - Add `TrainingWeek::checklist()` (`hasOne(TrainingGate::class)->where('is_active', true)->orderBy('position')`) and `GateCriterion::scopeOnChecklist()` / `isOnChecklist()`. (`TrainingWeek::checklistItems()` (hasManyThrough) already exists from 1.2.)

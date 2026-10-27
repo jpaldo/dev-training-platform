@@ -77,6 +77,8 @@ class AdminCurriculumPagesTest extends TestCase
             ->assertSee('<a href="'.route('admin.sessions.show', $upcoming).'"', false)
             ->assertSee('<a href="'.route('admin.sessions.show', $completed).'"', false)
             ->assertSeeInOrder(['Week 1', 'Foundations', 'Week 2', 'Testing'])
+            ->assertSee('<a href="'.route('admin.programs.weeks.show', [$program, $firstWeek]).'"', false)
+            ->assertSee('aria-label="Open Week 2"', false)
             ->assertDontSee('Other program week')
             ->assertViewHas('weeks', fn (array $weeks): bool => array_column($weeks, 'number') === [1, 2]
                 && $weeks[0]['active_activity_count'] === 2
@@ -139,26 +141,133 @@ class AdminCurriculumPagesTest extends TestCase
     public function test_participants_and_coaches_are_forbidden_on_the_curriculum_pages(): void
     {
         $program = Program::factory()->create();
+        $week = $this->week($program, 1);
 
         foreach (['participant', 'coach'] as $role) {
             $user = User::factory()->create(['role' => $role]);
 
             $this->actingAs($user)->get(route('admin.programs.index'))->assertForbidden();
             $this->actingAs($user)->get(route('admin.programs.show', $program))->assertForbidden();
+            $this->actingAs($user)->get(route('admin.programs.weeks.show', [$program, $week]))->assertForbidden();
         }
     }
 
     public function test_guests_are_sent_to_login_from_the_curriculum_pages(): void
     {
         $program = Program::factory()->create();
+        $week = $this->week($program, 1);
 
         $this->get(route('admin.programs.index'))->assertRedirect(route('login'));
         $this->get(route('admin.programs.show', $program))->assertRedirect(route('login'));
+        $this->get(route('admin.programs.weeks.show', [$program, $week]))->assertRedirect(route('login'));
     }
 
     public function test_the_program_page_query_count_does_not_grow_with_weeks_activities_checklists_and_sessions(): void
     {
         $this->assertSame($this->programPageQueryCount(1), $this->programPageQueryCount(4));
+    }
+
+    public function test_the_week_page_shows_the_weeks_details_activities_in_position_order_and_checklist_with_type_labels(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->create(['name' => 'L4 Accelerator Training']);
+        $week = $this->week($program, 2, 'Testing');
+        $week->update(['description' => 'Write tests before the code.']);
+        Activity::factory()->for($week, 'week')->create(['title' => 'Refactor kata', 'position' => 3]);
+        Activity::factory()->for($week, 'week')->create(['title' => 'Unit testing basics', 'position' => 1]);
+        Activity::factory()->for($week, 'week')->create(['title' => 'Retired mocking drill', 'position' => 2, 'is_active' => false]);
+        Activity::factory()->for($this->week($program, 1, 'Foundations'), 'week')->create(['title' => 'Other week activity']);
+        TrainingGate::factory()->for($week, 'week')->create(['title' => 'Old checklist', 'position' => 1, 'is_active' => false]);
+        $checklist = TrainingGate::factory()->for($week, 'week')->create([
+            'title' => 'Week 2 checklist',
+            'description' => 'Everything a mentor checks before week 3.',
+            'position' => 2,
+        ]);
+        GateCriterion::factory()->for($checklist, 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO, 'title' => 'Weekly video recorded', 'position' => 3]);
+        GateCriterion::factory()->for($checklist, 'gate')->create(['criterion_type' => GateCriterion::TYPE_DELIVERABLE, 'title' => 'Test suite passes', 'description' => 'Every test is green.', 'position' => 1]);
+        GateCriterion::factory()->for($checklist, 'gate')->create(['criterion_type' => GateCriterion::TYPE_SESSION_LOGS, 'title' => 'Session logs committed', 'position' => 2]);
+        TrainingSession::factory()->for($program)->active()->create(['title' => 'Live Run']);
+
+        $this->actingAs($admin)
+            ->get(route('admin.programs.weeks.show', [$program, $week]))
+            ->assertOk()
+            ->assertSee('<title>Week 2: Testing</title>', false)
+            ->assertSeeInOrder(['ADMIN · CURRICULUM', 'Week 2: Testing', 'L4 Accelerator Training', 'Active'])
+            ->assertSee('<a href="'.route('admin.programs.show', $program).'"', false)
+            ->assertSee('data-sessions-notice="warning"', false)
+            ->assertSee('Live Run')
+            ->assertSeeInOrder(['Details', 'Activities', 'Checklist'])
+            ->assertSeeInOrder(['Testing', 'Write tests before the code.'])
+            ->assertSeeInOrder(['Unit testing basics', 'Active', 'Retired mocking drill', 'Inactive', 'Refactor kata', 'Active'])
+            ->assertSeeInOrder([
+                'Week 2 checklist',
+                'Everything a mentor checks before week 3.',
+                'Test suite passes', 'Deliverable', 'Every test is green.',
+                'Session logs committed', 'Session logs',
+                'Weekly video recorded', 'Weekly video',
+            ])
+            ->assertDontSee('Other week activity')
+            ->assertDontSee('Old checklist')
+            ->assertDontSee('This week has no checklist.')
+            ->assertDontSee('Removed items')
+            ->assertViewHas('activities', fn (array $activities): bool => $activities === [
+                ['title' => 'Unit testing basics', 'status_label' => 'Active', 'status_tone' => 'success'],
+                ['title' => 'Retired mocking drill', 'status_label' => 'Inactive', 'status_tone' => 'neutral'],
+                ['title' => 'Refactor kata', 'status_label' => 'Active', 'status_tone' => 'success'],
+            ])
+            ->assertViewHas('checklist', fn (array $checklist): bool => $checklist['title'] === 'Week 2 checklist'
+                && array_column($checklist['items'], 'type_label') === ['Deliverable', 'Session logs', 'Weekly video']
+                && $checklist['removed_items'] === []);
+    }
+
+    public function test_the_week_page_lists_retired_checklist_items_only_under_removed_items(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->create();
+        $week = $this->week($program, 1);
+        $checklist = TrainingGate::factory()->for($week, 'week')->create();
+        GateCriterion::factory()->for($checklist, 'gate')->create(['criterion_type' => GateCriterion::TYPE_DELIVERABLE, 'title' => 'Feature shipped']);
+        GateCriterion::factory()->for($checklist, 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO, 'title' => 'Retired video item', 'is_required' => false]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.programs.weeks.show', [$program, $week]))
+            ->assertOk()
+            ->assertSeeInOrder(['Feature shipped', 'Removed items', 'Retired video item', 'Weekly video'])
+            ->assertSee('data-removed-checklist-item', false)
+            ->assertViewHas('checklist', fn (array $checklist): bool => array_column($checklist['items'], 'title') === ['Feature shipped']
+                && array_column($checklist['removed_items'], 'title') === ['Retired video item']);
+    }
+
+    public function test_a_week_without_an_active_checklist_says_so(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->create();
+        $week = $this->week($program, 1);
+        GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week')->create(['title' => 'Inactive checklist', 'is_active' => false]), 'gate')->create();
+
+        $this->actingAs($admin)
+            ->get(route('admin.programs.weeks.show', [$program, $week]))
+            ->assertOk()
+            ->assertSee('This week has no checklist.')
+            ->assertSee('This week has no activities yet.')
+            ->assertDontSee('Inactive checklist')
+            ->assertViewHas('checklist', null);
+    }
+
+    public function test_a_week_of_another_program_is_not_found(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->create();
+        $foreignWeek = $this->week(Program::factory()->create(), 1);
+
+        $this->actingAs($admin)
+            ->get(route('admin.programs.weeks.show', [$program, $foreignWeek]))
+            ->assertNotFound();
+    }
+
+    public function test_the_week_page_query_count_does_not_grow_with_activities_checklist_items_and_sessions(): void
+    {
+        $this->assertSame($this->weekPageQueryCount(1), $this->weekPageQueryCount(4));
     }
 
     private function week(Program $program, int $weekNumber, ?string $title = null): TrainingWeek
@@ -194,6 +303,36 @@ class AdminCurriculumPagesTest extends TestCase
             ->assertViewHas('weeks', fn (array $weeks): bool => count($weeks) === $count
                 && array_sum(array_column($weeks, 'active_activity_count')) === $count * $count
                 && array_sum(array_column($weeks, 'checklist_item_count')) === $count * $count)
+            ->assertViewHas('notice', fn (array $notice): bool => count($notice['sessions']) === $count);
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
+    }
+
+    /**
+     * Create a week with that many activities, a checklist with that many items on it and that many retired, and a
+     * program with that many sessions, and count the queries of an admin's week page request after a warm-up request.
+     */
+    private function weekPageQueryCount(int $count): int
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->create();
+        $week = $this->week($program, 1);
+        Activity::factory()->for($week, 'week')->count($count)->create();
+        $checklist = TrainingGate::factory()->for($week, 'week')->create();
+        GateCriterion::factory()->for($checklist, 'gate')->count($count)->create();
+        GateCriterion::factory()->for($checklist, 'gate')->count($count)->create(['is_required' => false]);
+        TrainingSession::factory()->for($program)->count($count)->create();
+
+        $this->actingAs($admin)->get(route('admin.programs.weeks.show', [$program, $week]))->assertOk();
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->actingAs($admin)
+            ->get(route('admin.programs.weeks.show', [$program, $week]))
+            ->assertOk()
+            ->assertViewHas('activities', fn (array $activities): bool => count($activities) === $count)
+            ->assertViewHas('checklist', fn (array $checklist): bool => count($checklist['items']) === $count
+                && count($checklist['removed_items']) === $count)
             ->assertViewHas('notice', fn (array $notice): bool => count($notice['sessions']) === $count);
         DB::disableQueryLog();
 

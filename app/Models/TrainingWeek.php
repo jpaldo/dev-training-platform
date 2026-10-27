@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TrainingWeek extends Model
 {
@@ -35,6 +36,14 @@ class TrainingWeek extends Model
     public function gates(): HasMany
     {
         return $this->hasMany(TrainingGate::class);
+    }
+
+    /**
+     * The week's checklist: its first active Gate by position. A week without an active Gate has no checklist.
+     */
+    public function checklist(): HasOne
+    {
+        return $this->hasOne(TrainingGate::class)->where('is_active', true)->orderBy('position');
     }
 
     /**

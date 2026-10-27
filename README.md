@@ -1,58 +1,124 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Developer Training Platform
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Laravel application for running the L4 Accelerator Training program: curriculum, sessions, participant submissions, coach reviews and Google Drive video sharing.
 
-## About Laravel
+- Deployment plan and release procedure: [docs/AWS_DEPLOYMENT.md](docs/AWS_DEPLOYMENT.md)
+- Code quality plan and conventions: [docs/CODE_QUALITY_PLAN.md](docs/CODE_QUALITY_PLAN.md)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Production environment (AWS)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+State as of 27 Oct 2026: the server and database exist and are connected; the application is not deployed yet.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Passwords are never stored in this repository. The `admin` and `dev_training_app` database passwords and the `training-web.pem` key are kept in the team's password manager.
 
-## Learning Laravel
+### Server (EC2)
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+| Item | Value |
+|---|---|
+| Region | US East (Ohio), `us-east-2` |
+| Instance ID | `i-062140707fc5036d8` |
+| Operating system | Amazon Linux (login user `ec2-user`) |
+| Public IP | `3.14.133.1` (temporary, see open items) |
+| Public DNS | `ec2-3-14-133-1.us-east-2.compute.amazonaws.com` |
+| Private IP | `172.31.0.121` |
+| VPC | Default VPC (`172.31.0.0/16`) |
+| Key pair | `training-web` (ED25519) |
+| Security group | `training-web` (`sg-04b35939609325d3c`) |
+| IAM role | `AmazonEC2RoleforSSM` (temporary, see open items) |
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+`training-web` inbound rules:
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+| Port | Source | Purpose |
+|---|---|---|
+| 22 | Administrators' IPs (`/32`) | SSH |
+| 80 | `0.0.0.0/0` | HTTP (redirects to HTTPS) |
+| 443 | `0.0.0.0/0` | HTTPS |
 
-## Agentic Development
+### Database (RDS MySQL)
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+| Item | Value |
+|---|---|
+| Identifier | `training-web-db` |
+| Endpoint | `training-web-db.chs5dvwmkvnl.us-east-2.rds.amazonaws.com` |
+| Port | `3306` |
+| Instance class | `db.t4g.micro` |
+| Public access | No (reachable only from inside the VPC) |
+| Security group | `training-db`: inbound 3306 from `training-web` only |
+| Certificate authority | `rds-ca-rsa2048-g1` |
+| Database | `dev_training_platform` (`utf8mb4`, `utf8mb4_unicode_ci`) |
+| Master user | `admin`: administration only, self-managed password |
+| Application user | `dev_training_app`: all privileges on `dev_training_platform` only |
 
-```bash
-composer require laravel/boost --dev
+Backup retention and deletion protection are enabled.
 
-php artisan boost:install
+## Connecting
+
+### SSH
+
+Add to `~/.ssh/config`, with the key at `~/.ssh/training-web.pem` (mode `600`):
+
+```
+Host training
+    HostName 3.14.133.1
+    User ec2-user
+    IdentityFile ~/.ssh/training-web.pem
+    IdentitiesOnly yes
+
+Host training-db
+    HostName 3.14.133.1
+    User ec2-user
+    IdentityFile ~/.ssh/training-web.pem
+    IdentitiesOnly yes
+    LocalForward 3307 training-web-db.chs5dvwmkvnl.us-east-2.rds.amazonaws.com:3306
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Then `ssh training`. If the connection times out, your public IP has probably changed: in the `training-web` security group, edit the SSH rule and set its source to *My IP*.
 
-## Contributing
+### MySQL from the server
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+ssh training
+mysql -h training-web-db.chs5dvwmkvnl.us-east-2.rds.amazonaws.com -P 3306 -u admin -p \
+  --ssl --ssl-verify-server-cert --ssl-ca=$HOME/global-bundle.pem
+```
 
-## Code of Conduct
+The client is MariaDB's (`sudo dnf install -y mariadb105`). The CA bundle comes from `https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem`.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### MySQL Workbench (through an SSH tunnel)
 
-## Security Vulnerabilities
+1. Start the tunnel and leave it running: `ssh -N training-db`.
+2. Create a Workbench connection:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+   | Field | Value |
+   |---|---|
+   | Connection method | Standard (TCP/IP) |
+   | Hostname | `127.0.0.1` |
+   | Port | `3307` |
+   | Username | `admin` or `dev_training_app` |
+   | SSL mode | Require and Verify CA |
+   | Certificate Authority file | `~/.ssh/rds-global-bundle.pem` (full path) |
 
-## License
+3. Stop the tunnel with Ctrl+C when finished.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Use *Require and Verify CA*, not *Verify Identity*: through a tunnel the client connects to `127.0.0.1`, which never matches the certificate's hostname.
+
+### Production `.env` database settings
+
+```dotenv
+DB_CONNECTION=mysql
+DB_HOST=training-web-db.chs5dvwmkvnl.us-east-2.rds.amazonaws.com
+DB_PORT=3306
+DB_DATABASE=dev_training_platform
+DB_USERNAME=dev_training_app
+DB_PASSWORD=
+MYSQL_ATTR_SSL_CA=/var/www/training/shared/global-bundle.pem
+```
+
+`DB_CONNECTION` must be set explicitly: `config/database.php` falls back to SQLite without it.
+
+## Open items
+
+- **Elastic IP:** the public IP changes on every stop and start. An AWS administrator must allocate an Elastic IP and associate it before the DNS record is created (`fs-training` is not allowed `ec2:AllocateAddress`); then update the SSH config above.
+- **Domain:** the hostname is not decided yet. It is needed for HTTPS, `APP_URL` and the Google OAuth redirect URI before the first session (9 Nov 2026).
+- **IAM role:** `AmazonEC2RoleforSSM` grants read and write on every S3 bucket in the account. An AWS administrator should replace it with a `training-ec2` role (`AmazonSSMManagedInstanceCore`, `CloudWatchAgentServerPolicy`). The `fs-training` user cannot change roles or start Session Manager sessions.
+- **Provisioning steps:** [docs/AWS_DEPLOYMENT.md](docs/AWS_DEPLOYMENT.md) still describes Ubuntu (`apt`, `www-data`, `/etc/php/8.4/...`). The server runs Amazon Linux, so those steps need translating before PHP and nginx are installed.

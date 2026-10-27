@@ -16,7 +16,8 @@ class ActivityRequirement extends Model
 
     /**
      * The submission field types an admin can choose, each with its display label. A field's type is stored in
-     * `configuration.type`; an existing `select` field keeps its type and options but is not offered here.
+     * `configuration.type`; an existing field of another type (such as `select` with its options, or `date`) keeps it
+     * but it is not offered here.
      *
      * @var array<string, string>
      */
@@ -89,6 +90,15 @@ class ActivityRequirement extends Model
     public function fieldType(): string
     {
         return (string) ($this->configuration['type'] ?? 'textarea');
+    }
+
+    /**
+     * Whether the submission field's stored type is not one an admin can choose (FIELD_TYPES), such as `select` or
+     * `date`, so the field keeps it and an admin cannot change it.
+     */
+    public function hasFixedFieldType(): bool
+    {
+        return ! array_key_exists($this->fieldType(), self::FIELD_TYPES);
     }
 
     /**

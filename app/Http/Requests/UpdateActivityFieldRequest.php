@@ -30,8 +30,8 @@ class UpdateActivityFieldRequest extends FormRequest
     }
 
     /**
-     * A label, optional help, one of the offered types (a `select` field may also keep its type) and whether the field
-     * is required.
+     * A label, optional help, one of the offered types (a field whose stored type is not offered, such as `select`, may
+     * also keep it) and whether the field is required.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -98,7 +98,8 @@ class UpdateActivityFieldRequest extends FormRequest
     }
 
     /**
-     * The types the field may take: the offered FIELD_TYPES, plus `select` for a field that already is one.
+     * The types the field may take: the offered FIELD_TYPES, plus the field's own stored type when it is not offered
+     * (such as `select` or `date`), which then cannot change.
      *
      * @return list<string>
      */
@@ -106,8 +107,8 @@ class UpdateActivityFieldRequest extends FormRequest
     {
         $types = array_keys(ActivityRequirement::FIELD_TYPES);
 
-        if ($this->field()->fieldType() === 'select') {
-            $types[] = 'select';
+        if ($this->field()->hasFixedFieldType()) {
+            $types[] = $this->field()->fieldType();
         }
 
         return $types;

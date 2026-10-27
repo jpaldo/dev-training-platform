@@ -131,7 +131,11 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
             Route::patch('/{program}/weeks/{week}/activities/{activity}/move', [AdminActivityController::class, 'move'])->name('activities.move');
             Route::patch('/{program}/weeks/{week}/activities/{activity}/deactivate', [AdminActivityController::class, 'deactivate'])->name('activities.deactivate');
             Route::patch('/{program}/weeks/{week}/activities/{activity}/reactivate', [AdminActivityController::class, 'reactivate'])->name('activities.reactivate');
+            Route::post('/{program}/weeks/{week}/activities/{activity}/fields', [AdminActivityFieldController::class, 'store'])->name('fields.store');
             Route::put('/{program}/weeks/{week}/activities/{activity}/fields/{requirement}', [AdminActivityFieldController::class, 'update'])->name('fields.update');
+            Route::patch('/{program}/weeks/{week}/activities/{activity}/fields/{requirement}/move', [AdminActivityFieldController::class, 'move'])->name('fields.move');
+            Route::delete('/{program}/weeks/{week}/activities/{activity}/fields/{requirement}', [AdminActivityFieldController::class, 'destroy'])->name('fields.destroy');
+            Route::patch('/{program}/weeks/{week}/activities/{activity}/fields/{requirement}/restore', [AdminActivityFieldController::class, 'restore'])->name('fields.restore');
         });
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');

@@ -135,12 +135,12 @@ class CurriculumPageService
      * Everything the activity page renders: the activity's title and status, the week and program it belongs to with
      * the link back to the week's Activities tab, the sessions notice and the three tabs. Details holds the title,
      * description, objectives and instructions with the URL and error bag of their form; Submission fields lists the
-     * activity's submission fields in position order, each with the URL and error bag of its form (see fieldFormRows()),
-     * the field types an admin can choose and, apart, the removed fields; Scoring lists the scoring dimensions in rubric
-     * order with their total.
+     * activity's submission fields in position order, each with the URLs and error bag of its forms (see
+     * fieldFormRows()), the field types an admin can choose, the URL and error bag of the "Add field" form and, apart,
+     * the removed fields with their Restore URLs; Scoring lists the scoring dimensions in rubric order with their total.
      * Reads the submission fields in one query, plus the notice's one.
      *
-     * @return array{title: string, statusLabel: string, statusTone: string, weekLabel: string, programName: string, weekUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, objectives: ?string, instructions: ?string, update_url: string, error_bag: string}, fields: list<array{id: int, key: string, label: string, help: ?string, type: string, type_label: string, is_select: bool, is_required: bool, required_label: string, required_tone: string, update_url: string, error_bag: string}>, fieldTypes: list<array{value: string, label: string}>, removedFields: list<array{key: string, label: string, help: ?string, type: string, type_label: string, is_select: bool, is_required: bool, required_label: string, required_tone: string}>, scoring: array{dimensions: list<array{key: string, label: string, max: int}>, total: int}}
+     * @return array{title: string, statusLabel: string, statusTone: string, weekLabel: string, programName: string, weekUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, objectives: ?string, instructions: ?string, update_url: string, error_bag: string}, fields: list<array{id: int, key: string, label: string, help: ?string, type: string, type_label: string, has_fixed_type: bool, fixed_type_note: string, is_required: bool, required_label: string, required_tone: string, update_url: string, error_bag: string, move_url: string, can_move_up: bool, can_move_down: bool, destroy_url: string, remove_confirmation: string}>, fieldTypes: list<array{value: string, label: string}>, addField: array{store_url: string, error_bag: string}, removedFields: list<array{key: string, label: string, help: ?string, type: string, type_label: string, has_fixed_type: bool, fixed_type_note: string, is_required: bool, required_label: string, required_tone: string, restore_url: string}>, scoring: array{dimensions: list<array{key: string, label: string, max: int}>, total: int}}
      */
     public function activityData(Program $program, TrainingWeek $week, Activity $activity): array
     {
@@ -178,7 +178,17 @@ class CurriculumPageService
                 ->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])
                 ->values()
                 ->all(),
-            'removedFields' => $removedFields->map($this->submissionFieldRow(...))->values()->all(),
+            'addField' => [
+                'store_url' => route('admin.programs.fields.store', [$program, $week, $activity]),
+                'error_bag' => 'addField',
+            ],
+            'removedFields' => $removedFields
+                ->map(fn (ActivityRequirement $field): array => [
+                    ...$this->submissionFieldRow($field),
+                    'restore_url' => route('admin.programs.fields.restore', [$program, $week, $activity, $field]),
+                ])
+                ->values()
+                ->all(),
             'scoring' => [
                 'dimensions' => $activity->scoringDimensions(),
                 'total' => $activity->scoringMaximum(),
@@ -217,30 +227,43 @@ class CurriculumPageService
     }
 
     /**
-     * One row per active submission field, in the given order (see submissionFieldRow()), with its id and the URL and
-     * error bag of its form.
+     * One row per active submission field, in the given order (see submissionFieldRow()), with its id, the URL and error
+     * bag of its form, and the URLs of its Move and Remove buttons with the Remove confirmation. The first row cannot
+     * move up and the last cannot move down.
      *
      * @param  Collection<int, ActivityRequirement>  $fields
-     * @return list<array{id: int, key: string, label: string, help: ?string, type: string, type_label: string, is_select: bool, is_required: bool, required_label: string, required_tone: string, update_url: string, error_bag: string}>
+     * @return list<array{id: int, key: string, label: string, help: ?string, type: string, type_label: string, has_fixed_type: bool, fixed_type_note: string, is_required: bool, required_label: string, required_tone: string, update_url: string, error_bag: string, move_url: string, can_move_up: bool, can_move_down: bool, destroy_url: string, remove_confirmation: string}>
      */
     private function fieldFormRows(Program $program, TrainingWeek $week, Activity $activity, Collection $fields): array
     {
+        $lastIndex = $fields->count() - 1;
+
         return $fields
-            ->map(fn (ActivityRequirement $field): array => [
-                'id' => $field->id,
-                ...$this->submissionFieldRow($field),
-                'update_url' => route('admin.programs.fields.update', [$program, $week, $activity, $field]),
-                'error_bag' => UpdateActivityFieldRequest::errorBagFor($field),
-            ])
             ->values()
+            ->map(function (ActivityRequirement $field, int $index) use ($program, $week, $activity, $lastIndex): array {
+                $row = $this->submissionFieldRow($field);
+
+                return [
+                    'id' => $field->id,
+                    ...$row,
+                    'update_url' => route('admin.programs.fields.update', [$program, $week, $activity, $field]),
+                    'error_bag' => UpdateActivityFieldRequest::errorBagFor($field),
+                    'move_url' => route('admin.programs.fields.move', [$program, $week, $activity, $field]),
+                    'can_move_up' => $index > 0,
+                    'can_move_down' => $index < $lastIndex,
+                    'destroy_url' => route('admin.programs.fields.destroy', [$program, $week, $activity, $field]),
+                    'remove_confirmation' => "Remove {$row['label']}? Participants' answers to it are kept, but the field leaves the form for every session.",
+                ];
+            })
             ->all();
     }
 
     /**
-     * A submission field's key, label, help, type with its label (`ActivityRequirement::FIELD_TYPES`), whether it is a
-     * `select` field, whose type cannot be chosen, and whether it is required.
+     * A submission field's key, label, help, type with its label (`ActivityRequirement::FIELD_TYPES`), whether its type
+     * is not offered (such as `select` or `date`) and so cannot be chosen, with the note shown in place of the type
+     * select, and whether it is required.
      *
-     * @return array{key: string, label: string, help: ?string, type: string, type_label: string, is_select: bool, is_required: bool, required_label: string, required_tone: string}
+     * @return array{key: string, label: string, help: ?string, type: string, type_label: string, has_fixed_type: bool, fixed_type_note: string, is_required: bool, required_label: string, required_tone: string}
      */
     private function submissionFieldRow(ActivityRequirement $field): array
     {
@@ -252,7 +275,10 @@ class CurriculumPageService
             'help' => $settings['help'],
             'type' => $settings['type'],
             'type_label' => $field->fieldTypeLabel(),
-            'is_select' => $settings['type'] === 'select',
+            'has_fixed_type' => $field->hasFixedFieldType(),
+            'fixed_type_note' => $settings['type'] === 'select'
+                ? "{$field->fieldTypeLabel()}. Its options are kept and cannot change here."
+                : "{$field->fieldTypeLabel()}. This type cannot change here.",
             'is_required' => $settings['required'],
             'required_label' => $settings['required'] ? 'Required' : 'Optional',
             'required_tone' => $settings['required'] ? 'accent' : 'neutral',

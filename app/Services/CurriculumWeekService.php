@@ -15,6 +15,20 @@ use Illuminate\Support\Facades\DB;
  */
 class CurriculumWeekService
 {
+    /**
+     * The optional "Notes" submission field every new activity gets, as `L4TrainingProgramSeeder` gives it to every
+     * seeded activity.
+     *
+     * @var array{key: string, label: string, type: string, required: bool, help: string}
+     */
+    private const NOTES_FIELD = [
+        'key' => 'notes',
+        'label' => 'Notes',
+        'type' => 'textarea',
+        'required' => false,
+        'help' => 'Anything your mentor should know about this deliverable.',
+    ];
+
     public function __construct(private AdminAuditService $audit) {}
 
     /**
@@ -44,6 +58,48 @@ class CurriculumWeekService
             ]);
 
             return $week;
+        });
+    }
+
+    /**
+     * Add an activity with the given text to the end of the week, after every activity including inactive ones, and
+     * record `curriculum_activity_added`. The new activity is active, reviewed by a mentor, scored on the default
+     * rubric (`Activity::DEFAULT_SCORING_DIMENSIONS`) and has one submission field, the optional "Notes". The week row
+     * is locked while the position is chosen, so two adds at once cannot take the same position.
+     *
+     * @param  array{title: string, description?: ?string, objectives?: ?string, instructions?: ?string}  $details
+     */
+    public function addActivity(TrainingWeek $week, array $details, User $admin): Activity
+    {
+        return DB::transaction(function () use ($week, $details, $admin): Activity {
+            TrainingWeek::query()->whereKey($week->id)->lockForUpdate()->firstOrFail();
+
+            $activity = $week->activities()->create([
+                ...Arr::only($details, ['title', 'description', 'objectives', 'instructions']),
+                'position' => (int) $week->activities()->max('position') + 1,
+                'configuration' => ['scoring_dimensions' => Activity::DEFAULT_SCORING_DIMENSIONS],
+                'requires_coach_review' => true,
+                'is_active' => true,
+            ]);
+
+            $activity->requirements()->create([
+                'requirement_type' => 'submission_field',
+                'title' => self::NOTES_FIELD['label'],
+                'description' => self::NOTES_FIELD['help'],
+                'is_required' => self::NOTES_FIELD['required'],
+                'position' => 1,
+                'configuration' => self::NOTES_FIELD,
+            ]);
+
+            $this->audit->record($admin, 'curriculum_activity_added', metadata: [
+                'program_id' => $week->program_id,
+                'training_week_id' => $week->id,
+                'activity_id' => $activity->id,
+                'title' => $activity->title,
+                'position' => $activity->position,
+            ]);
+
+            return $activity;
         });
     }
 

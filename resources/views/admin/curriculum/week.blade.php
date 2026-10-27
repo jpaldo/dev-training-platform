@@ -6,6 +6,7 @@
         $cellClasses = 'border-b border-line px-3.5 py-3.5 text-left align-middle max-sm:px-2.5 max-sm:py-3';
         $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
         $weekErrors = $errors->getBag($details['error_bag']);
+        $addActivityErrors = $errors->getBag($addActivity['error_bag']);
     @endphp
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -117,6 +118,87 @@
                         @else
                             <p class="text-muted">This week has no activities yet.</p>
                         @endif
+
+                        <section class="grid grid-cols-1 gap-4 border-t border-line pt-4" aria-labelledby="week-add-activity-title" data-add-activity>
+                            <h3 id="week-add-activity-title" class="text-base font-extrabold">Add activity</h3>
+                            <p class="text-sm/relaxed text-muted">The new activity goes last in the week. It starts with the default scoring rubric and an optional Notes field, which you can change on its page.</p>
+
+                            <form method="POST" action="{{ $addActivity['store_url'] }}" class="grid min-w-0 grid-cols-1 gap-4 lg:max-w-2xl" aria-labelledby="week-add-activity-title" data-add-activity-form>
+                                @csrf
+
+                                <div class="grid min-w-0 grid-cols-1 gap-2">
+                                    <label for="add-activity-title" class="text-sm font-extrabold">Title</label>
+                                    <input
+                                        id="add-activity-title"
+                                        name="title"
+                                        type="text"
+                                        required
+                                        maxlength="255"
+                                        value="{{ $addActivityErrors->any() ? old('title') : '' }}"
+                                        @if($addActivityErrors->has('title')) aria-invalid="true" aria-describedby="add-activity-title-error" @endif
+                                        class="{{ $controlClasses }}"
+                                    >
+                                    @if($addActivityErrors->has('title'))
+                                        <p id="add-activity-title-error" class="text-sm text-rose-200" role="alert">{{ $addActivityErrors->first('title') }}</p>
+                                    @endif
+                                </div>
+
+                                <div class="grid min-w-0 grid-cols-1 gap-2">
+                                    <label for="add-activity-description" class="text-sm font-extrabold">Description</label>
+                                    <p id="add-activity-description-hint" class="text-sm/relaxed text-muted">Optional plain text, shown under the activity's title.</p>
+                                    <textarea
+                                        id="add-activity-description"
+                                        name="description"
+                                        rows="4"
+                                        maxlength="5000"
+                                        aria-describedby="add-activity-description-hint{{ $addActivityErrors->has('description') ? ' add-activity-description-error' : '' }}"
+                                        @if($addActivityErrors->has('description')) aria-invalid="true" @endif
+                                        class="{{ $controlClasses }} min-h-24 resize-y"
+                                    >{{ $addActivityErrors->any() ? old('description') : '' }}</textarea>
+                                    @if($addActivityErrors->has('description'))
+                                        <p id="add-activity-description-error" class="text-sm text-rose-200" role="alert">{{ $addActivityErrors->first('description') }}</p>
+                                    @endif
+                                </div>
+
+                                <div class="grid min-w-0 grid-cols-1 gap-2">
+                                    <label for="add-activity-objectives" class="text-sm font-extrabold">Objectives</label>
+                                    <p id="add-activity-objectives-hint" class="text-sm/relaxed text-muted">Optional plain text, shown as the activity's objective.</p>
+                                    <textarea
+                                        id="add-activity-objectives"
+                                        name="objectives"
+                                        rows="4"
+                                        maxlength="5000"
+                                        aria-describedby="add-activity-objectives-hint{{ $addActivityErrors->has('objectives') ? ' add-activity-objectives-error' : '' }}"
+                                        @if($addActivityErrors->has('objectives')) aria-invalid="true" @endif
+                                        class="{{ $controlClasses }} min-h-24 resize-y"
+                                    >{{ $addActivityErrors->any() ? old('objectives') : '' }}</textarea>
+                                    @if($addActivityErrors->has('objectives'))
+                                        <p id="add-activity-objectives-error" class="text-sm text-rose-200" role="alert">{{ $addActivityErrors->first('objectives') }}</p>
+                                    @endif
+                                </div>
+
+                                <div class="grid min-w-0 grid-cols-1 gap-2">
+                                    <label for="add-activity-instructions" class="text-sm font-extrabold">Instructions</label>
+                                    <p id="add-activity-instructions-hint" class="text-sm/relaxed text-muted">Optional plain text. Line breaks are kept.</p>
+                                    <textarea
+                                        id="add-activity-instructions"
+                                        name="instructions"
+                                        rows="8"
+                                        maxlength="20000"
+                                        aria-describedby="add-activity-instructions-hint{{ $addActivityErrors->has('instructions') ? ' add-activity-instructions-error' : '' }}"
+                                        @if($addActivityErrors->has('instructions')) aria-invalid="true" @endif
+                                        class="{{ $controlClasses }} min-h-40 resize-y"
+                                    >{{ $addActivityErrors->any() ? old('instructions') : '' }}</textarea>
+                                    @if($addActivityErrors->has('instructions'))
+                                        <p id="add-activity-instructions-error" class="text-sm text-rose-200" role="alert">{{ $addActivityErrors->first('instructions') }}</p>
+                                    @endif
+                                </div>
+
+                                <div>
+                                    <x-ui.button type="submit">Add Activity</x-ui.button>
+                                </div>
+                            </form>
+                        </section>
                     </x-ui.card>
                 </x-ui.tab-panel>
 

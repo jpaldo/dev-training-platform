@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\NormalizesLineEndings;
 use App\Models\Program;
 use App\Models\TrainingWeek;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -15,6 +16,8 @@ use Illuminate\Foundation\Http\FormRequest;
 #[ErrorBag('week')]
 class UpdateTrainingWeekRequest extends FormRequest
 {
+    use NormalizesLineEndings;
+
     public function authorize(): bool
     {
         return $this->user()?->can('update', $this->program()) === true;
@@ -39,7 +42,7 @@ class UpdateTrainingWeekRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        $this->merge($this->withUnixLineEndings(['description']));
+        $this->normalizeLineEndings(['description']);
     }
 
     /**
@@ -48,19 +51,6 @@ class UpdateTrainingWeekRequest extends FormRequest
     protected function getRedirectUrl(): string
     {
         return route('admin.programs.weeks.show', [$this->program(), $this->week()]).'#details';
-    }
-
-    /**
-     * The given inputs that were sent, with each string's "\r\n" and lone "\r" line breaks turned into "\n".
-     *
-     * @param  list<string>  $fields
-     * @return array<string, mixed>
-     */
-    private function withUnixLineEndings(array $fields): array
-    {
-        return collect($this->only($fields))
-            ->map(fn (mixed $value): mixed => is_string($value) ? str_replace(["\r\n", "\r"], "\n", $value) : $value)
-            ->all();
     }
 
     private function program(): Program

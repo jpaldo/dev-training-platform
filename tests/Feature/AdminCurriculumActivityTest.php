@@ -9,6 +9,7 @@ use App\Models\Program;
 use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -289,6 +290,157 @@ class AdminCurriculumActivityTest extends TestCase
         $this->assertDatabaseCount('admin_audit_logs', 0);
     }
 
+    public function test_admin_adds_an_activity_after_the_inactive_ones_with_the_seeded_defaults_and_it_is_audited(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->seed(L4TrainingProgramSeeder::class);
+        $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->sole()
+            ->weeks()->where('week_number', 1)->sole();
+        $lastActivity = $week->activities()->orderByDesc('position')->first();
+        $lastActivity->update(['is_active' => false]);
+        $seededNotesField = $lastActivity->requirements()->where('configuration->key', 'notes')->sole();
+
+        $response = $this->actingAs($admin)
+            ->post($this->storeUrl($week), [
+                'title' => 'Pair programming',
+                'description' => 'Work with a partner.',
+                'objectives' => 'Practise driving and navigating.',
+                'instructions' => "Swap roles every 15 minutes.\r\nWrite down what you learned.",
+            ]);
+
+        $activity = $week->activities()->latest('id')->first();
+        $response->assertSessionHasNoErrors()
+            ->assertRedirect($this->editUrl($activity))
+            ->assertSessionHas('status', 'Added "Pair programming".');
+        $this->assertSame($lastActivity->position + 1, $activity->position);
+        $this->assertSame('Pair programming', $activity->title);
+        $this->assertSame('Work with a partner.', $activity->description);
+        $this->assertSame('Practise driving and navigating.', $activity->objectives);
+        $this->assertSame("Swap roles every 15 minutes.\nWrite down what you learned.", $activity->instructions);
+        $this->assertTrue($activity->is_active);
+        $this->assertTrue($activity->requires_coach_review);
+        $this->assertSame(['scoring_dimensions' => Activity::DEFAULT_SCORING_DIMENSIONS], $activity->configuration);
+
+        $notesField = $activity->requirements()->sole();
+        $this->assertSame(
+            $seededNotesField->only(['requirement_type', 'title', 'description', 'is_required', 'configuration']),
+            $notesField->only(['requirement_type', 'title', 'description', 'is_required', 'configuration']),
+        );
+        $this->assertSame(1, $notesField->position);
+
+        $audit = AdminAuditLog::query()->sole();
+        $this->assertSame($admin->id, $audit->actor_id);
+        $this->assertNull($audit->target_user_id);
+        $this->assertSame('curriculum_activity_added', $audit->action);
+        $this->assertSame([
+            'program_id' => $week->program_id,
+            'training_week_id' => $week->id,
+            'activity_id' => $activity->id,
+            'title' => 'Pair programming',
+            'position' => $activity->position,
+        ], $audit->metadata);
+    }
+
+    public function test_a_new_activity_shows_on_the_week_page_of_every_session_of_the_program(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $activity = $this->activity();
+        $week = $activity->week;
+        $participants = User::factory()->count(2)->create(['role' => 'participant']);
+        $sessions = $participants->map(fn (User $participant): TrainingSession => TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create());
+
+        $this->actingAs($admin)
+            ->post($this->storeUrl($week), ['title' => 'Pair programming', 'description' => 'Work with a partner.'])
+            ->assertSessionHasNoErrors();
+
+        foreach ($participants as $index => $participant) {
+            $this->actingAs($participant)
+                ->get(route('training.weeks.show', [$sessions[$index], $week]))
+                ->assertOk()
+                ->assertSeeInOrder(['Unit testing basics', 'Pair programming', 'Work with a partner.']);
+        }
+    }
+
+    /**
+     * @param  array<string, string>  $payload
+     */
+    #[DataProvider('invalidDetails')]
+    public function test_an_invalid_add_fails_in_the_add_activity_bag_and_creates_nothing(array $payload, string $field, string $message): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $week = $this->activity()->week;
+
+        $this->actingAs($admin)
+            ->post($this->storeUrl($week), $payload)
+            ->assertRedirect(route('admin.programs.weeks.show', [$week->program_id, $week]).'#activities')
+            ->assertSessionHasErrorsIn('addActivity', [$field => $message]);
+
+        $this->assertSame(1, $week->activities()->count());
+        $this->assertDatabaseCount('activity_requirements', 0);
+        $this->assertDatabaseCount('admin_audit_logs', 0);
+    }
+
+    public function test_a_failed_add_shows_its_errors_on_the_activities_tab_and_keeps_the_typed_text(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $week = $this->activity()->week;
+        $week->update(['title' => 'Foundations']);
+
+        $this->actingAs($admin)
+            ->followingRedirects()
+            ->post($this->storeUrl($week), [
+                'title' => '',
+                'description' => 'Typed description.',
+                'objectives' => 'Typed objective.',
+                'instructions' => 'Typed instructions.',
+            ])
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="week-title"',
+                'value="Foundations"',
+                'Add activity',
+                'action="'.$this->storeUrl($week).'"',
+                'id="add-activity-title"',
+                'value=""',
+                'aria-invalid="true" aria-describedby="add-activity-title-error"',
+                '<p id="add-activity-title-error" class="text-sm text-rose-200" role="alert">The title field is required.</p>',
+                '>Typed description.</textarea>',
+                '>Typed objective.</textarea>',
+                '>Typed instructions.</textarea>',
+                '>Add Activity<',
+            ], false)
+            ->assertDontSee('id="week-title-error"', false);
+    }
+
+    public function test_an_activity_cannot_be_added_to_a_week_of_another_program(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $week = $this->activity()->week;
+        $otherProgram = Program::factory()->create();
+
+        $this->actingAs($admin)
+            ->post(route('admin.programs.activities.store', [$otherProgram, $week]), ['title' => 'Pair programming'])
+            ->assertNotFound();
+
+        $this->assertSame(1, $week->activities()->count());
+        $this->assertDatabaseCount('admin_audit_logs', 0);
+    }
+
+    public function test_only_admins_can_add_an_activity(): void
+    {
+        $week = $this->activity()->week;
+
+        $this->post($this->storeUrl($week), ['title' => 'Pair programming'])->assertRedirect(route('login'));
+
+        foreach (['participant', 'coach'] as $role) {
+            $user = User::factory()->create(['role' => $role]);
+            $this->actingAs($user)->post($this->storeUrl($week), ['title' => 'Pair programming'])->assertForbidden();
+        }
+
+        $this->assertSame(1, $week->activities()->count());
+        $this->assertDatabaseCount('admin_audit_logs', 0);
+    }
+
     /**
      * The first activity of week 1 of a new program, reviewed by a coach, with the default rubric and an extra
      * `expected_files` key in its configuration.
@@ -329,6 +481,11 @@ class AdminCurriculumActivityTest extends TestCase
             'position' => $position,
             'configuration' => $configuration,
         ]);
+    }
+
+    private function storeUrl(TrainingWeek $week): string
+    {
+        return route('admin.programs.activities.store', [$week->program_id, $week]);
     }
 
     private function editUrl(Activity $activity): string

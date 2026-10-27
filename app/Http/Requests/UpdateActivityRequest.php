@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\NormalizesLineEndings;
 use App\Models\Activity;
 use App\Models\Program;
 use App\Models\TrainingWeek;
@@ -17,6 +18,8 @@ use Illuminate\Foundation\Http\FormRequest;
 #[ErrorBag('activity')]
 class UpdateActivityRequest extends FormRequest
 {
+    use NormalizesLineEndings;
+
     public function authorize(): bool
     {
         return $this->user()?->can('update', $this->program()) === true;
@@ -43,7 +46,7 @@ class UpdateActivityRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        $this->merge($this->withUnixLineEndings(['description', 'objectives', 'instructions']));
+        $this->normalizeLineEndings(['description', 'objectives', 'instructions']);
     }
 
     /**
@@ -52,19 +55,6 @@ class UpdateActivityRequest extends FormRequest
     protected function getRedirectUrl(): string
     {
         return route('admin.programs.activities.edit', [$this->program(), $this->week(), $this->activity()]).'#details';
-    }
-
-    /**
-     * The given inputs that were sent, with each string's "\r\n" and lone "\r" line breaks turned into "\n".
-     *
-     * @param  list<string>  $fields
-     * @return array<string, mixed>
-     */
-    private function withUnixLineEndings(array $fields): array
-    {
-        return collect($this->only($fields))
-            ->map(fn (mixed $value): mixed => is_string($value) ? str_replace(["\r\n", "\r"], "\n", $value) : $value)
-            ->all();
     }
 
     private function program(): Program

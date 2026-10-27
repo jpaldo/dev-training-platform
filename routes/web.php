@@ -124,6 +124,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
             Route::get('/{program}', [AdminCurriculumController::class, 'show'])->name('show');
             Route::get('/{program}/weeks/{week}', [AdminCurriculumController::class, 'week'])->name('weeks.show');
             Route::put('/{program}/weeks/{week}', [AdminTrainingWeekController::class, 'update'])->name('weeks.update');
+            Route::post('/{program}/weeks/{week}/activities', [AdminActivityController::class, 'store'])->name('activities.store');
             Route::get('/{program}/weeks/{week}/activities/{activity}/edit', [AdminActivityController::class, 'edit'])->name('activities.edit');
             Route::put('/{program}/weeks/{week}/activities/{activity}', [AdminActivityController::class, 'update'])->name('activities.update');
         });

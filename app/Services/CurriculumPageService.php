@@ -83,12 +83,12 @@ class CurriculumPageService
     /**
      * Everything the week page renders: the title "Week N: {title}", the week's status, the link back to the program,
      * the sessions notice and the three tabs. Details holds the title and description with the URL and error bag of
-     * their form; Activities lists every activity in position order with whether it is active and the link to its page; Checklist holds the
-     * week's checklist (its first active Gate) with the items on it in position order and, apart, its retired items,
-     * or null when the week has none.
+     * their form; Activities lists every activity in position order with whether it is active and the link to its page,
+     * and holds the URL and error bag of the "Add activity" form; Checklist holds the week's checklist (its first active
+     * Gate) with the items on it in position order and, apart, its retired items, or null when the week has none.
      * Reads the activities, the checklist and its items in three queries, plus the notice's one.
      *
-     * @return array{title: string, statusLabel: string, statusTone: string, programName: string, programUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, update_url: string, error_bag: string}, activities: list<array{title: string, status_label: string, status_tone: string, edit_url: string}>, checklist: ?array{title: string, description: ?string, items: list<array{title: string, description: ?string, type_label: string}>, removed_items: list<array{title: string, description: ?string, type_label: string}>}}
+     * @return array{title: string, statusLabel: string, statusTone: string, programName: string, programUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, update_url: string, error_bag: string}, activities: list<array{title: string, status_label: string, status_tone: string, edit_url: string}>, addActivity: array{store_url: string, error_bag: string}, checklist: ?array{title: string, description: ?string, items: list<array{title: string, description: ?string, type_label: string}>, removed_items: list<array{title: string, description: ?string, type_label: string}>}}
      */
     public function weekData(Program $program, TrainingWeek $week): array
     {
@@ -124,6 +124,10 @@ class CurriculumPageService
                     'edit_url' => route('admin.programs.activities.edit', [$program, $week, $activity]),
                 ])
                 ->all(),
+            'addActivity' => [
+                'store_url' => route('admin.programs.activities.store', [$program, $week]),
+                'error_bag' => 'addActivity',
+            ],
             'checklist' => $this->checklistData($week->checklist),
         ];
     }

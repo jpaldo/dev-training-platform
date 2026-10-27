@@ -156,6 +156,28 @@ class User extends Authenticatable
             ->exists();
     }
 
+    /**
+     * Whether the user may act as the participant's mentor in the curriculum: an admin (in every curriculum), or a
+     * coach holding the participant's current mentor assignment there. A previous mentor of the participant, or their
+     * mentor in another curriculum, may not.
+     */
+    public function mentorsParticipantInProgram(User $participant, Program $program): bool
+    {
+        if ($this->hasAnyRole(UserRole::Admin)) {
+            return true;
+        }
+
+        if (! $this->hasAnyRole(UserRole::Coach)) {
+            return false;
+        }
+
+        return MentorAssignment::query()
+            ->current()
+            ->forParticipantInProgram($program->id, $participant->id)
+            ->where('mentor_id', $this->id)
+            ->exists();
+    }
+
     public function gateEvaluations(): HasMany
     {
         return $this->hasMany(GateEvaluation::class);
@@ -189,6 +211,27 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(TrainingSession::class, 'training_session_mentors')
             ->using(TrainingSessionMentor::class)
+            ->withTimestamps();
+    }
+
+    /**
+     * The curricula the user is a participant in.
+     */
+    public function programs(): BelongsToMany
+    {
+        return $this->belongsToMany(Program::class, 'program_participants')
+            ->using(ProgramParticipant::class)
+            ->withPivot(['joined_at', 'added_by'])
+            ->withTimestamps();
+    }
+
+    /**
+     * The curricula the user (a coach) is a mentor of.
+     */
+    public function mentoredPrograms(): BelongsToMany
+    {
+        return $this->belongsToMany(Program::class, 'program_mentors')
+            ->using(ProgramMentor::class)
             ->withTimestamps();
     }
 

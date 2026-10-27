@@ -197,7 +197,7 @@ None blocking. See Open decisions for `AdoptSquashedMigrationsCommand`.
   - **Depends on:** nothing.
   - **Done 2026-10-28:** migrations `2026_10_28_000001`…`000007` (run on dev MySQL, batch 8; up → down → up checked on SQLite), `MoveTrainingSessionsOntoProgramsMigrationTest` (3 cases), the two old migration tests deleted. `SessionScopedRecordsTest::test_a_session_with_training_records_cannot_be_deleted` pinned the dropped restricting FK and now asserts `test_deleting_a_session_keeps_its_training_records`. Suite 1506 green.
 
-- [ ] **1.2 Program absorbs the session model** (MRG-1, SCH-1, STA-1, STA-3) — size M
+- [x] **1.2 Program absorbs the session model** (MRG-1, SCH-1, STA-1, STA-3) — size M
   - **Do:**
     - `ProgramStatus` enum with `label()`, `tone()`.
     - Models `ProgramParticipant` (Pivot, `$incrementing`, casts `joined_at`, `scopeForParticipantInProgram`, `scopeCurrentlyMentoredBy`, `program()`, `participant()`, `addedBy()`), `ProgramMentor`, `ProgramResource` (`googleDriveLink()`); `ProgramResourceFactory`.
@@ -209,6 +209,7 @@ None blocking. See Open decisions for `AdoptSquashedMigrationsCommand`.
   - **Acceptance:** `Program::factory()->withWeeks(4, today())->create()->status()` is Active; `withWeeks(4, today()->addWeek())` Upcoming; no weeks → Unscheduled; a week with `starts_on` null is not open; `acceptsWork()` false after the last week and true for a reopened attempt.
   - **Tests:** new `ProgramStatusTest` (four boundaries, bounds with/without `withScheduleBounds`, `openToJoin`, `acceptsWork`), `TrainingWeekScheduleTest` (`isOpen` today/tomorrow/null, labels), `ProgramMembershipTest` (relations, `includesParticipant/Mentor`, `mentorsParticipantInProgram`, `ProgramParticipant::currentlyMentoredBy`).
   - **Depends on:** 1.1.
+  - **Done 2026-10-28:** `ProgramStatus` (Unscheduled tone `warning`), `ProgramParticipant` / `ProgramMentor` (Pivots, no observer until 2.1), `ProgramResource` + `ProgramResourceFactory`, `Support\DateRange::label()` (shared by `Program` and `TrainingWeek` labels; "9 – 15 Nov 2026", "9 Nov – 6 Dec 2026"). `Program::scheduleStartsOn()/scheduleEndsOn()/status()/dateRangeLabel()` share one bounds read (attributes from `withScheduleBounds()`, else one `min/max` query). The `MentorAssignment` row scopes keep their names and take an optional `?string $programIdColumn` (null = the session form; 2.1 makes it required) beside `forParticipantInProgram()`. `ProgramFactory::completed()/upcoming()/unscheduled()` re-date the weeks the program has when created (`withWeeks()`), not weeks added later. `MentorAssignmentFactory` derives `program_id` from the assignment's session's program (a new program when it has none) instead of a plain `Program::factory()`, so old tests' assignments stay consistent; 2.1 switches it to `Program::factory()`. No existing test needed changes (new factory dates and `program_id` caused no fallout). Read-only check on dev MySQL: program 2 reads Upcoming, "18 – 24 Nov 2026". Suite 1523 green.
 
 - [ ] **1.3 Admin schedule editing** (SCH-2, SCH-3, ADM-1 partly) — size M
   - **Do:**
@@ -277,5 +278,6 @@ None blocking. See Open decisions for `AdoptSquashedMigrationsCommand`.
 - (1.1) Dev's only training session is `weeks_count` 1 starting 2026-11-18, not the seeder's 4 weeks from 9 Nov, so the data move dated week 1 only (18–24 Nov); weeks 2–4 are unscheduled. Decide whether to re-date dev with the 1.3 schedule form (start 2026-11-09 or 2026-11-18) or re-seed in 2.1.
 - (1.1) The data move ran once. Participants, mentors, resources and mentor assignments added through the old session pages between 1.1 and 2.1 are not copied to `program_*` / `mentor_assignments.program_id`. Either keep dev unchanged until 2.1 or have 2.1 re-copy them (e.g. a one-off re-sync in its migration).
 - (1.1) With the session foreign keys gone, deleting a training session no longer cascades to its mentor assignments or is blocked by work rows. No route deletes a session today, and 3.1 drops the column; recorded so 2.1 does not add a session delete path.
+- (1.2) `Program::status()`, `isCompleted()`, `acceptsWork()` and `dateRangeLabel()` each run the bounds query when the program was not loaded with `withScheduleBounds()`. 2.1's page services, policies and `WeekProgressionService` should load the scope (or compute status once per request) wherever a list or a request calls them repeatedly.
 - If the implementer finds 2.1's six-commit split still too wide to review, the fallback is to land steps 1+2 with the old routes temporarily broken on a branch and finish in the same PR, never on `main`.
 

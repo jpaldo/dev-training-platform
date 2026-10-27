@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\DateRange;
 use Database\Factories\TrainingWeekFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,16 +12,27 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
+/**
+ * A week of a curriculum. Its optional `starts_on` / `ends_on` (both or neither) schedule it: a week without dates is
+ * unscheduled and never opens.
+ */
 class TrainingWeek extends Model
 {
     /** @use HasFactory<TrainingWeekFactory> */
     use HasFactory;
 
-    protected $fillable = ['program_id', 'week_number', 'title', 'description', 'position', 'is_active'];
+    protected $fillable = ['program_id', 'week_number', 'title', 'description', 'position', 'is_active', 'starts_on', 'ends_on'];
 
+    /**
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
-        return ['is_active' => 'boolean'];
+        return [
+            'is_active' => 'boolean',
+            'starts_on' => 'date',
+            'ends_on' => 'date',
+        ];
     }
 
     public function program(): BelongsTo
@@ -86,5 +98,41 @@ class TrainingWeek extends Model
     public function asksForWeeklyVideo(): bool
     {
         return $this->asks_for_weekly_video ?? $this->gates()->asksForWeeklyVideo()->exists();
+    }
+
+    /**
+     * Whether the week has dates.
+     */
+    public function isScheduled(): bool
+    {
+        return $this->starts_on !== null;
+    }
+
+    /**
+     * Whether the week's start date has come (today in the app timezone or earlier). An unscheduled week is never open.
+     */
+    public function isOpen(): bool
+    {
+        return $this->starts_on !== null && $this->starts_on->lte(today());
+    }
+
+    /**
+     * Whether the week's last day has passed. An unscheduled week never ends.
+     */
+    public function hasEnded(): bool
+    {
+        return $this->ends_on !== null && $this->ends_on->lt(today());
+    }
+
+    /**
+     * The week's dates ("9 – 15 Nov 2026"), or "Not scheduled" for a week without dates.
+     */
+    public function dateRangeLabel(): string
+    {
+        if ($this->starts_on === null || $this->ends_on === null) {
+            return 'Not scheduled';
+        }
+
+        return DateRange::label($this->starts_on, $this->ends_on);
     }
 }

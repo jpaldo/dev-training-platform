@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\TrainingSessionStatus;
 use App\Http\Requests\UpdateActivityFieldRequest;
 use App\Http\Requests\UpdateActivityScoringRequest;
+use App\Http\Requests\UpdateChecklistItemRequest;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\GateCriterion;
@@ -87,11 +88,12 @@ class CurriculumPageService
      * the sessions notice and the three tabs. Details holds the title and description with the URL and error bag of
      * their form; Activities lists every activity in position order (see activityRows()) with the error bag of their
      * row buttons, and holds the URL and error bag of the "Add activity" form; Checklist holds the week's checklist (its
-     * first active Gate) with the items on it in position order and, apart, its retired items, or null when the week
-     * has none.
+     * first active Gate) with the URL and error bag of its form, the items on it in position order with theirs, the
+     * item types an admin can choose and, apart, its retired items, or null when the week has none (see
+     * checklistData()).
      * Reads the activities, their submission fields, the checklist and its items in four queries, plus the notice's one.
      *
-     * @return array{title: string, statusLabel: string, statusTone: string, programName: string, programUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, update_url: string, error_bag: string}, activities: list<array{title: string, status_label: string, status_tone: string, is_active: bool, field_count: int, edit_url: string, move_url: string, can_move_up: bool, can_move_down: bool, deactivate_url: string, deactivate_confirmation: string, reactivate_url: string}>, activitiesErrorBag: string, addActivity: array{store_url: string, error_bag: string}, checklist: ?array{title: string, description: ?string, items: list<array{title: string, description: ?string, type_label: string}>, removed_items: list<array{title: string, description: ?string, type_label: string}>}}
+     * @return array{title: string, statusLabel: string, statusTone: string, programName: string, programUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, update_url: string, error_bag: string}, activities: list<array{title: string, status_label: string, status_tone: string, is_active: bool, field_count: int, edit_url: string, move_url: string, can_move_up: bool, can_move_down: bool, deactivate_url: string, deactivate_confirmation: string, reactivate_url: string}>, activitiesErrorBag: string, addActivity: array{store_url: string, error_bag: string}, checklist: ?array{title: string, description: ?string, update_url: string, error_bag: string, items: list<array{id: int, type: string, title: string, description: ?string, type_label: string, update_url: string, error_bag: string}>, item_types: list<array{value: string, label: string}>, removed_items: list<array{title: string, description: ?string, type_label: string}>}}
      */
     public function weekData(Program $program, TrainingWeek $week): array
     {
@@ -128,7 +130,7 @@ class CurriculumPageService
                 'store_url' => route('admin.programs.activities.store', [$program, $week]),
                 'error_bag' => 'addActivity',
             ],
-            'checklist' => $this->checklistData($week->checklist),
+            'checklist' => $this->checklistData($program, $week, $week->checklist),
         ];
     }
 
@@ -317,12 +319,14 @@ class CurriculumPageService
     }
 
     /**
-     * The checklist tab's content: the checklist's title and description, the items on it and its retired items,
-     * each in position order with its type label, or null when the week has no checklist.
+     * The checklist tab's content: the checklist's title and description with the URL and error bag of their form, the
+     * items on it in position order, each with its id, type and the URL and error bag of its form, the item types an
+     * admin can choose (`GateCriterion::TYPE_LABELS`), and its retired items in position order, or null when the week
+     * has no checklist.
      *
-     * @return ?array{title: string, description: ?string, items: list<array{title: string, description: ?string, type_label: string}>, removed_items: list<array{title: string, description: ?string, type_label: string}>}
+     * @return ?array{title: string, description: ?string, update_url: string, error_bag: string, items: list<array{id: int, type: string, title: string, description: ?string, type_label: string, update_url: string, error_bag: string}>, item_types: list<array{value: string, label: string}>, removed_items: list<array{title: string, description: ?string, type_label: string}>}
      */
-    private function checklistData(?TrainingGate $checklist): ?array
+    private function checklistData(Program $program, TrainingWeek $week, ?TrainingGate $checklist): ?array
     {
         if ($checklist === null) {
             return null;
@@ -333,27 +337,38 @@ class CurriculumPageService
         return [
             'title' => $checklist->title,
             'description' => $checklist->description,
-            'items' => $this->checklistItemRows($items),
-            'removed_items' => $this->checklistItemRows($removedItems),
+            'update_url' => route('admin.programs.checklist.update', [$program, $week]),
+            'error_bag' => 'checklist',
+            'items' => $items
+                ->map(fn (GateCriterion $item): array => [
+                    'id' => $item->id,
+                    'type' => $item->criterion_type,
+                    ...$this->checklistItemRow($item),
+                    'update_url' => route('admin.programs.checklist-items.update', [$program, $week, $item]),
+                    'error_bag' => UpdateChecklistItemRequest::errorBagFor($item),
+                ])
+                ->values()
+                ->all(),
+            'item_types' => collect(GateCriterion::TYPE_LABELS)
+                ->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])
+                ->values()
+                ->all(),
+            'removed_items' => $removedItems->map($this->checklistItemRow(...))->values()->all(),
         ];
     }
 
     /**
-     * One row per checklist item, in the given order, with its type label.
+     * A checklist item's title, description and type label.
      *
-     * @param  Collection<int, GateCriterion>  $items
-     * @return list<array{title: string, description: ?string, type_label: string}>
+     * @return array{title: string, description: ?string, type_label: string}
      */
-    private function checklistItemRows(Collection $items): array
+    private function checklistItemRow(GateCriterion $item): array
     {
-        return $items
-            ->map(fn (GateCriterion $item): array => [
-                'title' => $item->title,
-                'description' => $item->description,
-                'type_label' => $item->typeLabel(),
-            ])
-            ->values()
-            ->all();
+        return [
+            'title' => $item->title,
+            'description' => $item->description,
+            'type_label' => $item->typeLabel(),
+        ];
     }
 
     /**

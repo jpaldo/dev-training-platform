@@ -6,6 +6,8 @@ use App\Http\Controllers\AdminActivityController;
 use App\Http\Controllers\AdminActivityFieldController;
 use App\Http\Controllers\AdminActivityScoringController;
 use App\Http\Controllers\AdminAiSettingsController;
+use App\Http\Controllers\AdminChecklistController;
+use App\Http\Controllers\AdminChecklistItemController;
 use App\Http\Controllers\AdminCurriculumController;
 use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\AdminGoogleDriveController;
@@ -138,6 +140,8 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
             Route::delete('/{program}/weeks/{week}/activities/{activity}/fields/{requirement}', [AdminActivityFieldController::class, 'destroy'])->name('fields.destroy');
             Route::patch('/{program}/weeks/{week}/activities/{activity}/fields/{requirement}/restore', [AdminActivityFieldController::class, 'restore'])->name('fields.restore');
             Route::put('/{program}/weeks/{week}/activities/{activity}/scoring', [AdminActivityScoringController::class, 'update'])->name('scoring.update');
+            Route::put('/{program}/weeks/{week}/checklist', [AdminChecklistController::class, 'update'])->name('checklist.update');
+            Route::put('/{program}/weeks/{week}/checklist/items/{checklistItem}', [AdminChecklistItemController::class, 'update'])->name('checklist-items.update');
         });
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');

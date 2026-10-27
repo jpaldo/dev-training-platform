@@ -38,6 +38,9 @@ class GateCriterion extends Model
     /** @var list<string> Criterion types that make the Gate require the week's Weekly Video Recording. */
     public const VIDEO_TYPES = [self::TYPE_WEEKLY_VIDEO];
 
+    /** @var list<string> Item types a checklist has at most one of among the items on it. */
+    public const ONE_PER_CHECKLIST_TYPES = [self::TYPE_SESSION_LOGS, self::TYPE_WEEKLY_VIDEO];
+
     protected $fillable = ['training_gate_id', 'criterion_type', 'title', 'description', 'is_required', 'position', 'configuration'];
 
     protected function casts(): array

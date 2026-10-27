@@ -37,6 +37,18 @@ class TrainingGate extends Model
     }
 
     /**
+     * Whether an item of the given type is on the checklist, leaving out the given item (the one being edited).
+     */
+    public function hasItemOfTypeOnChecklist(string $type, ?GateCriterion $except = null): bool
+    {
+        return $this->criteria()
+            ->onChecklist()
+            ->where('criterion_type', $type)
+            ->when($except !== null, fn (Builder $items): Builder => $items->whereKeyNot($except->id))
+            ->exists();
+    }
+
+    /**
      * Limit the query to active Gates with a weekly video checklist item: the Gates that make their week ask for the
      * Weekly Video Recording.
      */

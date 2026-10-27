@@ -29,7 +29,7 @@ class CurriculumWeekService
         'help' => 'Anything your mentor should know about this deliverable.',
     ];
 
-    public function __construct(private AdminAuditService $audit) {}
+    public function __construct(private AdminAuditService $audit, private CurriculumOrderService $order) {}
 
     /**
      * Give the week a new title and description and record `curriculum_week_updated` with the changed values before
@@ -124,6 +124,82 @@ class CurriculumWeekService
             $activity->save();
 
             $this->audit->record($admin, 'curriculum_activity_updated', metadata: [
+                'program_id' => $activity->week->program_id,
+                'training_week_id' => $activity->training_week_id,
+                'activity_id' => $activity->id,
+                'changes' => $changes,
+            ]);
+
+            return $activity;
+        });
+    }
+
+    /**
+     * Move the activity one place up or down among every activity of its week, active or not, by swapping positions
+     * with its neighbour, and record `curriculum_activity_moved` with the direction and the position before and after.
+     * The week row is locked while the positions are read and swapped, so two moves at once cannot collide. Returns
+     * whether it moved: the first activity moved up or the last moved down stays put and nothing is recorded.
+     *
+     * @param  'up'|'down'  $direction
+     */
+    public function moveActivity(Activity $activity, string $direction, User $admin): bool
+    {
+        return DB::transaction(function () use ($activity, $direction, $admin): bool {
+            TrainingWeek::query()->whereKey($activity->training_week_id)->lockForUpdate()->firstOrFail();
+            $activity->refresh();
+            $from = $activity->position;
+
+            if (! $this->order->move($activity, Activity::query()->where('training_week_id', $activity->training_week_id), $direction)) {
+                return false;
+            }
+
+            $this->audit->record($admin, 'curriculum_activity_moved', metadata: [
+                'program_id' => $activity->week->program_id,
+                'training_week_id' => $activity->training_week_id,
+                'activity_id' => $activity->id,
+                'direction' => $direction,
+                'changes' => ['position' => ['from' => $from, 'to' => $activity->position]],
+            ]);
+
+            return true;
+        });
+    }
+
+    /**
+     * Take the activity out of its week for every session of the program and record `curriculum_activity_deactivated`.
+     * It keeps its position, submissions and scores. An inactive activity is left as it is and nothing is recorded.
+     */
+    public function deactivateActivity(Activity $activity, User $admin): Activity
+    {
+        return $this->setActivityActive($activity, false, 'curriculum_activity_deactivated', $admin);
+    }
+
+    /**
+     * Put the activity back in its week, at the position it kept, and record `curriculum_activity_reactivated`. An
+     * active activity is left as it is and nothing is recorded.
+     */
+    public function reactivateActivity(Activity $activity, User $admin): Activity
+    {
+        return $this->setActivityActive($activity, true, 'curriculum_activity_reactivated', $admin);
+    }
+
+    /**
+     * Save whether the activity is active and record the given audit action with the change, unless it already is.
+     */
+    private function setActivityActive(Activity $activity, bool $isActive, string $action, User $admin): Activity
+    {
+        $activity->is_active = $isActive;
+
+        if (! $activity->isDirty()) {
+            return $activity;
+        }
+
+        $changes = $this->changes($activity);
+
+        return DB::transaction(function () use ($activity, $action, $changes, $admin): Activity {
+            $activity->save();
+
+            $this->audit->record($admin, $action, metadata: [
                 'program_id' => $activity->week->program_id,
                 'training_week_id' => $activity->training_week_id,
                 'activity_id' => $activity->id,

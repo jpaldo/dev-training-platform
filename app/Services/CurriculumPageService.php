@@ -83,17 +83,21 @@ class CurriculumPageService
     /**
      * Everything the week page renders: the title "Week N: {title}", the week's status, the link back to the program,
      * the sessions notice and the three tabs. Details holds the title and description with the URL and error bag of
-     * their form; Activities lists every activity in position order with whether it is active and the link to its page,
-     * and holds the URL and error bag of the "Add activity" form; Checklist holds the week's checklist (its first active
-     * Gate) with the items on it in position order and, apart, its retired items, or null when the week has none.
-     * Reads the activities, the checklist and its items in three queries, plus the notice's one.
+     * their form; Activities lists every activity in position order (see activityRows()) with the error bag of their
+     * row buttons, and holds the URL and error bag of the "Add activity" form; Checklist holds the week's checklist (its
+     * first active Gate) with the items on it in position order and, apart, its retired items, or null when the week
+     * has none.
+     * Reads the activities, their submission fields, the checklist and its items in four queries, plus the notice's one.
      *
-     * @return array{title: string, statusLabel: string, statusTone: string, programName: string, programUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, update_url: string, error_bag: string}, activities: list<array{title: string, status_label: string, status_tone: string, edit_url: string}>, addActivity: array{store_url: string, error_bag: string}, checklist: ?array{title: string, description: ?string, items: list<array{title: string, description: ?string, type_label: string}>, removed_items: list<array{title: string, description: ?string, type_label: string}>}}
+     * @return array{title: string, statusLabel: string, statusTone: string, programName: string, programUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, update_url: string, error_bag: string}, activities: list<array{title: string, status_label: string, status_tone: string, is_active: bool, field_count: int, edit_url: string, move_url: string, can_move_up: bool, can_move_down: bool, deactivate_url: string, deactivate_confirmation: string, reactivate_url: string}>, activitiesErrorBag: string, addActivity: array{store_url: string, error_bag: string}, checklist: ?array{title: string, description: ?string, items: list<array{title: string, description: ?string, type_label: string}>, removed_items: list<array{title: string, description: ?string, type_label: string}>}}
      */
     public function weekData(Program $program, TrainingWeek $week): array
     {
         $week->load([
             'activities' => fn (HasMany $activities): HasMany => $activities->orderBy('position')->orderBy('id'),
+            'activities.requirements' => fn (HasMany $requirements): HasMany => $requirements
+                ->where('requirement_type', 'submission_field')
+                ->select(['id', 'activity_id', 'configuration']),
             'checklist.criteria' => fn (HasMany $items): HasMany => $items->orderBy('position')->orderBy('id'),
         ]);
 
@@ -116,14 +120,8 @@ class CurriculumPageService
                 'update_url' => route('admin.programs.weeks.update', [$program, $week]),
                 'error_bag' => 'week',
             ],
-            'activities' => $week->activities
-                ->map(fn (Activity $activity): array => [
-                    'title' => $activity->title,
-                    'status_label' => $activity->is_active ? 'Active' : 'Inactive',
-                    'status_tone' => $activity->is_active ? 'success' : 'neutral',
-                    'edit_url' => route('admin.programs.activities.edit', [$program, $week, $activity]),
-                ])
-                ->all(),
+            'activities' => $this->activityRows($program, $week),
+            'activitiesErrorBag' => 'activities',
             'addActivity' => [
                 'store_url' => route('admin.programs.activities.store', [$program, $week]),
                 'error_bag' => 'addActivity',
@@ -149,7 +147,7 @@ class CurriculumPageService
             ->orderBy('position')
             ->orderBy('id')
             ->get()
-            ->partition(fn (ActivityRequirement $field): bool => ! ($field->configuration['deprecated'] ?? false));
+            ->partition(fn (ActivityRequirement $field): bool => ! $this->isRemovedField($field));
 
         return [
             'title' => $activity->title,
@@ -180,6 +178,44 @@ class CurriculumPageService
                 'total' => $activity->scoringMaximum(),
             ],
         ];
+    }
+
+    /**
+     * One row per activity of the week, in position order, active or not: its title, status and number of submission
+     * fields (removed ones not counted), the link to its page, and the URLs of its row buttons. The first row cannot
+     * move up and the last cannot move down. Reads the week's eager-loaded activities and their submission fields.
+     *
+     * @return list<array{title: string, status_label: string, status_tone: string, is_active: bool, field_count: int, edit_url: string, move_url: string, can_move_up: bool, can_move_down: bool, deactivate_url: string, deactivate_confirmation: string, reactivate_url: string}>
+     */
+    private function activityRows(Program $program, TrainingWeek $week): array
+    {
+        $lastIndex = $week->activities->count() - 1;
+
+        return $week->activities
+            ->values()
+            ->map(fn (Activity $activity, int $index): array => [
+                'title' => $activity->title,
+                'status_label' => $activity->is_active ? 'Active' : 'Inactive',
+                'status_tone' => $activity->is_active ? 'success' : 'neutral',
+                'is_active' => $activity->is_active,
+                'field_count' => $activity->requirements->reject($this->isRemovedField(...))->count(),
+                'edit_url' => route('admin.programs.activities.edit', [$program, $week, $activity]),
+                'move_url' => route('admin.programs.activities.move', [$program, $week, $activity]),
+                'can_move_up' => $index > 0,
+                'can_move_down' => $index < $lastIndex,
+                'deactivate_url' => route('admin.programs.activities.deactivate', [$program, $week, $activity]),
+                'deactivate_confirmation' => "Deactivate {$activity->title}? Participants keep their submissions, but the activity leaves the week for every session.",
+                'reactivate_url' => route('admin.programs.activities.reactivate', [$program, $week, $activity]),
+            ])
+            ->all();
+    }
+
+    /**
+     * Whether the submission field was removed from its activity (`configuration.deprecated`).
+     */
+    private function isRemovedField(ActivityRequirement $field): bool
+    {
+        return (bool) ($field->configuration['deprecated'] ?? false);
     }
 
     /**

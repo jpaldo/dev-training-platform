@@ -127,6 +127,9 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
             Route::post('/{program}/weeks/{week}/activities', [AdminActivityController::class, 'store'])->name('activities.store');
             Route::get('/{program}/weeks/{week}/activities/{activity}/edit', [AdminActivityController::class, 'edit'])->name('activities.edit');
             Route::put('/{program}/weeks/{week}/activities/{activity}', [AdminActivityController::class, 'update'])->name('activities.update');
+            Route::patch('/{program}/weeks/{week}/activities/{activity}/move', [AdminActivityController::class, 'move'])->name('activities.move');
+            Route::patch('/{program}/weeks/{week}/activities/{activity}/deactivate', [AdminActivityController::class, 'deactivate'])->name('activities.deactivate');
+            Route::patch('/{program}/weeks/{week}/activities/{activity}/reactivate', [AdminActivityController::class, 'reactivate'])->name('activities.reactivate');
         });
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');

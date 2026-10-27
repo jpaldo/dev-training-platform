@@ -7,6 +7,7 @@
         $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
         $weekErrors = $errors->getBag($details['error_bag']);
         $addActivityErrors = $errors->getBag($addActivity['error_bag']);
+        $activityErrors = $errors->getBag($activitiesErrorBag);
     @endphp
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -86,13 +87,18 @@
                 <x-ui.tab-panel name="activities" :selected="$selectedTab" id-prefix="week">
                     <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="week-activities-title">
                         <h2 id="week-activities-title" class="text-xl font-extrabold">Activities</h2>
+                        <p class="text-sm/relaxed text-muted">Participants see the active activities in this order. A deactivated activity keeps its place, submissions and scores, and comes back where it was when reactivated.</p>
+                        @if($activityErrors->any())
+                            <x-ui.alert tone="error" role="alert" data-activities-error>{{ $activityErrors->first() }}</x-ui.alert>
+                        @endif
                         @if($activities !== [])
                             <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="week-activities-title" tabindex="0">
-                                <table class="w-full min-w-120 border-collapse text-sm" aria-labelledby="week-activities-title">
+                                <table class="w-full min-w-200 border-collapse text-sm" aria-labelledby="week-activities-title">
                                     <thead>
                                         <tr>
                                             <th scope="col" class="{{ $headerCellClasses }} text-right">#</th>
                                             <th scope="col" class="{{ $headerCellClasses }}">Activity</th>
+                                            <th scope="col" class="{{ $headerCellClasses }} text-right">Fields</th>
                                             <th scope="col" class="{{ $headerCellClasses }}">Status</th>
                                             <th scope="col" class="{{ $headerCellClasses }}">Actions</th>
                                         </tr>
@@ -104,11 +110,33 @@
                                                 <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">
                                                     <a href="{{ $activity['edit_url'] }}" class="text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">{{ $activity['title'] }}</a>
                                                 </th>
+                                                <td class="{{ $cellClasses }} text-right tabular-nums">{{ $activity['field_count'] }}</td>
                                                 <td class="{{ $cellClasses }}">
                                                     <x-ui.badge :tone="$activity['status_tone']">{{ $activity['status_label'] }}</x-ui.badge>
                                                 </td>
                                                 <td class="{{ $cellClasses }}">
-                                                    <x-ui.button variant="secondary" :href="$activity['edit_url']" aria-label="Edit {{ $activity['title'] }}">Edit</x-ui.button>
+                                                    <div class="flex flex-wrap items-center gap-2">
+                                                        <x-ui.button variant="secondary" :href="$activity['edit_url']" aria-label="Edit {{ $activity['title'] }}">Edit</x-ui.button>
+                                                        <form method="POST" action="{{ $activity['move_url'] }}" class="flex flex-wrap gap-2" data-move-activity-form>
+                                                            @csrf
+                                                            @method('PATCH')
+                                                            <x-ui.button variant="secondary" type="submit" name="direction" value="up" :disabled="! $activity['can_move_up']" aria-label="Move {{ $activity['title'] }} up">Move Up</x-ui.button>
+                                                            <x-ui.button variant="secondary" type="submit" name="direction" value="down" :disabled="! $activity['can_move_down']" aria-label="Move {{ $activity['title'] }} down">Move Down</x-ui.button>
+                                                        </form>
+                                                        @if($activity['is_active'])
+                                                            <form method="POST" action="{{ $activity['deactivate_url'] }}" data-confirm="{{ $activity['deactivate_confirmation'] }}">
+                                                                @csrf
+                                                                @method('PATCH')
+                                                                <x-ui.button variant="secondary" type="submit" aria-label="Deactivate {{ $activity['title'] }}">Deactivate</x-ui.button>
+                                                            </form>
+                                                        @else
+                                                            <form method="POST" action="{{ $activity['reactivate_url'] }}">
+                                                                @csrf
+                                                                @method('PATCH')
+                                                                <x-ui.button variant="secondary" type="submit" aria-label="Reactivate {{ $activity['title'] }}">Reactivate</x-ui.button>
+                                                            </form>
+                                                        @endif
+                                                    </div>
                                                 </td>
                                             </tr>
                                         @endforeach

@@ -9,6 +9,7 @@ use App\Http\Controllers\AdminAiSettingsController;
 use App\Http\Controllers\AdminChecklistController;
 use App\Http\Controllers\AdminChecklistItemController;
 use App\Http\Controllers\AdminCurriculumController;
+use App\Http\Controllers\AdminCurriculumScheduleController;
 use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\AdminGoogleDriveController;
 use App\Http\Controllers\AdminInterviewSchedulingController;
@@ -126,6 +127,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::scopeBindings()->prefix('programs')->name('programs.')->group(function (): void {
             Route::get('/', [AdminCurriculumController::class, 'index'])->name('index');
             Route::get('/{program}', [AdminCurriculumController::class, 'show'])->name('show');
+            Route::put('/{program}/schedule', [AdminCurriculumScheduleController::class, 'update'])->name('schedule.update');
             Route::get('/{program}/weeks/{week}', [AdminCurriculumController::class, 'week'])->name('weeks.show');
             Route::put('/{program}/weeks/{week}', [AdminTrainingWeekController::class, 'update'])->name('weeks.update');
             Route::post('/{program}/weeks/{week}/activities', [AdminActivityController::class, 'store'])->name('activities.store');

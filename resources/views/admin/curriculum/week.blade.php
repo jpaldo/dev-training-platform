@@ -81,6 +81,42 @@
                                 @endif
                             </div>
 
+                            <fieldset class="grid min-w-0 grid-cols-1 gap-2" aria-describedby="week-dates-hint">
+                                <legend class="text-sm font-extrabold">Dates</legend>
+                                <p id="week-dates-hint" class="text-sm/relaxed text-muted">Both or neither. A week without dates is not scheduled and does not open. It must start after the week before it ends and end before the week after it starts.</p>
+                                <div class="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+                                    <div class="grid min-w-0 grid-cols-1 content-start gap-2">
+                                        <label for="week-starts-on" class="text-sm font-bold">Start date</label>
+                                        <input
+                                            id="week-starts-on"
+                                            name="starts_on"
+                                            type="date"
+                                            value="{{ $weekErrors->any() ? old('starts_on') : $details['starts_on'] }}"
+                                            @if($weekErrors->has('starts_on')) aria-invalid="true" aria-describedby="week-starts-on-error" @endif
+                                            class="{{ $controlClasses }}"
+                                        >
+                                        @if($weekErrors->has('starts_on'))
+                                            <p id="week-starts-on-error" class="text-sm text-rose-200" role="alert">{{ $weekErrors->first('starts_on') }}</p>
+                                        @endif
+                                    </div>
+
+                                    <div class="grid min-w-0 grid-cols-1 content-start gap-2">
+                                        <label for="week-ends-on" class="text-sm font-bold">End date</label>
+                                        <input
+                                            id="week-ends-on"
+                                            name="ends_on"
+                                            type="date"
+                                            value="{{ $weekErrors->any() ? old('ends_on') : $details['ends_on'] }}"
+                                            @if($weekErrors->has('ends_on')) aria-invalid="true" aria-describedby="week-ends-on-error" @endif
+                                            class="{{ $controlClasses }}"
+                                        >
+                                        @if($weekErrors->has('ends_on'))
+                                            <p id="week-ends-on-error" class="text-sm text-rose-200" role="alert">{{ $weekErrors->first('ends_on') }}</p>
+                                        @endif
+                                    </div>
+                                </div>
+                            </fieldset>
+
                             <div>
                                 <x-ui.button type="submit">Save Details</x-ui.button>
                             </div>

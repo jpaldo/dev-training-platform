@@ -10,7 +10,9 @@ use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class AdminCurriculumPagesTest extends TestCase
@@ -37,6 +39,23 @@ class AdminCurriculumPagesTest extends TestCase
                 && $programs[1]['weeks_count'] === 2
                 && $programs[1]['sessions_count'] === 3
                 && $programs[0]['status_tone'] === 'neutral');
+    }
+
+    public function test_the_list_shows_each_programs_schedule_status_and_dates(): void
+    {
+        $this->travelTo('2026-11-12 09:00:00');
+        $admin = User::factory()->create(['role' => 'admin']);
+        Program::factory()->withWeeks(4, Carbon::parse('2026-11-09'))->create(['name' => 'Autumn Curriculum']);
+        Program::factory()->withWeeks(2)->unscheduled()->create(['name' => 'Draft Curriculum']);
+
+        $this->actingAs($admin)
+            ->get(route('admin.programs.index'))
+            ->assertOk()
+            ->assertSeeInOrder(['>Schedule<', '>Dates<'], false)
+            ->assertSeeInOrder(['Autumn Curriculum', 'Active', 'Active', '9 Nov – 6 Dec 2026', 'Draft Curriculum', 'Active', 'Unscheduled', 'Not scheduled'])
+            ->assertViewHas('programs', fn (array $programs): bool => $programs[0]['schedule_status_tone'] === 'success'
+                && $programs[1]['schedule_status_label'] === 'Unscheduled'
+                && $programs[1]['schedule_status_tone'] === 'warning');
     }
 
     public function test_the_list_without_programs_shows_the_empty_state(): void
@@ -116,6 +135,84 @@ class AdminCurriculumPagesTest extends TestCase
             ->assertSee('No training session uses this program yet.')
             ->assertDontSee('data-notice-session', false)
             ->assertSee('This program has no weeks yet.');
+    }
+
+    #[DataProvider('scheduleStatusDays')]
+    public function test_the_program_header_shows_the_schedule_status_and_dates(string $today, string $statusLabel): void
+    {
+        $this->travelTo($today);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->withWeeks(4, Carbon::parse('2026-11-09'))->create(['name' => 'Autumn Curriculum']);
+
+        $this->actingAs($admin)
+            ->get(route('admin.programs.show', $program))
+            ->assertOk()
+            ->assertSeeInOrder(['Autumn Curriculum', 'data-program-schedule-summary', '>'.$statusLabel.'</span>', '9 Nov – 6 Dec 2026'], false);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function scheduleStatusDays(): array
+    {
+        return [
+            'before the first week' => ['2026-11-08 09:00:00', 'Upcoming'],
+            'on the first day' => ['2026-11-09 09:00:00', 'Active'],
+            'on the last day' => ['2026-12-06 09:00:00', 'Active'],
+            'after the last week' => ['2026-12-07 09:00:00', 'Completed'],
+        ];
+    }
+
+    public function test_an_unscheduled_program_header_says_so(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->withWeeks(2)->unscheduled()->create();
+
+        $this->actingAs($admin)
+            ->get(route('admin.programs.show', $program))
+            ->assertOk()
+            ->assertSeeInOrder(['data-program-schedule-summary', '>Unscheduled</span>', 'Not scheduled'], false)
+            ->assertViewHas('schedule', fn (array $schedule): bool => $schedule['starts_on'] === null);
+    }
+
+    public function test_the_program_page_shows_each_weeks_dates_and_the_schedule_form_with_the_current_first_day(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->withWeeks(3, Carbon::parse('2026-11-09'))->create();
+        $program->weeks()->where('week_number', 1)->update(['starts_on' => null, 'ends_on' => null]);
+        $program->weeks()->where('week_number', 2)->update(['is_active' => false]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.programs.show', $program))
+            ->assertOk()
+            ->assertSeeInOrder([
+                '>Dates<',
+                'Week 1', 'data-week-dates>Not scheduled<',
+                'Week 2', 'data-week-dates>16 – 22 Nov 2026<',
+                'Week 3', 'data-week-dates>23 – 29 Nov 2026<',
+                'id="schedule"',
+                'action="'.route('admin.programs.schedule.update', $program).'"',
+                'name="_method" value="PUT"',
+                'id="schedule-starts-on"', 'value="2026-11-09"',
+                '>Save Schedule<',
+                'data-schedule-week', 'Week 1', 'Not scheduled',
+                'data-schedule-week', 'Week 2', '16 – 22 Nov 2026', 'Inactive',
+                'data-schedule-week', 'Week 3', '23 – 29 Nov 2026',
+            ], false)
+            ->assertViewHas('schedule', fn (array $schedule): bool => $schedule['starts_on'] === '2026-11-09'
+                && array_column($schedule['weeks'], 'is_active') === [true, false, true]);
+    }
+
+    public function test_the_program_page_confirms_a_saved_schedule(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->withWeeks(1)->unscheduled()->create();
+
+        $this->actingAs($admin)
+            ->followingRedirects()
+            ->put(route('admin.programs.schedule.update', $program), ['starts_on' => '2026-11-09'])
+            ->assertOk()
+            ->assertSeeInOrder(['role="status"', 'Scheduled the weeks from 9 Nov 2026.', 'value="2026-11-09"'], false);
     }
 
     public function test_an_inactive_week_shows_inactive(): void

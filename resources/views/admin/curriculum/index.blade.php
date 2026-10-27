@@ -17,11 +17,13 @@
             <h2 id="program-list-title" class="text-xl font-extrabold">All programs</h2>
             @if($programs !== [])
                 <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="program-list-title" tabindex="0">
-                    <table class="w-full min-w-140 border-collapse text-sm" aria-labelledby="program-list-title">
+                    <table class="w-full min-w-180 border-collapse text-sm" aria-labelledby="program-list-title">
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Program</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Status</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Schedule</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Dates</th>
                                 <th scope="col" class="{{ $headerCellClasses }} text-right">Weeks</th>
                                 <th scope="col" class="{{ $headerCellClasses }} text-right">Sessions</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Actions</th>
@@ -36,6 +38,10 @@
                                     <td class="{{ $cellClasses }}">
                                         <x-ui.badge :tone="$program['status_tone']">{{ $program['status_label'] }}</x-ui.badge>
                                     </td>
+                                    <td class="{{ $cellClasses }}">
+                                        <x-ui.badge :tone="$program['schedule_status_tone']">{{ $program['schedule_status_label'] }}</x-ui.badge>
+                                    </td>
+                                    <td class="{{ $cellClasses }} whitespace-nowrap" data-program-dates>{{ $program['dates'] }}</td>
                                     <td class="{{ $cellClasses }} text-right tabular-nums">{{ $program['weeks_count'] }}</td>
                                     <td class="{{ $cellClasses }} text-right tabular-nums">{{ $program['sessions_count'] }}</td>
                                     <td class="{{ $cellClasses }}">

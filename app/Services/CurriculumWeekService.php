@@ -32,15 +32,20 @@ class CurriculumWeekService
     public function __construct(private AdminAuditService $audit, private CurriculumOrderService $order) {}
 
     /**
-     * Give the week a new title and description and record `curriculum_week_updated` with the changed values before
-     * and after. A description left out of the details is kept. The week's number, position and whether it is active
-     * never change here.
+     * Give the week a new title, description and dates and record `curriculum_week_updated` with the changed values
+     * before and after (dates as "2026-11-09"). A description left out of the details is kept, and so are the dates
+     * when both are left out; given one, the two are set together, so a null pair unschedules the week. The week's
+     * number, position and whether it is active never change here.
      *
-     * @param  array{title: string, description?: ?string}  $details
+     * @param  array{title: string, description?: ?string, starts_on?: ?string, ends_on?: ?string}  $details
      */
     public function updateWeek(TrainingWeek $week, array $details, User $admin): TrainingWeek
     {
         $week->fill(Arr::only($details, ['title', 'description']));
+
+        if (Arr::hasAny($details, ['starts_on', 'ends_on'])) {
+            $week->fill(['starts_on' => $details['starts_on'] ?? null, 'ends_on' => $details['ends_on'] ?? null]);
+        }
 
         if (! $week->isDirty()) {
             return $week;
@@ -250,7 +255,8 @@ class CurriculumWeekService
     }
 
     /**
-     * The model's unsaved attribute changes, each with its stored and its new value.
+     * The model's unsaved attribute changes, each with its stored and its new value. A `date` attribute's values are
+     * days ("2026-11-09") or null.
      *
      * @return array<string, array{from: mixed, to: mixed}>
      */
@@ -258,7 +264,9 @@ class CurriculumWeekService
     {
         return collect($model->getDirty())
             ->mapWithKeys(fn (mixed $value, string $attribute): array => [
-                $attribute => ['from' => $model->getOriginal($attribute), 'to' => $value],
+                $attribute => $model->hasCast($attribute, ['date'])
+                    ? ['from' => $model->getOriginal($attribute)?->toDateString(), 'to' => $model->getAttribute($attribute)?->toDateString()]
+                    : ['from' => $model->getOriginal($attribute), 'to' => $value],
             ])
             ->all();
     }

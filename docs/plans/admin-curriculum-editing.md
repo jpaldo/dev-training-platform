@@ -266,7 +266,7 @@ How each scoped binding is checked:
 
 ## Phase 2 — Weekly details
 
-- [ ] **2.1 Edit a week's title and description** (CUR-2, CUR-14, CUR-16)
+- [x] **2.1 Edit a week's title and description** (CUR-2, CUR-14, CUR-16) — done 2026-10-27. `weekData()`'s `details` carries the form's `update_url` and `error_bag`; the week page shows the `status` flash. The program page's week-row button is now "Edit Week" (title case, like the other buttons), and `AdminCurriculumPagesTest` asserts it. A description left out of the request is kept; an empty one is saved as null.
   - **Do:**
     - Add `UpdateTrainingWeekRequest` (`#[ErrorBag('week')]`, title required string max 255, description nullable string max 5000, redirect to `#details`).
     - Add `AdminTrainingWeekController@update` and `CurriculumWeekService::updateWeek()`, which writes `curriculum_week_updated` with `changes`.
@@ -503,3 +503,4 @@ Problems found during implementation that need a decision. Starts empty.
 
 - **13.2's acceptance in the main plan still describes an updating seeder** (found in 1.1). `docs/plans/developer-program-and-training-sessions.md` 13.2 says "Re-running the seeder replaces placeholder content in place, deactivates removed placeholders", which 1.1 ended; its note now points to the Curriculum pages. Decide whether 13.2's **Do**/**Acceptance** are rewritten (seed new databases only; enter the rest through the Curriculum pages) when the training team delivers the curriculum, or now.
 - **`ActivityFactory::withScoringDimensions()` keeps its own copy of the D1–D4 rubric** (found in 1.1). It could read `Activity::DEFAULT_SCORING_DIMENSIONS`; left as is because the factory was not in 1.1's scope.
+- **Textarea line endings can make an unchanged save look changed** (found in 2.1). Browsers submit textarea newlines as `\r\n`. Text saved through these forms keeps `\r\n` and round-trips unchanged, but multi-line text stored with `\n` (a future seeder definition, or Tinker) is saved and audited once when an admin saves it untouched, against "a save that changes nothing writes no row" (CUR-14). The L4 seeder's text is single-line today, so nothing is affected yet. Decide whether the curriculum Form Requests normalize `\r\n` to `\n` in `prepareForValidation()` (from 2.2, whose instructions render with `whitespace-pre-line`, and back-filled into `UpdateTrainingWeekRequest`).

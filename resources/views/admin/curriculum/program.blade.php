@@ -50,7 +50,7 @@
                                         <td class="{{ $cellClasses }} text-right tabular-nums" data-active-activity-count>{{ $week['active_activity_count'] }}</td>
                                         <td class="{{ $cellClasses }} text-right tabular-nums" data-checklist-item-count>{{ $week['checklist_item_count'] }}</td>
                                         <td class="{{ $cellClasses }}">
-                                            <x-ui.button variant="secondary" :href="$week['url']" aria-label="Open {{ $week['label'] }}">Open</x-ui.button>
+                                            <x-ui.button variant="secondary" :href="$week['url']" aria-label="Edit {{ $week['label'] }}">Edit Week</x-ui.button>
                                         </td>
                                     </tr>
                                 @endforeach

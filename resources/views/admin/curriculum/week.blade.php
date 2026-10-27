@@ -4,6 +4,8 @@
     @php
         $headerCellClasses = 'border-b border-line px-3.5 py-3 text-left align-bottom text-xs font-bold tracking-[0.06em] text-muted uppercase max-sm:px-2.5';
         $cellClasses = 'border-b border-line px-3.5 py-3.5 text-left align-middle max-sm:px-2.5 max-sm:py-3';
+        $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
+        $weekErrors = $errors->getBag($details['error_bag']);
     @endphp
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -21,6 +23,10 @@
         </x-ui.main-action>
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
+            @if(session('status'))
+                <x-ui.alert tone="success" role="status">{{ session('status') }}</x-ui.alert>
+            @endif
+
             @include('admin.curriculum.sessions-notice')
 
             <div class="min-w-0" data-page-tabs>
@@ -29,16 +35,50 @@
                 <x-ui.tab-panel name="details" :selected="$selectedTab" id-prefix="week">
                     <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="week-details-title">
                         <h2 id="week-details-title" class="text-xl font-extrabold">Details</h2>
-                        <dl class="grid grid-cols-1 gap-4">
-                            <x-ui.stat variant="field" size="md" label="Title" :value="$details['title']" />
-                            <x-ui.stat variant="field" label="Description">
-                                @if($details['description'])
-                                    <dd class="text-sm/relaxed whitespace-pre-line wrap-break-word" data-week-description>{{ $details['description'] }}</dd>
-                                @else
-                                    <dd class="text-sm/relaxed text-muted">No description.</dd>
+                        <p class="text-sm/relaxed text-muted">Participants and mentors see the title and description on the week's pages. The week number and its place in the program do not change.</p>
+
+                        <form method="POST" action="{{ $details['update_url'] }}" class="grid min-w-0 grid-cols-1 gap-4 lg:max-w-2xl" aria-labelledby="week-details-title" data-week-details-form>
+                            @csrf
+                            @method('PUT')
+
+                            <div class="grid min-w-0 grid-cols-1 gap-2">
+                                <label for="week-title" class="text-sm font-extrabold">Title</label>
+                                <input
+                                    id="week-title"
+                                    name="title"
+                                    type="text"
+                                    required
+                                    maxlength="255"
+                                    value="{{ $weekErrors->any() ? old('title') : $details['title'] }}"
+                                    @if($weekErrors->has('title')) aria-invalid="true" aria-describedby="week-title-error" @endif
+                                    class="{{ $controlClasses }}"
+                                >
+                                @if($weekErrors->has('title'))
+                                    <p id="week-title-error" class="text-sm text-rose-200" role="alert">{{ $weekErrors->first('title') }}</p>
                                 @endif
-                            </x-ui.stat>
-                        </dl>
+                            </div>
+
+                            <div class="grid min-w-0 grid-cols-1 gap-2">
+                                <label for="week-description" class="text-sm font-extrabold">Description</label>
+                                <p id="week-description-hint" class="text-sm/relaxed text-muted">Optional plain text, shown under the week's title.</p>
+                                <textarea
+                                    id="week-description"
+                                    name="description"
+                                    rows="5"
+                                    maxlength="5000"
+                                    aria-describedby="week-description-hint{{ $weekErrors->has('description') ? ' week-description-error' : '' }}"
+                                    @if($weekErrors->has('description')) aria-invalid="true" @endif
+                                    class="{{ $controlClasses }} min-h-28 resize-y"
+                                >{{ $weekErrors->any() ? old('description') : $details['description'] }}</textarea>
+                                @if($weekErrors->has('description'))
+                                    <p id="week-description-error" class="text-sm text-rose-200" role="alert">{{ $weekErrors->first('description') }}</p>
+                                @endif
+                            </div>
+
+                            <div>
+                                <x-ui.button type="submit">Save Details</x-ui.button>
+                            </div>
+                        </form>
                     </x-ui.card>
                 </x-ui.tab-panel>
 

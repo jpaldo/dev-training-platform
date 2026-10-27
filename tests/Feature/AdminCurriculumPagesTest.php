@@ -78,7 +78,7 @@ class AdminCurriculumPagesTest extends TestCase
             ->assertSee('<a href="'.route('admin.sessions.show', $completed).'"', false)
             ->assertSeeInOrder(['Week 1', 'Foundations', 'Week 2', 'Testing'])
             ->assertSee('<a href="'.route('admin.programs.weeks.show', [$program, $firstWeek]).'"', false)
-            ->assertSee('aria-label="Open Week 2"', false)
+            ->assertSeeInOrder(['aria-label="Edit Week 2"', '>Edit Week<'], false)
             ->assertDontSee('Other program week')
             ->assertViewHas('weeks', fn (array $weeks): bool => array_column($weeks, 'number') === [1, 2]
                 && $weeks[0]['active_activity_count'] === 2

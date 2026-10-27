@@ -13,6 +13,7 @@ use App\Http\Controllers\AdminTrainingSessionMentorAssignmentController;
 use App\Http\Controllers\AdminTrainingSessionMentorController;
 use App\Http\Controllers\AdminTrainingSessionParticipantController;
 use App\Http\Controllers\AdminTrainingSessionResourceController;
+use App\Http\Controllers\AdminTrainingWeekController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AuthenticatedSessionController;
@@ -121,6 +122,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
             Route::get('/', [AdminCurriculumController::class, 'index'])->name('index');
             Route::get('/{program}', [AdminCurriculumController::class, 'show'])->name('show');
             Route::get('/{program}/weeks/{week}', [AdminCurriculumController::class, 'week'])->name('weeks.show');
+            Route::put('/{program}/weeks/{week}', [AdminTrainingWeekController::class, 'update'])->name('weeks.update');
         });
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');

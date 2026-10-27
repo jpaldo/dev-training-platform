@@ -4,6 +4,7 @@ use App\Http\Controllers\ActivityExportController;
 use App\Http\Controllers\ActivitySubmissionController;
 use App\Http\Controllers\AdminActivityController;
 use App\Http\Controllers\AdminActivityFieldController;
+use App\Http\Controllers\AdminActivityScoringController;
 use App\Http\Controllers\AdminAiSettingsController;
 use App\Http\Controllers\AdminCurriculumController;
 use App\Http\Controllers\AdminDashboardController;
@@ -136,6 +137,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
             Route::patch('/{program}/weeks/{week}/activities/{activity}/fields/{requirement}/move', [AdminActivityFieldController::class, 'move'])->name('fields.move');
             Route::delete('/{program}/weeks/{week}/activities/{activity}/fields/{requirement}', [AdminActivityFieldController::class, 'destroy'])->name('fields.destroy');
             Route::patch('/{program}/weeks/{week}/activities/{activity}/fields/{requirement}/restore', [AdminActivityFieldController::class, 'restore'])->name('fields.restore');
+            Route::put('/{program}/weeks/{week}/activities/{activity}/scoring', [AdminActivityScoringController::class, 'update'])->name('scoring.update');
         });
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\TrainingSessionStatus;
 use App\Http\Requests\UpdateActivityFieldRequest;
+use App\Http\Requests\UpdateActivityScoringRequest;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\GateCriterion;
@@ -137,10 +138,12 @@ class CurriculumPageService
      * description, objectives and instructions with the URL and error bag of their form; Submission fields lists the
      * activity's submission fields in position order, each with the URLs and error bag of its forms (see
      * fieldFormRows()), the field types an admin can choose, the URL and error bag of the "Add field" form and, apart,
-     * the removed fields with their Restore URLs; Scoring lists the scoring dimensions in rubric order with their total.
-     * Reads the submission fields in one query, plus the notice's one.
+     * the removed fields with their Restore URLs; Scoring holds the scoring dimensions in rubric order with their total
+     * and either the rows of their form or, once the activity has a score, why they can no longer change (see
+     * scoringData()). Reads the submission fields in one query and whether a score exists in another, plus the
+     * notice's one.
      *
-     * @return array{title: string, statusLabel: string, statusTone: string, weekLabel: string, programName: string, weekUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, objectives: ?string, instructions: ?string, update_url: string, error_bag: string}, fields: list<array{id: int, key: string, label: string, help: ?string, type: string, type_label: string, has_fixed_type: bool, fixed_type_note: string, is_required: bool, required_label: string, required_tone: string, update_url: string, error_bag: string, move_url: string, can_move_up: bool, can_move_down: bool, destroy_url: string, remove_confirmation: string}>, fieldTypes: list<array{value: string, label: string}>, addField: array{store_url: string, error_bag: string}, removedFields: list<array{key: string, label: string, help: ?string, type: string, type_label: string, has_fixed_type: bool, fixed_type_note: string, is_required: bool, required_label: string, required_tone: string, restore_url: string}>, scoring: array{dimensions: list<array{key: string, label: string, max: int}>, total: int}}
+     * @return array{title: string, statusLabel: string, statusTone: string, weekLabel: string, programName: string, weekUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, objectives: ?string, instructions: ?string, update_url: string, error_bag: string}, fields: list<array{id: int, key: string, label: string, help: ?string, type: string, type_label: string, has_fixed_type: bool, fixed_type_note: string, is_required: bool, required_label: string, required_tone: string, update_url: string, error_bag: string, move_url: string, can_move_up: bool, can_move_down: bool, destroy_url: string, remove_confirmation: string}>, fieldTypes: list<array{value: string, label: string}>, addField: array{store_url: string, error_bag: string}, removedFields: list<array{key: string, label: string, help: ?string, type: string, type_label: string, has_fixed_type: bool, fixed_type_note: string, is_required: bool, required_label: string, required_tone: string, restore_url: string}>, scoring: array{dimensions: list<array{key: string, label: string, max: int}>, total: int, is_locked: bool, locked_message: string, rows: list<array{index: int, key: string, label: ?string, max: ?int}>, required_total: int, label_max_length: int, update_url: string, error_bag: string}}
      */
     public function activityData(Program $program, TrainingWeek $week, Activity $activity): array
     {
@@ -189,10 +192,38 @@ class CurriculumPageService
                 ])
                 ->values()
                 ->all(),
-            'scoring' => [
-                'dimensions' => $activity->scoringDimensions(),
-                'total' => $activity->scoringMaximum(),
-            ],
+            'scoring' => $this->scoringData($program, $week, $activity),
+        ];
+    }
+
+    /**
+     * The Scoring tab's content: the activity's scoring dimensions in rubric order with their total, whether they are
+     * locked because the activity has a score (one query) and why, and the form: its URL and error bag, the total the
+     * maxima must add up to, the longest label, and one row per possible dimension (nine), filled with the current
+     * dimensions in order and blank after them. A locked tab has no rows.
+     *
+     * @return array{dimensions: list<array{key: string, label: string, max: int}>, total: int, is_locked: bool, locked_message: string, rows: list<array{index: int, key: string, label: ?string, max: ?int}>, required_total: int, label_max_length: int, update_url: string, error_bag: string}
+     */
+    private function scoringData(Program $program, TrainingWeek $week, Activity $activity): array
+    {
+        $dimensions = $activity->scoringDimensions();
+        $isLocked = $activity->hasScores();
+
+        return [
+            'dimensions' => $dimensions,
+            'total' => $activity->scoringMaximum(),
+            'is_locked' => $isLocked,
+            'locked_message' => UpdateActivityScoringRequest::LOCKED_MESSAGE,
+            'rows' => $isLocked ? [] : array_map(fn (int $index): array => [
+                'index' => $index,
+                'key' => 'D'.($index + 1),
+                'label' => $dimensions[$index]['label'] ?? null,
+                'max' => $dimensions[$index]['max'] ?? null,
+            ], range(0, Activity::MAX_SCORING_DIMENSIONS - 1)),
+            'required_total' => Activity::SCORING_TOTAL,
+            'label_max_length' => UpdateActivityScoringRequest::LABEL_MAX_LENGTH,
+            'update_url' => route('admin.programs.scoring.update', [$program, $week, $activity]),
+            'error_bag' => 'scoring',
         ];
     }
 

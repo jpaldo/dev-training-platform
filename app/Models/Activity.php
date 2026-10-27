@@ -26,6 +26,15 @@ class Activity extends Model
         ['key' => 'D4', 'label' => 'Reflection', 'max' => 10],
     ];
 
+    /**
+     * The most scoring dimensions an activity has: their keys run D1 to D9, because a score's dimension rows keep the
+     * key in a two-character column (`activity_score_dimensions.dimension`).
+     */
+    public const MAX_SCORING_DIMENSIONS = 9;
+
+    /** The total an activity's dimension maxima add up to, its highest score. */
+    public const SCORING_TOTAL = 100;
+
     protected $fillable = ['training_week_id', 'title', 'description', 'objectives', 'instructions', 'configuration', 'position', 'requires_coach_review', 'is_active'];
 
     protected function casts(): array
@@ -64,6 +73,15 @@ class Activity extends Model
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Whether a score, draft or published, exists for any version of a submission of the activity (one query). Once
+     * one does, the scoring dimensions can no longer change, because the score's dimension rows refer to their keys.
+     */
+    public function hasScores(): bool
+    {
+        return $this->submissions()->whereHas('versions.activityScore')->exists();
     }
 
     /**

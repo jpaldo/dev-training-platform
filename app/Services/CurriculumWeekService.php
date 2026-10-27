@@ -184,6 +184,45 @@ class CurriculumWeekService
     }
 
     /**
+     * Replace the activity's scoring dimensions with the given rows, keyed D1 to Dn in row order, and record
+     * `curriculum_scoring_updated` with the dimensions before and after. Only `configuration.scoring_dimensions`
+     * changes; the configuration's other keys (such as `expected_files`) are kept. When the rows match the current
+     * dimensions, keys included, nothing is saved or recorded. The caller makes sure the activity has no score yet.
+     *
+     * @param  list<array{label: string, max: int}>  $dimensions
+     */
+    public function updateScoringDimensions(Activity $activity, array $dimensions, User $admin): Activity
+    {
+        $before = $activity->scoringDimensions();
+        $after = collect($dimensions)
+            ->values()
+            ->map(fn (array $dimension, int $index): array => [
+                'key' => 'D'.($index + 1),
+                'label' => $dimension['label'],
+                'max' => $dimension['max'],
+            ])
+            ->all();
+
+        if ($after === $before) {
+            return $activity;
+        }
+
+        return DB::transaction(function () use ($activity, $before, $after, $admin): Activity {
+            $activity->configuration = array_replace($activity->configuration ?? [], ['scoring_dimensions' => $after]);
+            $activity->save();
+
+            $this->audit->record($admin, 'curriculum_scoring_updated', metadata: [
+                'program_id' => $activity->week->program_id,
+                'training_week_id' => $activity->training_week_id,
+                'activity_id' => $activity->id,
+                'changes' => ['scoring_dimensions' => ['from' => $before, 'to' => $after]],
+            ]);
+
+            return $activity;
+        });
+    }
+
+    /**
      * Save whether the activity is active and record the given audit action with the change, unless it already is.
      */
     private function setActivityActive(Activity $activity, bool $isActive, string $action, User $admin): Activity

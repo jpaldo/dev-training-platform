@@ -9,6 +9,7 @@
         $activityErrors = $errors->getBag($details['error_bag']);
         $addFieldErrors = $errors->getBag($addField['error_bag']);
         $addFieldType = $addFieldErrors->any() ? old('type') : 'textarea';
+        $scoringErrors = $errors->getBag($scoring['error_bag']);
     @endphp
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -367,37 +368,112 @@
                 <x-ui.tab-panel name="scoring" :selected="$selectedTab" id-prefix="activity">
                     <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="activity-scoring-title">
                         <h2 id="activity-scoring-title" class="text-xl font-extrabold">Scoring</h2>
-                        <p class="text-sm/relaxed text-muted">Mentors score handed-in work on these dimensions.</p>
-                        @if($scoring['dimensions'] !== [])
-                            <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="activity-scoring-title" tabindex="0">
-                                <table class="w-full min-w-80 border-collapse text-sm" aria-labelledby="activity-scoring-title">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col" class="{{ $headerCellClasses }}">Key</th>
-                                            <th scope="col" class="{{ $headerCellClasses }}">Dimension</th>
-                                            <th scope="col" class="{{ $headerCellClasses }} text-right">Maximum</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach($scoring['dimensions'] as $dimension)
-                                            <tr data-scoring-dimension>
-                                                <td class="{{ $cellClasses }} w-16 text-muted">{{ $dimension['key'] }}</td>
-                                                <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">{{ $dimension['label'] }}</th>
-                                                <td class="{{ $cellClasses }} text-right tabular-nums">{{ $dimension['max'] }}</td>
+                        <p class="text-sm/relaxed text-muted">Mentors score handed-in work on these dimensions. They can change until the first submission of this activity is scored.</p>
+                        @if($scoring['is_locked'])
+                            <x-ui.alert tone="info" data-scoring-locked>{{ $scoring['locked_message'] }}</x-ui.alert>
+                            @if($scoring['dimensions'] !== [])
+                                <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="activity-scoring-title" tabindex="0">
+                                    <table class="w-full min-w-80 border-collapse text-sm" aria-labelledby="activity-scoring-title">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col" class="{{ $headerCellClasses }}">Key</th>
+                                                <th scope="col" class="{{ $headerCellClasses }}">Dimension</th>
+                                                <th scope="col" class="{{ $headerCellClasses }} text-right">Maximum</th>
                                             </tr>
-                                        @endforeach
-                                    </tbody>
-                                    <tfoot>
-                                        <tr>
-                                            <td class="{{ $cellClasses }}"></td>
-                                            <th scope="row" class="{{ $cellClasses }} font-extrabold">Total</th>
-                                            <td class="{{ $cellClasses }} text-right font-extrabold tabular-nums" data-scoring-total>{{ $scoring['total'] }}</td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($scoring['dimensions'] as $dimension)
+                                                <tr data-scoring-dimension>
+                                                    <td class="{{ $cellClasses }} w-16 text-muted">{{ $dimension['key'] }}</td>
+                                                    <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">{{ $dimension['label'] }}</th>
+                                                    <td class="{{ $cellClasses }} text-right tabular-nums">{{ $dimension['max'] }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                        <tfoot>
+                                            <tr>
+                                                <td class="{{ $cellClasses }}"></td>
+                                                <th scope="row" class="{{ $cellClasses }} font-extrabold">Total</th>
+                                                <td class="{{ $cellClasses }} text-right font-extrabold tabular-nums" data-scoring-total>{{ $scoring['total'] }}</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            @else
+                                <p class="text-muted">This activity has no scoring dimensions.</p>
+                            @endif
                         @else
-                            <p class="text-muted">This activity has no scoring dimensions.</p>
+                            <form method="POST" action="{{ $scoring['update_url'] }}" class="grid min-w-0 grid-cols-1 gap-4 lg:max-w-2xl" aria-labelledby="activity-scoring-title" data-scoring-form>
+                                @csrf
+                                @method('PUT')
+
+                                @if($scoringErrors->has('dimensions'))
+                                    <x-ui.alert tone="error" role="alert" id="scoring-dimensions-error" data-scoring-error>{{ $scoringErrors->first('dimensions') }}</x-ui.alert>
+                                @endif
+
+                                <fieldset class="grid min-w-0 grid-cols-1 gap-3" aria-describedby="scoring-hint scoring-total-note{{ $scoringErrors->has('dimensions') ? ' scoring-dimensions-error' : '' }}">
+                                    <legend class="mb-2 text-sm font-extrabold">Dimensions</legend>
+                                    <p id="scoring-hint" class="text-sm/relaxed text-muted">Up to {{ count($scoring['rows']) }} dimensions in rubric order, each with a label of up to {{ $scoring['label_max_length'] }} characters and a maximum in whole points. Blank rows are skipped, and the dimensions are keyed D1, D2 and so on in row order when you save.</p>
+                                    <p id="scoring-total-note" class="text-sm font-bold">Maxima must add up to {{ $scoring['required_total'] }}.</p>
+
+                                    <div class="grid grid-cols-[2rem_minmax(0,1fr)_5rem] gap-x-2 text-xs font-bold tracking-[0.06em] text-muted uppercase sm:grid-cols-[2.5rem_minmax(0,1fr)_7rem] sm:gap-x-3" aria-hidden="true">
+                                        <span>Key</span>
+                                        <span>Label</span>
+                                        <span>Maximum</span>
+                                    </div>
+
+                                    <ol class="grid grid-cols-1 gap-2" data-scoring-rows>
+                                        @foreach($scoring['rows'] as $row)
+                                            @php
+                                                $rowId = 'scoring-dimension-'.$row['index'];
+                                                $rowNumber = $row['index'] + 1;
+                                                $labelError = $scoringErrors->first("dimensions.{$row['index']}.label");
+                                                $maxError = $scoringErrors->first("dimensions.{$row['index']}.max");
+                                            @endphp
+                                            <li class="grid grid-cols-[2rem_minmax(0,1fr)_5rem] items-start gap-x-2 gap-y-1 sm:grid-cols-[2.5rem_minmax(0,1fr)_7rem] sm:gap-x-3" data-scoring-row>
+                                                <span class="py-3 text-sm font-bold text-muted tabular-nums" aria-hidden="true">{{ $row['key'] }}</span>
+                                                <div class="min-w-0">
+                                                    <label for="{{ $rowId }}-label" class="sr-only">Dimension {{ $rowNumber }} label</label>
+                                                    <input
+                                                        id="{{ $rowId }}-label"
+                                                        name="dimensions[{{ $row['index'] }}][label]"
+                                                        type="text"
+                                                        maxlength="{{ $scoring['label_max_length'] }}"
+                                                        value="{{ $scoringErrors->any() ? old("dimensions.{$row['index']}.label") : $row['label'] }}"
+                                                        @if($labelError) aria-invalid="true" aria-describedby="{{ $rowId }}-label-error" @endif
+                                                        class="{{ $controlClasses }}"
+                                                    >
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <label for="{{ $rowId }}-max" class="sr-only">Dimension {{ $rowNumber }} maximum</label>
+                                                    <input
+                                                        id="{{ $rowId }}-max"
+                                                        name="dimensions[{{ $row['index'] }}][max]"
+                                                        type="number"
+                                                        inputmode="numeric"
+                                                        min="1"
+                                                        max="{{ $scoring['required_total'] }}"
+                                                        step="1"
+                                                        value="{{ $scoringErrors->any() ? old("dimensions.{$row['index']}.max") : $row['max'] }}"
+                                                        @if($maxError) aria-invalid="true" aria-describedby="{{ $rowId }}-max-error" @endif
+                                                        class="{{ $controlClasses }} tabular-nums"
+                                                    >
+                                                </div>
+                                                @if($labelError)
+                                                    <p id="{{ $rowId }}-label-error" class="col-span-2 col-start-2 text-sm text-rose-200" role="alert">{{ $labelError }}</p>
+                                                @endif
+                                                @if($maxError)
+                                                    <p id="{{ $rowId }}-max-error" class="col-span-2 col-start-2 text-sm text-rose-200" role="alert">{{ $maxError }}</p>
+                                                @endif
+                                            </li>
+                                        @endforeach
+                                    </ol>
+                                </fieldset>
+
+                                <div>
+                                    <x-ui.button type="submit">Save Scoring</x-ui.button>
+                                </div>
+                            </form>
                         @endif
                     </x-ui.card>
                 </x-ui.tab-panel>

@@ -62,7 +62,7 @@ class AdminCurriculumActivityTest extends TestCase
                 'Pull request link', 'GitHub link', 'Required', 'pull_request',
                 'Notes', 'Long text', 'Optional', 'Anything your mentor should know.', 'notes',
                 'Removed fields', 'Retired link', 'old_link',
-                'D1', 'Deliverable', '40', 'D4', 'Reflection', '10', 'Total', '100',
+                'Maxima must add up to 100.', 'D1', 'Deliverable', '40', 'D4', 'Reflection', '10', 'Save Scoring',
             ])
             ->assertDontSee('Legacy deliverable requirement');
     }

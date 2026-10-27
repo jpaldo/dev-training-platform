@@ -293,6 +293,21 @@ class WeeklyVideoRecordingPageTest extends TestCase
         $this->actingAs($participant)->get($url)->assertNotFound();
     }
 
+    public function test_page_is_not_found_for_a_week_whose_only_video_item_was_removed_from_the_checklist(): void
+    {
+        $participant = User::factory()->create();
+        ['week' => $week, 'gate' => $gate, 'session' => $session] = $this->weekFixture($participant);
+        $weekUrl = route('training.weeks.show', [$session, $week]);
+        $this->actingAs($participant)->get($weekUrl)->assertSee('Choose Weekly Video');
+
+        $gate->criteria()->update(['is_required' => false]);
+
+        $this->actingAs($participant)->get(route('training.video-recording.edit', [$session, $week]))->assertNotFound();
+        $this->actingAs($participant)->get($weekUrl)
+            ->assertOk()
+            ->assertDontSee('Choose Weekly Video');
+    }
+
     /**
      * An active Week 2 (the first week of an active program) with one active Gate that has a weekly video item, and an
      * active session of the program with the participant in it.

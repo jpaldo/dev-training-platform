@@ -34,7 +34,8 @@ class CoachGateOverviewService
     /**
      * Build the coach Gate board: one row per session membership the viewer may see (every one for an admin, otherwise
      * those where the viewer is the participant's current mentor) and active Gate of one of the session's weeks, each
-     * from the participant's work in that session, sorted by status, with summary counts.
+     * from the participant's work in that session, sorted by status, with summary counts. `criteria_met` and
+     * `criteria_total` count only the items on the checklist, so a tick on a since-retired item no longer counts.
      *
      * @param  array{week?: int|string|null, search?: string|null, status?: GateEvaluationStatus|null, session?: int|string|null}  $filters
      * @return array{rows: Collection<int, array{gate: TrainingGate, trainingSession: TrainingSession, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, criteria_met: int, criteria_total: int, weekly_video: array{status: string, url: ?string, criterion: ?GateCriterion, recording: ?WeeklyVideoRecording}}>, summary: array{total: int, ready: int, awaiting: int, passed: int, not_ready: int}}
@@ -60,6 +61,7 @@ class CoachGateOverviewService
             ->keyBy(fn (GateEvaluation $evaluation): string => "{$evaluation->training_session_id}:{$evaluation->training_gate_id}:{$evaluation->user_id}");
         $rows = collect();
         foreach ($gates as $gate) {
+            $onChecklistCriterionIds = $gate->criteria->filter(fn (GateCriterion $criterion): bool => $criterion->isOnChecklist())->modelKeys();
             foreach ($memberships as $key => $membership) {
                 if (! $membership->trainingSession->includesWeek($gate->week)) {
                     continue;
@@ -77,8 +79,8 @@ class CoachGateOverviewService
                     'evaluation' => $evaluation,
                     'readiness' => $readinessReasons,
                     'status' => $status,
-                    'criteria_met' => $evaluation?->criterionEvaluations->where('status', GateCriterionStatus::Met)->count() ?? 0,
-                    'criteria_total' => $gate->criteria->where('is_required', true)->count(),
+                    'criteria_met' => $evaluation?->criterionEvaluations->where('status', GateCriterionStatus::Met)->whereIn('gate_criterion_id', $onChecklistCriterionIds)->count() ?? 0,
+                    'criteria_total' => count($onChecklistCriterionIds),
                     'weekly_video' => $weeklyVideosByMembership->get($key)->get($gate->id),
                 ]);
             }

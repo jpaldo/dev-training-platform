@@ -106,6 +106,26 @@ class CoachGateBoardPageTest extends TestCase
             ->assertSeeInOrder(['>Bo Blocked</a>', 'NOT READY</span>', '>Not required</span>', '>1 blocker</strong>'], false);
     }
 
+    public function test_criteria_met_counts_only_the_items_still_on_the_checklist(): void
+    {
+        $week = TrainingWeek::factory()->create(['week_number' => 2]);
+        $gate = TrainingGate::factory()->for($week, 'week')->create();
+        $criteria = GateCriterion::factory()->count(5)->for($gate, 'gate')->create(['criterion_type' => GateCriterion::TYPE_DELIVERABLE]);
+        $session = TrainingSession::factory()->forWeek($week)->create();
+        $participant = User::factory()->create(['name' => 'Pat Passed']);
+        $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+        foreach ($criteria as $criterion) {
+            GateCriterionEvaluation::factory()->for($evaluation, 'gateEvaluation')->for($criterion, 'criterion')->create(['status' => 'met']);
+        }
+        $criteria->last()->update(['is_required' => false]);
+        $this->join($session, $participant);
+
+        $this->actingAs($this->admin())->get(route('coach.gates'))
+            ->assertOk()
+            ->assertSeeInOrder(['>Pat Passed</a>', '>4 / 4</span>', '>criteria met</span>'], false)
+            ->assertDontSee('>5 / 4</span>', false);
+    }
+
     public function test_filters_keep_their_values_and_the_pagination_links_keep_them(): void
     {
         $week = TrainingWeek::factory()->create(['week_number' => 2]);

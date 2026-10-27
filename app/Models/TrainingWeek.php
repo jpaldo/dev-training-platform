@@ -81,7 +81,7 @@ class TrainingWeek extends Model
 
     /**
      * Whether the week asks for the Weekly Video Recording: only when its checklist (an active Gate) has a weekly
-     * video item. Reads the attribute withAsksForWeeklyVideo() adds, otherwise queries.
+     * video item that is not retired. Reads the attribute withAsksForWeeklyVideo() adds, otherwise queries.
      */
     public function asksForWeeklyVideo(): bool
     {

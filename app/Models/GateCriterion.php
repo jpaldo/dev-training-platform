@@ -56,11 +56,12 @@ class GateCriterion extends Model
     }
 
     /**
-     * Limit the query to weekly video criteria.
+     * Limit the query to the weekly video items on the checklist. A retired weekly video item no longer makes its week
+     * ask for the video.
      */
     public function scopeWeeklyVideo(Builder $query): Builder
     {
-        return $query->whereIn('criterion_type', self::VIDEO_TYPES);
+        return $query->whereIn('criterion_type', self::VIDEO_TYPES)->onChecklist();
     }
 
     /**

@@ -411,7 +411,7 @@ How each scoped binding is checked:
 
 ## Phase 3 — Checklists
 
-- [ ] **3.1 Removed checklist items stop counting** (CUR-12)
+- [x] **3.1 Removed checklist items stop counting** (CUR-12) — done 2026-10-27. `scopeWeeklyVideo()` chains `onChecklist()`. Every other video reader goes through it: `asksForWeeklyVideo()` (week page, dashboard, video page, notifications, missing-submission report) and `GateReadinessService` (readiness, the video state on the Gate, review and board pages). `CoachGateReviewPageService` line 51 and `StoreGateReviewRequest::requiredCriteria()` already filter `is_required`, so `isWeeklyVideo()` stays type-only. The board's `criteria_total` now uses the same on-checklist ids as `criteria_met`. No existing test relied on an optional video item.
   - **Do:**
     - `GateCriterion::scopeWeeklyVideo()` adds `where('is_required', true)`, which carries through `TrainingGate::scopeAsksForWeeklyVideo()`, `TrainingWeek::asksForWeeklyVideo()` and `GateReadinessService`. `GateCriterion::isWeeklyVideo()` stays type-only; its callers already work on required items. Check that `CoachGateReviewPageService` line ~51 filters `$requiredCriteria`.
     - `CoachGateOverviewService` `criteria_met` counts only Met evaluations whose item is on the checklist (filter by the Gate's on-checklist criterion ids, already loaded).

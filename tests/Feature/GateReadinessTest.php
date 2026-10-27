@@ -92,6 +92,21 @@ class GateReadinessTest extends TestCase
         $this->assertSame('met', $service->weeklyVideo($session, $participant, $gateTwo)['status']);
     }
 
+    public function test_a_weekly_video_item_removed_from_the_checklist_no_longer_requires_the_video(): void
+    {
+        ['week' => $week, 'gate' => $gate, 'video_criterion' => $videoCriterion, 'unsubmitted' => $firstActivity, 'submitted' => $secondActivity, 'evidence' => $evidence] = $this->threeWeekProgram()[1];
+        $participant = User::factory()->create();
+        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $this->handIn($participant, $firstActivity, $evidence['unsubmitted']);
+        $this->handIn($participant, $secondActivity, $evidence['submitted']);
+        $videoCriterion->update(['is_required' => false]);
+        $service = app(GateReadinessService::class);
+
+        $this->assertSame([], $service->readiness($session, $participant, $gate));
+        $this->assertSame(['status' => 'not_required', 'url' => null, 'criterion' => null, 'recording' => null], $service->weeklyVideo($session, $participant, $gate));
+        $this->assertFalse($week->asksForWeeklyVideo());
+    }
+
     public function test_work_and_reviews_in_another_session_do_not_count(): void
     {
         ['week' => $week, 'gate' => $gate, 'video_criterion' => $videoCriterion, 'unsubmitted' => $firstActivity, 'submitted' => $secondActivity, 'evidence' => $evidence] = $this->threeWeekProgram()[1];

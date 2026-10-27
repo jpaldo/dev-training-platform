@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class TrainingWeek extends Model
 {
@@ -34,6 +35,15 @@ class TrainingWeek extends Model
     public function gates(): HasMany
     {
         return $this->hasMany(TrainingGate::class);
+    }
+
+    /**
+     * The checklist items of every Gate of the week, on the checklist or retired. Constrain the Gate
+     * (`training_gates.is_active`) and the item (`gate_criteria.is_required`) to read what the checklist shows.
+     */
+    public function checklistItems(): HasManyThrough
+    {
+        return $this->hasManyThrough(GateCriterion::class, TrainingGate::class);
     }
 
     public function weeklyVideoRecordings(): HasMany

@@ -302,6 +302,10 @@
                 <x-ui.tab-panel name="activities" :selected="$selectedTab" id-prefix="session">
                     <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="session-activities-title">
                         <h2 id="session-activities-title" class="text-xl font-extrabold">Activities</h2>
+                        <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-sunken px-4 py-3" data-curriculum-link>
+                            <p class="text-sm/relaxed text-muted">Changes apply to every session of {{ $program }}.</p>
+                            <x-ui.button variant="secondary" :href="$curriculumUrl">Edit curriculum</x-ui.button>
+                        </div>
                         @if($activities !== [])
                             <p class="text-sm/relaxed text-muted">The session's participants by their latest attempt at each activity in this session. In progress is a draft not handed in yet, including a revision or a retry.</p>
                             <div class="{{ $tableRegionClasses }}" role="region" aria-labelledby="session-activities-title" tabindex="0">

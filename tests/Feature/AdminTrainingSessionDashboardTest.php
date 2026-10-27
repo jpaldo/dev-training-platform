@@ -108,6 +108,23 @@ class AdminTrainingSessionDashboardTest extends TestCase
             ->assertDontSee('Other program activity');
     }
 
+    public function test_the_activities_tab_links_to_the_curriculum_of_the_session_program(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->create(['name' => 'L4 Accelerator Training']);
+        $session = $this->twoWeekSession($program);
+
+        $this->actingAs($admin)
+            ->get(route('admin.sessions.show', $session))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="session-panel-activities"',
+                'Changes apply to every session of L4 Accelerator Training.',
+                '<a href="'.route('admin.programs.show', $program).'"',
+                'Edit curriculum</a>',
+            ], false);
+    }
+
     public function test_the_activities_tab_counts_each_current_participants_latest_attempt_in_this_session(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

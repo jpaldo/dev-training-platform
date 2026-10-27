@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActivityExportController;
 use App\Http\Controllers\ActivitySubmissionController;
 use App\Http\Controllers\AdminAiSettingsController;
+use App\Http\Controllers\AdminCurriculumController;
 use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\AdminGoogleDriveController;
 use App\Http\Controllers\AdminInterviewSchedulingController;
@@ -116,6 +117,10 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::post('/sessions/{trainingSession}/resources', [AdminTrainingSessionResourceController::class, 'store'])->name('sessions.resources.store');
         Route::put('/sessions/{trainingSession}/resources/{resource}', [AdminTrainingSessionResourceController::class, 'update'])->scopeBindings()->name('sessions.resources.update');
         Route::delete('/sessions/{trainingSession}/resources/{resource}', [AdminTrainingSessionResourceController::class, 'destroy'])->scopeBindings()->name('sessions.resources.destroy');
+        Route::scopeBindings()->prefix('programs')->name('programs.')->group(function (): void {
+            Route::get('/', [AdminCurriculumController::class, 'index'])->name('index');
+            Route::get('/{program}', [AdminCurriculumController::class, 'show'])->name('show');
+        });
         Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
         Route::get('/users/create', [AdminUserController::class, 'create'])->name('users.create');
         Route::post('/users', [AdminUserController::class, 'store'])->name('users.store');

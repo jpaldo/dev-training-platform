@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ParticipantNotification;
+use App\Models\Program;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Testing\TestResponse;
@@ -115,14 +116,28 @@ class AppLayoutTest extends TestCase
         $this->assertSame([
             ['Admin Dashboard', route('admin.dashboard'), false, 0],
             ['Training Sessions', route('admin.sessions.index'), false, 0],
+            ['Curriculum', route('admin.programs.index'), false, 0],
             ['Users / Participants', route('admin.users.index'), false, 0],
             ['Settings', route('admin.settings.index'), false, 0],
             ['Google Drive', route('admin.settings.google-drive'), true, 0],
             ['AI', route('admin.settings.ai'), false, 0],
             ['Profile', route('profile.show'), false, 0],
-        ], array_slice($this->sidebarLinks($sidebar), -7));
+        ], array_slice($this->sidebarLinks($sidebar), -8));
         $this->assertSame(1, substr_count($sidebar, 'aria-current="page"'));
         $this->assertStringContainsString('>Admin</span>', $sidebar);
+    }
+
+    public function test_admin_sidebar_marks_curriculum_as_the_current_page_on_a_program_page(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->create();
+
+        $sidebar = $this->sidebar($this->actingAs($admin)->get(route('admin.programs.show', $program))->assertOk());
+
+        $this->assertSame([['Curriculum', route('admin.programs.index'), true, 0]], array_values(array_filter(
+            $this->sidebarLinks($sidebar),
+            fn (array $link): bool => $link[2],
+        )));
     }
 
     public function test_profile_link_is_marked_as_the_current_page_on_the_profile(): void

@@ -2,21 +2,25 @@
 
 namespace Tests\Feature;
 
+use App\Enums\GateCriterionStatus;
+use App\Enums\GateEvaluationStatus;
 use App\Enums\SubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\GateCriterion;
+use App\Models\GateCriterionEvaluation;
+use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Services\SubmissionWorkflowService;
 use Closure;
 use Database\Seeders\L4TrainingProgramSeeder;
-use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -32,6 +36,11 @@ class L4TrainingProgramSeederTest extends TestCase
         $this->assertSame('L4 Accelerator Training', $program->name);
         $this->assertTrue($program->is_active);
         $this->assertSame([], $program->weekNumbersWithoutChecklist()->all());
+        $this->assertDatabaseCount('training_weeks', 4);
+        $this->assertDatabaseCount('activities', 13);
+        $this->assertDatabaseCount('training_gates', 4);
+        $this->assertDatabaseCount('gate_criteria', 19);
+        $this->assertDatabaseCount('activity_requirements', 27);
 
         $weeks = $program->weeks()->orderBy('week_number')->with(['activities.requirements', 'gates.criteria'])->get();
         $this->assertSame([1, 2, 3, 4], $weeks->pluck('week_number')->all());
@@ -110,47 +119,30 @@ class L4TrainingProgramSeederTest extends TestCase
         }
     }
 
-    public function test_running_twice_updates_every_record_in_place_without_duplicates(): void
+    public function test_a_second_run_changes_nothing_even_after_admin_edits(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
-        $firstRunIds = $this->seededIds();
+        TrainingWeek::query()->where('week_number', 1)->sole()->update(['title' => 'Kick-off']);
+        $notes = Activity::query()->where('title', 'Set up the starting repo')->sole()->requirements()->where('title', 'Notes')->sole();
+        $notes->update([
+            'is_required' => false,
+            'configuration' => [...$notes->configuration, 'required' => false, 'deprecated' => true],
+        ]);
+        GateCriterion::query()->where('title', 'Repo setup')->sole()->update(['title' => 'Repository set up']);
+        $before = $this->curriculumRows();
+        $this->travel(1)->hour();
 
-        $this->seed(L4TrainingProgramSeeder::class);
+        $this->artisan('db:seed', ['--class' => L4TrainingProgramSeeder::class])
+            ->expectsOutput('L4 Accelerator Training already exists; edit it on the admin Curriculum pages.')
+            ->assertExitCode(0);
 
-        $this->assertSame($firstRunIds, $this->seededIds());
-        $this->assertDatabaseCount('programs', 1);
-        $this->assertDatabaseCount('training_weeks', 4);
-        $this->assertDatabaseCount('activities', 13);
-        $this->assertDatabaseCount('training_gates', 4);
-        $this->assertDatabaseCount('gate_criteria', 19);
-        $this->assertDatabaseCount('activity_requirements', 27);
+        $this->assertSame($before, $this->curriculumRows());
+        $this->assertDatabaseHas('training_weeks', ['week_number' => 1, 'title' => 'Kick-off']);
+        $this->assertDatabaseHas('gate_criteria', ['id' => GateCriterion::query()->where('title', 'Repository set up')->sole()->id]);
+        $this->assertFalse($notes->fresh()->is_required);
     }
 
-    public function test_running_again_renames_the_old_weekly_video_item_in_place(): void
-    {
-        $this->runSeederWithDefinition(function (array $definition): array {
-            foreach ($definition['weeks'] as $weekIndex => $week) {
-                $videoItemIndex = array_key_last($week['checklist']['items']);
-                $definition['weeks'][$weekIndex]['checklist']['items'][$videoItemIndex]['title'] = 'Weekly video recording uploaded';
-                $definition['weeks'][$weekIndex]['checklist']['items'][$videoItemIndex]['description'] = 'A video recording walking through this week\'s work is uploaded.';
-            }
-
-            return $definition;
-        });
-        $oldItemIds = GateCriterion::query()->where('title', 'Weekly video recording uploaded')->orderBy('id')->pluck('id')->all();
-        $this->assertCount(4, $oldItemIds);
-
-        $this->seed(L4TrainingProgramSeeder::class);
-
-        $this->assertDatabaseCount('gate_criteria', 19);
-        $this->assertDatabaseMissing('gate_criteria', ['title' => 'Weekly video recording uploaded']);
-        $renamedItems = GateCriterion::query()->whereKey($oldItemIds)->orderBy('id')->get();
-        $this->assertSame(array_fill(0, 4, 'Video walkthrough'), $renamedItems->pluck('title')->all());
-        $this->assertSame(array_fill(0, 4, 'A video walking through this week\'s work is chosen from Google Drive.'), $renamedItems->pluck('description')->all());
-        $this->assertTrue($renamedItems->every(fn (GateCriterion $item): bool => $item->is_required && $item->isWeeklyVideo()));
-    }
-
-    public function test_running_again_leaves_a_submission_made_between_runs_untouched(): void
+    public function test_a_second_run_leaves_a_submission_and_a_review_untouched(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
         $activity = Activity::query()->where('title', 'Set up the starting repo')->sole();
@@ -163,69 +155,27 @@ class L4TrainingProgramSeederTest extends TestCase
             'field_values' => ['deliverable_url' => 'https://github.com/ana/l4', 'notes' => 'Ready for review.'],
             'submitted_at' => now(),
         ]);
+        $gate = TrainingGate::query()->whereRelation('week', 'week_number', 1)->sole();
+        $review = GateEvaluation::factory()->for($gate, 'gate')->for($submission->participant, 'participant')->create([
+            'status' => GateEvaluationStatus::Passed,
+            'evaluated_at' => now(),
+        ]);
+        $tick = GateCriterionEvaluation::factory()->create([
+            'gate_evaluation_id' => $review->id,
+            'gate_criterion_id' => $gate->criteria()->where('title', 'Repo setup')->sole()->id,
+            'status' => GateCriterionStatus::Met,
+            'evaluated_at' => now(),
+        ]);
+        $before = $this->attributesOf($submission, $version, $review, $tick);
         $this->travel(1)->hour();
 
         $this->seed(L4TrainingProgramSeeder::class);
 
-        $this->assertTrue($submission->fresh()->is($submission));
-        $this->assertSame($submission->updated_at->toDateTimeString(), $submission->fresh()->updated_at->toDateTimeString());
+        $this->assertSame($before, $this->attributesOf($submission, $version, $review, $tick));
         $this->assertSame(SubmissionStatus::Submitted, $submission->fresh()->status);
-        $this->assertSame(['deliverable_url' => 'https://github.com/ana/l4', 'notes' => 'Ready for review.'], $version->fresh()->field_values);
+        $this->assertSame(GateCriterionStatus::Met, $tick->fresh()->status);
         $this->assertTrue($activity->fresh()->is_active);
-    }
-
-    public function test_running_without_a_week_deactivates_the_week_its_activities_and_its_checklist(): void
-    {
-        $this->seed(L4TrainingProgramSeeder::class);
-
-        $this->runSeederWithDefinition(fn (array $definition): array => [
-            ...$definition,
-            'weeks' => array_slice($definition['weeks'], 0, 3),
-        ]);
-
-        $weeks = TrainingWeek::query()->orderBy('week_number')->get();
-        $this->assertSame([1 => true, 2 => true, 3 => true, 4 => false], $weeks->pluck('is_active', 'week_number')->all());
-        $weekFour = $weeks->firstWhere('week_number', 4);
-        $this->assertSame([false, false], $weekFour->activities()->pluck('is_active')->all());
-        $this->assertFalse($weekFour->gates()->sole()->is_active);
-        $this->assertSame(11, Activity::query()->where('is_active', true)->count());
-    }
-
-    public function test_running_without_an_activity_deactivates_it_and_drops_its_checklist_item(): void
-    {
-        $this->seed(L4TrainingProgramSeeder::class);
-
-        $this->runSeederWithDefinition(function (array $definition): array {
-            array_splice($definition['weeks'][1]['activities'], 1, 1);
-            array_splice($definition['weeks'][1]['checklist']['items'], 1, 1);
-
-            return $definition;
-        });
-
-        $this->assertFalse(Activity::query()->where('title', 'Placeholder Activity 2.2')->sole()->is_active);
-        $gate = TrainingGate::query()->whereHas('week', fn (Builder $week): Builder => $week->where('week_number', 2))->sole();
-        $this->assertSame(4, $gate->criteria()->count());
-        $this->assertSame(
-            ['Placeholder Activity 2.1 deliverable submitted', 'Session logs committed for this week', 'Video walkthrough'],
-            $gate->criteria()->where('is_required', true)->orderBy('position')->pluck('title')->all(),
-        );
-    }
-
-    public function test_running_without_a_field_removes_it_from_the_submission_form_but_keeps_the_record(): void
-    {
-        $this->seed(L4TrainingProgramSeeder::class);
-
-        $this->runSeederWithDefinition(function (array $definition): array {
-            $definition['weeks'][1]['activities'][0]['fields'] = [$definition['weeks'][1]['activities'][0]['fields'][0]];
-
-            return $definition;
-        });
-
-        $activity = Activity::query()->where('title', 'Placeholder Activity 2.1')->sole();
-        $this->assertSame(['deliverable_url'], array_keys(app(SubmissionWorkflowService::class)->fieldDefinitions($activity)));
-        $notes = $activity->requirements()->where('title', 'Notes')->sole();
-        $this->assertFalse($notes->is_required);
-        $this->assertTrue($notes->configuration['deprecated']);
+        $this->assertTrue($tick->fresh()->criterion->is_required);
     }
 
     public function test_rejects_a_definition_that_leaves_an_active_week_without_a_required_checklist_item_and_seeds_nothing(): void
@@ -273,20 +223,27 @@ class L4TrainingProgramSeederTest extends TestCase
     }
 
     /**
-     * The ids of every seeded program, week, activity, Gate, checklist item and field, by table.
+     * Every row of every seeded table, with all columns, by table.
      *
-     * @return array<string, list<int>>
+     * @return array<string, list<array<string, mixed>>>
      */
-    private function seededIds(): array
+    private function curriculumRows(): array
     {
-        return [
-            'programs' => Program::query()->orderBy('id')->pluck('id')->all(),
-            'training_weeks' => TrainingWeek::query()->orderBy('id')->pluck('id')->all(),
-            'activities' => Activity::query()->orderBy('id')->pluck('id')->all(),
-            'training_gates' => TrainingGate::query()->orderBy('id')->pluck('id')->all(),
-            'gate_criteria' => GateCriterion::query()->orderBy('id')->pluck('id')->all(),
-            'activity_requirements' => ActivityRequirement::query()->orderBy('id')->pluck('id')->all(),
-        ];
+        return collect(['programs', 'training_weeks', 'activities', 'training_gates', 'gate_criteria', 'activity_requirements'])
+            ->mapWithKeys(fn (string $table): array => [
+                $table => DB::table($table)->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all(),
+            ])
+            ->all();
+    }
+
+    /**
+     * The stored attributes of each model, re-read from the database.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function attributesOf(Model ...$models): array
+    {
+        return array_map(fn (Model $model): array => $model->fresh()->getAttributes(), $models);
     }
 
     /**

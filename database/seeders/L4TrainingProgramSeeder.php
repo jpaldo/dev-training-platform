@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\Activity;
-use App\Models\ActivityRequirement;
 use App\Models\GateCriterion;
 use App\Models\Program;
 use App\Models\TrainingGate;
@@ -14,8 +13,9 @@ use RuntimeException;
 
 /**
  * Seeds the L4 Accelerator Training program: week 1 holds the real curriculum, weeks 2 to 4 hold placeholder content
- * until the training team delivers theirs. Re-running updates every record in place; records the definition no longer
- * contains are deactivated, never deleted, so participants' submissions and reviews stay intact.
+ * until the training team delivers theirs. The program is created only when none of that name exists; otherwise the
+ * seeder changes nothing, so edits made on the admin Curriculum pages stay. Changing the definition therefore only
+ * changes what new databases start with.
  */
 class L4TrainingProgramSeeder extends Seeder
 {
@@ -28,30 +28,31 @@ class L4TrainingProgramSeeder extends Seeder
      */
     public function run(): void
     {
+        if (Program::query()->where('name', self::PROGRAM_NAME)->exists()) {
+            $this->command?->info(self::PROGRAM_NAME.' already exists; edit it on the admin Curriculum pages.');
+
+            return;
+        }
+
         $definition = $this->definition();
 
         DB::transaction(function () use ($definition): void {
-            $program = Program::query()->updateOrCreate(
-                ['name' => $definition['name']],
-                ['description' => $definition['description'], 'is_active' => true],
-            );
-
-            $weekIds = [];
-            $activityIds = [];
-            $gateIds = [];
+            $program = Program::query()->create([
+                'name' => $definition['name'],
+                'description' => $definition['description'],
+                'is_active' => true,
+            ]);
 
             foreach ($definition['weeks'] as $weekDefinition) {
                 $week = $this->seedWeek($program, $weekDefinition);
-                $weekIds[] = $week->id;
 
                 foreach ($weekDefinition['activities'] as $index => $activityDefinition) {
-                    $activityIds[] = $this->seedActivity($week, $index + 1, $activityDefinition)->id;
+                    $this->seedActivity($week, $index + 1, $activityDefinition);
                 }
 
-                $gateIds[] = $this->seedGate($week, $weekDefinition)->id;
+                $this->seedGate($week, $weekDefinition);
             }
 
-            $this->deactivateUndefinedRecords($program, $weekIds, $activityIds, $gateIds);
             $this->ensureEveryActiveWeekHasARequiredChecklistItem($program);
         });
     }
@@ -266,8 +267,8 @@ class L4TrainingProgramSeeder extends Seeder
     }
 
     /**
-     * One activity: the given submission fields followed by optional notes, with scoring dimensions D1 to D4 (still
-     * placeholders for every week until the training team supplies its own).
+     * One activity: the given submission fields followed by optional notes, with the default scoring dimensions D1 to
+     * D4 (still placeholders for every week until the training team supplies its own).
      *
      * @param  list<array{key: string, label: string, type: string, required: bool, help: string}>  $fields
      * @return array{title: string, description: string, objectives: string, instructions: string, fields: list<array{key: string, label: string, type: string, required: bool, help: string}>, scoring_dimensions: list<array{key: string, label: string, max: int}>}
@@ -289,12 +290,7 @@ class L4TrainingProgramSeeder extends Seeder
                     'help' => 'Anything your mentor should know about this deliverable.',
                 ],
             ],
-            'scoring_dimensions' => [
-                ['key' => 'D1', 'label' => 'Deliverable', 'max' => 40],
-                ['key' => 'D2', 'label' => 'Code quality', 'max' => 30],
-                ['key' => 'D3', 'label' => 'Testing', 'max' => 20],
-                ['key' => 'D4', 'label' => 'Reflection', 'max' => 10],
-            ],
+            'scoring_dimensions' => Activity::DEFAULT_SCORING_DIMENSIONS,
         ];
     }
 
@@ -319,76 +315,49 @@ class L4TrainingProgramSeeder extends Seeder
      */
     private function seedWeek(Program $program, array $definition): TrainingWeek
     {
-        return TrainingWeek::query()->updateOrCreate(
-            ['program_id' => $program->id, 'week_number' => $definition['number']],
-            [
-                'title' => $definition['title'],
-                'description' => $definition['description'],
-                'position' => $definition['number'],
-                'is_active' => true,
-            ],
-        );
+        return $program->weeks()->create([
+            'week_number' => $definition['number'],
+            'title' => $definition['title'],
+            'description' => $definition['description'],
+            'position' => $definition['number'],
+            'is_active' => true,
+        ]);
     }
 
     /**
-     * Seed the activity and its submission fields, keyed by `configuration.key`. Fields the definition no longer
-     * contains are marked deprecated and optional, so they leave the form but keep their submitted values.
+     * Create the activity and its submission fields, each keyed by `configuration.key`.
      *
      * @param  array{title: string, description: string, objectives: string, instructions: string, fields: list<array{key: string, label: string, type: string, required: bool, help: string}>, scoring_dimensions: list<array{key: string, label: string, max: int}>}  $definition
      */
     private function seedActivity(TrainingWeek $week, int $position, array $definition): Activity
     {
-        $activity = Activity::query()->updateOrCreate(
-            ['training_week_id' => $week->id, 'position' => $position],
-            [
-                'title' => $definition['title'],
-                'description' => $definition['description'],
-                'objectives' => $definition['objectives'],
-                'instructions' => $definition['instructions'],
-                'configuration' => ['scoring_dimensions' => $definition['scoring_dimensions']],
-                'requires_coach_review' => true,
-                'is_active' => true,
-            ],
-        );
-
-        $existingFields = $activity->requirements()
-            ->where('requirement_type', 'submission_field')
-            ->get()
-            ->keyBy(fn (ActivityRequirement $requirement): ?string => $requirement->configuration['key'] ?? null);
+        $activity = $week->activities()->create([
+            'position' => $position,
+            'title' => $definition['title'],
+            'description' => $definition['description'],
+            'objectives' => $definition['objectives'],
+            'instructions' => $definition['instructions'],
+            'configuration' => ['scoring_dimensions' => $definition['scoring_dimensions']],
+            'requires_coach_review' => true,
+            'is_active' => true,
+        ]);
 
         foreach ($definition['fields'] as $index => $field) {
-            $attributes = [
+            $activity->requirements()->create([
+                'requirement_type' => 'submission_field',
                 'title' => $field['label'],
                 'description' => $field['help'],
                 'is_required' => $field['required'],
                 'position' => $index + 1,
                 'configuration' => $field,
-            ];
-
-            $existingField = $existingFields->get($field['key']);
-
-            if ($existingField !== null) {
-                $existingField->update($attributes);
-            } else {
-                $activity->requirements()->create(['requirement_type' => 'submission_field'] + $attributes);
-            }
+            ]);
         }
-
-        $definedKeys = array_column($definition['fields'], 'key');
-
-        $existingFields
-            ->reject(fn (ActivityRequirement $requirement, ?string $key): bool => in_array($key, $definedKeys, true))
-            ->each(fn (ActivityRequirement $requirement): bool => $requirement->update([
-                'is_required' => false,
-                'configuration' => [...($requirement->configuration ?? []), 'required' => false, 'deprecated' => true],
-            ]));
 
         return $activity;
     }
 
     /**
-     * Seed the week's checklist: its one Gate and the Gate's items, keyed by position. Items past the end of the
-     * definition become optional, which removes them from the checklist without deleting their review history.
+     * Create the week's checklist: its one Gate and the Gate's items in list order.
      *
      * @param  array{checklist: array{title: string, description: string, items: list<array{type: string, title: string, description: string, required: bool}>}}  $definition
      */
@@ -396,43 +365,25 @@ class L4TrainingProgramSeeder extends Seeder
     {
         $checklist = $definition['checklist'];
 
-        $gate = TrainingGate::query()->updateOrCreate(
-            ['training_week_id' => $week->id, 'position' => 1],
-            ['title' => $checklist['title'], 'description' => $checklist['description'], 'is_active' => true],
-        );
+        $gate = $week->gates()->create([
+            'position' => 1,
+            'title' => $checklist['title'],
+            'description' => $checklist['description'],
+            'is_active' => true,
+        ]);
 
         foreach ($checklist['items'] as $index => $item) {
-            GateCriterion::query()->updateOrCreate(
-                ['training_gate_id' => $gate->id, 'position' => $index + 1],
-                [
-                    'criterion_type' => $item['type'],
-                    'title' => $item['title'],
-                    'description' => $item['description'],
-                    'is_required' => $item['required'],
-                    'configuration' => null,
-                ],
-            );
+            $gate->criteria()->create([
+                'position' => $index + 1,
+                'criterion_type' => $item['type'],
+                'title' => $item['title'],
+                'description' => $item['description'],
+                'is_required' => $item['required'],
+                'configuration' => null,
+            ]);
         }
 
-        $gate->criteria()->where('position', '>', count($checklist['items']))->update(['is_required' => false]);
-
         return $gate;
-    }
-
-    /**
-     * Deactivate the program's weeks, activities and Gates that this run did not seed.
-     *
-     * @param  list<int>  $weekIds
-     * @param  list<int>  $activityIds
-     * @param  list<int>  $gateIds
-     */
-    private function deactivateUndefinedRecords(Program $program, array $weekIds, array $activityIds, array $gateIds): void
-    {
-        $programWeekIds = $program->weeks()->select('id');
-
-        $program->weeks()->whereNotIn('id', $weekIds)->update(['is_active' => false]);
-        Activity::query()->whereIn('training_week_id', $programWeekIds)->whereNotIn('id', $activityIds)->update(['is_active' => false]);
-        TrainingGate::query()->whereIn('training_week_id', $programWeekIds)->whereNotIn('id', $gateIds)->update(['is_active' => false]);
     }
 
     /**

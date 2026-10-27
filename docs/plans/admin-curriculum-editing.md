@@ -210,7 +210,7 @@ How each scoped binding is checked:
 
 ## Phase 1 — Seeder and the Curriculum area
 
-- [ ] **1.1 Make the L4 seeder create the program only when it does not exist** (CUR-15)
+- [x] **1.1 Make the L4 seeder create the program only when it does not exist** (CUR-15)
   - **Do:**
     - In `L4TrainingProgramSeeder::run()`, return before the transaction when `Program::query()->where('name', self::PROGRAM_NAME)->exists()`, writing "L4 Accelerator Training already exists; edit it on the admin Curriculum pages." through `$this->command?->info()`.
     - Simplify the seeding methods to create rather than update. Keep the empty-checklist `RuntimeException`, and remove `deactivateUndefinedRecords()` and the retire branches, which can no longer run.
@@ -500,3 +500,6 @@ How each scoped binding is checked:
 ## Open decisions
 
 Problems found during implementation that need a decision. Starts empty.
+
+- **13.2's acceptance in the main plan still describes an updating seeder** (found in 1.1). `docs/plans/developer-program-and-training-sessions.md` 13.2 says "Re-running the seeder replaces placeholder content in place, deactivates removed placeholders", which 1.1 ended; its note now points to the Curriculum pages. Decide whether 13.2's **Do**/**Acceptance** are rewritten (seed new databases only; enter the rest through the Curriculum pages) when the training team delivers the curriculum, or now.
+- **`ActivityFactory::withScoringDimensions()` keeps its own copy of the D1–D4 rubric** (found in 1.1). It could read `Activity::DEFAULT_SCORING_DIMENSIONS`; left as is because the factory was not in 1.1's scope.

@@ -470,11 +470,12 @@ php artisan db:seed --class=L4TrainingProgramSeeder --force
 php artisan db:seed --class=L4FirstSessionSeeder --force
 ```
 
-The first seeds the *L4 Accelerator Training* program. The second creates
-*L4 Accelerator Training — November 2026* (4 weeks, Mon 9 Nov to Sun 6 Dec
-2026); it stops with an error if the program is missing and leaves the
-session alone if it already exists, so an admin's edits stay. Re-running
-either is safe.
+The first seeds the *L4 Accelerator Training* program when no program of
+that name exists, and otherwise leaves it alone, so edits made on the admin
+Curriculum pages stay. The second creates *L4 Accelerator Training —
+November 2026* (4 weeks, Mon 9 Nov to Sun 6 Dec 2026); it stops with an
+error if the program is missing and leaves the session alone if it already
+exists, so an admin's edits stay. Re-running either is safe.
 
 - Never run a bare `php artisan db:seed` in production: it also runs the demo
   account provisioner.

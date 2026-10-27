@@ -13,6 +13,19 @@ class Activity extends Model
     /** @use HasFactory<ActivityFactory> */
     use HasFactory;
 
+    /**
+     * The placeholder rubric a new activity starts with, in `configuration.scoring_dimensions`: D1 to D4 worth 40, 30,
+     * 20 and 10 points, summing to 100.
+     *
+     * @var list<array{key: string, label: string, max: int}>
+     */
+    public const DEFAULT_SCORING_DIMENSIONS = [
+        ['key' => 'D1', 'label' => 'Deliverable', 'max' => 40],
+        ['key' => 'D2', 'label' => 'Code quality', 'max' => 30],
+        ['key' => 'D3', 'label' => 'Testing', 'max' => 20],
+        ['key' => 'D4', 'label' => 'Reflection', 'max' => 10],
+    ];
+
     protected $fillable = ['training_week_id', 'title', 'description', 'objectives', 'instructions', 'configuration', 'position', 'requires_coach_review', 'is_active'];
 
     protected function casts(): array

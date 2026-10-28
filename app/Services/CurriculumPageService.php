@@ -86,11 +86,11 @@ class CurriculumPageService
 
     /**
      * The curriculum page's header, Weeks tab and Schedule tab, beside the other tabs of
-     * `AdminProgramDashboardService::showData()` (the keys do not overlap): the curriculum's name, description,
-     * schedule status (`ProgramStatus`) and dates, the link back to the list, the schedule notice (see
-     * scheduleNotice()), the weeks in number order, each with whether it is active, its dates, its number of active
-     * activities and of items on its checklist (the required items of its active Gates) and a link to its page, read in
-     * one query, and the schedule form (see scheduleData()). Expects the schedule bounds loaded
+     * `ProgramPeopleTabService::tabData()` and `ProgramOverviewTabService::tabData()` (the keys do not overlap): the
+     * curriculum's name, description, schedule status (`ProgramStatus`) and dates, the link back to the list, the
+     * schedule notice (see scheduleNotice()), the weeks in number order, each with whether it is active, its dates, its
+     * number of active activities and of items on its checklist (the required items of its active Gates) and a link to
+     * its page, read in one query, and the schedule form (see scheduleData()). Expects the schedule bounds loaded
      * (`Program::loadScheduleBounds()`).
      *
      * @return array{name: string, description: ?string, statusLabel: string, statusTone: string, dates: string, indexUrl: string, notice: array{status: string, tone: string, message: string}, weeks: list<array{number: int, label: string, title: string, status_label: string, status_tone: string, dates: string, active_activity_count: int, checklist_item_count: int, url: string}>, schedule: array{update_url: string, error_bag: string, starts_on: ?string, weeks: list<array{label: string, title: string, dates: string, is_active: bool}>}}

@@ -107,7 +107,7 @@ Recorded when the plan was written (before 2.1). Since 2.1 the session code belo
 | `Policies\TrainingSessionPolicy` | merged into `ProgramPolicy` |
 | `Services\TrainingSessionService` | `ProgramEnrollmentService` (`join`, `addParticipants`, `removeParticipant`, `saveRepositoryUrl`, `registrationChoices`); `create`/`update`/`endsOn` deleted |
 | `Services\TrainingSessionResourceService` | `ProgramResourceService` |
-| `Services\AdminTrainingSessionPageService` | 2.1: `AdminProgramDashboardService` (`showData(Program)` only); 4.1: split into `ProgramPeopleTabService` + `ProgramOverviewTabService` |
+| `Services\AdminTrainingSessionPageService` | 2.1: `AdminProgramDashboardService` (`showData(Program)` only); 4.1: split into `ProgramPeopleTabService` + `ProgramOverviewTabService` (+ `ProgramActivitiesTabService`, `Support\ProgramRoster`) |
 | `Services\ParticipantTrainingSessionPageService` | `ParticipantProgramPageService` |
 | `Services\CoachSessionFilterService` | `CoachProgramFilterService` |
 | `Middleware\EnsureWeekBelongsToSession` (`session.week`) | `EnsureWeekBelongsToProgram` (`program.week`) |
@@ -250,10 +250,11 @@ None blocking. See Open decisions for `AdoptSquashedMigrationsCommand`.
 
 ## Phase 4 — Cleanup and documentation
 
-- [ ] **4.1 Split the admin dashboard service** (ADM-1) — size M, no behavior change
+- [x] **4.1 Split the admin dashboard service** (ADM-1) — size M, no behavior change
   - **Do:** `AdminProgramDashboardService` → `ProgramPeopleTabService` + `ProgramOverviewTabService`; `AdminCurriculumController@show` composes three services.
   - **Acceptance:** `AdminCurriculumDashboardTest` unchanged and green, including its query-count case; each service under ~300 lines.
   - **Depends on:** 2.1.
+  - **Done 2026-10-28:** `AdminProgramDashboardService` deleted. `ProgramPeopleTabService` (213 lines) reads the people once with `roster(Program)` (participants with membership, their mentor assignments with mentor names, the mentors with `current_participant_count`; four queries) into a new readonly `App\Support\ProgramRoster` (47 lines; `assignmentsOf()`, `currentAssignment()`), and `tabData($program, $roster)` returns the Participants and Mentors keys. `ProgramOverviewTabService` (234 lines) reads the weeks and returns the tab list, `weeksLabel`, `selectedTab`, the Overview counts and the Resources tab (`ProgramResourceService::tabData()` plus the add form), all from the shared roster. Activities land under Overview: moved with the overview they came to 357 lines, so the latest-attempt counting moved into `ProgramActivitiesTabService` (155 lines), which `ProgramOverviewTabService` calls because its row count labels the Activities tab. `AdminCurriculumController@show` composes `CurriculumPageService`, `ProgramPeopleTabService` and `ProgramOverviewTabService`; `CurriculumPageService::programData()`'s docblock names the new services. View data keys unchanged; query count unchanged (20 at 1 and 4 participants, 10 for an empty curriculum, the same statements, measured with a throwaway probe test that was removed). `AdminCurriculumDashboardTest` not edited, 9/9 green; no test referenced the old service. Suite 1521 green. No Blade/CSS/JS change, so no build.
 
 - [ ] **4.2 Specs and plans** — size S
   - **Do:** `docs/specs/training-plan.md`: terms and SES/MEN/ADM/PAR/WK rules rewritten for curricula (week opens on its own start date; unscheduled never opens); `docs/plans/developer-program-and-training-sessions.md` Design › "Data model", "Session rules", "Roles and permissions", "Routes", "Main services and screens": strike the session rows with "Superseded by curriculum-sessions-merge X.Y: …"; `docs/plans/admin-curriculum-editing.md`: CUR-1/CUR-13 wording (A10) and a note on the "No migrations" rule; `docs/CODE_QUALITY_PLAN.md` entries naming `AdminTrainingSessionPageService` / `TrainingSessionResourceService`; re-read `docs/AWS_DEPLOYMENT.md` for stale "session" wording.

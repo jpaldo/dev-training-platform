@@ -4,8 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Program;
 use App\Models\TrainingWeek;
-use App\Services\AdminProgramDashboardService;
 use App\Services\CurriculumPageService;
+use App\Services\ProgramOverviewTabService;
+use App\Services\ProgramPeopleTabService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
@@ -19,19 +20,22 @@ class AdminCurriculumController extends Controller
     }
 
     /**
-     * The tabbed curriculum page: its header, Weeks and Schedule tabs (CurriculumPageService) beside the Overview,
-     * Participants, Mentors, Activities and Resources tabs (AdminProgramDashboardService). The `role:admin` route
-     * middleware keeps it admin-only, since `view` also lets the curriculum's participants and mentors in.
+     * The tabbed curriculum page: its header, Weeks and Schedule tabs (CurriculumPageService), its Participants and
+     * Mentors tabs (ProgramPeopleTabService) and its tab list with the Overview, Activities and Resources tabs
+     * (ProgramOverviewTabService), the people read once for both. The `role:admin` route middleware keeps it
+     * admin-only, since `view` also lets the curriculum's participants and mentors in.
      */
-    public function show(Program $program, CurriculumPageService $page, AdminProgramDashboardService $dashboard): View
+    public function show(Program $program, CurriculumPageService $page, ProgramPeopleTabService $peopleTabs, ProgramOverviewTabService $overviewTabs): View
     {
         Gate::authorize('view', $program);
 
         $program->loadScheduleBounds();
+        $roster = $peopleTabs->roster($program);
 
         return view('admin.curriculum.program', [
             ...$page->programData($program),
-            ...$dashboard->showData($program),
+            ...$peopleTabs->tabData($program, $roster),
+            ...$overviewTabs->tabData($program, $roster),
         ]);
     }
 

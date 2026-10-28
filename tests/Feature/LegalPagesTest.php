@@ -17,7 +17,7 @@ class LegalPagesTest extends TestCase
             ->assertSeeInOrder([
                 'LEGAL',
                 '>Privacy Policy</h1>',
-                'Last updated: September 11, 2026',
+                'Last updated: October 28, 2026',
                 'This Privacy Policy explains how the Developer Training Platform (“the platform”) handles information when you use its training services.',
                 '>Information used by the platform</h2>',
                 'The platform uses account details such as your name, email address, employee ID, job role, role, and profile information you provide.',

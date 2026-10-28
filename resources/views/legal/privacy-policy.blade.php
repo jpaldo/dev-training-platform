@@ -13,7 +13,7 @@
         <header class="grid gap-2">
             <x-ui.eyebrow>LEGAL</x-ui.eyebrow>
             <x-ui.page-title id="legal-title">Privacy Policy</x-ui.page-title>
-            <p class="m-0 text-sm text-muted">Last updated: September 11, 2026</p>
+            <p class="m-0 text-sm text-muted">Last updated: October 28, 2026</p>
         </header>
 
         <p class="{{ $paragraphClasses }}">This Privacy Policy explains how the Developer Training Platform (“the platform”) handles information when you use its training services.</p>

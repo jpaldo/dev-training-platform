@@ -4,9 +4,8 @@ namespace App\Services;
 
 use App\Enums\JobRole;
 use App\Enums\UserRole;
-use App\Models\TrainingSession;
+use App\Models\Program;
 use App\Models\User;
-use Database\Seeders\L4FirstSessionSeeder;
 use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -22,7 +21,7 @@ class DevelopmentAccountProvisioner
     public const ALLOWED_ENVIRONMENTS = ['local', 'staging', 'testing'];
 
     public function __construct(
-        private TrainingSessionService $sessions,
+        private ProgramEnrollmentService $enrollment,
         private MentorAssignmentService $mentorAssignments,
     ) {}
 
@@ -60,25 +59,23 @@ class DevelopmentAccountProvisioner
 
     /**
      * The second provisioning step, run after provision(): enrolls each demo participant (a config account with a
-     * `mentor_email`) and their demo mentor in the first L4 session, through TrainingSessionService::join() and
+     * `mentor_email`) and their demo mentor in the L4 curriculum, through ProgramEnrollmentService::join() and
      * MentorAssignmentService, and makes that mentor the participant's current mentor. Provisioning is not an admin
-     * action, so, like the seeded session itself, nothing gets an audit row: memberships have no `added_by`, mentors are
-     * added without an admin and assignments have no `assigned_by`. Only what is missing is written, so a second run
-     * changes nothing, and a participant who already has a current mentor in the session (e.g. one an admin chose)
-     * keeps them. Returns the number of demo participants, or null when the session does not exist (nothing written).
+     * action, so, like the seeded curriculum itself, nothing gets an audit row: memberships have no `added_by`, mentors
+     * are added without an admin and assignments have no `assigned_by`. Only what is missing is written, so a second
+     * run changes nothing, and a participant who already has a current mentor in the curriculum (e.g. one an admin
+     * chose) keeps them. Returns the number of demo participants, or null when the curriculum does not exist (nothing
+     * written).
      *
      * @throws LogicException outside the allowed environments, before anything is written.
      */
-    public function enrollInFirstSession(): ?int
+    public function enrollInL4Program(): ?int
     {
         $this->ensureAllowedEnvironment();
 
-        $session = TrainingSession::query()
-            ->whereRelation('program', 'name', L4TrainingProgramSeeder::PROGRAM_NAME)
-            ->where('title', L4FirstSessionSeeder::SESSION_TITLE)
-            ->first();
+        $program = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first();
 
-        if ($session === null) {
+        if ($program === null) {
             return null;
         }
 
@@ -89,24 +86,24 @@ class DevelopmentAccountProvisioner
             ->whereIn('email', [...$mentorEmailsByParticipantEmail->keys(), ...$mentorEmailsByParticipantEmail->values()])
             ->get();
 
-        DB::transaction(function () use ($session, $mentorEmailsByParticipantEmail, $users): void {
+        DB::transaction(function () use ($program, $mentorEmailsByParticipantEmail, $users): void {
             $mentorIds = $mentorEmailsByParticipantEmail->unique()
                 ->map(fn (string $mentorEmail): int => $users->sole('email', $mentorEmail)->id)
                 ->values()
                 ->all();
-            $sessionMentorIds = $session->mentors()->pluck('users.id')->all();
+            $programMentorIds = $program->mentors()->pluck('users.id')->all();
 
-            $this->mentorAssignments->addMentors($session, array_values(array_diff($mentorIds, $sessionMentorIds)), admin: null);
+            $this->mentorAssignments->addMentors($program, array_values(array_diff($mentorIds, $programMentorIds)), admin: null);
 
-            $assignedParticipantIds = $session->mentorAssignments()->current()->pluck('participant_id')->all();
+            $assignedParticipantIds = $program->mentorAssignments()->current()->pluck('participant_id')->all();
 
             foreach ($mentorEmailsByParticipantEmail as $participantEmail => $mentorEmail) {
                 $participant = $users->sole('email', $participantEmail);
 
-                $this->sessions->join($session, $participant);
+                $this->enrollment->join($program, $participant);
 
                 if (! in_array($participant->id, $assignedParticipantIds, true)) {
-                    $this->mentorAssignments->assign($session, $participant, $users->sole('email', $mentorEmail), actor: null);
+                    $this->mentorAssignments->assign($program, $participant, $users->sole('email', $mentorEmail), actor: null);
                 }
             }
         });

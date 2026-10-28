@@ -137,7 +137,7 @@ class ActivityFieldService
     }
 
     /**
-     * Take the submission field off the participant form for every session of the program and record
+     * Take the submission field off the participant form for every participant of the curriculum and record
      * `curriculum_field_removed`. Like the seeder used to, it is marked `deprecated` and made optional; it keeps its
      * key, position and every answer given to it, which the submission and review pages still show. A removed field is
      * left as it is and nothing is recorded.

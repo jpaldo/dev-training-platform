@@ -10,7 +10,7 @@ use Illuminate\Translation\PotentiallyTranslatedString;
  * A GitHub repository link: exactly `https://github.com/<owner>/<repo>`, with an optional trailing slash. The link must
  * pass GitHubUrl (scheme, host and owner), and then name a repository and nothing else: no deeper path (a branch,
  * file or pull request), query or fragment, and no `.git` clone suffix. Used for a participant's repository in a
- * training session (`training_session_participants.repository_url`).
+ * curriculum (`program_participants.repository_url`).
  */
 class GitHubRepositoryUrl implements ValidationRule
 {

@@ -6,7 +6,7 @@ use App\Enums\UserRole;
 /**
  * Demo accounts that `DevelopmentAccountProvisioner` keeps in place in local, staging and testing environments, with
  * employee IDs in the `FS-` sequence: three participants and three mentors (`coach` role), all job role Developer,
- * plus one admin. Each participant's `mentor_email` names the demo mentor they get in the first L4 session, where the
+ * plus one admin. Each participant's `mentor_email` names the demo mentor they get in the L4 curriculum, where the
  * provisioner enrolls both (demo mentor n mentors demo participant n).
  */
 return [

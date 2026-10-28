@@ -16,10 +16,9 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(L4TrainingProgramSeeder::class);
-        $this->call(L4FirstSessionSeeder::class);
 
         $provisioner = app(DevelopmentAccountProvisioner::class);
         $provisioner->provision();
-        $provisioner->enrollInFirstSession();
+        $provisioner->enrollInL4Program();
     }
 }

@@ -171,7 +171,8 @@ class CurriculumWeekService
     }
 
     /**
-     * Take the activity out of its week for every session of the program and record `curriculum_activity_deactivated`.
+     * Take the activity out of its week for every participant of the curriculum and record
+     * `curriculum_activity_deactivated`.
      * It keeps its position, submissions and scores. An inactive activity is left as it is and nothing is recorded.
      */
     public function deactivateActivity(Activity $activity, User $admin): Activity

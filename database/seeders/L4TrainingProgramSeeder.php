@@ -7,19 +7,28 @@ use App\Models\GateCriterion;
 use App\Models\Program;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
  * Seeds the L4 Accelerator Training program: week 1 holds the real curriculum, weeks 2 to 4 hold placeholder content
- * until the training team delivers theirs. The program is created only when none of that name exists; otherwise the
- * seeder changes nothing, so edits made on the admin Curriculum pages stay. Changing the definition therefore only
- * changes what new databases start with.
+ * until the training team delivers theirs. Week N runs from Mon 9 Nov 2026 + 7×(N−1) days to six days later, so the
+ * curriculum runs from 9 Nov to 6 Dec 2026. The program is created only when none of that name exists; otherwise the
+ * seeder changes nothing, so edits made on the admin Curriculum pages stay. The one exception is a program none of
+ * whose weeks has dates (seeded before weeks had them): its weeks get the dates above by number, once. Changing the
+ * definition therefore only changes what new databases start with. Seeding is not an admin action, so nothing gets an
+ * audit row.
  */
 class L4TrainingProgramSeeder extends Seeder
 {
     public const PROGRAM_NAME = 'L4 Accelerator Training';
+
+    /**
+     * The day week 1 starts, a Monday; every later week starts seven days after the one before.
+     */
+    public const FIRST_WEEK_STARTS_ON = '2026-11-09';
 
     private const PLACEHOLDER_TEXT = 'Placeholder — objective and instructions to come';
 
@@ -28,8 +37,14 @@ class L4TrainingProgramSeeder extends Seeder
      */
     public function run(): void
     {
-        if (Program::query()->where('name', self::PROGRAM_NAME)->exists()) {
-            $this->command?->info(self::PROGRAM_NAME.' already exists; edit it on the admin Curriculum pages.');
+        $existingProgram = Program::query()->where('name', self::PROGRAM_NAME)->first();
+
+        if ($existingProgram !== null) {
+            if ($this->scheduleUnscheduledProgram($existingProgram)) {
+                $this->command?->info(self::PROGRAM_NAME.' had no week dates; its weeks now run from '.self::FIRST_WEEK_STARTS_ON.'.');
+            } else {
+                $this->command?->info(self::PROGRAM_NAME.' already exists; edit it on the admin Curriculum pages.');
+            }
 
             return;
         }
@@ -58,8 +73,9 @@ class L4TrainingProgramSeeder extends Seeder
     }
 
     /**
-     * The program as it should exist after seeding. Weeks are numbered from 1 and keep `position` equal to
-     * `week_number`; activities and checklist items take their position from their order in the list.
+     * The program as it should exist after seeding. Weeks are numbered from 1, keep `position` equal to `week_number`
+     * and are dated by number (weekDates()); activities and checklist items take their position from their order in
+     * the list.
      *
      * @return array{
      *     name: string,
@@ -68,6 +84,8 @@ class L4TrainingProgramSeeder extends Seeder
      *         number: int,
      *         title: string,
      *         description: string,
+     *         starts_on: string,
+     *         ends_on: string,
      *         activities: list<array{
      *             title: string,
      *             description: string,
@@ -101,7 +119,7 @@ class L4TrainingProgramSeeder extends Seeder
      * plan the six core features. Its checklist has one item per expected deliverable, then the session logs and
      * video walkthrough items.
      *
-     * @return array{number: int, title: string, description: string, activities: list<array<string, mixed>>, checklist: array<string, mixed>}
+     * @return array{number: int, title: string, description: string, starts_on: string, ends_on: string, activities: list<array<string, mixed>>, checklist: array<string, mixed>}
      */
     private function weekOne(): array
     {
@@ -109,6 +127,7 @@ class L4TrainingProgramSeeder extends Seeder
             'number' => 1,
             'title' => 'Repo setup, feature specs and plans',
             'description' => 'Set up the starting repo with Claude Code, then build the /spec-feature and /plan-feature skills and use them to spec and plan the six core features.',
+            ...$this->weekDates(1),
             'activities' => [
                 $this->activity(
                     'Set up the starting repo',
@@ -204,7 +223,7 @@ class L4TrainingProgramSeeder extends Seeder
      * One placeholder week: two activities and a checklist with one deliverable item per activity, the session logs
      * item and the video walkthrough item, all required.
      *
-     * @return array{number: int, title: string, description: string, activities: list<array<string, mixed>>, checklist: array<string, mixed>}
+     * @return array{number: int, title: string, description: string, starts_on: string, ends_on: string, activities: list<array<string, mixed>>, checklist: array<string, mixed>}
      */
     private function placeholderWeek(int $weekNumber): array
     {
@@ -223,11 +242,27 @@ class L4TrainingProgramSeeder extends Seeder
             'number' => $weekNumber,
             'title' => 'Placeholder topic',
             'description' => 'Placeholder — the goals of this week are coming soon.',
+            ...$this->weekDates($weekNumber),
             'activities' => $activities,
             'checklist' => $this->checklist($weekNumber, array_map(fn (array $activity): array => [
                 'title' => $activity['title'].' deliverable submitted',
                 'description' => 'The deliverable link for '.$activity['title'].' is submitted and works.',
             ], $activities)),
+        ];
+    }
+
+    /**
+     * The dates of week N: from FIRST_WEEK_STARTS_ON + 7×(N−1) days to six days later, as "2026-11-09" strings.
+     *
+     * @return array{starts_on: string, ends_on: string}
+     */
+    private function weekDates(int $weekNumber): array
+    {
+        $startsOn = CarbonImmutable::parse(self::FIRST_WEEK_STARTS_ON)->addDays(7 * ($weekNumber - 1));
+
+        return [
+            'starts_on' => $startsOn->toDateString(),
+            'ends_on' => $startsOn->addDays(6)->toDateString(),
         ];
     }
 
@@ -311,7 +346,7 @@ class L4TrainingProgramSeeder extends Seeder
     }
 
     /**
-     * @param  array{number: int, title: string, description: string}  $definition
+     * @param  array{number: int, title: string, description: string, starts_on: string, ends_on: string}  $definition
      */
     private function seedWeek(Program $program, array $definition): TrainingWeek
     {
@@ -321,7 +356,29 @@ class L4TrainingProgramSeeder extends Seeder
             'description' => $definition['description'],
             'position' => $definition['number'],
             'is_active' => true,
+            'starts_on' => $definition['starts_on'],
+            'ends_on' => $definition['ends_on'],
         ]);
+    }
+
+    /**
+     * Date every week of an existing program none of whose weeks has dates, by week number as weekDates() does
+     * (inactive weeks included, as the admin schedule form does), in one transaction. Returns whether it did: a program
+     * with any dated week is left as it is, since an admin may have scheduled or re-dated it.
+     */
+    private function scheduleUnscheduledProgram(Program $program): bool
+    {
+        if ($program->weeks()->whereNotNull('starts_on')->exists()) {
+            return false;
+        }
+
+        DB::transaction(function () use ($program): void {
+            $program->weeks()->get()->each(
+                fn (TrainingWeek $week): bool => $week->update($this->weekDates($week->week_number)),
+            );
+        });
+
+        return true;
     }
 
     /**

@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use Database\Seeders\L4FirstSessionSeeder;
 use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Console\Command;
 
@@ -21,7 +20,6 @@ class EnsureDevelopmentBaselineCommand extends Command
         }
 
         app(L4TrainingProgramSeeder::class)->run();
-        app(L4FirstSessionSeeder::class)->run();
         $this->info('Ensured the L4 training baseline.');
 
         return self::SUCCESS;

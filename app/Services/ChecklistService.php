@@ -52,7 +52,7 @@ class ChecklistService
     /**
      * Add an item with the given type, title and description to the end of the checklist, after every item including
      * removed ones, and record `curriculum_checklist_item_added`. It goes on the checklist with no `configuration`, so
-     * every session's participants see it as awaiting review and their mentors as an unticked box; reviews already saved
+     * the curriculum's participants see it as awaiting review and their mentors as an unticked box; reviews already saved
      * keep their decision until the mentor saves the review again. The checklist (Gate) row is locked while the
      * position is chosen, so two adds at once cannot take the same position.
      *
@@ -158,7 +158,7 @@ class ChecklistService
      * Take the item off its checklist and record `curriculum_checklist_item_removed` with whether it was deleted and its
      * type, title and position. An item no mentor has ticked (no `gate_criterion_evaluations` row) is deleted; one with
      * ticks is retired (`is_required = false`), so its ticks keep their rows and stay with it, and it can be restored.
-     * Either way it leaves the participant and mentor checklists of every session, and no other item's tick changes.
+     * Either way it leaves the participant and mentor checklists of the curriculum, and no other item's tick changes.
      * The checklist (Gate) row and the item row are locked while this is decided, so the item cannot get its first tick
      * or be removed twice in the meantime, and two removals at once cannot take a checklist's last two items. Returns
      * whether the item was deleted; an item already off the checklist stays as it is and nothing is recorded.

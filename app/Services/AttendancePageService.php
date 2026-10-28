@@ -17,36 +17,36 @@ class AttendancePageService
     ) {}
 
     /**
-     * Everything the mentor / admin Attendance page renders: the curriculum picker with the requested curriculum
-     * selected (the first of the list when none is requested), and the weekly session attendance grid of that
-     * curriculum: one column per active week in week order, one row per participant the viewer sees
-     * (SessionAttendanceService::memberships()), each with a cell per week and the total "3 of 4" (attended of active
-     * weeks). Each cell posts `attendance[{participantId}][{weekId}]` to `formUrl` (the area's `attendance.update`). The
-     * grid is replaced by an empty message when there is no curriculum, no active week or no participant.
+     * Everything the mentor / admin Attendance page renders: the curriculum picker with the selected curriculum
+     * (selectedProgram()), the Export CSV link of that curriculum (`exportUrl`, the area's `attendance.export`), and its
+     * weekly session attendance grid: one column per active week in week order, one row per participant the viewer
+     * sees (SessionAttendanceService::memberships()), each with a cell per week and the total "3 of 4" (attended of
+     * active weeks), and the summary of those rows ("4 of 5 · 80%", attended of held sessions, or "No sessions held yet";
+     * null without rows). Each cell posts `attendance[{participantId}][{weekId}]` to `formUrl` (the area's
+     * `attendance.update`). The grid is replaced by an empty message when there is no curriculum, no active week or no
+     * participant.
      * Four queries whatever the number of participants: the options, the curriculum with its active weeks, the
      * memberships with their participants, and the attended sessions.
      *
-     * @return array{areaLabel: string, programOptions: list<array{value: string, label: string, is_selected: bool}>, selectedProgram: array{id: int, name: string}|null, weeks: list<array{heading: string, dates: string}>, rows: list<array{participant_name: string, employee_id: string|null, cells: list<array{input_name: string, is_attended: bool, label: string}>, total: string}>, formUrl: string, emptyMessage: string|null}
+     * @return array{areaLabel: string, programOptions: list<array{value: string, label: string, is_selected: bool}>, selectedProgram: array{id: int, name: string}|null, exportUrl: string|null, weeks: list<array{heading: string, dates: string}>, rows: list<array{participant_name: string, employee_id: string|null, cells: list<array{input_name: string, is_attended: bool, label: string}>, total: string}>, summary: string|null, formUrl: string, emptyMessage: string|null}
      */
     public function indexData(User $viewer, ?int $selectedProgramId, bool $isAdminArea): array
     {
-        $programOptions = $this->programFilter->options($viewer, $selectedProgramId);
-
-        if ($selectedProgramId === null && $programOptions !== []) {
-            $programOptions[0]['is_selected'] = true;
-        }
-
-        $program = $this->selectedProgram($programOptions);
+        $programOptions = $this->programOptions($viewer, $selectedProgramId);
+        $program = $this->programOfOptions($programOptions);
         $memberships = $program === null || $program->activeWeeks->isEmpty()
             ? new Collection
             : $this->sessionAttendance->memberships($viewer, $program)->get();
+        $attended = $program === null ? [] : $this->sessionAttendance->attendedPairs($program, $memberships->pluck('user_id')->all());
 
         return [
             'areaLabel' => $isAdminArea ? 'ADMIN' : 'MENTOR',
             'programOptions' => $programOptions,
             'selectedProgram' => $program === null ? null : ['id' => $program->id, 'name' => $program->name],
+            'exportUrl' => $program === null ? null : route($isAdminArea ? 'admin.attendance.export' : 'coach.attendance.export', ['program' => $program->id]),
             'weeks' => $program === null ? [] : $this->weeks($program),
-            'rows' => $program === null ? [] : $this->rows($program, $memberships),
+            'rows' => $program === null ? [] : $this->rows($program, $memberships, $attended),
+            'summary' => $program === null ? null : $this->summary($program, $memberships, $attended),
             'formUrl' => route($isAdminArea ? 'admin.attendance.update' : 'coach.attendance.update'),
             'emptyMessage' => match (true) {
                 $program === null => 'No curricula to show.',
@@ -58,11 +58,36 @@ class AttendancePageService
     }
 
     /**
+     * The curriculum the page and its export show, with its active weeks: the requested one, else the first of the
+     * viewer's list (CoachProgramFilterService::options()), or null when the list is empty. Two queries.
+     */
+    public function selectedProgram(User $viewer, ?int $selectedProgramId): ?Program
+    {
+        return $this->programOfOptions($this->programOptions($viewer, $selectedProgramId));
+    }
+
+    /**
+     * The viewer's curriculum options with the requested one selected, or the first when none is requested.
+     *
+     * @return list<array{value: string, label: string, is_selected: bool}>
+     */
+    private function programOptions(User $viewer, ?int $selectedProgramId): array
+    {
+        $programOptions = $this->programFilter->options($viewer, $selectedProgramId);
+
+        if ($selectedProgramId === null && $programOptions !== []) {
+            $programOptions[0]['is_selected'] = true;
+        }
+
+        return $programOptions;
+    }
+
+    /**
      * The selected option's curriculum with its active weeks, or null when the list is empty.
      *
      * @param  list<array{value: string, label: string, is_selected: bool}>  $programOptions
      */
-    private function selectedProgram(array $programOptions): ?Program
+    private function programOfOptions(array $programOptions): ?Program
     {
         $selected = collect($programOptions)->firstWhere('is_selected', true);
 
@@ -91,12 +116,11 @@ class AttendancePageService
 
     /**
      * @param  Collection<int, ProgramParticipant>  $memberships
+     * @param  array<int, array<int, true>>  $attended  SessionAttendanceService::attendedPairs()
      * @return list<array{participant_name: string, employee_id: string|null, cells: list<array{input_name: string, is_attended: bool, label: string}>, total: string}>
      */
-    private function rows(Program $program, Collection $memberships): array
+    private function rows(Program $program, Collection $memberships, array $attended): array
     {
-        $attended = $this->sessionAttendance->attendedPairs($program, $memberships->pluck('user_id')->all());
-
         return $memberships
             ->map(function (ProgramParticipant $membership) use ($program, $attended): array {
                 $participant = $membership->participant;
@@ -116,5 +140,32 @@ class AttendancePageService
                 ];
             })
             ->all();
+    }
+
+    /**
+     * "4 of 5 · 80%": the attended and held sessions summed over the rows, with the rate; "No sessions held yet" when
+     * none was held, or null without rows.
+     *
+     * @param  Collection<int, ProgramParticipant>  $memberships
+     * @param  array<int, array<int, true>>  $attended  SessionAttendanceService::attendedPairs()
+     */
+    private function summary(Program $program, Collection $memberships, array $attended): ?string
+    {
+        if ($memberships->isEmpty()) {
+            return null;
+        }
+
+        $attendedCount = 0;
+        $heldCount = 0;
+
+        foreach ($memberships as $membership) {
+            $attendedWeeks = $attended[$membership->user_id] ?? [];
+            $attendedCount += count($attendedWeeks);
+            $heldCount += $this->sessionAttendance->heldCount($program, $attendedWeeks);
+        }
+
+        $rate = $this->sessionAttendance->rate($attendedCount, $heldCount);
+
+        return $rate === null ? 'No sessions held yet' : "{$attendedCount} of {$heldCount} · {$rate}%";
     }
 }

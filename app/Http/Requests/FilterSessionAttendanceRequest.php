@@ -72,6 +72,15 @@ class FilterSessionAttendanceRequest extends FormRequest
     }
 
     /**
+     * The requested curriculum's id, or null when none is requested (the page and the export then show the first of the
+     * list).
+     */
+    public function selectedProgramId(): ?int
+    {
+        return $this->filled('program') ? $this->integer('program') : null;
+    }
+
+    /**
      * A failed choice returns to the Attendance page of the same area without a curriculum.
      */
     protected function getRedirectUrl(): string

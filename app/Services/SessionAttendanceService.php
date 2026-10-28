@@ -6,9 +6,11 @@ use App\Enums\UserRole;
 use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\ProgramParticipant;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklySessionAttendance;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -83,6 +85,84 @@ class SessionAttendanceService
         }
 
         return $pairs;
+    }
+
+    /**
+     * How many of the curriculum's active weeks held a session for the participant: the weeks that have started
+     * (TrainingWeek::isOpen()) plus the attended ones that have not, so the rate never exceeds 100%. Reads the loaded
+     * active weeks.
+     *
+     * @param  array<int, true>  $attendedWeeks  the participant's attended active weeks, keyed by week id (attendedPairs())
+     */
+    public function heldCount(Program $program, array $attendedWeeks): int
+    {
+        return $program->activeWeeks
+            ->filter(fn (TrainingWeek $week): bool => $week->isOpen() || isset($attendedWeeks[$week->id]))
+            ->count();
+    }
+
+    /**
+     * The attendance rate in whole percent, rounded half up, or null when no session was held.
+     */
+    public function rate(int $attended, int $held): ?int
+    {
+        return $held === 0 ? null : (int) round($attended * 100 / $held);
+    }
+
+    /**
+     * The CSV export of the curriculum's weekly session attendance: the header row, then one row per participant the
+     * viewer sees (memberships() order) with their mentor ("Not assigned" without one), a cell per active week
+     * ("Attended" when ticked, "Absent" when the week has started, otherwise "Not held"), the attended and held counts
+     * and the rate (empty when nothing was held). Only the header row without a curriculum. At most four queries whatever
+     * the number of participants: the curriculum's active weeks (unless loaded), the memberships, their participants
+     * and the attended sessions.
+     *
+     * @return list<list<string>>
+     */
+    public function csvRows(User $viewer, ?Program $program): array
+    {
+        $weeks = $program === null ? new Collection : $program->activeWeeks;
+        $header = [
+            'Participant',
+            'Employee ID',
+            'Email',
+            'Mentor',
+            ...$weeks->map(fn (TrainingWeek $week): string => "Week {$week->week_number}")->all(),
+            'Attended',
+            'Held',
+            'Rate (%)',
+        ];
+
+        if ($program === null) {
+            return [$header];
+        }
+
+        $memberships = $this->memberships($viewer, $program)->get();
+        $attended = $this->attendedPairs($program, $memberships->pluck('user_id')->all());
+
+        return [
+            $header,
+            ...$memberships->map(function (ProgramParticipant $membership) use ($program, $weeks, $attended): array {
+                $participant = $membership->participant;
+                $attendedWeeks = $attended[$participant->id] ?? [];
+                $held = $this->heldCount($program, $attendedWeeks);
+
+                return [
+                    $participant->name,
+                    $participant->employee_id ?? '',
+                    $participant->email,
+                    $membership->mentor_name ?? 'Not assigned',
+                    ...$weeks->map(fn (TrainingWeek $week): string => match (true) {
+                        isset($attendedWeeks[$week->id]) => 'Attended',
+                        $week->isOpen() => 'Absent',
+                        default => 'Not held',
+                    })->all(),
+                    (string) count($attendedWeeks),
+                    (string) $held,
+                    (string) $this->rate(count($attendedWeeks), $held),
+                ];
+            })->all(),
+        ];
     }
 
     /**

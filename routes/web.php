@@ -151,6 +151,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::post('/users/{user}/disable', [AdminUserController::class, 'disable'])->name('users.disable');
         Route::post('/users/{user}/enable', [AdminUserController::class, 'enable'])->name('users.enable');
         Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
+        Route::get('/attendance.csv', [AttendanceController::class, 'export'])->name('attendance.export');
         Route::put('/attendance', [AttendanceController::class, 'update'])->name('attendance.update');
     });
 
@@ -181,6 +182,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::get('/reports/participant-summary.csv', [ScoringReportController::class, 'participantSummary'])->name('reports.participant-summary');
         Route::get('/reports/scoring-completion', [ScoringReportController::class, 'completion'])->name('reports.scoring-completion');
         Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
+        Route::get('/attendance.csv', [AttendanceController::class, 'export'])->name('attendance.export');
         Route::put('/attendance', [AttendanceController::class, 'update'])->name('attendance.update');
     });
 

@@ -46,6 +46,8 @@ class EmptyTrainingDataTest extends TestCase
             'missing submissions csv' => ['coach', 'coach.reports.missing-submissions.export', []],
             'activity scores csv' => ['coach', 'coach.reports.scores', []],
             'participant score summary csv' => ['coach', 'coach.reports.participant-summary', []],
+            'coach attendance csv' => ['coach', 'coach.attendance.export', []],
+            'admin attendance csv' => ['admin', 'admin.attendance.export', []],
         ];
     }
 

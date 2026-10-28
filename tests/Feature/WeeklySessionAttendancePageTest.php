@@ -46,6 +46,9 @@ class WeeklySessionAttendancePageTest extends TestCase
                 'ADMIN · ATTENDANCE',
                 '>Attendance</h1>',
                 'Record who joined each week\'s session of a curriculum.',
+                'id="attendance-main-action"',
+                '<a href="'.route('admin.attendance.export', ['program' => $program->id]).'"',
+                '>Export CSV</a>',
                 'aria-label="Choose curriculum"',
                 '<option value="'.$program->id.'" selected>Backend Track (9 – 22 Nov 2026)</option>',
                 '>Show</button>',
@@ -77,7 +80,6 @@ class WeeklySessionAttendancePageTest extends TestCase
             ->assertSee('<input type="hidden" name="attendance['.$ada->id.']['.$weekOne->id.']" value="0">', false)
             ->assertDontSee('Dee Coach')
             ->assertDontSee('Participant Attendance')
-            ->assertDontSee('Export CSV')
             ->assertDontSee('name="date_from"', false);
 
         $this->assertDoesNotMatchRegularExpression('/check.?in|check.?out|training hours/i', $response->getContent());
@@ -135,6 +137,7 @@ class WeeklySessionAttendancePageTest extends TestCase
         $this->actingAs($coach)->get(route('coach.attendance.index'))
             ->assertOk()
             ->assertSee('MENTOR · ATTENDANCE')
+            ->assertSee('<a href="'.route('coach.attendance.export', ['program' => $program->id]).'"', false)
             ->assertSee('<option value="'.$program->id.'" selected>', false)
             ->assertDontSee('Other Track')
             ->assertSee('Mia Mine')
@@ -231,7 +234,8 @@ class WeeklySessionAttendancePageTest extends TestCase
             ->assertDontSee('aria-label="Choose curriculum"', false)
             ->assertDontSee('Backend Track')
             ->assertDontSee('<table', false)
-            ->assertDontSee('Save attendance');
+            ->assertDontSee('Save attendance')
+            ->assertDontSee('Export CSV');
     }
 
     public function test_curriculum_without_active_weeks_says_it_has_no_weeks(): void
@@ -254,7 +258,8 @@ class WeeklySessionAttendancePageTest extends TestCase
 
         $this->actingAs(User::factory()->create(['role' => UserRole::Admin]))->get(route('admin.attendance.index'))
             ->assertOk()
-            ->assertSeeInOrder(['>Backend Track</h2>', 'No participants to show.'], false)
+            ->assertSeeInOrder(['>Export CSV</a>', '>Backend Track</h2>', 'No participants to show.'], false)
+            ->assertDontSee('Sessions attended')
             ->assertDontSee('<table', false)
             ->assertDontSee('Save attendance');
     }
@@ -544,6 +549,209 @@ class WeeklySessionAttendancePageTest extends TestCase
         $this->assertSame($this->saveQueryCount(1), $this->saveQueryCount(3));
     }
 
+    public function test_summary_sums_attended_of_held_sessions_counting_a_ticked_week_not_yet_started_as_held(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-10 09:00:00'));
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        [$program] = $this->twoParticipantsOverFourWeeks();
+
+        $this->actingAs($admin)->get(route('admin.attendance.index', ['program' => $program->id]))
+            ->assertOk()
+            ->assertSeeInOrder(['>Backend Track</h2>', '>Sessions attended</span>', '>4 of 5 · 80%</dd>', 'role="region"', '>3 of 4</td>', '>1 of 4</td>'], false);
+    }
+
+    /**
+     * @return array<string, array{0: int, 1: int, 2: string}>
+     */
+    public static function summaryRates(): array
+    {
+        return [
+            'a half rounds up' => [8, 5, '5 of 8 · 63%'],
+            'two thirds round up' => [3, 2, '2 of 3 · 67%'],
+            'one third rounds down' => [3, 1, '1 of 3 · 33%'],
+        ];
+    }
+
+    #[DataProvider('summaryRates')]
+    public function test_summary_and_csv_rate_round_half_up_to_a_whole_percent(int $startedWeeks, int $attendedWeeks, string $summary): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-10 09:00:00'));
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $program = Program::factory()->create();
+        $participant = User::factory()->create();
+        $program->participants()->attach($participant->id, ['joined_at' => now()]);
+        foreach (range(1, $startedWeeks) as $number) {
+            $week = $this->week($program, $number, Carbon::parse('2026-11-09')->subWeeks($startedWeeks - $number)->toDateString());
+            if ($number <= $attendedWeeks) {
+                $this->attend($participant, $week);
+            }
+        }
+
+        $this->actingAs($admin)->get(route('admin.attendance.index'))
+            ->assertOk()
+            ->assertSee(">{$summary}</dd>", false);
+        $rows = $this->csv($this->actingAs($admin)->get(route('admin.attendance.export')));
+
+        $this->assertSame(substr($summary, -3, 2), $rows[1][count($rows[1]) - 1]);
+    }
+
+    public function test_without_a_started_week_or_a_tick_the_summary_says_no_sessions_were_held_and_the_csv_rate_is_empty(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-01 09:00:00'));
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $program = Program::factory()->create();
+        $this->week($program, 1, '2026-11-09');
+        $this->week($program, 2, null);
+        $participant = User::factory()->create(['name' => 'Ada Young', 'employee_id' => 'EMP-1', 'email' => 'ada@example.com']);
+        $program->participants()->attach($participant->id, ['joined_at' => now()]);
+
+        $this->actingAs($admin)->get(route('admin.attendance.index'))
+            ->assertOk()
+            ->assertSeeInOrder(['>Sessions attended</span>', '>No sessions held yet</dd>'], false);
+
+        $this->assertSame([
+            ['Participant', 'Employee ID', 'Email', 'Mentor', 'Week 1', 'Week 2', 'Attended', 'Held', 'Rate (%)'],
+            ['Ada Young', 'EMP-1', 'ada@example.com', 'Not assigned', 'Not held', 'Not held', '0', '0', ''],
+        ], $this->csv($this->actingAs($admin)->get(route('admin.attendance.export'))));
+    }
+
+    public function test_admin_csv_of_the_first_curriculum_marks_each_active_week_and_lists_unassigned_participants(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-10 09:00:00'));
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $older = Program::factory()->withWeeks(1, Carbon::parse('2026-09-07'))->create();
+        $older->participants()->attach(User::factory()->create(['name' => 'Bo Older'])->id, ['joined_at' => now()]);
+        $this->twoParticipantsOverFourWeeks();
+
+        $this->assertSame([
+            ['Participant', 'Employee ID', 'Email', 'Mentor', 'Week 1', 'Week 2', 'Week 3', 'Week 4', 'Attended', 'Held', 'Rate (%)'],
+            ['Ada Young', 'EMP-1', 'ada@example.com', 'Mo Mentor', 'Attended', 'Attended', 'Attended', 'Not held', '3', '3', '100'],
+            ['Bea Zane', '', 'bea@example.com', 'Not assigned', 'Attended', 'Absent', 'Not held', 'Not held', '1', '2', '50'],
+        ], $this->csv($this->actingAs($admin)->get(route('admin.attendance.export'))));
+    }
+
+    public function test_mentor_csv_of_the_chosen_curriculum_lists_only_their_mentees_by_name_with_a_column_per_active_week(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-10 09:00:00'));
+        $coach = User::factory()->create(['role' => UserRole::Coach, 'name' => 'Mo Mentor']);
+        $program = Program::factory()->create();
+        $weekOne = $this->week($program, 1, '2026-11-02');
+        $inactiveWeek = $this->week($program, 2, '2026-11-09', isActive: false);
+        $this->week($program, 3, '2026-11-16');
+        Program::factory()->withMentors($coach)->withWeeks(1, Carbon::parse('2026-12-07'))->create();
+        $zoe = User::factory()->create(['name' => 'Zoe Young', 'employee_id' => 'EMP-9', 'email' => 'zoe@example.com']);
+        $ada = User::factory()->create(['name' => 'Ada Xu', 'employee_id' => 'EMP-1', 'email' => 'ada@example.com']);
+        $this->mentor($program, $coach, $zoe, $ada);
+        $this->mentor($program, User::factory()->create(['role' => UserRole::Coach]), User::factory()->create(['name' => 'Oli Other']));
+        $program->participants()->attach(User::factory()->create(['name' => 'Una Unassigned'])->id, ['joined_at' => now()]);
+        $this->attend($zoe, $weekOne);
+        $this->attend($zoe, $inactiveWeek);
+
+        $this->assertSame([
+            ['Participant', 'Employee ID', 'Email', 'Mentor', 'Week 1', 'Week 3', 'Attended', 'Held', 'Rate (%)'],
+            ['Ada Xu', 'EMP-1', 'ada@example.com', 'Mo Mentor', 'Absent', 'Not held', '0', '1', '0'],
+            ['Zoe Young', 'EMP-9', 'zoe@example.com', 'Mo Mentor', 'Attended', 'Not held', '1', '1', '100'],
+        ], $this->csv($this->actingAs($coach)->get(route('coach.attendance.export', ['program' => $program->id]))));
+    }
+
+    public function test_csv_without_any_curriculum_has_only_the_header_row(): void
+    {
+        Program::factory()->withWeeks(1)->create();
+
+        $this->assertSame(
+            [['Participant', 'Employee ID', 'Email', 'Mentor', 'Attended', 'Held', 'Rate (%)']],
+            $this->csv($this->actingAs(User::factory()->create(['role' => UserRole::Coach]))->get(route('coach.attendance.export'))),
+        );
+    }
+
+    /**
+     * @return array<string, array{0: UserRole, 1: string, 2: string}>
+     */
+    public static function invalidExportChoices(): array
+    {
+        return [
+            'a curriculum the mentor does not mentor' => [UserRole::Coach, 'coach.attendance', 'not mentored'],
+            'an unknown curriculum, admin' => [UserRole::Admin, 'admin.attendance', 'unknown'],
+        ];
+    }
+
+    #[DataProvider('invalidExportChoices')]
+    public function test_an_invalid_curriculum_choice_on_the_export_returns_to_the_page_of_the_area_with_an_error(UserRole $role, string $routePrefix, string $choice): void
+    {
+        $viewer = User::factory()->create(['role' => $role]);
+        $notMentored = Program::factory()->withWeeks(1)->create();
+        $program = $choice === 'unknown' ? $notMentored->id + 1000 : $notMentored->id;
+
+        $this->actingAs($viewer)->get(route("{$routePrefix}.export", ['program' => $program]))
+            ->assertRedirect(route("{$routePrefix}.index"))
+            ->assertSessionHasErrors(['program' => 'Choose a curriculum from the list.']);
+    }
+
+    public function test_participant_is_forbidden_from_the_export_in_either_area(): void
+    {
+        $participant = User::factory()->create();
+        Program::factory()->withWeeks(1)->withParticipants($participant)->create();
+
+        $this->actingAs($participant)->get(route('coach.attendance.export'))->assertForbidden();
+        $this->actingAs($participant)->get(route('admin.attendance.export'))->assertForbidden();
+    }
+
+    public function test_guest_is_redirected_to_login_from_the_export(): void
+    {
+        $this->get(route('coach.attendance.export'))->assertRedirect(route('login'));
+        $this->get(route('admin.attendance.export'))->assertRedirect(route('login'));
+    }
+
+    public function test_export_query_count_does_not_grow_with_the_number_of_participants(): void
+    {
+        $this->assertSame($this->exportQueryCount(1), $this->exportQueryCount(3));
+    }
+
+    /**
+     * "Backend Track" with four active weeks from 2 Nov 2026 (two started on 10 Nov): Ada Young (EMP-1, mentored by Mo
+     * Mentor) attended Weeks 1–3 and Bea Zane (no employee ID, no mentor) Week 1.
+     *
+     * @return array{0: Program}
+     */
+    private function twoParticipantsOverFourWeeks(): array
+    {
+        $program = Program::factory()->create(['name' => 'Backend Track']);
+        $weeks = collect(['2026-11-02', '2026-11-09', '2026-11-16', '2026-11-23'])
+            ->map(fn (string $startsOn, int $index): TrainingWeek => $this->week($program, $index + 1, $startsOn));
+        $ada = User::factory()->create(['name' => 'Ada Young', 'employee_id' => 'EMP-1', 'email' => 'ada@example.com']);
+        $bea = User::factory()->create(['name' => 'Bea Zane', 'employee_id' => null, 'email' => 'bea@example.com']);
+        $this->mentor($program, User::factory()->create(['role' => UserRole::Coach, 'name' => 'Mo Mentor']), $ada);
+        $program->participants()->attach($bea->id, ['joined_at' => now()]);
+        $this->attend($ada, $weeks[0]);
+        $this->attend($ada, $weeks[1]);
+        $this->attend($ada, $weeks[2]);
+        $this->attend($bea, $weeks[0]);
+
+        return [$program];
+    }
+
+    private function exportQueryCount(int $participants): int
+    {
+        $coach = User::factory()->create(['role' => UserRole::Coach]);
+        $program = Program::factory()->withWeeks(3)->create();
+        $weeks = $program->weeks()->get();
+        foreach (range(1, $participants) as $index) {
+            $participant = User::factory()->create();
+            $this->mentor($program, $coach, $participant);
+            $this->attend($participant, $weeks[$index - 1]);
+        }
+        $url = route('coach.attendance.export', ['program' => $program->id]);
+
+        $this->actingAs($coach)->get($url)->assertOk();
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $rows = $this->csv($this->actingAs($coach)->get($url));
+        DB::disableQueryLog();
+        $this->assertCount($participants + 1, $rows);
+
+        return count(DB::getQueryLog());
+    }
+
     private function saveQueryCount(int $participants): int
     {
         $coach = User::factory()->create(['role' => UserRole::Coach]);
@@ -654,5 +862,17 @@ class WeeklySessionAttendancePageTest extends TestCase
         return collect($matches)
             ->mapWithKeys(fn (array $match): array => [html_entity_decode($match[2], ENT_QUOTES) => ($match[3] ?? '') !== ''])
             ->all();
+    }
+
+    /**
+     * The rows of the downloaded weekly session attendance CSV.
+     *
+     * @return list<list<string>>
+     */
+    private function csv(TestResponse $response): array
+    {
+        $response->assertOk()->assertDownload('weekly-session-attendance.csv');
+
+        return array_map(str_getcsv(...), explode("\n", trim($response->streamedContent())));
     }
 }

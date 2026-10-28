@@ -109,7 +109,6 @@ class ProgramAccessTest extends TestCase
         $this->actingAs($participant)->get(route('training.weeks.show', [$program, $weekTwo]))->assertForbidden()->assertSee('Opens on Fri 20 Nov');
 
         $this->travelTo('2026-11-20 00:01:00');
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         $this->actingAs($participant)->get(route('training.weeks.show', [$program, $weekTwo]))->assertOk();
     }
@@ -238,7 +237,6 @@ class ProgramAccessTest extends TestCase
     private function checkedInParticipant(): User
     {
         $participant = User::factory()->create();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         return $participant;
     }

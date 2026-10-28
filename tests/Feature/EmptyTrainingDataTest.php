@@ -24,7 +24,6 @@ class EmptyTrainingDataTest extends TestCase
     {
         return [
             'participant dashboard' => ['participant', 'dashboard', []],
-            'participant attendance' => ['participant', 'participant.attendance.index', []],
             'participant notifications' => ['participant', 'participant.notifications', []],
             'participant profile' => ['participant', 'profile.show', []],
             'coach dashboard' => ['coach', 'coach.dashboard', []],

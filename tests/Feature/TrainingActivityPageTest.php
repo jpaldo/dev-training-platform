@@ -274,7 +274,6 @@ class TrainingActivityPageTest extends TestCase
         $activity = Activity::factory()->for($week, 'week')->create(['position' => 2]);
         $program = $week->program;
         $program->participants()->attach($participant, ['joined_at' => now()]);
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         return [$participant, $week, $activity, $program];
     }

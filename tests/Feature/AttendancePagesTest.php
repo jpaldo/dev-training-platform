@@ -16,79 +16,6 @@ class AttendancePagesTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_participant_without_an_open_session_gets_check_in_now_as_the_single_main_action(): void
-    {
-        $participant = User::factory()->create();
-
-        $response = $this->actingAs($participant)
-            ->get(route('participant.attendance.index'))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'TRAINING ATTENDANCE',
-                'Attendance',
-                'id="attendance-main-action"',
-                'action="'.route('participant.attendance.check-in').'"',
-                'CHECK IN NOW',
-                'NOT CHECKED IN',
-                'Ready to start your training session?',
-                'Session history',
-                'No training sessions recorded yet.',
-            ], false)
-            ->assertDontSee('CHECK OUT')
-            ->assertDontSee(route('participant.attendance.check-out'));
-
-        $this->assertStringNotContainsString('data-attendance-row', $response->getContent());
-    }
-
-    public function test_participant_with_an_open_session_gets_check_out_and_the_history_newest_first(): void
-    {
-        $participant = User::factory()->create();
-        $this->attendanceSession($participant, '2026-09-08 09:00:00', '2026-09-08 10:30:00');
-        $this->attendanceSession($participant, '2026-09-10 09:05:00');
-
-        $response = $this->actingAs($participant)->get(route('participant.attendance.index'))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'id="attendance-main-action"',
-                'action="'.route('participant.attendance.check-out').'"',
-                'CHECK OUT',
-                'CHECKED IN',
-                'Current training session',
-                'Started September 10, 2026 · 9:05 AM · Elapsed',
-                'Session history',
-                'role="region"',
-                'Sep 10, 2026',
-                '9:05 AM',
-                'Active',
-                'Sep 8, 2026',
-                '9:00 AM',
-                '10:30 AM',
-                '1h 30m',
-            ], false)
-            ->assertDontSee('CHECK IN NOW')
-            ->assertDontSee('CHECK-IN REQUIRED')
-            ->assertDontSee('No training sessions recorded yet.');
-
-        $this->assertSame(2, substr_count($response->getContent(), 'data-attendance-row'));
-        $this->assertSame(1, substr_count($response->getContent(), 'CHECK OUT'));
-    }
-
-    public function test_check_in_returns_to_the_attendance_page_with_the_status_alert(): void
-    {
-        $participant = User::factory()->create();
-
-        $this->actingAs($participant)
-            ->followingRedirects()
-            ->post(route('participant.attendance.check-in'))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'CHECK OUT',
-                'role="status"',
-                'Training session checked in. Your training time is calculated automatically.',
-                'Current training session',
-            ], false);
-    }
-
     public function test_coach_attendance_page_shows_filters_sessions_and_an_export_main_action_for_the_same_query(): void
     {
         $coach = User::factory()->create(['role' => 'coach']);
@@ -191,24 +118,9 @@ class AttendancePagesTest extends TestCase
         $this->assertStringNotContainsString('data-attendance-row', $response->getContent());
     }
 
-    public function test_participant_attendance_page_query_count_does_not_grow_with_sessions(): void
-    {
-        $this->assertSame($this->participantPageQueryCount(1), $this->participantPageQueryCount(3));
-    }
-
     public function test_attendance_management_page_query_count_does_not_grow_with_sessions(): void
     {
         $this->assertSame($this->managePageQueryCount(1), $this->managePageQueryCount(3));
-    }
-
-    private function participantPageQueryCount(int $sessions): int
-    {
-        $participant = User::factory()->create();
-        foreach (range(1, $sessions) as $day) {
-            $this->attendanceSession($participant, "2026-09-0{$day} 09:00:00", "2026-09-0{$day} 10:00:00");
-        }
-
-        return $this->queryCount($participant, route('participant.attendance.index'), $sessions);
     }
 
     private function managePageQueryCount(int $participants): int

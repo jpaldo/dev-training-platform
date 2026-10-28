@@ -861,7 +861,6 @@ class AdminCurriculumFieldTest extends TestCase
         $participant = User::factory()->create(['role' => 'participant']);
         $program = $activity->week->program;
         $program->participants()->attach($participant, ['joined_at' => now()]);
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         return [$participant, $program];
     }

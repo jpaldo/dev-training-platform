@@ -96,7 +96,6 @@ class HomeNavigationTest extends TestCase
     {
         $participant = User::factory()->create();
         [$program, $week1] = $this->l4ProgramInItsFirstWeekWith($participant);
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $activity = $week1->activities()->where('position', 2)->first();
         $submission = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'needs_revision']);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => [], 'submitted_at' => now()]);
@@ -137,7 +136,7 @@ class HomeNavigationTest extends TestCase
             ->assertSee('aria-controls="dashboard-missing-content"', false)
             ->assertSee('aria-expanded="true"', false)
             ->assertSee('Complete your next activity.')
-            ->assertSee('ATTENDANCE');
+            ->assertSee('>My curricula</h2>', false);
 
         $response = $this->actingAs($participant)->get(route('training.programs.show', $program))->assertOk();
         $html = $response->getContent();

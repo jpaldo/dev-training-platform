@@ -285,7 +285,6 @@ class DevelopmentAccountProvisioningTest extends TestCase
             'configuration' => ['key' => 'artifact_type', 'label' => 'Artifact Type', 'type' => 'text', 'required' => false],
         ]);
         $week->program->participants()->attach($participant, ['joined_at' => now()]);
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         $this->actingAs($participant)->post(route('training.submission.draft', [$week->program, $week, $activity]), [
             'field_values' => ['artifact_type' => 'Other', 'artifact_type_other' => '  API contract test  '],

@@ -68,7 +68,6 @@ class SidebarNavigationService
             return [
                 'Training' => [
                     ['label' => 'Dashboard', 'route' => 'dashboard', 'active' => ['dashboard', 'training.programs.*', 'training.weeks.*', 'training.activities.*', 'training.submission.*', 'training.gates.*', 'training.video-recording.*']],
-                    ['label' => 'Attendance', 'route' => 'participant.attendance.index', 'active' => ['participant.attendance.*']],
                     ['label' => 'Notifications', 'route' => 'participant.notifications', 'active' => ['participant.notifications'], 'count' => $this->notifications->unreadCount($user)],
                 ],
             ];

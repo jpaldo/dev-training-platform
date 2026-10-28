@@ -13,32 +13,10 @@
         <header class="grid gap-2">
             <x-ui.eyebrow>PARTICIPANT DASHBOARD</x-ui.eyebrow>
             <x-ui.page-title>Welcome, {{ $user->first_name ?: $user->name }}</x-ui.page-title>
-            <p class="text-muted">Check in when you start training, keep track of what needs attention and open your curricula.</p>
+            <p class="text-muted">Keep track of what needs attention and open your curricula.</p>
         </header>
 
-        <x-ui.card as="section" class="flex flex-wrap gap-x-8 gap-y-6" aria-labelledby="attendance-title">
-            <div class="grid min-w-0 grow-[1.5] basis-72 content-start gap-2">
-                <x-ui.eyebrow>ATTENDANCE</x-ui.eyebrow>
-                <h2 id="attendance-title" class="m-0 text-xl font-extrabold">{{ $activeAttendance ? 'CHECKED IN' : ($recentAttendance->isNotEmpty() ? 'LAST TRAINING SESSION' : 'NOT CHECKED IN') }}</h2>
-                @if($activeAttendance)
-                    @php $initialDurationSeconds = $activeAttendance->durationSeconds(); @endphp
-                    <p class="m-0 text-sm/relaxed text-muted">Started {{ $activeAttendance->check_in_at->format('F j, Y · g:i A') }} · <span id="live-attendance-elapsed" data-check-in-at="{{ $activeAttendance->check_in_at->toIso8601String() }}">Elapsed {{ intdiv($initialDurationSeconds, 3600) }}h {{ str_pad((string) intdiv($initialDurationSeconds % 3600, 60), 2, '0', STR_PAD_LEFT) }}m {{ str_pad((string) ($initialDurationSeconds % 60), 2, '0', STR_PAD_LEFT) }}s</span></p>
-                @else
-                    @if($recentAttendance->isNotEmpty())
-                        @php $lastAttendance = $recentAttendance->first(); @endphp
-                        <p class="m-0 text-sm/relaxed text-muted">Start: {{ $lastAttendance->check_in_at->format('F j, Y · g:i A') }}<br>End: {{ $lastAttendance->check_out_at->format('F j, Y · g:i A') }}<br>Total: {{ $lastAttendance->durationLabel() }}</p>
-                    @endif
-                    <p class="m-0 text-sm/relaxed text-muted">Check in when you begin your training session. Your hours are calculated automatically.</p>
-                @endif
-                <div class="mt-1 flex flex-wrap items-center gap-4">
-                    @if($activeAttendance)
-                        <form class="m-0" method="POST" action="{{ route('participant.attendance.check-out') }}">@csrf<x-ui.button type="submit">CHECK OUT</x-ui.button></form>
-                    @else
-                        <form class="m-0" method="POST" action="{{ route('participant.attendance.check-in') }}">@csrf<x-ui.button type="submit">CHECK IN</x-ui.button></form>
-                    @endif
-                    <a class="text-sm text-muted underline underline-offset-3 hover:text-slate-100" href="{{ route('participant.attendance.index') }}">View attendance history</a>
-                </div>
-            </div>
+        <x-ui.card class="flex flex-wrap gap-x-8 gap-y-6">
             <div class="grid min-w-0 grow basis-44 content-start gap-1.5">
                 <span class="text-xs font-black tracking-[0.1em] text-muted uppercase">Mentor</span>
                 <span class="font-extrabold wrap-anywhere">{{ $mentorNames ?: 'Not assigned' }}</span>
@@ -51,27 +29,6 @@
                 </x-ui.alert>
             @endif
         </x-ui.card>
-
-        @if($activeAttendance)
-            <script>
-                (() => {
-                    const elapsed = document.getElementById('live-attendance-elapsed');
-                    const startedAt = elapsed?.dataset.checkInAt;
-                    if (!elapsed || !startedAt) return;
-
-                    const renderElapsed = () => {
-                        const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(startedAt)) / 1000));
-                        const hours = Math.floor(seconds / 3600);
-                        const minutes = Math.floor((seconds % 3600) / 60);
-                        const remainderSeconds = seconds % 60;
-                        elapsed.textContent = `Elapsed ${hours}h ${String(minutes).padStart(2, '0')}m ${String(remainderSeconds).padStart(2, '0')}s`;
-                    };
-
-                    renderElapsed();
-                    window.setInterval(renderElapsed, 1000);
-                })();
-            </script>
-        @endif
 
         @if($notificationSummary['items']->isNotEmpty())
             <details class="group rounded-2xl border border-line bg-surface p-6" open data-dashboard-disclosure>

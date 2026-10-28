@@ -78,17 +78,31 @@ class ParticipantDashboardControllerTest extends TestCase
             ->assertDontSee('href="'.route('training.programs.show', $notJoined).'"', false);
     }
 
-    public function test_the_landing_page_keeps_the_attendance_card_and_has_no_week_tabs(): void
+    public function test_the_landing_page_has_no_attendance_card_and_no_week_tabs(): void
     {
         $participant = User::factory()->create(['first_name' => 'Hal', 'last_name' => 'Hybrid']);
         Program::factory()->withWeeks(2)->withParticipants($participant)->create();
 
         $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
-            ->assertSeeInOrder(['Welcome, Hal', 'ATTENDANCE', 'NOT CHECKED IN', 'CHECK IN'], false)
+            ->assertSeeInOrder(['Welcome, Hal', 'Keep track of what needs attention and open your curricula.', '>Mentor</span>', '>My curricula</h2>'], false)
+            ->assertDontSee('ATTENDANCE')
+            ->assertDontSee('CHECK IN')
+            ->assertDontSee('CHECK OUT')
+            ->assertDontSee('Check in')
+            ->assertDontSee('live-attendance-elapsed', false)
             ->assertDontSee('CURRICULUM</div>', false)
             ->assertDontSee('Start at Week 2.')
             ->assertDontSee('data-page-tabs', false)
             ->assertDontSee('No training program is active yet.');
+    }
+
+    public function test_the_participant_check_in_page_and_actions_no_longer_exist(): void
+    {
+        $participant = User::factory()->create();
+
+        $this->actingAs($participant)->get('/attendance')->assertNotFound();
+        $this->actingAs($participant)->post('/attendance/check-in')->assertNotFound();
+        $this->actingAs($participant)->post('/attendance/check-out')->assertNotFound();
     }
 }

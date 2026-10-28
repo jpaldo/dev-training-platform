@@ -38,7 +38,6 @@ class ParticipantWorkflowTest extends TestCase
     public function test_participant_submission_page_renders_with_the_vite_manifest(): void
     {
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         ActivityRequirement::factory()->for($activity)->create([
             'requirement_type' => 'submission_field',
@@ -92,7 +91,6 @@ class ParticipantWorkflowTest extends TestCase
     public function test_participant_can_view_an_available_activity_and_create_edit_submit_a_draft(): void
     {
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea', 'required' => true]]);
         $deliverable = ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable', 'position' => 10]);
         $evidenceRequirement = EvidenceRequirement::factory()->for($deliverable)->create(['evidence_type' => 'text', 'is_required' => true]);
@@ -110,7 +108,6 @@ class ParticipantWorkflowTest extends TestCase
     public function test_participant_cannot_add_evidence_while_google_drive_is_enforced_and_not_ready(): void
     {
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $deliverable = ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable', 'position' => 10]);
         $evidenceRequirement = EvidenceRequirement::factory()->for($deliverable)->create(['evidence_type' => 'text']);
         $this->actingAs($participant)->post(route('training.submission.draft', [$program, $week2, $activity]), ['field_values' => []])->assertRedirect();
@@ -125,7 +122,6 @@ class ParticipantWorkflowTest extends TestCase
     public function test_text_evidence_does_not_satisfy_a_required_file_evidence_requirement(): void
     {
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea', 'required' => false]]);
         $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'file', 'is_required' => true, 'minimum_count' => 1]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
@@ -189,7 +185,6 @@ class ParticipantWorkflowTest extends TestCase
     {
         Storage::fake('local');
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'text', 'is_required' => true]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
@@ -204,7 +199,6 @@ class ParticipantWorkflowTest extends TestCase
     public function test_auto_save_returns_json_and_preserves_editable_draft_values(): void
     {
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea', 'required' => false]]);
 
         $response = $this->actingAs($participant)->postJson(route('training.submission.draft', [$program, $week2, $activity]), [
@@ -225,7 +219,6 @@ class ParticipantWorkflowTest extends TestCase
     {
         Storage::fake('local');
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'file', 'is_required' => true]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
@@ -243,7 +236,6 @@ class ParticipantWorkflowTest extends TestCase
     {
         Storage::fake('local');
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'file', 'is_required' => true]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
@@ -384,7 +376,6 @@ class ParticipantWorkflowTest extends TestCase
     {
         Storage::fake('local');
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'link', 'is_required' => true]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
@@ -404,7 +395,6 @@ class ParticipantWorkflowTest extends TestCase
     {
         Storage::fake('local');
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'file', 'is_required' => true]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
@@ -421,7 +411,6 @@ class ParticipantWorkflowTest extends TestCase
     {
         Storage::fake('local');
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'file', 'is_required' => true]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
@@ -447,7 +436,6 @@ class ParticipantWorkflowTest extends TestCase
     {
         Storage::fake('local');
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'asset', 'is_required' => true]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
@@ -471,7 +459,6 @@ class ParticipantWorkflowTest extends TestCase
     public function test_evidence_upload_script_captures_file_before_disabling_input(): void
     {
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'file', 'is_required' => true]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
@@ -493,7 +480,6 @@ class ParticipantWorkflowTest extends TestCase
     public function test_submitted_versions_are_immutable_and_revision_creates_a_new_version(): void
     {
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now(), 'field_values' => ['finding' => 'Original']]);
         $this->actingAs($participant)->post(route('training.submission.draft', [$program, $week2, $activity]), ['field_values' => ['finding' => 'Tampered']])->assertSessionHasErrors('submission');
@@ -508,7 +494,6 @@ class ParticipantWorkflowTest extends TestCase
     {
         Queue::fake();
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'needs_revision']);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now(), 'field_values' => ['finding' => 'Original']]);
 
@@ -527,7 +512,6 @@ class ParticipantWorkflowTest extends TestCase
     {
         Queue::fake();
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
 
@@ -566,7 +550,6 @@ class ParticipantWorkflowTest extends TestCase
     public function test_needs_revision_feedback_is_prominent_and_safe_markdown_is_rendered(): void
     {
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'needs_revision']);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
         $version->reviews()->create([
@@ -587,7 +570,6 @@ class ParticipantWorkflowTest extends TestCase
     public function test_activity_page_renders_safe_markdown_for_coach_feedback(): void
     {
         [$participant, $week, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'needs_revision']);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
         $version->reviews()->create([
@@ -611,7 +593,6 @@ class ParticipantWorkflowTest extends TestCase
     public function test_submission_page_renders_version_history_rows(): void
     {
         [$participant, $week, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 1, 'status' => 'submitted', 'submitted_at' => now()->subDays(2)]);
         $current = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 2, 'status' => 'needs_revision', 'submitted_at' => now()]);
@@ -634,7 +615,6 @@ class ParticipantWorkflowTest extends TestCase
     public function test_edit_page_renders_version_history_rows(): void
     {
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'needs_revision']);
         $submitted = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 1, 'status' => 'submitted', 'submitted_at' => now()->subDays(2)]);
         $draft = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 2, 'status' => 'draft']);
@@ -827,7 +807,6 @@ class ParticipantWorkflowTest extends TestCase
     public function test_evidence_requires_the_content_url_or_file_its_type_needs(): void
     {
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $deliverable = ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
@@ -852,7 +831,6 @@ class ParticipantWorkflowTest extends TestCase
     {
         Queue::fake();
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'link']);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
@@ -872,7 +850,6 @@ class ParticipantWorkflowTest extends TestCase
     {
         Storage::fake('local');
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'file']);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
@@ -977,7 +954,6 @@ class ParticipantWorkflowTest extends TestCase
         $this->reviewWeek($mentor, $participant, $program, $weeks[1], GateEvaluationStatus::NeedsRevision)->assertSessionHasNoErrors();
         $activity = $weeks[1]->activities->sole();
 
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $this->actingAs($participant)->post(route('training.submission.draft', [$program, $weeks[1], $activity]), ['field_values' => []])->assertRedirect();
         $version = ActivitySubmission::query()->sole()->versions()->sole();
         $this->actingAs($participant)->post(route('training.submission.submit', [$program, $weeks[1], $activity, $version]))->assertSessionHasNoErrors();
@@ -1055,7 +1031,6 @@ class ParticipantWorkflowTest extends TestCase
         Activity::factory()->for($week3, 'week')->create(['position' => 1]);
         $activity = Activity::factory()->for($week3, 'week')->create(['position' => 2]);
         ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea', 'required' => true]]);
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         $this->actingAs($participant)->post(route('training.submission.draft', [$program, $week3, $activity]), ['field_values' => ['finding' => '']])->assertRedirect();
         $version = ActivitySubmission::query()->firstOrFail()->versions()->firstOrFail();
@@ -1076,7 +1051,6 @@ class ParticipantWorkflowTest extends TestCase
         $week4 = TrainingWeek::factory()->for($week2->program)->create(['week_number' => 4, 'position' => 2]);
         $activity = Activity::factory()->for($week4, 'week')->create(['position' => 2]);
         ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'interview_notes', 'label' => 'Interview notes', 'type' => 'textarea', 'required' => true]]);
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         $this->actingAs($participant)->post(route('training.submission.draft', [$program, $week4, $activity]), ['field_values' => ['interview_notes' => 'Explained the regression strategy']])->assertRedirect();
         $version = ActivitySubmission::query()->firstOrFail()->versions()->firstOrFail();
@@ -1097,7 +1071,6 @@ class ParticipantWorkflowTest extends TestCase
     public function test_participants_and_coaches_see_every_requirement_of_the_activity(): void
     {
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         ActivityRequirement::factory()->for($activity)->create(['title' => 'Manual-only requirement', 'position' => 1]);
         ActivityRequirement::factory()->for($activity)->create(['title' => 'Automation-only requirement', 'position' => 2]);
         $coach = User::factory()->create(['role' => 'coach']);
@@ -1116,7 +1089,6 @@ class ParticipantWorkflowTest extends TestCase
         [, $week2, $activity, $program] = $this->trainingFixture();
         $participant = User::factory()->create();
         $program->participants()->attach($participant, ['joined_at' => now()]);
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'position' => 1, 'configuration' => ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea', 'required' => true]]);
         $deliverable = ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable', 'position' => 2]);
         $evidenceRequirement = EvidenceRequirement::factory()->for($deliverable)->create(['title' => 'Automation run log', 'evidence_type' => 'text', 'is_required' => true, 'minimum_count' => 1]);
@@ -1206,7 +1178,6 @@ class ParticipantWorkflowTest extends TestCase
     private function videoEvidenceFixture(): array
     {
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $requirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'deliverable']))->create(['evidence_type' => 'video', 'is_required' => true]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);

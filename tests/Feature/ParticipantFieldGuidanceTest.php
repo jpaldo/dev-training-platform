@@ -117,7 +117,6 @@ class ParticipantFieldGuidanceTest extends TestCase
         $participant = User::factory()->create();
         $program = $week->program;
         $program->participants()->attach($participant, ['joined_at' => now()]);
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         return [$week, $activity, $participant, $program];
     }

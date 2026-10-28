@@ -60,8 +60,6 @@ class DraftFieldLimitTest extends TestCase
     {
         [$week, $activity, $participant, $program] = $this->activityScene();
 
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-
         $this->actingAs($participant)->post(route('training.submission.draft', [$program, $week, $activity]), ['field_values' => [
             'exact_prompt' => str_repeat('a', 50000), 'exact_ai_output' => str_repeat('a', 50000),
             'ai_tool' => str_repeat('a', 1000),

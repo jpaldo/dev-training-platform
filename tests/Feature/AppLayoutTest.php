@@ -68,7 +68,6 @@ class AppLayoutTest extends TestCase
         $this->assertSame(['Training'], $this->groupLabels($sidebar));
         $this->assertSame([
             ['Dashboard', route('dashboard'), false, 0],
-            ['Attendance', route('participant.attendance.index'), false, 0],
             ['Notifications', route('participant.notifications'), true, 2],
             ['Profile', route('profile.show'), false, 0],
         ], $this->sidebarLinks($sidebar));

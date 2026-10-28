@@ -81,11 +81,6 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
     Route::get('/profile/google-drive/picker-token', [GoogleDriveDestinationController::class, 'token'])->middleware('role:participant')->name('profile.google-drive.picker-token');
     Route::post('/profile/google-drive/destination', [GoogleDriveDestinationController::class, 'store'])->middleware('role:participant')->name('profile.google-drive.destination');
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
-    Route::middleware('role:participant')->group(function () {
-        Route::get('/attendance', [AttendanceController::class, 'participant'])->name('participant.attendance.index');
-        Route::post('/attendance/check-in', [AttendanceController::class, 'checkIn'])->name('participant.attendance.check-in');
-        Route::post('/attendance/check-out', [AttendanceController::class, 'checkOut'])->name('participant.attendance.check-out');
-    });
     Route::middleware('role:admin')->prefix('admin')->name('admin.')->group(function () {
         Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
         Route::get('/settings', [AdminSettingsController::class, 'index'])->name('settings.index');

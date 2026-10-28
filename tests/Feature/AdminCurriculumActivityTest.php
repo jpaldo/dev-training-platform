@@ -123,7 +123,6 @@ class AdminCurriculumActivityTest extends TestCase
         $participant = User::factory()->create(['role' => 'participant']);
         $activity = $this->activity();
         $activity->week->program->participants()->attach($participant, ['joined_at' => now()]);
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         $this->actingAs($admin)
             ->put($this->updateUrl($activity), [

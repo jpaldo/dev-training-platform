@@ -8,7 +8,6 @@ use App\Jobs\SyncTrainingDataJob;
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
-use App\Models\AttendanceSession;
 use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveEvidenceExport;
 use App\Models\GoogleDriveExport;
@@ -805,7 +804,6 @@ class GoogleDriveSyncTest extends TestCase
         $this->travelTo(L4TrainingProgramSeeder::FIRST_WEEK_STARTS_ON.' 09:00:00');
         $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant']);
-        AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()]);
         $week = TrainingWeek::query()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 2)->where('is_active', true)->firstOrFail();
         $week->program->participants()->attach($participant, ['joined_at' => now()]);

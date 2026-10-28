@@ -17,36 +17,6 @@ class AttendancePageService
     public function __construct(private readonly CoachProgramFilterService $programFilter) {}
 
     /**
-     * Everything the participant's attendance page renders: the open training session (if any) and the
-     * participant's session history, newest first. The main action is Check In Now, or Check Out while a
-     * session is open.
-     *
-     * @return array{activeSession: ?array{started_at_label: string, elapsed_label: string}, sessions: LengthAwarePaginator<int, array{date: string, check_in: string, check_out: string, total: string}>, checkInUrl: string, checkOutUrl: string}
-     */
-    public function participantData(User $participant): array
-    {
-        $activeSession = $participant->attendanceSessions()->whereNull('check_out_at')->latest('check_in_at')->first();
-
-        return [
-            'activeSession' => $activeSession ? [
-                'started_at_label' => $activeSession->check_in_at->format('F j, Y · g:i A'),
-                'elapsed_label' => $activeSession->durationLabel(),
-            ] : null,
-            'sessions' => $participant->attendanceSessions()
-                ->latest('check_in_at')
-                ->paginate(self::SESSIONS_PER_PAGE)
-                ->through(fn (AttendanceSession $session): array => [
-                    'date' => $session->check_in_at->format('M j, Y'),
-                    'check_in' => $session->check_in_at->format('g:i A'),
-                    'check_out' => $session->check_out_at?->format('g:i A') ?? 'Active',
-                    'total' => $session->durationLabel(),
-                ]),
-            'checkInUrl' => route('participant.attendance.check-in'),
-            'checkOutUrl' => route('participant.attendance.check-out'),
-        ];
-    }
-
-    /**
      * Everything the coach / admin attendance page renders: the filter options with the selected values and the
      * matching sessions the viewer may see (see filteredSessions()), newest first. The main action is Export CSV for
      * the same filters, through the admin or the coach route depending on the area the page is in.

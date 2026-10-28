@@ -63,7 +63,6 @@ class ProgramSubmissionTest extends TestCase
         $activity = Activity::factory()->for($week, 'week')->create();
         $program = $week->program;
         $program->participants()->attach($participant, ['joined_at' => now()]);
-        $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         return compact('participant', 'week', 'activity', 'program');
     }

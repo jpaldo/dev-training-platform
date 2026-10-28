@@ -135,28 +135,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Whether the user may act as the participant's mentor in the session: an admin (in every session), or a coach
-     * holding the participant's current mentor assignment there. A previous mentor of the participant, or their mentor
-     * in another session, may not. Records carry their session, so callers pass the record's session.
-     */
-    public function mentorsParticipantInSession(User $participant, TrainingSession $trainingSession): bool
-    {
-        if ($this->hasAnyRole(UserRole::Admin)) {
-            return true;
-        }
-
-        if (! $this->hasAnyRole(UserRole::Coach)) {
-            return false;
-        }
-
-        return MentorAssignment::query()
-            ->current()
-            ->forParticipantInSession($trainingSession->id, $participant->id)
-            ->where('mentor_id', $this->id)
-            ->exists();
-    }
-
-    /**
      * Whether the user may act as the participant's mentor in the curriculum: an admin (in every curriculum), or a
      * coach holding the participant's current mentor assignment there. A previous mentor of the participant, or their
      * mentor in another curriculum, may not.
@@ -194,27 +172,6 @@ class User extends Authenticatable
     }
 
     /**
-     * The training sessions the user is a participant in.
-     */
-    public function trainingSessions(): BelongsToMany
-    {
-        return $this->belongsToMany(TrainingSession::class, 'training_session_participants')
-            ->using(TrainingSessionParticipant::class)
-            ->withPivot(['joined_at', 'added_by'])
-            ->withTimestamps();
-    }
-
-    /**
-     * The training sessions the user (a coach) is a mentor of.
-     */
-    public function mentoredSessions(): BelongsToMany
-    {
-        return $this->belongsToMany(TrainingSession::class, 'training_session_mentors')
-            ->using(TrainingSessionMentor::class)
-            ->withTimestamps();
-    }
-
-    /**
      * The curricula the user is a participant in.
      */
     public function programs(): BelongsToMany
@@ -236,7 +193,7 @@ class User extends Authenticatable
     }
 
     /**
-     * The user's current assignments as a mentor, in every session: those that have not ended.
+     * The user's current assignments as a mentor, in every curriculum: those that have not ended.
      */
     public function currentMentorAssignments(): HasMany
     {
@@ -244,8 +201,8 @@ class User extends Authenticatable
     }
 
     /**
-     * The user's (a participant's) current mentors, through their current mentor assignments in every session: one
-     * per session that has assigned them one, so a coach who mentors them in two sessions is listed twice.
+     * The user's (a participant's) current mentors, through their current mentor assignments in every curriculum: one
+     * per curriculum that has assigned them one, so a coach who mentors them in two curricula is listed twice.
      */
     public function currentMentors(): BelongsToMany
     {

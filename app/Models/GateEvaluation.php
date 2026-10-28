@@ -18,7 +18,7 @@ class GateEvaluation extends Model
     /** @use HasFactory<GateEvaluationFactory> */
     use HasFactory;
 
-    protected $fillable = ['training_session_id', 'training_gate_id', 'user_id', 'status', 'reviewer_id', 'evaluated_at', 'comments'];
+    protected $fillable = ['training_gate_id', 'user_id', 'status', 'reviewer_id', 'evaluated_at', 'comments'];
 
     protected function casts(): array
     {
@@ -26,17 +26,14 @@ class GateEvaluation extends Model
     }
 
     /**
-     * Limit the query to evaluations whose participant the given coach currently mentors in the evaluation's session (a
-     * `mentor_assignments` row for that participant and session naming them, not ended).
+     * Limit the query to evaluations whose participant the given coach currently mentors in the curriculum of the
+     * evaluation's Gate (a `mentor_assignments` row for that participant and curriculum naming them, not ended).
      */
     public function scopeCurrentlyMentoredBy(Builder $query, User $mentor): Builder
     {
-        return $query->whereExists(MentorAssignment::query()->currentForMentorOfRow($mentor, $query));
-    }
-
-    public function trainingSession(): BelongsTo
-    {
-        return $this->belongsTo(TrainingSession::class);
+        return $query->whereHas('gate.week', fn (Builder $weeks): Builder => $weeks->whereExists(
+            MentorAssignment::query()->currentForMentorOfRow($mentor, $query, 'training_weeks.program_id'),
+        ));
     }
 
     public function gate(): BelongsTo

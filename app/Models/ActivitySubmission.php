@@ -19,7 +19,7 @@ class ActivitySubmission extends Model
     /** @use HasFactory<ActivitySubmissionFactory> */
     use HasFactory;
 
-    protected $fillable = ['training_session_id', 'activity_id', 'user_id', 'attempt_number', 'status', 'submitted_at', 'completed_at'];
+    protected $fillable = ['activity_id', 'user_id', 'attempt_number', 'status', 'submitted_at', 'completed_at'];
 
     /**
      * Get the attributes that should be cast.
@@ -89,25 +89,22 @@ class ActivitySubmission extends Model
     }
 
     /**
-     * Whether this is an attempt at the activity within the session.
+     * Whether this is an attempt at the activity.
      */
-    public function isForActivityInSession(Activity $activity, TrainingSession $trainingSession): bool
+    public function isForActivity(Activity $activity): bool
     {
-        return $this->activity_id === $activity->id && $this->training_session_id === $trainingSession->id;
+        return $this->activity_id === $activity->id;
     }
 
     /**
-     * Limit the query to attempts whose participant the given coach currently mentors in the attempt's session (a
-     * `mentor_assignments` row for that participant and session naming them, not ended).
+     * Limit the query to attempts whose participant the given coach currently mentors in the curriculum of the
+     * attempt's activity (a `mentor_assignments` row for that participant and curriculum naming them, not ended).
      */
     public function scopeCurrentlyMentoredBy(Builder $query, User $mentor): Builder
     {
-        return $query->whereExists(MentorAssignment::query()->currentForMentorOfRow($mentor, $query));
-    }
-
-    public function trainingSession(): BelongsTo
-    {
-        return $this->belongsTo(TrainingSession::class);
+        return $query->whereHas('activity.week', fn (Builder $weeks): Builder => $weeks->whereExists(
+            MentorAssignment::query()->currentForMentorOfRow($mentor, $query, 'training_weeks.program_id'),
+        ));
     }
 
     public function activity(): BelongsTo

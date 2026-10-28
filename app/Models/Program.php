@@ -47,11 +47,6 @@ class Program extends Model
         return $this->hasMany(TrainingWeek::class)->where('is_active', true)->orderBy('week_number');
     }
 
-    public function trainingSessions(): HasMany
-    {
-        return $this->hasMany(TrainingSession::class);
-    }
-
     public function participants(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'program_participants')
@@ -237,8 +232,25 @@ class Program extends Model
     }
 
     /**
-     * The earliest start and latest end of the active weeks: from the attributes withScheduleBounds() added, or else
-     * one query.
+     * Read the earliest start and latest end of the active weeks once and keep them on the model as the attributes
+     * withScheduleBounds() adds, so the status and date methods a request calls afterwards need no further query. Load
+     * them again after changing the weeks' dates.
+     */
+    public function loadScheduleBounds(): static
+    {
+        $bounds = $this->queryScheduleBounds();
+
+        $this->forceFill([
+            'schedule_starts_on' => $bounds?->starts_on,
+            'schedule_ends_on' => $bounds?->ends_on,
+        ])->syncOriginalAttributes(['schedule_starts_on', 'schedule_ends_on']);
+
+        return $this;
+    }
+
+    /**
+     * The earliest start and latest end of the active weeks: from the attributes withScheduleBounds() or
+     * loadScheduleBounds() added, or else one query.
      *
      * @return array{starts_on: ?CarbonInterface, ends_on: ?CarbonInterface}
      */
@@ -250,11 +262,7 @@ class Program extends Model
             $startsOn = $attributes['schedule_starts_on'];
             $endsOn = $attributes['schedule_ends_on'];
         } else {
-            $bounds = $this->activeWeeks()
-                ->reorder()
-                ->toBase()
-                ->selectRaw('min(starts_on) as starts_on, max(ends_on) as ends_on')
-                ->first();
+            $bounds = $this->queryScheduleBounds();
             $startsOn = $bounds?->starts_on;
             $endsOn = $bounds?->ends_on;
         }
@@ -263,5 +271,17 @@ class Program extends Model
             'starts_on' => $startsOn === null ? null : $this->asDate($startsOn),
             'ends_on' => $endsOn === null ? null : $this->asDate($endsOn),
         ];
+    }
+
+    /**
+     * One query for the earliest `starts_on` and latest `ends_on` of the active weeks (both null when none has dates).
+     */
+    private function queryScheduleBounds(): ?object
+    {
+        return $this->activeWeeks()
+            ->reorder()
+            ->toBase()
+            ->selectRaw('min(starts_on) as starts_on, max(ends_on) as ends_on')
+            ->first();
     }
 }

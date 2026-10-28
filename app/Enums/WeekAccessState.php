@@ -3,8 +3,9 @@
 namespace App\Enums;
 
 /**
- * Whether a participant can open a week of their training session (`WeekProgressionService`), never stored: open from
- * the week's open date, not open before it, and locked while an earlier week of the session has an incomplete review.
+ * Whether a participant can open a week of their curriculum (`WeekProgressionService`), never stored: open from the
+ * week's start date, not open before it or while it has none, and locked while an earlier week has an incomplete
+ * review.
  */
 enum WeekAccessState: string
 {

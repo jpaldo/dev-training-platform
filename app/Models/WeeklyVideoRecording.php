@@ -10,9 +10,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * A participant's weekly video for a training week of a training session: a video file in the participant's own
- * Google Drive, chosen with the Google Picker. The app stores the Drive file's ID (and resource key), name, type, size
- * and dates, never the video itself; mentors and participants open it in Drive. On choosing, the app shares the file
+ * A participant's weekly video for a training week of a curriculum (one per week): a video file in the participant's
+ * own Google Drive, chosen with the Google Picker. The app stores the Drive file's ID (and resource key), name, type,
+ * size and dates, never the video itself; mentors and participants open it in Drive. On choosing, the app shares the file
  * view only with the company's Google Workspace domain and keeps that Drive permission's ID and when it was shared.
  */
 #[ObservedBy([ParticipantProgressObserver::class])]
@@ -21,7 +21,7 @@ class WeeklyVideoRecording extends Model
     /** @use HasFactory<WeeklyVideoRecordingFactory> */
     use HasFactory;
 
-    protected $fillable = ['training_session_id', 'user_id', 'training_week_id', 'drive_file_id', 'drive_resource_key', 'drive_permission_id', 'name', 'mime_type', 'size_bytes', 'drive_created_at', 'drive_modified_at', 'notes', 'chosen_at', 'shared_at'];
+    protected $fillable = ['user_id', 'training_week_id', 'drive_file_id', 'drive_resource_key', 'drive_permission_id', 'name', 'mime_type', 'size_bytes', 'drive_created_at', 'drive_modified_at', 'notes', 'chosen_at', 'shared_at'];
 
     /**
      * @return array<string, string>
@@ -35,11 +35,6 @@ class WeeklyVideoRecording extends Model
             'chosen_at' => 'datetime',
             'shared_at' => 'datetime',
         ];
-    }
-
-    public function trainingSession(): BelongsTo
-    {
-        return $this->belongsTo(TrainingSession::class);
     }
 
     public function participant(): BelongsTo

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Observers\ParticipantProgressObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
@@ -9,8 +11,10 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
 /**
  * A participant's membership of a curriculum (`program_participants`), once per curriculum and for every one of its
  * weeks, with the GitHub repository they added for it (`repository_url`, null until then). Removing a participant
- * deletes the row; their work stays with its activity, Gate or week, so adding them again restores access.
+ * deletes the row; their work stays with its activity, Gate or week, so adding them again restores access. Joining and
+ * leaving queue the participant's notification sync (ParticipantProgressObserver).
  */
+#[ObservedBy([ParticipantProgressObserver::class])]
 class ProgramParticipant extends Pivot
 {
     /**

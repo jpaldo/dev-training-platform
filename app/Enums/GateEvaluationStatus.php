@@ -46,8 +46,8 @@ enum GateEvaluationStatus: string
     }
 
     /**
-     * The saved reviews that leave the week incomplete and lock the later weeks of the session until it is completed:
-     * incomplete, and the older failed reviews.
+     * The saved reviews that leave the week incomplete and lock the later weeks of the curriculum until it is
+     * completed: incomplete, and the older failed reviews.
      *
      * @return list<self>
      */

@@ -119,11 +119,6 @@ class User extends Authenticatable
         return $this->hasMany(WeeklyVideoRecording::class);
     }
 
-    public function attendanceSessions(): HasMany
-    {
-        return $this->hasMany(AttendanceSession::class);
-    }
-
     public function googleDriveConnection(): HasOne
     {
         return $this->hasOne(GoogleDriveConnection::class);

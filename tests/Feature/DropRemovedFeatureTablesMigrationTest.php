@@ -14,4 +14,9 @@ class DropRemovedFeatureTablesMigrationTest extends TestCase
     {
         $this->assertFalse(Schema::hasTable('activity_recovery_requests'));
     }
+
+    public function test_the_attendance_sessions_table_is_gone(): void
+    {
+        $this->assertFalse(Schema::hasTable('attendance_sessions'));
+    }
 }

@@ -70,7 +70,6 @@ class ParticipantWorkflowTest extends TestCase
             ->assertRedirect(route('training.submission.edit', [$program, $week2, $activity]));
 
         $this->assertSame(SubmissionStatus::Submitted, $submission->fresh()->status);
-        $this->assertSame(0, $participant->attendanceSessions()->count());
     }
 
     public function test_participant_who_never_checked_in_can_revise_a_current_week_attempt_that_needs_revision(): void

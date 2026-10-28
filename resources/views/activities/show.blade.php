@@ -141,22 +141,6 @@
                                             @endif
                                             @if($attempt['has_later_attempt'])
                                                 <p class="m-0 text-muted">A newer attempt is available below. Continue that attempt to move forward.</p>
-                                            @elseif($attempt['recovery_request']?->isPending())
-                                                <p class="m-0 text-muted">Review requested. Waiting for mentor response.</p>
-                                            @elseif($attempt['recovery_request']?->isDeclined())
-                                                <x-ui.alert tone="error" class="w-full">Review request declined{{ $attempt['recovery_request']->coach_response ? ': '.$attempt['recovery_request']->coach_response : '.' }}</x-ui.alert>
-                                            @elseif(! $acceptsRecoveryRequests)
-                                                <p class="m-0 text-muted">This curriculum has ended, so you can no longer ask for a review of this attempt.</p>
-                                            @else
-                                                <p class="m-0 text-muted">If you believe this attempt should be reconsidered, you may ask your mentor to review it again.</p>
-                                                <form method="post" action="{{ route('training.recovery.store', $attemptSubmission) }}" class="m-0 grid w-full justify-items-start gap-3">
-                                                    @csrf
-                                                    <div class="grid w-full gap-2">
-                                                        <label for="recovery-message-{{ $attemptSubmission->id }}" class="text-sm font-extrabold">Optional message to your mentor</label>
-                                                        <textarea id="recovery-message-{{ $attemptSubmission->id }}" name="message" placeholder="Optional reason for requesting review" rows="2" class="w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50"></textarea>
-                                                    </div>
-                                                    <x-ui.button variant="secondary" type="submit">Request Review</x-ui.button>
-                                                </form>
                                             @endif
                                         @elseif($attemptSubmission->isDraft())
                                             <p class="m-0 leading-relaxed">{{ $attempt['has_later_attempt'] ? 'This draft is an earlier attempt.' : 'Your work is saved as a draft.' }}</p>

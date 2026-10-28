@@ -30,7 +30,6 @@ class EmptyTrainingDataTest extends TestCase
             'coach dashboard' => ['coach', 'coach.dashboard', []],
             'coach participants' => ['coach', 'coach.participants', []],
             'coach review queue' => ['coach', 'coach.reviews', []],
-            'coach recovery requests' => ['coach', 'coach.recovery.index', []],
             'coach Gate board' => ['coach', 'coach.gates', []],
             'coach progress report' => ['coach', 'coach.reports', []],
             'coach missing submissions' => ['coach', 'coach.reports.missing-submissions', []],

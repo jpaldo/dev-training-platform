@@ -99,7 +99,6 @@ class AppLayoutTest extends TestCase
             ['Reviews', route('coach.reviews'), true, 0],
             ['Gates', route('coach.gates'), false, 0],
             ['Scoring', route('coach.scoring.index'), false, 0],
-            ['Recovery Requests', route('coach.recovery.index'), false, 0],
             ['Reports', route('coach.reports'), false, 0],
             ['Profile', route('profile.show'), false, 0],
         ], $this->sidebarLinks($sidebar));

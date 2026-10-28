@@ -95,27 +95,18 @@ class CompletedProgramTest extends TestCase
         $this->assertSame(1, $submitted->submission->versions()->count());
     }
 
-    public function test_after_the_end_the_participant_cannot_choose_a_weekly_video_or_ask_for_a_review_of_a_failed_attempt(): void
+    public function test_after_the_end_the_participant_cannot_choose_a_weekly_video(): void
     {
         Http::fake();
-        ['participant' => $participant, 'program' => $program, 'week2' => $week2, 'week2Activity' => $week2Activity] = $this->scene();
-        $failed = $this->attempt($participant, $week2Activity, SubmissionStatus::Submitted, SubmissionStatus::Failed);
+        ['participant' => $participant, 'program' => $program, 'week2' => $week2] = $this->scene();
 
         $this->travelTo('2026-11-23 09:00:00');
 
         $this->actingAs($participant)->post(route('training.video-recording.store', [$program, $week2]), ['drive_file_id' => 'video-file-1'])
             ->assertForbidden()
             ->assertSee(self::ENDED);
-        $this->actingAs($participant)->post(route('training.recovery.store', $failed->submission), ['message' => 'Please look again'])
-            ->assertForbidden()
-            ->assertSee(self::ENDED);
-        $this->actingAs($participant)->get(route('training.activities.show', [$program, $week2, $week2Activity]))
-            ->assertOk()
-            ->assertSee('This curriculum has ended, so you can no longer ask for a review of this attempt.')
-            ->assertDontSee(route('training.recovery.store', $failed->submission), false);
 
         $this->assertDatabaseEmpty('weekly_video_recordings');
-        $this->assertDatabaseEmpty('activity_recovery_requests');
         Http::assertNothingSent();
     }
 

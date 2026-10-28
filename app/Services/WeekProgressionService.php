@@ -319,7 +319,7 @@ class WeekProgressionService
     /**
      * Refuse the participant's write with "This curriculum has ended." once the curriculum has ended
      * (`Program::acceptsWork()`): with an activity, unless their latest attempt at it was reopened by a mentor or
-     * admin; without one (the weekly video, recovery requests), always.
+     * admin; without one (the weekly video), always.
      *
      * @throws AuthorizationException
      */

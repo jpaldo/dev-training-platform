@@ -150,10 +150,10 @@ class Program extends Model
     }
 
     /**
-     * Whether a participant can still hand in work in the curriculum (drafts, submissions, revisions, evidence, the
-     * weekly video and recovery requests): always until its last dated active week ends; after that, only on an
-     * attempt a mentor or admin reopened (`ActivitySubmission::isReopened()`). Without an attempt, whether the
-     * curriculum still accepts any new work.
+     * Whether a participant can still hand in work in the curriculum (drafts, submissions, revisions, evidence and the
+     * weekly video): always until its last dated active week ends; after that, only on an attempt a mentor or admin
+     * reopened (`ActivitySubmission::isReopened()`). Without an attempt, whether the curriculum still accepts any new
+     * work.
      */
     public function acceptsWork(?ActivitySubmission $attempt = null): bool
     {

@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Enums\GoogleDriveSyncStatus;
 use App\Models\Activity;
-use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\EvidenceRequirement;
@@ -229,8 +228,9 @@ class TrainingActivityPageTest extends TestCase
     }
 
     /**
-     * Build an activity with the given number of requirements and failed attempts (each with evidence, a coach
-     * review and a review request), and count the queries of an activity page request after a warm-up request.
+     * Build an activity with the given number of requirements and failed attempts (each with evidence and a coach
+     * review with feedback), and count the queries of an activity page request after a warm-up request, which shows
+     * each failed attempt as closed with its feedback and no way to ask for another review.
      */
     private function activityPageQueryCount(int $rows): int
     {
@@ -242,16 +242,21 @@ class TrainingActivityPageTest extends TestCase
             $attempt = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['attempt_number' => $position, 'status' => 'failed', 'submitted_at' => now()]);
             $version = SubmissionVersion::factory()->for($attempt, 'submission')->create(['status' => 'failed', 'submitted_at' => now()]);
             SubmissionEvidence::factory()->for($version, 'submissionVersion')->for($evidenceRequirement, 'evidenceRequirement')->create();
-            SubmissionReview::factory()->create(['submission_version_id' => $version->id, 'decision' => 'rejected']);
-            ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $attempt->id, 'status' => 'declined', 'requested_at' => now()]);
+            SubmissionReview::factory()->create(['submission_version_id' => $version->id, 'decision' => 'rejected', 'comments' => "Feedback on attempt {$position}."]);
         }
 
         $this->actingAs($participant)->get(route('training.activities.show', [$program, $week, $activity]))->assertOk();
 
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $this->actingAs($participant)->get(route('training.activities.show', [$program, $week, $activity]))->assertOk()->assertSee('Attempt '.$rows);
+        $response = $this->actingAs($participant)->get(route('training.activities.show', [$program, $week, $activity]));
         DB::disableQueryLog();
+
+        $response->assertOk()
+            ->assertSee('Attempt '.$rows)
+            ->assertSee('This attempt was not accepted by your mentor and is now closed.')
+            ->assertSee("Feedback on attempt {$rows}.")
+            ->assertDontSee('Request Review');
 
         return count(DB::getQueryLog());
     }

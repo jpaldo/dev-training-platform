@@ -4,10 +4,8 @@ namespace Tests\Feature;
 
 use App\Enums\ActivityScoreStatus;
 use App\Enums\GateEvaluationStatus;
-use App\Enums\RecoveryRequestStatus;
 use App\Enums\SubmissionStatus;
 use App\Models\Activity;
-use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivityRequirement;
 use App\Models\ActivityScore;
 use App\Models\ActivityScoreDimension;
@@ -652,11 +650,10 @@ class ParticipantWorkflowTest extends TestCase
             ->assertSee('Attempt 2')
             ->assertSee('>DRAFT</span>', false)
             ->assertSee('Your work is saved as a draft.')
-            ->assertSee('Continue Attempt 2 →')
-            ->assertDontSee('Optional reason for requesting review');
+            ->assertSee('Continue Attempt 2 →');
     }
 
-    public function test_failed_attempt_without_retry_exposes_review_request_and_no_fake_feedback(): void
+    public function test_failed_attempt_without_retry_shows_the_closed_note_and_no_fake_feedback(): void
     {
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
         $failed = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['attempt_number' => 1, 'status' => 'failed']);
@@ -665,35 +662,10 @@ class ParticipantWorkflowTest extends TestCase
         $this->actingAs($participant)->get(route('training.activities.show', [$program, $week2, $activity]))
             ->assertOk()
             ->assertSee('>FAILED</span>', false)
-            ->assertSee('Request Review')
+            ->assertSee('This attempt was not accepted by your mentor and is now closed.')
+            ->assertDontSee('Request Review')
             ->assertDontSee('Mentor feedback')
             ->assertDontSee('No coach feedback was provided.');
-    }
-
-    public function test_failed_attempt_with_a_pending_review_request_waits_for_the_coach_instead_of_offering_another_request(): void
-    {
-        [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $failed = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['attempt_number' => 1, 'status' => 'failed']);
-        ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'status' => RecoveryRequestStatus::Pending, 'requested_at' => now()]);
-
-        $this->actingAs($participant)->get(route('training.activities.show', [$program, $week2, $activity]))
-            ->assertOk()
-            ->assertSee('Review requested. Waiting for mentor response.')
-            ->assertDontSee('Request Review')
-            ->assertDontSee('Review request declined');
-    }
-
-    public function test_failed_attempt_with_a_declined_review_request_shows_the_coach_response_instead_of_offering_another_request(): void
-    {
-        [$participant, $week2, $activity, $program] = $this->trainingFixture();
-        $failed = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['attempt_number' => 1, 'status' => 'failed']);
-        ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'status' => RecoveryRequestStatus::Declined, 'coach_response' => 'The evidence does not cover the failed step.', 'requested_at' => now()]);
-
-        $this->actingAs($participant)->get(route('training.activities.show', [$program, $week2, $activity]))
-            ->assertOk()
-            ->assertSee('Review request declined: The evidence does not cover the failed step.')
-            ->assertDontSee('Request Review')
-            ->assertDontSee('Waiting for mentor response.');
     }
 
     public function test_attempt_history_shows_the_published_score_of_an_attempt_but_not_a_draft_score(): void

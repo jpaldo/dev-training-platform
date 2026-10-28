@@ -39,7 +39,6 @@ use App\Http\Controllers\ParticipantNotificationController;
 use App\Http\Controllers\PasswordSetupController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicInterviewController;
-use App\Http\Controllers\RecoveryRequestController;
 use App\Http\Controllers\RegisteredUserController;
 use App\Http\Controllers\ScoringController;
 use App\Http\Controllers\ScoringReportController;
@@ -159,15 +158,12 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::get('/attendance', [AttendanceController::class, 'manage'])->name('attendance.index');
         Route::get('/attendance.csv', [AttendanceController::class, 'export'])->name('attendance.export');
     });
-    Route::post('/training/submissions/{activitySubmission}/recovery-request', [RecoveryRequestController::class, 'store'])->middleware('role:participant')->name('training.recovery.store');
 
     Route::middleware('role:coach,admin')->prefix('coach')->name('coach.')->group(function () {
         Route::get('/', [CoachOperationsController::class, 'dashboard'])->name('dashboard');
         Route::get('/participants', [CoachParticipantController::class, 'index'])->name('participants');
         Route::get('/programs/{program}/participants/{participant}', [CoachParticipantController::class, 'show'])->scopeBindings()->name('participants.show');
         Route::get('/reviews', [CoachReviewController::class, 'index'])->name('reviews');
-        Route::get('/recovery-requests', [RecoveryRequestController::class, 'index'])->name('recovery.index');
-        Route::post('/recovery-requests/{recoveryRequest}', [RecoveryRequestController::class, 'decide'])->name('recovery.decide');
         Route::get('/reviews/versions/{submissionVersion}', [CoachReviewController::class, 'show'])->name('reviews.show');
         Route::post('/reviews/versions/{submissionVersion}/claim', [CoachReviewController::class, 'claim'])->name('reviews.claim');
         Route::post('/reviews/versions/{submissionVersion}/retry', [CoachReviewController::class, 'retry'])->name('reviews.retry');

@@ -86,7 +86,6 @@ class SidebarNavigationService
                 ['label' => 'Reviews', 'route' => 'coach.reviews', 'active' => ['coach.reviews', 'coach.reviews.*']],
                 ['label' => 'Gates', 'route' => 'coach.gates', 'active' => ['coach.gates', 'training.coach.gates.*']],
                 ['label' => 'Scoring', 'route' => 'coach.scoring.index', 'active' => ['coach.scoring.*']],
-                ['label' => 'Recovery Requests', 'route' => 'coach.recovery.index', 'active' => ['coach.recovery.*']],
                 ['label' => 'Reports', 'route' => 'coach.reports', 'active' => ['coach.reports', 'coach.reports.*']],
             ],
         ];

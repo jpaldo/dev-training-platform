@@ -2,10 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Enums\RecoveryRequestStatus;
 use App\Enums\ReviewDecision;
 use App\Enums\SubmissionStatus;
-use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivitySubmission;
 use App\Models\AttendanceSession;
 use App\Models\GateCriterion;
@@ -466,123 +464,10 @@ class CoachOperationsTest extends TestCase
         $this->assertSame(1, $activity->submissions()->where('user_id', $participant->id)->count());
     }
 
-    public function test_participant_recovery_request_can_be_approved_without_mutating_failed_attempt(): void
+    public function test_recovery_requests_page_no_longer_exists(): void
     {
-        $this->seedProgram();
-        $coach = User::factory()->create(['role' => 'coach']);
-        $participant = User::factory()->create();
-        $activity = Program::where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->first()->weeks()->where('week_number', 1)->first()->activities()->first();
-        $failed = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'failed', 'attempt_number' => 1]);
-        MentorAssignment::factory()->create(['program_id' => $failed->activity->week->program_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
-        $version = $failed->versions()->create(['version_number' => 1, 'status' => 'failed', 'field_values' => ['answer' => 'original']]);
-        $this->actingAs($participant)->post(route('training.recovery.store', $failed), ['message' => 'Please reconsider this attempt.'])->assertRedirect();
-        $request = ActivityRecoveryRequest::firstOrFail();
-        $this->actingAs($coach)->post(route('coach.recovery.decide', $request), ['decision' => 'approved', 'coach_response' => 'Retry approved.'])->assertRedirect();
-        $this->assertSame(SubmissionStatus::Failed, $failed->fresh()->status);
-        $this->assertSame(2, $activity->submissions()->where('user_id', $participant->id)->count());
-        $this->assertDatabaseHas('activity_recovery_requests', ['id' => $request->id, 'status' => 'approved']);
-        $this->assertSame(RecoveryRequestStatus::Approved, $request->fresh()->status);
-        $this->assertSame('original', $version->fresh()->field_values['answer']);
-    }
+        $admin = User::factory()->create(['role' => 'admin']);
 
-    public function test_coach_can_keep_recovery_request_failed_without_opening_a_retry(): void
-    {
-        $coach = User::factory()->create(['role' => 'coach']);
-        $participant = User::factory()->create();
-        $failed = ActivitySubmission::factory()->create(['user_id' => $participant->id, 'status' => 'failed']);
-        MentorAssignment::factory()->create(['program_id' => $failed->activity->week->program_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
-        $request = ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'requested_at' => now()]);
-
-        $this->actingAs($coach)->post(route('coach.recovery.decide', $request), ['decision' => 'declined', 'coach_response' => 'The evidence does not cover the failed step.'])
-            ->assertRedirect()
-            ->assertSessionHasNoErrors()
-            ->assertSessionHas('status', 'Recovery request updated.');
-
-        $request->refresh();
-        $this->assertSame(RecoveryRequestStatus::Declined, $request->status);
-        $this->assertSame('The evidence does not cover the failed step.', $request->coach_response);
-        $this->assertSame($coach->id, $request->reviewed_by);
-        $this->assertSame(1, ActivitySubmission::where('user_id', $participant->id)->count());
-    }
-
-    public function test_coach_cannot_decide_recovery_request_as_pending(): void
-    {
-        $coach = User::factory()->create(['role' => 'coach']);
-        $participant = User::factory()->create();
-        $failed = ActivitySubmission::factory()->create(['user_id' => $participant->id, 'status' => 'failed']);
-        MentorAssignment::factory()->create(['program_id' => $failed->activity->week->program_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
-        $request = ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'requested_at' => now()]);
-
-        $this->actingAs($coach)->post(route('coach.recovery.decide', $request), ['decision' => 'pending'])
-            ->assertRedirect()
-            ->assertSessionHasErrors(['decision' => 'The selected decision is invalid.']);
-
-        $request->refresh();
-        $this->assertSame(RecoveryRequestStatus::Pending, $request->status);
-        $this->assertNull($request->reviewed_by);
-    }
-
-    public function test_participant_cannot_request_recovery_for_another_participants_submission_even_with_invalid_message(): void
-    {
-        $failed = ActivitySubmission::factory()->create(['status' => 'failed']);
-
-        $this->actingAs(User::factory()->create())->post(route('training.recovery.store', $failed), ['message' => str_repeat('a', 2001)])->assertForbidden();
-        $this->assertDatabaseCount('activity_recovery_requests', 0);
-    }
-
-    public function test_participant_recovery_request_with_one_already_pending_redirects_without_validating_message(): void
-    {
-        $participant = User::factory()->create();
-        $failed = ActivitySubmission::factory()->create(['user_id' => $participant->id, 'status' => 'failed']);
-        ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'requested_at' => now()]);
-
-        $this->actingAs($participant)->post(route('training.recovery.store', $failed), ['message' => str_repeat('a', 2001)])
-            ->assertRedirect()
-            ->assertSessionHasNoErrors()
-            ->assertSessionHas('status', 'Review requested. Waiting for mentor response.');
-        $this->assertDatabaseCount('activity_recovery_requests', 1);
-    }
-
-    #[DataProvider('decidedRecoveryRequestStatuses')]
-    public function test_participant_cannot_request_recovery_again_once_the_request_was_decided(string $status): void
-    {
-        $participant = User::factory()->create();
-        $failed = ActivitySubmission::factory()->create(['user_id' => $participant->id, 'status' => 'failed']);
-        ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'status' => $status, 'requested_at' => now()]);
-
-        $this->actingAs($participant)->post(route('training.recovery.store', $failed), ['message' => 'Please look again.'])->assertStatus(422);
-
-        $this->assertDatabaseCount('activity_recovery_requests', 1);
-    }
-
-    /**
-     * @return array<string, array{string}>
-     */
-    public static function decidedRecoveryRequestStatuses(): array
-    {
-        return [
-            'approved' => ['approved'],
-            'declined' => ['declined'],
-        ];
-    }
-
-    public function test_coach_cannot_decide_recovery_request_that_is_no_longer_pending_even_with_invalid_input(): void
-    {
-        $participant = User::factory()->create();
-        $failed = ActivitySubmission::factory()->create(['user_id' => $participant->id, 'status' => 'failed']);
-        $request = ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'status' => 'declined', 'requested_at' => now()]);
-
-        $this->actingAs(User::factory()->create(['role' => 'coach']))->post(route('coach.recovery.decide', $request), ['decision' => 'invalid'])->assertStatus(422);
-        $this->assertDatabaseHas('activity_recovery_requests', ['id' => $request->id, 'status' => 'declined']);
-    }
-
-    public function test_unassigned_coach_cannot_decide_recovery_request_even_with_invalid_input(): void
-    {
-        $participant = User::factory()->create();
-        $failed = ActivitySubmission::factory()->create(['user_id' => $participant->id, 'status' => 'failed']);
-        $request = ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $failed->id, 'requested_at' => now()]);
-
-        $this->actingAs(User::factory()->create(['role' => 'coach']))->post(route('coach.recovery.decide', $request), ['decision' => 'invalid'])->assertForbidden();
-        $this->assertDatabaseHas('activity_recovery_requests', ['id' => $request->id, 'status' => 'pending']);
+        $this->actingAs($admin)->get('/coach/recovery-requests')->assertNotFound();
     }
 }

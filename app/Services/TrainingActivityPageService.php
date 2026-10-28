@@ -6,7 +6,6 @@ use App\Enums\GoogleDriveExportStatus;
 use App\Enums\GoogleDriveSyncStatus;
 use App\Enums\UserRole;
 use App\Models\Activity;
-use App\Models\ActivityRecoveryRequest;
 use App\Models\ActivityRequirement;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
@@ -46,11 +45,10 @@ class TrainingActivityPageService
     /**
      * Everything the activity page renders: the curriculum the page is opened in, the requirements, the latest attempt
      * and version, the Google Drive sync summary, the attempt history and the page tabs. Once the curriculum has ended
-     * (`Program::acceptsWork()`), `acceptsWork` is false unless the latest attempt was reopened, and
-     * `acceptsRecoveryRequests` is false.
+     * (`Program::acceptsWork()`), `acceptsWork` is false unless the latest attempt was reopened.
      *
      * @param  EloquentCollection<int, ActivitySubmission>  $attempts
-     * @return array{activity: Activity, program: Program, trainingWeek: TrainingWeek, user: User, requirements: Collection<int, ActivityRequirement>, submission: ?ActivitySubmission, latestVersion: ?SubmissionVersion, revisionFeedback: ?HtmlString, acceptsWork: bool, acceptsRecoveryRequests: bool, googleDrive: array{connected: bool, status_label: string, evidence_total: int, evidence_synced: int, evidence_failed: int, last_synced_at: ?CarbonInterface, error: ?string}, attempts: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, has_later_attempt: bool, feedback: ?HtmlString, recovery_request: ?ActivityRecoveryRequest, published_score: ?ActivityScore}>, tabs: list<array{key: string, label: string}>, selectedTab: string}
+     * @return array{activity: Activity, program: Program, trainingWeek: TrainingWeek, user: User, requirements: Collection<int, ActivityRequirement>, submission: ?ActivitySubmission, latestVersion: ?SubmissionVersion, revisionFeedback: ?HtmlString, acceptsWork: bool, googleDrive: array{connected: bool, status_label: string, evidence_total: int, evidence_synced: int, evidence_failed: int, last_synced_at: ?CarbonInterface, error: ?string}, attempts: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, has_later_attempt: bool, feedback: ?HtmlString, published_score: ?ActivityScore}>, tabs: list<array{key: string, label: string}>, selectedTab: string}
      */
     public function showData(User $user, Program $program, TrainingWeek $trainingWeek, Activity $activity, EloquentCollection $attempts): array
     {
@@ -69,7 +67,6 @@ class TrainingActivityPageService
                 ? $this->markdown->render($latestVersion->reviews->sortByDesc('reviewed_at')->first()?->comments)
                 : null,
             'acceptsWork' => $program->acceptsWork($submission),
-            'acceptsRecoveryRequests' => $program->acceptsWork(),
             'googleDrive' => $this->googleDriveSummary($user, $latestVersion),
             'attempts' => $this->attemptRows($attempts),
             'tabs' => [
@@ -125,19 +122,15 @@ class TrainingActivityPageService
     }
 
     /**
-     * The attempt history rows: status label and tone, whether a later attempt exists, the latest coach feedback, the
-     * attempt's review request and its published score.
+     * The attempt history rows: status label and tone, whether a later attempt exists, the latest coach feedback and
+     * the attempt's published score.
      *
      * @param  EloquentCollection<int, ActivitySubmission>  $attempts
-     * @return Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, has_later_attempt: bool, feedback: ?HtmlString, recovery_request: ?ActivityRecoveryRequest, published_score: ?ActivityScore}>
+     * @return Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, has_later_attempt: bool, feedback: ?HtmlString, published_score: ?ActivityScore}>
      */
     private function attemptRows(EloquentCollection $attempts): Collection
     {
-        $recoveryRequests = $attempts->isEmpty()
-            ? collect()
-            : ActivityRecoveryRequest::query()->whereIn('activity_submission_id', $attempts->modelKeys())->latest()->get();
-
-        return $attempts->toBase()->map(function (ActivitySubmission $attempt) use ($attempts, $recoveryRequests): array {
+        return $attempts->toBase()->map(function (ActivitySubmission $attempt) use ($attempts): array {
             /** @var ?SubmissionVersion $latestAttemptVersion */
             $latestAttemptVersion = $attempt->versions->sortByDesc('version_number')->first();
             /** @var ?SubmissionReview $latestReview */
@@ -149,7 +142,6 @@ class TrainingActivityPageService
                 'tone' => $attempt->status->tone(),
                 'has_later_attempt' => $attempts->contains(fn (ActivitySubmission $candidate): bool => $candidate->attempt_number > $attempt->attempt_number),
                 'feedback' => $latestReview?->comments ? $this->markdown->render($latestReview->comments) : null,
-                'recovery_request' => $recoveryRequests->firstWhere('activity_submission_id', $attempt->id),
                 'published_score' => $latestAttemptVersion?->publishedActivityScore,
             ];
         });

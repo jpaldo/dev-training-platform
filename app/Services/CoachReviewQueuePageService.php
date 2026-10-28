@@ -8,6 +8,7 @@ use App\Models\ActivitySubmission;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
@@ -17,19 +18,19 @@ class CoachReviewQueuePageService
 
     public function __construct(
         private readonly CoachReportService $reports,
-        private readonly CoachSessionFilterService $sessionFilter,
+        private readonly CoachProgramFilterService $programFilter,
     ) {}
 
     /**
-     * Everything the coach review queue renders: the filter values and options (the training sessions the viewer
-     * may filter by, the active program's weeks and their activities, the queue statuses and the participants the
-     * viewer mentors, or every participant for an admin), whether a filter is applied with the matching empty-state
-     * text, and the viewer's matching submissions (CoachReportService::reviewQueue()), newest first, with their
-     * training session and a link to review their latest version. The page has no single main action, so every
-     * button is secondary.
+     * Everything the coach review queue renders: the filter values and options (the curricula the viewer may filter
+     * by, the active program's weeks and their activities, the queue statuses and the participants the viewer
+     * mentors, or every participant for an admin), whether a filter is applied with the matching empty-state text, and
+     * the viewer's matching submissions (CoachReportService::reviewQueue()), newest first, with their curriculum
+     * (loaded with its schedule bounds, so its dates need no query per row) and a link to review their latest version.
+     * The page has no single main action, so every button is secondary.
      *
-     * @param  array{status?: ?string, participant?: int|string|null, week?: int|string|null, activity?: int|string|null, session?: int|string|null}  $filters
-     * @return array{sessionOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, activityOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, participantOptions: list<array{value: string, label: string, is_selected: bool}>, isFiltered: bool, emptyMessage: string, items: LengthAwarePaginator<int, array{participant_name: string, session_title: string, session_dates: string, week_number: int, activity_title: string, status: string, status_tone: string, review_url: ?string}>}
+     * @param  array{status?: ?string, participant?: int|string|null, week?: int|string|null, activity?: int|string|null, program?: int|string|null}  $filters
+     * @return array{programOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, activityOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, participantOptions: list<array{value: string, label: string, is_selected: bool}>, isFiltered: bool, emptyMessage: string, items: LengthAwarePaginator<int, array{participant_name: string, program_name: string, program_dates: string, week_number: int, activity_title: string, status: string, status_tone: string, review_url: ?string}>}
      */
     public function indexData(User $viewer, array $filters): array
     {
@@ -37,7 +38,7 @@ class CoachReviewQueuePageService
         $isFiltered = collect($filters)->filter(fn (mixed $value): bool => filled($value))->isNotEmpty();
 
         return [
-            'sessionOptions' => $this->sessionFilter->options($viewer, $filters['session'] ?? null),
+            'programOptions' => $this->programFilter->options($viewer, $filters['program'] ?? null),
             'weekOptions' => $this->options(
                 $weeks->mapWithKeys(fn (TrainingWeek $week): array => [$week->week_number => "Week {$week->week_number}"]),
                 $filters['week'] ?? null,
@@ -48,10 +49,11 @@ class CoachReviewQueuePageService
                     ->mapWithKeys(fn (SubmissionStatus $status): array => [$status->value => $status->label()]),
                 $filters['status'] ?? null,
             ),
-            'participantOptions' => $this->sessionFilter->participantOptions($viewer, $filters['participant'] ?? null),
+            'participantOptions' => $this->programFilter->participantOptions($viewer, $filters['participant'] ?? null),
             'isFiltered' => $isFiltered,
             'emptyMessage' => $isFiltered ? 'No submissions match the selected filters.' : 'No submissions to review.',
             'items' => $this->reports->reviewQueue($viewer, $filters)
+                ->with(['activity.week.program' => fn (Relation $programs): Relation => $programs->select(['id', 'name'])->withScheduleBounds()])
                 ->paginate(self::SUBMISSIONS_PER_PAGE)
                 ->withQueryString()
                 ->through(fn (ActivitySubmission $submission): array => $this->submissionRow($submission)),
@@ -96,11 +98,11 @@ class CoachReviewQueuePageService
     }
 
     /**
-     * One queue entry: the participant, the training session and its dates, the week and activity, the submission
+     * One queue entry: the participant, the curriculum and its dates, the week and activity, the submission
      * status label with its badge tone and the review link of the latest version (null when the submission has no
      * version yet).
      *
-     * @return array{participant_name: string, session_title: string, session_dates: string, week_number: int, activity_title: string, status: string, status_tone: string, review_url: ?string}
+     * @return array{participant_name: string, program_name: string, program_dates: string, week_number: int, activity_title: string, status: string, status_tone: string, review_url: ?string}
      */
     private function submissionRow(ActivitySubmission $submission): array
     {
@@ -108,8 +110,8 @@ class CoachReviewQueuePageService
 
         return [
             'participant_name' => $submission->participant->name,
-            'session_title' => $submission->trainingSession->title,
-            'session_dates' => $submission->trainingSession->dateRangeLabel(),
+            'program_name' => $submission->activity->week->program->name,
+            'program_dates' => $submission->activity->week->program->dateRangeLabel(),
             'week_number' => $submission->activity->week->week_number,
             'activity_title' => $submission->activity->title,
             'status' => $submission->status->label(),

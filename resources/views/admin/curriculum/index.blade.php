@@ -10,22 +10,22 @@
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>ADMIN · CURRICULUM</x-ui.eyebrow>
             <x-ui.page-title>Curriculum</x-ui.page-title>
-            <p class="leading-relaxed text-muted">Each program's weekly content: its weeks, their activities and their checklists. Edits apply to every training session of the program.</p>
+            <p class="leading-relaxed text-muted">Each curriculum's weeks, their activities and checklists, its schedule, and the participants, mentors and resources in it.</p>
         </header>
 
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="program-list-title">
-            <h2 id="program-list-title" class="text-xl font-extrabold">All programs</h2>
+            <h2 id="program-list-title" class="text-xl font-extrabold">All curricula</h2>
             @if($programs !== [])
                 <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="program-list-title" tabindex="0">
                     <table class="w-full min-w-180 border-collapse text-sm" aria-labelledby="program-list-title">
                         <thead>
                             <tr>
-                                <th scope="col" class="{{ $headerCellClasses }}">Program</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Status</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Curriculum</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Offered</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Schedule</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Dates</th>
                                 <th scope="col" class="{{ $headerCellClasses }} text-right">Weeks</th>
-                                <th scope="col" class="{{ $headerCellClasses }} text-right">Sessions</th>
+                                <th scope="col" class="{{ $headerCellClasses }} text-right">Participants</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Actions</th>
                             </tr>
                         </thead>
@@ -36,14 +36,14 @@
                                         <a href="{{ $program['url'] }}" class="text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">{{ $program['name'] }}</a>
                                     </th>
                                     <td class="{{ $cellClasses }}">
-                                        <x-ui.badge :tone="$program['status_tone']">{{ $program['status_label'] }}</x-ui.badge>
+                                        <x-ui.badge :tone="$program['offered_tone']">{{ $program['offered_label'] }}</x-ui.badge>
                                     </td>
                                     <td class="{{ $cellClasses }}">
                                         <x-ui.badge :tone="$program['schedule_status_tone']">{{ $program['schedule_status_label'] }}</x-ui.badge>
                                     </td>
                                     <td class="{{ $cellClasses }} whitespace-nowrap" data-program-dates>{{ $program['dates'] }}</td>
                                     <td class="{{ $cellClasses }} text-right tabular-nums">{{ $program['weeks_count'] }}</td>
-                                    <td class="{{ $cellClasses }} text-right tabular-nums">{{ $program['sessions_count'] }}</td>
+                                    <td class="{{ $cellClasses }} text-right tabular-nums" data-program-participants>{{ $program['participants_count'] }}</td>
                                     <td class="{{ $cellClasses }}">
                                         <x-ui.button variant="secondary" :href="$program['url']" aria-label="Open {{ $program['name'] }}">Open</x-ui.button>
                                     </td>
@@ -53,7 +53,7 @@
                     </table>
                 </div>
             @else
-                <p class="text-muted">No programs yet.</p>
+                <p class="text-muted">No curricula yet.</p>
             @endif
         </x-ui.card>
     </div>

@@ -1,8 +1,8 @@
 {{--
-    What a week tab of the session page shows instead of the week's contents while the week is not open for the
-    participant: the reason (`SessionWeekState::lockedMessage()`), e.g. "Opens on Mon 16 Nov", "Complete your Week 1
-    deliverables to unlock" or "Waiting for your mentor to verify Week 1". The same message is the 403 of the week's
-    pages. While an incomplete review locks the week, the review's missing checklist items follow, each linking to the
+    What a week tab of the curriculum page shows instead of the week's contents while the week is not open for the
+    participant: the reason (`ProgramWeekState::lockedMessage()`), e.g. "Opens on Mon 16 Nov", "Not scheduled yet",
+    "Complete your Week 1 deliverables to unlock" or "Waiting for your mentor to verify Week 1". The same message is
+    the 403 of the week's pages. While an incomplete review locks the week, the review's missing checklist items follow, each linking to the
     tab of the reviewed week.
 --}}
 <x-ui.card padding="p-5" class="grid grid-cols-1 gap-3" data-locked-week>

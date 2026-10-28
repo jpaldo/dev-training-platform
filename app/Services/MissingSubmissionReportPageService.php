@@ -29,7 +29,7 @@ class MissingSubmissionReportPageService
 
     public function __construct(
         private readonly MissingSubmissionReportService $report,
-        private readonly CoachSessionFilterService $sessionFilter,
+        private readonly CoachProgramFilterService $programFilter,
     ) {}
 
     /**
@@ -37,11 +37,11 @@ class MissingSubmissionReportPageService
      * values and options (the participants the viewer mentors, or every participant for an admin; the mentor filter
      * for admins only), the summary counts of the viewer's rows (MissingSubmissionReportService::rows()) with their
      * labels, the total row count and the rows of the requested page (25 per page, query string kept), each with its
-     * training session. The page has no single main action, so every button is secondary.
+     * curriculum and its dates. The page has no single main action, so every button is secondary.
      *
-     * @param  array{participant?: int|string|null, session?: int|string|null, mentor?: int|string|null, category?: string|null, week?: int|string|null, requirement?: string|null, status?: string|null}  $filters
+     * @param  array{participant?: int|string|null, program?: int|string|null, mentor?: int|string|null, category?: string|null, week?: int|string|null, requirement?: string|null, status?: string|null}  $filters
      * @param  array<array-key, mixed>  $query
-     * @return array{exportUrl: string, participantOptions: list<array{value: string, label: string, is_selected: bool}>, sessionOptions: list<array{value: string, label: string, is_selected: bool}>, canFilterByMentor: bool, mentorOptions: list<array{value: string, label: string, is_selected: bool}>, categoryOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, requirement: string, stats: list<array{label: string, value: int}>, rowCount: int, missingRows: LengthAwarePaginator<int, array{participant_name: string, participant_email: string, participant_url: string, session_title: string, session_dates: string, mentor: string, category: string, week: string, requirement: string, expected: int, submitted: int, missing: int, evidences: int, status: string}>}
+     * @return array{exportUrl: string, participantOptions: list<array{value: string, label: string, is_selected: bool}>, programOptions: list<array{value: string, label: string, is_selected: bool}>, canFilterByMentor: bool, mentorOptions: list<array{value: string, label: string, is_selected: bool}>, categoryOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, requirement: string, stats: list<array{label: string, value: int}>, rowCount: int, missingRows: LengthAwarePaginator<int, array{participant_name: string, participant_email: string, participant_url: string, program_name: string, program_dates: string, mentor: string, category: string, week: string, requirement: string, expected: int, submitted: int, missing: int, evidences: int, status: string}>}
      */
     public function indexData(User $viewer, array $filters, array $query, int $page): array
     {
@@ -62,10 +62,10 @@ class MissingSubmissionReportPageService
 
         return [
             'exportUrl' => route('coach.reports.missing-submissions.export', $query),
-            'participantOptions' => $this->sessionFilter->participantOptions($viewer, $filters['participant'] ?? null),
-            'sessionOptions' => $this->sessionFilter->options($viewer, $filters['session'] ?? null),
+            'participantOptions' => $this->programFilter->participantOptions($viewer, $filters['participant'] ?? null),
+            'programOptions' => $this->programFilter->options($viewer, $filters['program'] ?? null),
             'canFilterByMentor' => $viewer->hasAnyRole(UserRole::Admin),
-            'mentorOptions' => $this->sessionFilter->mentorOptions($viewer, $filters['mentor'] ?? null),
+            'mentorOptions' => $this->programFilter->mentorOptions($viewer, $filters['mentor'] ?? null),
             'categoryOptions' => $this->options(self::CATEGORY_OPTIONS, $filters['category'] ?? null),
             'weekOptions' => $this->options(
                 TrainingWeek::query()
@@ -88,9 +88,9 @@ class MissingSubmissionReportPageService
                 ->through(fn (array $row): array => [
                     'participant_name' => $row['participant_name'],
                     'participant_email' => $row['email'],
-                    'participant_url' => route('coach.participants.show', [$row['trainingSession'], $row['participant']]),
-                    'session_title' => $row['trainingSession']->title,
-                    'session_dates' => $row['trainingSession']->dateRangeLabel(),
+                    'participant_url' => route('coach.participants.show', [$row['program'], $row['participant']]),
+                    'program_name' => $row['program_name'],
+                    'program_dates' => $row['program']->dateRangeLabel(),
                     'mentor' => $row['mentor'],
                     'category' => $row['category'],
                     'week' => $row['week'],

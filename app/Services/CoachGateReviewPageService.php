@@ -10,9 +10,9 @@ use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
+use App\Models\Program;
+use App\Models\ProgramParticipant;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
-use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -26,8 +26,8 @@ class CoachGateReviewPageService
     ) {}
 
     /**
-     * Everything the coach Gate review page renders for the participant's work in the session (the session itself for
-     * the form's URL): the participant's GitHub repository for the session (null when they have none), the readiness
+     * Everything the coach Gate review page renders for the participant's work in the week (the curriculum itself for
+     * the form's URL): the participant's GitHub repository for the curriculum (null when they have none), the readiness
      * summary, shown for information only (the required checklist items met: the weekly video item once its recording
      * is reviewed as met, every other one when the saved evaluation marks it met; the video recording as Not required
      * when the Gate has no weekly video item), the readiness blockers, the week's checklist (the required items, each
@@ -35,18 +35,18 @@ class CoachGateReviewPageService
      * link on the video item), the participant's GitHub deliverable links for each of the week's activities, the
      * decision options (Completed, Incomplete), the decision to preselect (the saved evaluation's when it is one of
      * them; none otherwise, so the first one shows), the values a ticked and an unticked item post and the saved
-     * evaluation for the comments field. Only an admin or the participant's current mentor in the session opens the
+     * evaluation for the comments field. Only an admin or the participant's current mentor in the curriculum opens the
      * page (GateReviewController). Old input overrides the preselected values in the view.
      *
-     * @return array{trainingSession: TrainingSession, trainingWeek: TrainingWeek, participant: User, repositoryUrl: ?string, gate: TrainingGate, evaluation: ?GateEvaluation, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, checklist: list<array{id: int, title: string, description: ?string, video_url: ?string, saved_status: string}>, deliverables: list<array{position: int, title: string, links: list<array{label: string, url: string}>}>, decisionOptions: list<array{value: string, label: string}>, selectedDecision: ?string, tickedValue: string, untickedValue: string}
+     * @return array{program: Program, trainingWeek: TrainingWeek, participant: User, repositoryUrl: ?string, gate: TrainingGate, evaluation: ?GateEvaluation, readinessItems: list<array{label: string, value: string}>, blockers: list<string>, checklist: list<array{id: int, title: string, description: ?string, video_url: ?string, saved_status: string}>, deliverables: list<array{position: int, title: string, links: list<array{label: string, url: string}>}>, decisionOptions: list<array{value: string, label: string}>, selectedDecision: ?string, tickedValue: string, untickedValue: string}
      */
-    public function showData(TrainingSession $trainingSession, TrainingWeek $week, User $participant, TrainingGate $gate, ?GateEvaluation $evaluation): array
+    public function showData(Program $program, TrainingWeek $week, User $participant, TrainingGate $gate, ?GateEvaluation $evaluation): array
     {
         $gate->load(['criteria' => fn (Relation $query): Relation => $query->orderBy('position')]);
         $evaluation?->loadMissing('criterionEvaluations');
         $requiredCriteria = $gate->criteria->where('is_required', true)->values();
-        $readiness = $this->gates->readiness($trainingSession, $participant, $gate);
-        $weeklyVideo = $this->gates->weeklyVideo($trainingSession, $participant, $gate);
+        $readiness = $this->gates->readiness($participant, $gate);
+        $weeklyVideo = $this->gates->weeklyVideo($participant, $gate);
         $metCriteriaCount = $requiredCriteria
             ->filter(fn (GateCriterion $criterion): bool => $criterion->isWeeklyVideo()
                 ? $weeklyVideo['status'] === 'met'
@@ -58,7 +58,6 @@ class CoachGateReviewPageService
             ->with(['requirements' => fn (Relation $query): Relation => $query->where('requirement_type', 'submission_field')->orderBy('position')])
             ->get();
         $latestSubmissions = $participant->activitySubmissions()
-            ->where('training_session_id', $trainingSession->id)
             ->whereIn('activity_id', $activities->pluck('id'))
             ->with(['versions' => fn (Relation $query): Relation => $query->whereIn('status', SubmissionStatus::handedIn())])
             ->orderBy('attempt_number')
@@ -66,10 +65,10 @@ class CoachGateReviewPageService
             ->keyBy('activity_id');
 
         return [
-            'trainingSession' => $trainingSession,
+            'program' => $program,
             'trainingWeek' => $week,
             'participant' => $participant,
-            'repositoryUrl' => TrainingSessionParticipant::query()->forParticipantInSession($trainingSession->id, $participant->id)->value('repository_url'),
+            'repositoryUrl' => ProgramParticipant::query()->forParticipantInProgram($program->id, $participant->id)->value('repository_url'),
             'gate' => $gate,
             'evaluation' => $evaluation,
             'readinessItems' => [

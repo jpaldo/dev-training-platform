@@ -853,41 +853,7 @@ const initializeEvidencePreviews = () => {
 };
 
 /**
- * On each `[data-session-end-date]` form, fill `[data-session-ends-on]` with the last day of the session's last week
- * (start date + weeks × 7 − 1 days) whenever `[data-session-starts-on]` or `[data-session-weeks-count]` changes and
- * both hold a valid value. The admin can still change the end date; the server checks it.
- */
-const initializeSessionEndDate = () => {
-    document.querySelectorAll('[data-session-end-date]').forEach((form) => {
-        const startsOn = form.querySelector('[data-session-starts-on]');
-        const weeksCount = form.querySelector('[data-session-weeks-count]');
-        const endsOn = form.querySelector('[data-session-ends-on]');
-
-        if (!startsOn || !weeksCount || !endsOn) {
-            return;
-        }
-
-        const fillEndDate = () => {
-            const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(startsOn.value);
-            const weeks = Number(weeksCount.value);
-
-            if (!match || !Number.isInteger(weeks) || weeks < 1) {
-                return;
-            }
-
-            const [, year, month, day] = match.map(Number);
-            const endDate = new Date(Date.UTC(year, month - 1, day + weeks * 7 - 1));
-
-            endsOn.value = endDate.toISOString().slice(0, 10);
-        };
-
-        startsOn.addEventListener('change', fillEndDate);
-        weeksCount.addEventListener('input', fillEndDate);
-    });
-};
-
-/**
- * Load each `details[data-resource-preview]` session resource preview only when it is first expanded: copy its iframe's
+ * Load each `details[data-resource-preview]` curriculum resource preview only when it is first expanded: copy its iframe's
  * `data-preview-src` into `src` on the first `toggle` to open, so collapsed rows load nothing from Google Drive.
  */
 const initializeResourcePreviews = () => {
@@ -923,7 +889,6 @@ const initializePage = () => {
     initializeGoogleDrivePicker();
     initializeGoogleDriveSyncStatus();
     initializeEvidencePreviews();
-    initializeSessionEndDate();
     initializeResourcePreviews();
 };
 

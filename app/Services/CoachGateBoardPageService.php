@@ -5,8 +5,8 @@ namespace App\Services;
 use App\Enums\GateEvaluationStatus;
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
+use App\Models\Program;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -37,18 +37,18 @@ class CoachGateBoardPageService
 
     public function __construct(
         private readonly CoachGateOverviewService $gateOverview,
-        private readonly CoachSessionFilterService $sessionFilter,
+        private readonly CoachProgramFilterService $programFilter,
     ) {}
 
     /**
      * Everything the coach Gate board renders: the summary counts with their labels, the filter values and options
-     * (the training sessions the viewer may filter by and the weeks of the active program), and the Gate x session
-     * membership rows of the requested page (25 per page, query string kept). An admin sees every session membership;
-     * a coach sees only those where they are the participant's current mentor. The page has no single main action, so
+     * (the curricula the viewer may filter by and the weeks of the active program), and the Gate x curriculum
+     * membership rows of the requested page (25 per page, query string kept). An admin sees every curriculum
+     * membership; a coach sees only those where they are the participant's current mentor. The page has no single main action, so
      * every button is secondary.
      *
-     * @param  array{week?: int|string|null, search?: string|null, status?: GateEvaluationStatus|null, session?: int|string|null}  $filters
-     * @return array{stats: list<array{label: string, value: int}>, search: string, sessionOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, gateRows: LengthAwarePaginator<int, array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, session_title: string, session_dates: string, status_label: string, status_tone: string, criteria_met: int, criteria_total: int, video: array{url: ?string, label: string}, blocker_label: ?string, action_label: string, action_url: string}>}
+     * @param  array{week?: int|string|null, search?: string|null, status?: GateEvaluationStatus|null, program?: int|string|null}  $filters
+     * @return array{stats: list<array{label: string, value: int}>, search: string, programOptions: list<array{value: string, label: string, is_selected: bool}>, weekOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, gateRows: LengthAwarePaginator<int, array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, program_name: string, program_dates: string, status_label: string, status_tone: string, criteria_met: int, criteria_total: int, video: array{url: ?string, label: string}, blocker_label: ?string, action_label: string, action_url: string}>}
      */
     public function indexData(User $viewer, array $filters, int $page): array
     {
@@ -68,7 +68,7 @@ class CoachGateBoardPageService
                 ->values()
                 ->all(),
             'search' => (string) ($filters['search'] ?? ''),
-            'sessionOptions' => $this->sessionFilter->options($viewer, $filters['session'] ?? null),
+            'programOptions' => $this->programFilter->options($viewer, $filters['program'] ?? null),
             'weekOptions' => TrainingWeek::query()
                 ->inActiveProgram()
                 ->orderBy('week_number')
@@ -105,13 +105,13 @@ class CoachGateBoardPageService
     }
 
     /**
-     * One table row: the Gate and its week, the participant with the link to their work in the row's session, the
-     * session's title and dates, the status with its badge tone, the required criteria met, the weekly video (a link
+     * One table row: the Gate and its week, the participant with the link to their work in the row's curriculum, the
+     * curriculum's name and dates, the status with its badge tone, the required criteria met, the weekly video (a link
      * when chosen, otherwise Missing, or Not required when the Gate has no weekly video criterion), the blocker count
-     * (null without blockers) and the link to review (or, once completed, view) the Gate in the row's session.
+     * (null without blockers) and the link to review (or, once completed, view) the Gate in the row's curriculum.
      *
-     * @param  array{gate: TrainingGate, trainingSession: TrainingSession, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, criteria_met: int, criteria_total: int, weekly_video: array{status: string, url: ?string, criterion: ?GateCriterion, recording: ?WeeklyVideoRecording}}  $row
-     * @return array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, session_title: string, session_dates: string, status_label: string, status_tone: string, criteria_met: int, criteria_total: int, video: array{url: ?string, label: string}, blocker_label: ?string, action_label: string, action_url: string}
+     * @param  array{gate: TrainingGate, program: Program, participant: User, evaluation: ?GateEvaluation, readiness: array<string, string>, status: GateEvaluationStatus, criteria_met: int, criteria_total: int, weekly_video: array{status: string, url: ?string, criterion: ?GateCriterion, recording: ?WeeklyVideoRecording}}  $row
+     * @return array{week_label: string, gate_title: string, participant_name: string, participant_email: string, participant_url: string, program_name: string, program_dates: string, status_label: string, status_tone: string, criteria_met: int, criteria_total: int, video: array{url: ?string, label: string}, blocker_label: ?string, action_label: string, action_url: string}
      */
     private function gateRow(array $row): array
     {
@@ -124,9 +124,9 @@ class CoachGateBoardPageService
             'gate_title' => $gate->title,
             'participant_name' => $participant->name,
             'participant_email' => $participant->email,
-            'participant_url' => route('coach.participants.show', [$row['trainingSession'], $participant]),
-            'session_title' => $row['trainingSession']->title,
-            'session_dates' => $row['trainingSession']->dateRangeLabel(),
+            'participant_url' => route('coach.participants.show', [$row['program'], $participant]),
+            'program_name' => $row['program']->name,
+            'program_dates' => $row['program']->dateRangeLabel(),
             'status_label' => strtoupper($row['status']->label()),
             'status_tone' => match ($row['status']) {
                 GateEvaluationStatus::Passed => 'success',
@@ -148,7 +148,7 @@ class CoachGateBoardPageService
             ],
             'blocker_label' => $blockerCount > 0 ? $blockerCount.' blocker'.($blockerCount === 1 ? '' : 's') : null,
             'action_label' => $row['status'] === GateEvaluationStatus::Passed ? 'View Gate' : 'Review Gate',
-            'action_url' => route('training.coach.gates.show', [$row['trainingSession'], $gate->week, $participant, $gate]),
+            'action_url' => route('training.coach.gates.show', [$row['program'], $gate->week, $participant, $gate]),
         ];
     }
 }

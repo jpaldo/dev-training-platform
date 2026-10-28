@@ -12,9 +12,9 @@ use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
 use App\Models\GoogleDriveEvidenceExport;
 use App\Models\GoogleDriveSync;
+use App\Models\Program;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -28,15 +28,14 @@ class TrainingActivityPageService
     public function __construct(private readonly SafeMarkdownRenderer $markdown) {}
 
     /**
-     * The participant's attempts at the activity within the session, oldest first, with every version (newest first)
-     * and its evidence, reviews and score.
+     * The participant's attempts at the activity, oldest first, with every version (newest first) and its evidence,
+     * reviews and score.
      *
      * @return EloquentCollection<int, ActivitySubmission>
      */
-    public function attempts(User $user, TrainingSession $trainingSession, Activity $activity): EloquentCollection
+    public function attempts(User $user, Activity $activity): EloquentCollection
     {
         return ActivitySubmission::query()
-            ->where('training_session_id', $trainingSession->id)
             ->where('activity_id', $activity->id)
             ->where('user_id', $user->id)
             ->with(['versions' => fn (Relation $query): Relation => $query->with(['evidence', 'reviews', 'publishedActivityScore'])->orderByDesc('version_number')])
@@ -45,21 +44,22 @@ class TrainingActivityPageService
     }
 
     /**
-     * Everything the activity page renders: the session the page is opened in, the requirements, the latest attempt and version, the Google Drive sync
-     * summary, the attempt history and the page tabs. Once the session has ended (`TrainingSession::acceptsWork()`),
-     * `acceptsWork` is false unless the latest attempt was reopened, and `acceptsRecoveryRequests` is false.
+     * Everything the activity page renders: the curriculum the page is opened in, the requirements, the latest attempt
+     * and version, the Google Drive sync summary, the attempt history and the page tabs. Once the curriculum has ended
+     * (`Program::acceptsWork()`), `acceptsWork` is false unless the latest attempt was reopened, and
+     * `acceptsRecoveryRequests` is false.
      *
      * @param  EloquentCollection<int, ActivitySubmission>  $attempts
-     * @return array{activity: Activity, trainingSession: TrainingSession, trainingWeek: TrainingWeek, user: User, requirements: Collection<int, ActivityRequirement>, submission: ?ActivitySubmission, latestVersion: ?SubmissionVersion, revisionFeedback: ?HtmlString, acceptsWork: bool, acceptsRecoveryRequests: bool, googleDrive: array{connected: bool, status_label: string, evidence_total: int, evidence_synced: int, evidence_failed: int, last_synced_at: ?CarbonInterface, error: ?string}, attempts: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, has_later_attempt: bool, feedback: ?HtmlString, recovery_request: ?ActivityRecoveryRequest, published_score: ?ActivityScore}>, tabs: list<array{key: string, label: string}>, selectedTab: string}
+     * @return array{activity: Activity, program: Program, trainingWeek: TrainingWeek, user: User, requirements: Collection<int, ActivityRequirement>, submission: ?ActivitySubmission, latestVersion: ?SubmissionVersion, revisionFeedback: ?HtmlString, acceptsWork: bool, acceptsRecoveryRequests: bool, googleDrive: array{connected: bool, status_label: string, evidence_total: int, evidence_synced: int, evidence_failed: int, last_synced_at: ?CarbonInterface, error: ?string}, attempts: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, has_later_attempt: bool, feedback: ?HtmlString, recovery_request: ?ActivityRecoveryRequest, published_score: ?ActivityScore}>, tabs: list<array{key: string, label: string}>, selectedTab: string}
      */
-    public function showData(User $user, TrainingSession $trainingSession, TrainingWeek $trainingWeek, Activity $activity, EloquentCollection $attempts): array
+    public function showData(User $user, Program $program, TrainingWeek $trainingWeek, Activity $activity, EloquentCollection $attempts): array
     {
         $submission = $attempts->last();
         $latestVersion = $submission?->versions->first();
 
         return [
             'activity' => $activity,
-            'trainingSession' => $trainingSession,
+            'program' => $program,
             'trainingWeek' => $trainingWeek,
             'user' => $user,
             'requirements' => $this->requirements($user, $activity),
@@ -68,8 +68,8 @@ class TrainingActivityPageService
             'revisionFeedback' => $submission?->needsRevision() && $latestVersion?->reviews->isNotEmpty()
                 ? $this->markdown->render($latestVersion->reviews->sortByDesc('reviewed_at')->first()?->comments)
                 : null,
-            'acceptsWork' => $trainingSession->acceptsWork($submission),
-            'acceptsRecoveryRequests' => $trainingSession->acceptsWork(),
+            'acceptsWork' => $program->acceptsWork($submission),
+            'acceptsRecoveryRequests' => $program->acceptsWork(),
             'googleDrive' => $this->googleDriveSummary($user, $latestVersion),
             'attempts' => $this->attemptRows($attempts),
             'tabs' => [

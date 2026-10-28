@@ -24,13 +24,13 @@
         @if($mainAction)
             <x-ui.main-action id="submission-main-action">
                 @if($mainAction === 'submit')
-                    <form method="post" action="{{ route('training.submission.submit', [$trainingSession, $trainingWeek, $activity, $version]) }}" class="m-0 flex flex-wrap items-center gap-3 lg:justify-end" data-final-submit-form>
+                    <form method="post" action="{{ route('training.submission.submit', [$program, $trainingWeek, $activity, $version]) }}" class="m-0 flex flex-wrap items-center gap-3 lg:justify-end" data-final-submit-form>
                         @csrf
                         <p class="m-0 text-sm text-muted" data-submit-status role="status" aria-live="polite"></p>
                         <x-ui.button type="submit" data-submit-button>Submit Activity</x-ui.button>
                     </form>
                 @else
-                    <form method="POST" action="{{ route('training.submission.revise', [$trainingSession, $trainingWeek, $activity]) }}" class="m-0" data-revise-submission>
+                    <form method="POST" action="{{ route('training.submission.revise', [$program, $trainingWeek, $activity]) }}" class="m-0" data-revise-submission>
                         @csrf
                         <x-ui.button type="submit">Revise submission</x-ui.button>
                     </form>
@@ -66,7 +66,7 @@
                 @endif
 
                 @if($isEditable)
-                    <form class="m-0 grid grid-cols-1 gap-5" method="post" action="{{ route('training.submission.draft', [$trainingSession, $trainingWeek, $activity]) }}" data-submission-form>
+                    <form class="m-0 grid grid-cols-1 gap-5" method="post" action="{{ route('training.submission.draft', [$program, $trainingWeek, $activity]) }}" data-submission-form>
                         @csrf
                         @if($showInteractions)
                             @include('submissions.interactions', [
@@ -238,7 +238,7 @@
                                             <span>Upload the actual prompt, checklist, configuration, template, documentation, spreadsheet, or archive you tested. This is separate from supporting Evidence.</span>
                                         </x-ui.alert>
                                     @endif
-                                    <form class="m-0 grid gap-3" method="post" enctype="multipart/form-data" action="{{ route('training.evidence.store', [$trainingSession, $trainingWeek, $activity, $version]) }}" data-evidence-form>
+                                    <form class="m-0 grid gap-3" method="post" enctype="multipart/form-data" action="{{ route('training.evidence.store', [$program, $trainingWeek, $activity, $version]) }}" data-evidence-form>
                                         @csrf
                                         <input type="hidden" name="evidence_requirement_id" value="{{ $requirement->id }}">
                                         <div class="grid gap-2">
@@ -303,7 +303,7 @@
                                     <x-ui.badge tone="accent">Viewing</x-ui.badge>
                                 @elseif(! $historic->isDraft())
                                     <div class="flex flex-wrap items-center gap-3">
-                                        <x-ui.button variant="secondary" :href="route('training.submission.show', [$trainingSession, $trainingWeek, $activity, $historic])">View</x-ui.button>
+                                        <x-ui.button variant="secondary" :href="route('training.submission.show', [$program, $trainingWeek, $activity, $historic])">View</x-ui.button>
                                         <span class="text-xs text-muted">Read only</span>
                                     </div>
                                 @endif

@@ -28,10 +28,10 @@
                 <input id="score-search" name="search" value="{{ $search }}" placeholder="Name or email" class="{{ $controlClasses }}">
             </div>
             <div class="grid min-w-0 gap-2">
-                <label for="score-session" class="{{ $labelClasses }}">Training session</label>
-                <select id="score-session" name="session" class="{{ $controlClasses }}">
-                    <option value="">All training sessions</option>
-                    @foreach($sessionOptions as $option)
+                <label for="score-program" class="{{ $labelClasses }}">Curriculum</label>
+                <select id="score-program" name="program" class="{{ $controlClasses }}">
+                    <option value="">All curricula</option>
+                    @foreach($programOptions as $option)
                         <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
                     @endforeach
                 </select>
@@ -85,7 +85,7 @@
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Training session</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Curriculum</th>
                                 @foreach($weekNumbers as $weekNumber)
                                     <th scope="col" class="{{ $headerCellClasses }}">W{{ $weekNumber }}</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">W{{ $weekNumber }} Completion</th>
@@ -107,8 +107,8 @@
                                     </th>
                                     <td class="{{ $cellClasses }}">
                                         <span class="grid gap-0.5">
-                                            <span class="wrap-break-word">{{ $participant['session_title'] }}</span>
-                                            <span class="whitespace-nowrap text-muted">{{ $participant['session_dates'] }}</span>
+                                            <span class="wrap-break-word">{{ $participant['program_name'] }}</span>
+                                            <span class="whitespace-nowrap text-muted">{{ $participant['program_dates'] }}</span>
                                         </span>
                                     </td>
                                     @foreach($participant['weeks'] as $week)

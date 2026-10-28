@@ -9,11 +9,11 @@ use App\Models\ActivityScore;
 use App\Models\ActivityScoreDimension;
 use App\Models\ActivitySubmission;
 use App\Models\EvidenceRequirement;
+use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionInteraction;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Support\FieldLimits;
@@ -34,14 +34,14 @@ class ActivitySubmissionPageService
     ) {}
 
     /**
-     * Data for the submission form: the latest attempt within the session and its latest version, the main action, the
+     * Data for the submission form: the latest attempt and its latest version, the main action, the
      * coach feedback, the field sections and evidence rows, and the version history.
      *
      * @return array<string, mixed>
      */
-    public function editData(User $participant, TrainingSession $trainingSession, TrainingWeek $trainingWeek, Activity $activity): array
+    public function editData(User $participant, Program $program, TrainingWeek $trainingWeek, Activity $activity): array
     {
-        $submission = ActivitySubmission::query()->where('training_session_id', $trainingSession->id)->where('activity_id', $activity->id)->where('user_id', $participant->id)->with(['versions' => fn (Relation $query): Relation => $query->with(['evidence', 'reviews', 'interactions'])->orderByDesc('version_number')])->orderByDesc('attempt_number')->first();
+        $submission = ActivitySubmission::query()->where('activity_id', $activity->id)->where('user_id', $participant->id)->with(['versions' => fn (Relation $query): Relation => $query->with(['evidence', 'reviews', 'interactions'])->orderByDesc('version_number')])->orderByDesc('attempt_number')->first();
         $version = $submission?->versions->first();
         $fields = $this->workflow->fieldDefinitions($activity);
         $showInteractions = collect($fields)->keys()->intersect(['prompt', 'exact_prompt', 'ai_output', 'exact_ai_output'])->isNotEmpty();
@@ -50,7 +50,7 @@ class ActivitySubmissionPageService
 
         return [
             'user' => $participant,
-            'trainingSession' => $trainingSession,
+            'program' => $program,
             'trainingWeek' => $trainingWeek,
             'activity' => $activity,
             'submission' => $submission,

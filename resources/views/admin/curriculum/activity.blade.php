@@ -32,7 +32,7 @@
                 <x-ui.alert tone="success" role="status">{{ session('status') }}</x-ui.alert>
             @endif
 
-            @include('admin.curriculum.sessions-notice')
+            @include('admin.curriculum.schedule-notice')
 
             <div class="min-w-0" data-page-tabs>
                 <x-ui.tab-list :tabs="$tabs" :selected="$selectedTab" id-prefix="activity" label="Activity sections" />

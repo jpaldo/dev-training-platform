@@ -16,7 +16,7 @@
         <header class="grid gap-2">
             <x-ui.eyebrow>PARTICIPANT DASHBOARD</x-ui.eyebrow>
             <x-ui.page-title>Welcome, {{ $user->first_name ?: $user->name }}</x-ui.page-title>
-            <p class="text-muted">Check in when you start training, keep track of what needs attention and open your trainings.</p>
+            <p class="text-muted">Check in when you start training, keep track of what needs attention and open your curricula.</p>
         </header>
 
         <x-ui.card as="section" class="flex flex-wrap gap-x-8 gap-y-6" aria-labelledby="attendance-title">
@@ -107,8 +107,8 @@
             </script>
         @endif
 
-        <x-training-session-list id="my-trainings" title="My trainings" :sessions="$myTrainings" empty="You are not in a training yet." />
-        <x-training-session-list id="available-trainings" title="Available trainings" :sessions="$availableTrainings" empty="No trainings are open to join right now." />
-        <x-training-session-list id="past-trainings" title="Past trainings" :sessions="$pastTrainings" empty="No past trainings yet." />
+        <x-program-list id="my-programs" title="My curricula" :programs="$myPrograms" empty="You are not in a curriculum yet." />
+        <x-program-list id="available-programs" title="Available curricula" :programs="$availablePrograms" empty="No curricula are open to join right now." />
+        <x-program-list id="past-programs" title="Past curricula" :programs="$pastPrograms" empty="No past curricula yet." />
     </div>
 @endsection

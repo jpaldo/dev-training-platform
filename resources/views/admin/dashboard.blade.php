@@ -16,32 +16,28 @@
             </dl>
         </section>
 
-        <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="admin-sessions-title">
+        <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="admin-programs-title">
             <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 id="admin-sessions-title" class="text-xl font-extrabold">Training sessions</h2>
-                <x-ui.button variant="secondary" :href="$sessionsUrl">View all sessions</x-ui.button>
+                <h2 id="admin-programs-title" class="text-xl font-extrabold">Curricula</h2>
+                <x-ui.button variant="secondary" :href="$programsUrl">View all curricula</x-ui.button>
             </div>
-            @if($recentSessions !== [])
+            @if($recentPrograms !== [])
                 <ul class="grid list-none grid-cols-1 gap-3 p-0">
-                    @foreach($recentSessions as $session)
-                        <li data-recent-session-row class="grid min-w-0 grid-cols-1 gap-2 rounded-xl border border-line bg-field px-4 py-3.5">
+                    @foreach($recentPrograms as $program)
+                        <li data-recent-program-row class="grid min-w-0 grid-cols-1 gap-2 rounded-xl border border-line bg-field px-4 py-3.5">
                             <div class="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                                <a href="{{ $session['show_url'] }}" class="min-w-0 font-bold wrap-break-word text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">{{ $session['title'] }}</a>
-                                <x-ui.badge :tone="$session['status_tone']">{{ $session['status_label'] }}</x-ui.badge>
+                                <a href="{{ $program['url'] }}" class="min-w-0 font-bold wrap-break-word text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">{{ $program['name'] }}</a>
+                                <x-ui.badge :tone="$program['status_tone']">{{ $program['status_label'] }}</x-ui.badge>
                             </div>
                             <p class="flex flex-wrap gap-x-4 gap-y-1 text-sm/relaxed text-muted">
-                                <span class="min-w-0 wrap-break-word">{{ $session['program'] }}</span>
-                                <span class="whitespace-nowrap">{{ $session['date_range'] }}</span>
-                                <span class="whitespace-nowrap">Participants: <strong class="text-white tabular-nums">{{ $session['participant_count'] }}</strong></span>
+                                <span class="whitespace-nowrap">{{ $program['dates'] }}</span>
+                                <span class="whitespace-nowrap">Participants: <strong class="text-white tabular-nums">{{ $program['participants_count'] }}</strong></span>
                             </p>
                         </li>
                     @endforeach
                 </ul>
             @else
-                <div class="grid grid-cols-1 justify-items-start gap-3">
-                    <p class="text-muted">No training sessions yet.</p>
-                    <x-ui.button variant="secondary" :href="$createSessionUrl">Create session</x-ui.button>
-                </div>
+                <p class="text-muted">No curricula yet.</p>
             @endif
         </x-ui.card>
 

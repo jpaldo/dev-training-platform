@@ -3,38 +3,42 @@
 namespace App\Services;
 
 use App\Enums\UserRole;
-use App\Models\TrainingSession;
+use App\Models\Program;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 
-class CoachSessionFilterService
+class CoachProgramFilterService
 {
     /**
-     * The training sessions a coach page's session filter offers, the latest start first: every session for an admin,
-     * otherwise the sessions the viewer mentors, each labelled "Title (9 Nov – 6 Dec 2026)" and marked when it is the
-     * selected one.
+     * The curricula a coach page's curriculum filter offers, the latest first week start first (unscheduled curricula
+     * last; both MySQL and SQLite sort nulls last in descending order), then by name: every curriculum for an admin,
+     * otherwise the curricula the viewer mentors, each labelled "Name (9 Nov – 6 Dec 2026)" ("Name (Not scheduled)"
+     * without dates) and marked when it is the selected one. One query.
      *
      * @return list<array{value: string, label: string, is_selected: bool}>
      */
-    public function options(User $viewer, int|string|null $selectedSessionId): array
+    public function options(User $viewer, int|string|null $selectedProgramId): array
     {
-        $trainingSessions = $viewer->hasAnyRole(UserRole::Admin) ? TrainingSession::query() : $viewer->mentoredSessions();
+        $programs = $viewer->hasAnyRole(UserRole::Admin) ? Program::query() : $viewer->mentoredPrograms();
 
-        return $trainingSessions
-            ->orderByDesc('training_sessions.starts_on')
-            ->orderBy('training_sessions.id')
-            ->get(['training_sessions.id', 'training_sessions.title', 'training_sessions.starts_on', 'training_sessions.ends_on'])
-            ->map(fn (TrainingSession $trainingSession): array => [
-                'value' => (string) $trainingSession->id,
-                'label' => $trainingSession->titleWithDates(),
-                'is_selected' => (string) $selectedSessionId === (string) $trainingSession->id,
+        return $programs
+            ->select(['programs.id', 'programs.name'])
+            ->withScheduleBounds()
+            ->orderByDesc('schedule_starts_on')
+            ->orderBy('programs.name')
+            ->orderBy('programs.id')
+            ->get()
+            ->map(fn (Program $program): array => [
+                'value' => (string) $program->id,
+                'label' => "{$program->name} ({$program->dateRangeLabel()})",
+                'is_selected' => (string) $selectedProgramId === (string) $program->id,
             ])
             ->all();
     }
 
     /**
      * The participants a coach page's participant filter offers, by name: every participant for an admin, otherwise
-     * those the viewer currently mentors in at least one session, marked when they are the selected one.
+     * those the viewer currently mentors in at least one curriculum, marked when they are the selected one.
      *
      * @return list<array{value: string, label: string, is_selected: bool}>
      */
@@ -57,7 +61,7 @@ class CoachSessionFilterService
 
     /**
      * The mentors a coach page's mentor filter offers an admin, by name: every coach who is a mentor of at least one
-     * session, marked when they are the selected one. A coach sees only their own mentees, so they get none.
+     * curriculum, marked when they are the selected one. A coach sees only their own mentees, so they get none.
      *
      * @return list<array{value: string, label: string, is_selected: bool}>
      */
@@ -69,7 +73,7 @@ class CoachSessionFilterService
 
         return User::query()
             ->where('role', UserRole::Coach)
-            ->whereHas('mentoredSessions')
+            ->whereHas('mentoredPrograms')
             ->orderBy('name')
             ->orderBy('id')
             ->get(['id', 'name'])

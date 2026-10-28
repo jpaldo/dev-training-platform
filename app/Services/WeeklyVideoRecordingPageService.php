@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\TrainingSession;
+use App\Models\Program;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -15,21 +15,20 @@ class WeeklyVideoRecordingPageService
     ) {}
 
     /**
-     * Everything the Weekly Video Recording page renders for the week in the session: the participant's chosen Google
-     * Drive video for the week in that session, the participant's Google Drive state (`unavailable` while Drive cannot
-     * connect, `not_connected` or `connected`) with the connect link, which brings the participant back to this page,
-     * and the Picker settings and label. The Picker form posts within the session and is replaced by a message once the
-     * session has ended (`acceptsWork` false, `TrainingSession::acceptsWork()`) or, before that, a locked message once
-     * the participant has passed one of the week's active Gates in the session. `shareHint` says who a chosen
-     * video is shared with (null without a share domain, when nothing is shared). Back goes to the week in the session.
-     * The page never reads Google Drive.
+     * Everything the Weekly Video Recording page renders for the week in the curriculum: the participant's chosen
+     * Google Drive video for the week, the participant's Google Drive state (`unavailable` while Drive cannot connect,
+     * `not_connected` or `connected`) with the connect link, which brings the participant back to this page, and the
+     * Picker settings and label. The Picker form posts within the curriculum and is replaced by a message once the
+     * curriculum has ended (`acceptsWork` false, `Program::acceptsWork()`) or, before that, a locked message once the
+     * participant has passed one of the week's active Gates. `shareHint` says who a chosen video is shared with (null
+     * without a share domain, when nothing is shared). Back goes to the week in the curriculum. The page never reads
+     * Google Drive.
      *
      * @return array{trainingWeek: TrainingWeek, recording: ?WeeklyVideoRecording, acceptsWork: bool, isLocked: bool, storeUrl: string, backUrl: string, driveState: string, connectUrl: string, picker: array{api_key: ?string, app_id: ?string, token_url: string, unavailable_message: ?string}, pickerLabel: string, shareHint: ?string}
      */
-    public function editData(TrainingSession $trainingSession, TrainingWeek $week, User $user): array
+    public function editData(Program $program, TrainingWeek $week, User $user): array
     {
         $recording = WeeklyVideoRecording::query()
-            ->where('training_session_id', $trainingSession->id)
             ->where('user_id', $user->id)
             ->where('training_week_id', $week->id)
             ->first();
@@ -38,16 +37,16 @@ class WeeklyVideoRecordingPageService
         return [
             'trainingWeek' => $week,
             'recording' => $recording,
-            'acceptsWork' => $trainingSession->acceptsWork(),
-            'isLocked' => $this->progression->hasPassedActiveGate($user, $trainingSession, $week),
-            'storeUrl' => route('training.video-recording.store', [$trainingSession, $week]),
-            'backUrl' => route('training.weeks.show', [$trainingSession, $week]),
+            'acceptsWork' => $program->acceptsWork(),
+            'isLocked' => $this->progression->hasPassedActiveGate($user, $week),
+            'storeUrl' => route('training.video-recording.store', [$program, $week]),
+            'backUrl' => route('training.weeks.show', [$program, $week]),
             'driveState' => match (true) {
                 ! $this->googleDrive->canConnect() => 'unavailable',
                 $user->googleDriveConnection()->doesntExist() => 'not_connected',
                 default => 'connected',
             },
-            'connectUrl' => route('profile.google-drive.connect', ['return_to' => route('training.video-recording.edit', [$trainingSession, $week], absolute: false)]),
+            'connectUrl' => route('profile.google-drive.connect', ['return_to' => route('training.video-recording.edit', [$program, $week], absolute: false)]),
             'picker' => $this->googleDrive->pickerSettings('video'),
             'pickerLabel' => $recording ? 'Choose a Different Video' : 'Choose Video from Google Drive',
             'shareHint' => $shareDomain === null

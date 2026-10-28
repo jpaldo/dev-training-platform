@@ -15,12 +15,12 @@
         @if($acceptsWork)
             <x-ui.main-action id="activity-main-action">
                 @if($submission?->needsRevision())
-                    <form method="POST" action="{{ route('training.submission.revise', [$trainingSession, $trainingWeek, $activity]) }}" class="m-0" data-revise-submission>
+                    <form method="POST" action="{{ route('training.submission.revise', [$program, $trainingWeek, $activity]) }}" class="m-0" data-revise-submission>
                         @csrf
                         <x-ui.button type="submit">Revise submission →</x-ui.button>
                     </form>
                 @else
-                    <x-ui.button :href="route('training.submission.edit', [$trainingSession, $trainingWeek, $activity])">{{ $latestVersion ? 'Continue submission' : 'Start submission' }} →</x-ui.button>
+                    <x-ui.button :href="route('training.submission.edit', [$program, $trainingWeek, $activity])">{{ $latestVersion ? 'Continue submission' : 'Start submission' }} →</x-ui.button>
                 @endif
             </x-ui.main-action>
         @endif
@@ -68,7 +68,7 @@
                         @if($acceptsWork)
                             <p class="m-0 leading-relaxed text-muted">Add required evidence and submit for mentor review. The existing Gate rules determine completion.</p>
                         @else
-                            <x-ui.alert role="status" data-session-ended>This training session has ended. Your work stays available to view.</x-ui.alert>
+                            <x-ui.alert role="status" data-program-ended>This curriculum has ended. Your work stays available to view.</x-ui.alert>
                         @endif
                         @if($submission?->needsRevision())
                             <x-ui.alert tone="error">Your mentor requested changes. Create a new revision; the previous submitted version remains unchanged.</x-ui.alert>
@@ -80,7 +80,7 @@
                             @endif
                         @endif
                         @if($latestVersion && ! $latestVersion->isDraft())
-                            <x-ui.button variant="secondary" :href="route('training.submission.show', [$trainingSession, $trainingWeek, $activity, $latestVersion])">View Submission</x-ui.button>
+                            <x-ui.button variant="secondary" :href="route('training.submission.show', [$program, $trainingWeek, $activity, $latestVersion])">View Submission</x-ui.button>
                         @endif
                     </x-ui.card>
 
@@ -146,7 +146,7 @@
                                             @elseif($attempt['recovery_request']?->isDeclined())
                                                 <x-ui.alert tone="error" class="w-full">Review request declined{{ $attempt['recovery_request']->coach_response ? ': '.$attempt['recovery_request']->coach_response : '.' }}</x-ui.alert>
                                             @elseif(! $acceptsRecoveryRequests)
-                                                <p class="m-0 text-muted">This training session has ended, so you can no longer ask for a review of this attempt.</p>
+                                                <p class="m-0 text-muted">This curriculum has ended, so you can no longer ask for a review of this attempt.</p>
                                             @else
                                                 <p class="m-0 text-muted">If you believe this attempt should be reconsidered, you may ask your mentor to review it again.</p>
                                                 <form method="post" action="{{ route('training.recovery.store', $attemptSubmission) }}" class="m-0 grid w-full justify-items-start gap-3">
@@ -161,7 +161,7 @@
                                         @elseif($attemptSubmission->isDraft())
                                             <p class="m-0 leading-relaxed">{{ $attempt['has_later_attempt'] ? 'This draft is an earlier attempt.' : 'Your work is saved as a draft.' }}</p>
                                             @if(! $attempt['has_later_attempt'] && $acceptsWork)
-                                                <x-ui.button variant="secondary" :href="route('training.submission.edit', [$trainingSession, $trainingWeek, $activity])">Continue Attempt {{ $attemptSubmission->attempt_number }} →</x-ui.button>
+                                                <x-ui.button variant="secondary" :href="route('training.submission.edit', [$program, $trainingWeek, $activity])">Continue Attempt {{ $attemptSubmission->attempt_number }} →</x-ui.button>
                                             @endif
                                         @elseif($attemptSubmission->needsRevision())
                                             <p class="m-0 leading-relaxed">Your mentor requested changes to this submission.</p>
@@ -171,7 +171,7 @@
                                                     <div class="{{ $feedbackClasses }}">{{ $attempt['feedback'] }}</div>
                                                 </div>
                                             @endif
-                                            <form method="POST" action="{{ route('training.submission.revise', [$trainingSession, $trainingWeek, $activity]) }}" class="m-0" data-revise-submission>
+                                            <form method="POST" action="{{ route('training.submission.revise', [$program, $trainingWeek, $activity]) }}" class="m-0" data-revise-submission>
                                                 @csrf
                                                 <x-ui.button variant="secondary" type="submit">Revise Submission →</x-ui.button>
                                             </form>

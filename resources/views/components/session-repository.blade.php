@@ -1,5 +1,5 @@
 {{--
-    A participant's GitHub repository for a training session, on the mentor's review, scoring and Gate checklist pages:
+    A participant's GitHub repository for a curriculum, on the mentor's review, scoring and Gate checklist pages:
     the link (opening in a new tab), or "No repository yet" when the participant has not added one.
 
     $url: ?string (a link GitHubRepositoryUrl accepted)

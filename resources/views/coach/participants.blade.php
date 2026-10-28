@@ -28,10 +28,10 @@
                 <input id="participant-search" name="search" value="{{ $search }}" placeholder="Search participant or email…" class="{{ $controlClasses }}">
             </div>
             <div class="grid min-w-0 gap-2">
-                <label for="participant-session" class="{{ $labelClasses }}">Training session</label>
-                <select id="participant-session" name="session" class="{{ $controlClasses }}">
-                    <option value="">All training sessions</option>
-                    @foreach($sessionOptions as $option)
+                <label for="participant-program" class="{{ $labelClasses }}">Curriculum</label>
+                <select id="participant-program" name="program" class="{{ $controlClasses }}">
+                    <option value="">All curricula</option>
+                    @foreach($programOptions as $option)
                         <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
                     @endforeach
                 </select>
@@ -48,7 +48,7 @@
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Employee ID</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Training session</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Curriculum</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Mentor</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Training Drive</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Google Drive</th>
@@ -70,8 +70,8 @@
                                     <td class="{{ $cellClasses }} whitespace-nowrap">{{ $participant['employee_id'] }}</td>
                                     <td class="{{ $cellClasses }}">
                                         <span class="grid gap-0.5">
-                                            <span class="wrap-break-word">{{ $participant['session_title'] }}</span>
-                                            <span class="whitespace-nowrap text-muted">{{ $participant['session_dates'] }}</span>
+                                            <span class="wrap-break-word">{{ $participant['program_name'] }}</span>
+                                            <span class="whitespace-nowrap text-muted">{{ $participant['program_dates'] }}</span>
                                         </span>
                                     </td>
                                     <td class="{{ $cellClasses }}">

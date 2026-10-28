@@ -25,7 +25,7 @@
         </header>
 
         <x-ui.main-action id="admin-week-main-action">
-            <x-ui.button variant="secondary" :href="$programUrl">Back to Program</x-ui.button>
+            <x-ui.button variant="secondary" :href="$programUrl">Back to Curriculum</x-ui.button>
         </x-ui.main-action>
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">
@@ -33,7 +33,7 @@
                 <x-ui.alert tone="success" role="status">{{ session('status') }}</x-ui.alert>
             @endif
 
-            @include('admin.curriculum.sessions-notice')
+            @include('admin.curriculum.schedule-notice')
 
             <div class="min-w-0" data-page-tabs>
                 <x-ui.tab-list :tabs="$tabs" :selected="$selectedTab" id-prefix="week" label="Week sections" />
@@ -41,7 +41,7 @@
                 <x-ui.tab-panel name="details" :selected="$selectedTab" id-prefix="week">
                     <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="week-details-title">
                         <h2 id="week-details-title" class="text-xl font-extrabold">Details</h2>
-                        <p class="text-sm/relaxed text-muted">Participants and mentors see the title and description on the week's pages. The week number and its place in the program do not change.</p>
+                        <p class="text-sm/relaxed text-muted">Participants and mentors see the title and description on the week's pages. The week number and its place in the curriculum do not change.</p>
 
                         <form method="POST" action="{{ $details['update_url'] }}" class="grid min-w-0 grid-cols-1 gap-4 lg:max-w-2xl" aria-labelledby="week-details-title" data-week-details-form>
                             @csrf
@@ -274,7 +274,7 @@
                     <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="week-checklist-title">
                         <h2 id="week-checklist-title" class="text-xl font-extrabold">Checklist</h2>
                         @if($checklist)
-                            <p class="text-sm/relaxed text-muted">Participants see the checklist on their week's pages, and their mentor ticks each item. Changes show in every session at once; an edited item keeps its ticks.</p>
+                            <p class="text-sm/relaxed text-muted">Participants see the checklist on their week's pages, and their mentor ticks each item. Changes show to the curriculum's participants and mentors at once; an edited item keeps its ticks.</p>
                             @if($checklistErrors->has('item'))
                                 <x-ui.alert tone="error" role="alert" data-checklist-error>{{ $checklistErrors->first('item') }}</x-ui.alert>
                             @endif

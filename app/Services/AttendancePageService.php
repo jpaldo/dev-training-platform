@@ -14,7 +14,7 @@ class AttendancePageService
 
     private const STATUS_OPTIONS = ['active' => 'Checked in', 'completed' => 'Checked out'];
 
-    public function __construct(private readonly CoachSessionFilterService $sessionFilter) {}
+    public function __construct(private readonly CoachProgramFilterService $programFilter) {}
 
     /**
      * Everything the participant's attendance page renders: the open training session (if any) and the
@@ -61,7 +61,7 @@ class AttendancePageService
             'areaLabel' => $isAdminArea ? 'ADMIN' : 'MENTOR',
             'dateFrom' => (string) ($filters['date_from'] ?? ''),
             'dateTo' => (string) ($filters['date_to'] ?? ''),
-            'participantOptions' => $this->sessionFilter->participantOptions($viewer, $filters['participant'] ?? null),
+            'participantOptions' => $this->programFilter->participantOptions($viewer, $filters['participant'] ?? null),
             'statusOptions' => $this->options(self::STATUS_OPTIONS, $filters['status'] ?? null),
             'sessions' => $this->filteredSessions($viewer, $filters)
                 ->latest('check_in_at')
@@ -83,7 +83,7 @@ class AttendancePageService
     /**
      * Participant attendance sessions matching the coach / admin filters, with their participant loaded: every
      * participant's for an admin, otherwise only those of participants the viewer currently mentors in at least one
-     * training session (attendance itself is not per session). Shared by the attendance page and its CSV export.
+     * curriculum (attendance itself is not per curriculum). Shared by the attendance page and its CSV export.
      *
      * @param  array{date_from?: ?string, date_to?: ?string, participant?: int|string|null, status?: ?string}  $filters
      * @return Builder<AttendanceSession>

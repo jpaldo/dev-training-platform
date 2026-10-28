@@ -1,5 +1,5 @@
 {{--
-    One training session resource: its title, kind badge and host, and a link that opens the URL as entered in a new
+    One curriculum resource: its title, kind badge and host, and a link that opens the URL as entered in a new
     tab. A Google Drive file also gets the lazily loaded `x-drive-preview`, so collapsed rows load nothing. A resource
     that has not opened for the participant yet shows only its title and its `locked_message` ("Opens on Mon 16 Nov");
     its row data carries no URL. The slot holds the row's actions (the admin's Rename and Remove).

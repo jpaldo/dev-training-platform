@@ -33,7 +33,7 @@
                             <div class="grid min-w-0 gap-1">
                                 <h3 class="text-base font-extrabold wrap-break-word">{{ $waiting['participant_name'] }}</h3>
                                 <p class="flex flex-wrap gap-x-2 text-sm text-muted">
-                                    <span class="wrap-break-word">{{ $waiting['session_label'] }}</span>
+                                    <span class="wrap-break-word">{{ $waiting['program_name'] }}</span>
                                     <span aria-hidden="true">·</span>
                                     <span class="whitespace-nowrap">{{ $waiting['week_label'] }}</span>
                                 </p>
@@ -51,30 +51,30 @@
             @endif
         </x-ui.card>
 
-        @if($mySessions !== null)
-            <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="my-sessions-title">
-                <h2 id="my-sessions-title" class="text-xl font-extrabold">My sessions</h2>
-                @if($mySessions !== [])
+        @if($myPrograms !== null)
+            <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="my-programs-title">
+                <h2 id="my-programs-title" class="text-xl font-extrabold">My curricula</h2>
+                @if($myPrograms !== [])
                     <ul class="grid grid-cols-1 gap-3">
-                        @foreach($mySessions as $session)
-                            <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-xl border border-line bg-field px-4 py-3.5" data-my-session>
+                        @foreach($myPrograms as $program)
+                            <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-xl border border-line bg-field px-4 py-3.5" data-my-program>
                                 <div class="grid min-w-0 gap-1">
                                     <div class="flex flex-wrap items-center gap-2">
-                                        <h3 class="text-base font-extrabold wrap-break-word">{{ $session['title'] }}</h3>
-                                        <x-ui.badge :tone="$session['status_tone']">{{ $session['status_label'] }}</x-ui.badge>
+                                        <h3 class="text-base font-extrabold wrap-break-word">{{ $program['title'] }}</h3>
+                                        <x-ui.badge :tone="$program['status_tone']">{{ $program['status_label'] }}</x-ui.badge>
                                     </div>
                                     <p class="flex flex-wrap gap-x-2 text-sm text-muted">
-                                        <span class="whitespace-nowrap">{{ $session['date_range'] }}</span>
+                                        <span class="whitespace-nowrap">{{ $program['date_range'] }}</span>
                                         <span aria-hidden="true">·</span>
-                                        <span>{{ $session['participant_count_label'] }}</span>
+                                        <span>{{ $program['participant_count_label'] }}</span>
                                     </p>
                                 </div>
-                                <x-ui.button variant="secondary" :href="$session['participants_url']">View participants<span class="sr-only"> of {{ $session['title'] }}</span></x-ui.button>
+                                <x-ui.button variant="secondary" :href="$program['participants_url']">View participants<span class="sr-only"> of {{ $program['title'] }}</span></x-ui.button>
                             </li>
                         @endforeach
                     </ul>
                 @else
-                    <p class="text-muted">You are not a mentor in any training session yet.</p>
+                    <p class="text-muted">You are not a mentor of any curriculum yet.</p>
                 @endif
             </x-ui.card>
         @endif

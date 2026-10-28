@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Enums\TrainingSessionStatus;
+use App\Enums\ProgramStatus;
 use App\Http\Requests\UpdateActivityFieldRequest;
 use App\Http\Requests\UpdateActivityScoringRequest;
 use App\Http\Requests\UpdateChecklistItemRequest;
@@ -11,26 +11,25 @@ use App\Models\ActivityRequirement;
 use App\Models\GateCriterion;
 use App\Models\Program;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
 
 class CurriculumPageService
 {
     /**
-     * Everything the programs list renders: every program by name, each with whether it is active, its schedule status
-     * (`ProgramStatus`) and dates, its number of weeks and of training sessions, and a link to its page (one query).
+     * Everything the curricula list renders: every curriculum by name, each with whether it is offered to join
+     * (`is_active`), its schedule status (`ProgramStatus`) and dates, its number of weeks and of participants, and a
+     * link to its page (one query).
      *
-     * @return array{programs: list<array{name: string, status_label: string, status_tone: string, schedule_status_label: string, schedule_status_tone: string, dates: string, weeks_count: int, sessions_count: int, url: string}>}
+     * @return array{programs: list<array{name: string, offered_label: string, offered_tone: string, schedule_status_label: string, schedule_status_tone: string, dates: string, weeks_count: int, participants_count: int, url: string}>}
      */
     public function indexData(): array
     {
         return [
             'programs' => Program::query()
-                ->withCount(['weeks', 'trainingSessions'])
+                ->withCount(['weeks', 'participants'])
                 ->withScheduleBounds()
                 ->orderBy('name')
                 ->get()
@@ -39,13 +38,13 @@ class CurriculumPageService
 
                     return [
                         'name' => $program->name,
-                        'status_label' => $program->is_active ? 'Active' : 'Inactive',
-                        'status_tone' => $program->is_active ? 'success' : 'neutral',
+                        'offered_label' => $program->is_active ? 'Yes' : 'No',
+                        'offered_tone' => $program->is_active ? 'success' : 'neutral',
                         'schedule_status_label' => $scheduleStatus->label(),
                         'schedule_status_tone' => $scheduleStatus->tone(),
                         'dates' => $program->dateRangeLabel(),
                         'weeks_count' => (int) $program->weeks_count,
-                        'sessions_count' => (int) $program->training_sessions_count,
+                        'participants_count' => (int) $program->participants_count,
                         'url' => route('admin.programs.show', $program),
                     ];
                 })
@@ -54,13 +53,47 @@ class CurriculumPageService
     }
 
     /**
-     * Everything the program page renders: the program's name, description, schedule status (`ProgramStatus`) and
-     * dates (two queries), the link back to the list, the sessions notice (one query), the weeks in number order, each
-     * with whether it is active, its dates, its number of active activities and of items on its checklist (the
-     * required items of its active Gates) and a link to its page, read in one query, and the schedule form (see
-     * scheduleData()).
+     * Up to `$limit` curricula for the admin dashboard, the latest first week start first and the unscheduled ones
+     * last (both MySQL and SQLite sort nulls last in descending order), then by name, each with its schedule status,
+     * dates, number of participants and a link to its page (one query).
      *
-     * @return array{name: string, description: ?string, statusLabel: string, statusTone: string, dates: string, indexUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, weeks: list<array{number: int, label: string, title: string, status_label: string, status_tone: string, dates: string, active_activity_count: int, checklist_item_count: int, url: string}>, schedule: array{update_url: string, error_bag: string, starts_on: ?string, weeks: list<array{label: string, title: string, dates: string, is_active: bool}>}}
+     * @return list<array{name: string, status_label: string, status_tone: string, dates: string, participants_count: int, url: string}>
+     */
+    public function recentProgramRows(int $limit): array
+    {
+        return Program::query()
+            ->withCount('participants')
+            ->withScheduleBounds()
+            ->orderByDesc('schedule_starts_on')
+            ->orderBy('name')
+            ->orderBy('id')
+            ->limit($limit)
+            ->get()
+            ->map(function (Program $program): array {
+                $status = $program->status();
+
+                return [
+                    'name' => $program->name,
+                    'status_label' => $status->label(),
+                    'status_tone' => $status->tone(),
+                    'dates' => $program->dateRangeLabel(),
+                    'participants_count' => (int) $program->participants_count,
+                    'url' => route('admin.programs.show', $program),
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * The curriculum page's header, Weeks tab and Schedule tab, beside the other tabs of
+     * `AdminProgramDashboardService::showData()` (the keys do not overlap): the curriculum's name, description,
+     * schedule status (`ProgramStatus`) and dates, the link back to the list, the schedule notice (see
+     * scheduleNotice()), the weeks in number order, each with whether it is active, its dates, its number of active
+     * activities and of items on its checklist (the required items of its active Gates) and a link to its page, read in
+     * one query, and the schedule form (see scheduleData()). Expects the schedule bounds loaded
+     * (`Program::loadScheduleBounds()`).
+     *
+     * @return array{name: string, description: ?string, statusLabel: string, statusTone: string, dates: string, indexUrl: string, notice: array{status: string, tone: string, message: string}, weeks: list<array{number: int, label: string, title: string, status_label: string, status_tone: string, dates: string, active_activity_count: int, checklist_item_count: int, url: string}>, schedule: array{update_url: string, error_bag: string, starts_on: ?string, weeks: list<array{label: string, title: string, dates: string, is_active: bool}>}}
      */
     public function programData(Program $program): array
     {
@@ -82,7 +115,7 @@ class CurriculumPageService
             'statusTone' => $status->tone(),
             'dates' => $program->dateRangeLabel(),
             'indexUrl' => route('admin.programs.index'),
-            'notice' => $this->sessionsNotice($program),
+            'notice' => $this->scheduleNotice($program),
             'weeks' => $weeks
                 ->map(fn (TrainingWeek $week): array => [
                     'number' => $week->week_number,
@@ -129,19 +162,21 @@ class CurriculumPageService
     }
 
     /**
-     * Everything the week page renders: the title "Week N: {title}", the week's status, the link back to the program,
-     * the sessions notice and the three tabs. Details holds the title, description and dates ("2026-11-09" or null) with
+     * Everything the week page renders: the title "Week N: {title}", the week's status, the link back to the
+     * curriculum, the schedule notice (see scheduleNotice()) and the three tabs. Details holds the title, description and dates ("2026-11-09" or null) with
      * the URL and error bag of their form; Activities lists every activity in position order (see activityRows()) with
      * the error bag of their row buttons, and holds the URL and error bag of the "Add activity" form; Checklist holds the week's checklist (its
      * first active Gate) with the URL and error bag of its form, the items on it in position order with theirs, the
      * item types an admin can choose, the URL and error bag of the "Add item" form and, apart, its retired items with
      * their Restore URLs, or null when the week has none (see checklistData()).
-     * Reads the activities, their submission fields, the checklist and its items in four queries, plus the notice's one.
+     * Reads the activities, their submission fields, the checklist and its items in four queries, plus the curriculum's
+     * schedule bounds in one.
      *
-     * @return array{title: string, statusLabel: string, statusTone: string, programName: string, programUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, starts_on: ?string, ends_on: ?string, update_url: string, error_bag: string}, activities: list<array{title: string, status_label: string, status_tone: string, is_active: bool, field_count: int, edit_url: string, move_url: string, can_move_up: bool, can_move_down: bool, deactivate_url: string, deactivate_confirmation: string, reactivate_url: string}>, activitiesErrorBag: string, addActivity: array{store_url: string, error_bag: string}, checklist: ?array{title: string, description: ?string, update_url: string, error_bag: string, items: list<array{id: int, type: string, has_fixed_type: bool, fixed_type_note: string, title: string, description: ?string, type_label: string, update_url: string, error_bag: string, move_url: string, can_move_up: bool, can_move_down: bool, destroy_url: string, remove_confirmation: string}>, item_types: list<array{value: string, label: string}>, add_item: array{store_url: string, error_bag: string, default_type: string}, removed_items: list<array{title: string, description: ?string, type_label: string, restore_url: string}>}}
+     * @return array{title: string, statusLabel: string, statusTone: string, programName: string, programUrl: string, notice: array{status: string, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, starts_on: ?string, ends_on: ?string, update_url: string, error_bag: string}, activities: list<array{title: string, status_label: string, status_tone: string, is_active: bool, field_count: int, edit_url: string, move_url: string, can_move_up: bool, can_move_down: bool, deactivate_url: string, deactivate_confirmation: string, reactivate_url: string}>, activitiesErrorBag: string, addActivity: array{store_url: string, error_bag: string}, checklist: ?array{title: string, description: ?string, update_url: string, error_bag: string, items: list<array{id: int, type: string, has_fixed_type: bool, fixed_type_note: string, title: string, description: ?string, type_label: string, update_url: string, error_bag: string, move_url: string, can_move_up: bool, can_move_down: bool, destroy_url: string, remove_confirmation: string}>, item_types: list<array{value: string, label: string}>, add_item: array{store_url: string, error_bag: string, default_type: string}, removed_items: list<array{title: string, description: ?string, type_label: string, restore_url: string}>}}
      */
     public function weekData(Program $program, TrainingWeek $week): array
     {
+        $program->loadScheduleBounds();
         $week->load([
             'activities' => fn (HasMany $activities): HasMany => $activities->orderBy('position')->orderBy('id'),
             'activities.requirements' => fn (HasMany $requirements): HasMany => $requirements
@@ -156,7 +191,7 @@ class CurriculumPageService
             'statusTone' => $week->is_active ? 'success' : 'neutral',
             'programName' => $program->name,
             'programUrl' => route('admin.programs.show', $program),
-            'notice' => $this->sessionsNotice($program),
+            'notice' => $this->scheduleNotice($program),
             'tabs' => [
                 ['key' => 'details', 'label' => 'Details'],
                 ['key' => 'activities', 'label' => 'Activities'],
@@ -183,19 +218,20 @@ class CurriculumPageService
 
     /**
      * Everything the activity page renders: the activity's title and status, the week and program it belongs to with
-     * the link back to the week's Activities tab, the sessions notice and the three tabs. Details holds the title,
+     * the link back to the week's Activities tab, the schedule notice (see scheduleNotice()) and the three tabs. Details holds the title,
      * description, objectives and instructions with the URL and error bag of their form; Submission fields lists the
      * activity's submission fields in position order, each with the URLs and error bag of its forms (see
      * fieldFormRows()), the field types an admin can choose, the URL and error bag of the "Add field" form and, apart,
      * the removed fields with their Restore URLs; Scoring holds the scoring dimensions in rubric order with their total
      * and either the rows of their form or, once the activity has a score, why they can no longer change (see
      * scoringData()). Reads the submission fields in one query and whether a score exists in another, plus the
-     * notice's one.
+     * curriculum's schedule bounds in one.
      *
-     * @return array{title: string, statusLabel: string, statusTone: string, weekLabel: string, programName: string, weekUrl: string, notice: array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, objectives: ?string, instructions: ?string, update_url: string, error_bag: string}, fields: list<array{id: int, key: string, label: string, help: ?string, type: string, type_label: string, has_fixed_type: bool, fixed_type_note: string, is_required: bool, required_label: string, required_tone: string, update_url: string, error_bag: string, move_url: string, can_move_up: bool, can_move_down: bool, destroy_url: string, remove_confirmation: string}>, fieldTypes: list<array{value: string, label: string}>, addField: array{store_url: string, error_bag: string}, removedFields: list<array{key: string, label: string, help: ?string, type: string, type_label: string, has_fixed_type: bool, fixed_type_note: string, is_required: bool, required_label: string, required_tone: string, restore_url: string}>, scoring: array{dimensions: list<array{key: string, label: string, max: int}>, total: int, is_locked: bool, locked_message: string, rows: list<array{index: int, key: string, label: ?string, max: ?int}>, required_total: int, label_max_length: int, update_url: string, error_bag: string}}
+     * @return array{title: string, statusLabel: string, statusTone: string, weekLabel: string, programName: string, weekUrl: string, notice: array{status: string, tone: string, message: string}, tabs: list<array{key: string, label: string}>, selectedTab: string, details: array{title: string, description: ?string, objectives: ?string, instructions: ?string, update_url: string, error_bag: string}, fields: list<array{id: int, key: string, label: string, help: ?string, type: string, type_label: string, has_fixed_type: bool, fixed_type_note: string, is_required: bool, required_label: string, required_tone: string, update_url: string, error_bag: string, move_url: string, can_move_up: bool, can_move_down: bool, destroy_url: string, remove_confirmation: string}>, fieldTypes: list<array{value: string, label: string}>, addField: array{store_url: string, error_bag: string}, removedFields: list<array{key: string, label: string, help: ?string, type: string, type_label: string, has_fixed_type: bool, fixed_type_note: string, is_required: bool, required_label: string, required_tone: string, restore_url: string}>, scoring: array{dimensions: list<array{key: string, label: string, max: int}>, total: int, is_locked: bool, locked_message: string, rows: list<array{index: int, key: string, label: ?string, max: ?int}>, required_total: int, label_max_length: int, update_url: string, error_bag: string}}
      */
     public function activityData(Program $program, TrainingWeek $week, Activity $activity): array
     {
+        $program->loadScheduleBounds();
         [$fields, $removedFields] = $activity->requirements()
             ->where('requirement_type', 'submission_field')
             ->orderBy('position')
@@ -210,7 +246,7 @@ class CurriculumPageService
             'weekLabel' => "Week {$week->week_number}: {$week->title}",
             'programName' => $program->name,
             'weekUrl' => route('admin.programs.weeks.show', [$program, $week]).'#activities',
-            'notice' => $this->sessionsNotice($program),
+            'notice' => $this->scheduleNotice($program),
             'tabs' => [
                 ['key' => 'details', 'label' => 'Details'],
                 ['key' => 'fields', 'label' => 'Submission fields'],
@@ -300,7 +336,7 @@ class CurriculumPageService
                 'can_move_up' => $index > 0,
                 'can_move_down' => $index < $lastIndex,
                 'deactivate_url' => route('admin.programs.activities.deactivate', [$program, $week, $activity]),
-                'deactivate_confirmation' => "Deactivate {$activity->title}? Participants keep their submissions, but the activity leaves the week for every session.",
+                'deactivate_confirmation' => "Deactivate {$activity->title}? Participants keep their submissions, but the activity leaves the week.",
                 'reactivate_url' => route('admin.programs.activities.reactivate', [$program, $week, $activity]),
             ])
             ->all();
@@ -332,7 +368,7 @@ class CurriculumPageService
                     'can_move_up' => $index > 0,
                     'can_move_down' => $index < $lastIndex,
                     'destroy_url' => route('admin.programs.fields.destroy', [$program, $week, $activity, $field]),
-                    'remove_confirmation' => "Remove {$row['label']}? Participants' answers to it are kept, but the field leaves the form for every session.",
+                    'remove_confirmation' => "Remove {$row['label']}? Participants' answers to it are kept, but the field leaves the form.",
                 ];
             })
             ->all();
@@ -404,7 +440,7 @@ class CurriculumPageService
                     'can_move_up' => $index > 0,
                     'can_move_down' => $index < $lastIndex,
                     'destroy_url' => route('admin.programs.checklist-items.destroy', [$program, $week, $item]),
-                    'remove_confirmation' => "Remove {$item->title}? Mentors' earlier ticks are kept; the item leaves the checklist of every session.",
+                    'remove_confirmation' => "Remove {$item->title}? Mentors' earlier ticks are kept; the item leaves the checklist.",
                 ])
                 ->all(),
             'item_types' => collect(GateCriterion::TYPE_LABELS)
@@ -441,44 +477,27 @@ class CurriculumPageService
     }
 
     /**
-     * The notice that tells an admin who sees the program's content: the training sessions that use the program,
-     * newest start date first, each with its dates, status badge and dashboard link; whether one of them is active
-     * (the notice is then a warning rather than information); and the message that counts them by status, or says
-     * that no session uses the program yet (one query).
+     * The notice above the curriculum's pages that tells an admin who sees a content change: while the curriculum is
+     * active its participants and mentors see it right away (a warning); otherwise when they can open its weeks, or
+     * that nobody can while no active week has dates. Its `status` is the `ProgramStatus` value. Reads the schedule
+     * bounds the caller loaded.
      *
-     * @return array{sessions: list<array{title: string, dates: string, status_label: string, status_tone: string, url: string}>, has_active: bool, tone: string, message: string}
+     * @return array{status: string, tone: string, message: string}
      */
-    public function sessionsNotice(Program $program): array
+    private function scheduleNotice(Program $program): array
     {
-        $sessions = $program->trainingSessions()
-            ->orderByDesc('starts_on')
-            ->orderByDesc('id')
-            ->get();
-        $countsByStatus = $sessions->countBy(fn (TrainingSession $session): string => $session->status()->value);
-        $hasActive = $countsByStatus->has(TrainingSessionStatus::Active->value);
+        $status = $program->status();
+        $dates = $program->dateRangeLabel();
 
         return [
-            'sessions' => $sessions
-                ->map(fn (TrainingSession $session): array => [
-                    'title' => $session->title,
-                    'dates' => $session->dateRangeLabel(),
-                    'status_label' => $session->status()->label(),
-                    'status_tone' => $session->status()->tone(),
-                    'url' => route('admin.sessions.show', $session),
-                ])
-                ->all(),
-            'has_active' => $hasActive,
-            'tone' => $hasActive ? 'warning' : 'info',
-            'message' => $sessions->isEmpty()
-                ? 'No training session uses this program yet.'
-                : sprintf(
-                    'Used by %d training %s (%d active, %d upcoming, %d completed). Changes show to their participants and mentors right away, including in completed sessions.',
-                    $sessions->count(),
-                    Str::plural('session', $sessions->count()),
-                    $countsByStatus->get(TrainingSessionStatus::Active->value, 0),
-                    $countsByStatus->get(TrainingSessionStatus::Upcoming->value, 0),
-                    $countsByStatus->get(TrainingSessionStatus::Completed->value, 0),
-                ),
+            'status' => $status->value,
+            'tone' => $status === ProgramStatus::Active ? 'warning' : 'info',
+            'message' => match ($status) {
+                ProgramStatus::Unscheduled => 'Not scheduled: participants cannot open any week yet.',
+                ProgramStatus::Upcoming => "Upcoming {$dates}: participants can open the first week on {$program->scheduleStartsOn()->format('j M Y')}.",
+                ProgramStatus::Active => "Active {$dates}: changes show to its participants and mentors right away.",
+                ProgramStatus::Completed => "Completed {$dates}: changes still show to its participants and mentors when they look back.",
+            },
         ];
     }
 }

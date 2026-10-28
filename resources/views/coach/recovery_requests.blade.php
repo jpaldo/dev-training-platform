@@ -16,10 +16,10 @@
 
         <x-ui.card as="form" method="GET" action="{{ route('coach.recovery.index') }}" class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end" aria-label="Filter recovery requests">
             <div class="grid min-w-0 gap-2">
-                <label for="recovery-session" class="text-sm font-extrabold">Training session</label>
-                <select id="recovery-session" name="session" class="w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50">
-                    <option value="">All training sessions</option>
-                    @foreach($sessionOptions as $option)
+                <label for="recovery-program" class="text-sm font-extrabold">Curriculum</label>
+                <select id="recovery-program" name="program" class="w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50">
+                    <option value="">All curricula</option>
+                    @foreach($programOptions as $option)
                         <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
                     @endforeach
                 </select>
@@ -42,8 +42,8 @@
                             <x-ui.badge tone="danger">FAILED</x-ui.badge>
                         </p>
                         <p class="m-0 text-sm/relaxed wrap-break-word">
-                            <span class="text-muted">Training session:</span>
-                            {{ $item['session_title'] }} ({{ $item['session_dates'] }})
+                            <span class="text-muted">Curriculum:</span>
+                            {{ $item['program_name'] }} ({{ $item['program_dates'] }})
                         </p>
                         <p class="m-0 leading-relaxed wrap-anywhere">{{ $item['message'] }}</p>
                         <form method="post" action="{{ $item['decide_url'] }}" class="m-0 grid grid-cols-1 gap-3">

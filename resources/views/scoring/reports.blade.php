@@ -22,10 +22,10 @@
 
         <x-ui.card as="form" method="GET" class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end lg:grid-cols-3" aria-label="Scoring report filters">
             <div class="grid min-w-0 gap-2">
-                <label for="report-session" class="{{ $labelClasses }}">Training session</label>
-                <select id="report-session" name="session" class="{{ $controlClasses }}">
-                    <option value="">All training sessions</option>
-                    @foreach($sessionOptions as $option)
+                <label for="report-program" class="{{ $labelClasses }}">Curriculum</label>
+                <select id="report-program" name="program" class="{{ $controlClasses }}">
+                    <option value="">All curricula</option>
+                    @foreach($programOptions as $option)
                         <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
                     @endforeach
                 </select>

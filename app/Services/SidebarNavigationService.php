@@ -67,7 +67,7 @@ class SidebarNavigationService
         if (! $user->isCoachOrAdmin()) {
             return [
                 'Training' => [
-                    ['label' => 'Dashboard', 'route' => 'dashboard', 'active' => ['dashboard', 'training.sessions.*', 'training.weeks.*', 'training.activities.*', 'training.submission.*', 'training.gates.*', 'training.video-recording.*']],
+                    ['label' => 'Dashboard', 'route' => 'dashboard', 'active' => ['dashboard', 'training.programs.*', 'training.weeks.*', 'training.activities.*', 'training.submission.*', 'training.gates.*', 'training.video-recording.*']],
                     ['label' => 'Attendance', 'route' => 'participant.attendance.index', 'active' => ['participant.attendance.*']],
                     ['label' => 'Notifications', 'route' => 'participant.notifications', 'active' => ['participant.notifications'], 'count' => $this->notifications->unreadCount($user)],
                 ],
@@ -94,7 +94,6 @@ class SidebarNavigationService
         if ($user->hasAnyRole(UserRole::Admin)) {
             $groups['Admin'] = [
                 ['label' => 'Admin Dashboard', 'route' => 'admin.dashboard', 'active' => ['admin.dashboard']],
-                ['label' => 'Training Sessions', 'route' => 'admin.sessions.index', 'active' => ['admin.sessions.*']],
                 ['label' => 'Curriculum', 'route' => 'admin.programs.index', 'active' => ['admin.programs.*']],
                 ['label' => 'Users / Participants', 'route' => 'admin.users.index', 'active' => ['admin.users.*']],
                 ['label' => 'Settings', 'route' => 'admin.settings.index', 'active' => ['admin.settings.index', 'admin.settings.email', 'admin.settings.google', 'admin.settings.interview-scheduling', 'admin.settings.training']],

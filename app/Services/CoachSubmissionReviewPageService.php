@@ -3,10 +3,10 @@
 namespace App\Services;
 
 use App\Enums\ReviewDecision;
+use App\Models\ProgramParticipant;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSessionParticipant;
 use Illuminate\Support\Collection;
 
 class CoachSubmissionReviewPageService
@@ -17,16 +17,16 @@ class CoachSubmissionReviewPageService
 
     /**
      * Everything the coach review page of a submission version renders: the header (with the participant's GitHub
-     * repository for the submission's session, null when they have none), the submitted fields and evidence,
+     * repository for the submission's curriculum, null when they have none), the submitted fields and evidence,
      * the latest review and which of the claim and retry actions apply. Only an admin or the participant's current
-     * mentor in the submission's session opens the page (SubmissionVersionPolicy::view), so the review form is always
+     * mentor in the submission's curriculum opens the page (SubmissionVersionPolicy::view), so the review form is always
      * shown. The single main action is Save Review.
      *
      * @return array{submissionVersion: SubmissionVersion, activityTitle: string, participantName: string, repositoryUrl: ?string, versionStatusLabel: string, canClaim: bool, canRetry: bool, submittedFields: list<array{label: string, text: mixed, link: ?string}>, evidenceItems: list<array{evidence: SubmissionEvidence, is_file: bool, type_label: string}>, currentReview: ?array{decision_label: string, reviewer_name: string, reviewed_at: string, comments: ?string}, decisionOptions: list<array{value: string, label: string}>}
      */
     public function showData(SubmissionVersion $submissionVersion): array
     {
-        $submissionVersion->load(['submission.participant', 'submission.trainingSession', 'submission.activity.week', 'evidence', 'reviews.reviewer', 'interactions']);
+        $submissionVersion->load(['submission.participant', 'submission.activity.week', 'evidence', 'reviews.reviewer', 'interactions']);
         $submission = $submissionVersion->submission;
         $activity = $submission->activity;
 
@@ -34,7 +34,7 @@ class CoachSubmissionReviewPageService
             'submissionVersion' => $submissionVersion,
             'activityTitle' => $activity->title,
             'participantName' => $submission->participant->name,
-            'repositoryUrl' => TrainingSessionParticipant::query()->forParticipantInSession($submission->training_session_id, $submission->user_id)->value('repository_url'),
+            'repositoryUrl' => ProgramParticipant::query()->forParticipantInProgram($activity->week->program_id, $submission->user_id)->value('repository_url'),
             'versionStatusLabel' => $submissionVersion->status->label(),
             'canClaim' => $submission->isClaimable(),
             'canRetry' => $submission->isFailed(),

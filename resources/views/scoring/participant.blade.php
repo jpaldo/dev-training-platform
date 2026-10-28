@@ -11,11 +11,11 @@
             <x-ui.eyebrow>SCORING · PARTICIPANT</x-ui.eyebrow>
             <x-ui.page-title>{{ $participantName }}</x-ui.page-title>
             <p class="m-0 leading-relaxed wrap-anywhere text-muted">{{ $participantEmail }}</p>
-            <p class="m-0 leading-relaxed wrap-break-word"><strong>Training session:</strong> {{ $sessionLabel }}</p>
+            <p class="m-0 leading-relaxed wrap-break-word"><strong>Curriculum:</strong> {{ $programLabel }}</p>
         </header>
 
         @if($weeks === [])
-            <x-ui.alert tone="warning" role="status">This training session has no weeks to score yet.</x-ui.alert>
+            <x-ui.alert tone="warning" role="status">This curriculum has no weeks to score yet.</x-ui.alert>
         @endif
 
         @if(session('status'))

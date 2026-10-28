@@ -30,10 +30,10 @@
                 <input id="gate-search" name="search" value="{{ $search }}" placeholder="Name or email…" class="{{ $controlClasses }}">
             </div>
             <div class="grid min-w-0 gap-2">
-                <label for="gate-session" class="{{ $labelClasses }}">Training session</label>
-                <select id="gate-session" name="session" class="{{ $controlClasses }}">
-                    <option value="">All training sessions</option>
-                    @foreach($sessionOptions as $option)
+                <label for="gate-program" class="{{ $labelClasses }}">Curriculum</label>
+                <select id="gate-program" name="program" class="{{ $controlClasses }}">
+                    <option value="">All curricula</option>
+                    @foreach($programOptions as $option)
                         <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
                     @endforeach
                 </select>
@@ -62,12 +62,12 @@
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="gate-board-caption">
             <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="gate-board-caption" tabindex="0">
                 <table class="w-full min-w-280 border-collapse text-sm">
-                    <caption id="gate-board-caption" class="pb-3 text-left text-muted">One row per participant, training session and Gate</caption>
+                    <caption id="gate-board-caption" class="pb-3 text-left text-muted">One row per participant, curriculum and Gate</caption>
                     <thead>
                         <tr>
                             <th scope="col" class="{{ $headerCellClasses }}">Gate</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                            <th scope="col" class="{{ $headerCellClasses }}">Training session</th>
+                            <th scope="col" class="{{ $headerCellClasses }}">Curriculum</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Status</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Criteria</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Video</th>
@@ -92,8 +92,8 @@
                                 </td>
                                 <td class="{{ $cellClasses }}">
                                     <span class="grid gap-0.5">
-                                        <span class="wrap-break-word">{{ $row['session_title'] }}</span>
-                                        <span class="whitespace-nowrap text-muted">{{ $row['session_dates'] }}</span>
+                                        <span class="wrap-break-word">{{ $row['program_name'] }}</span>
+                                        <span class="whitespace-nowrap text-muted">{{ $row['program_dates'] }}</span>
                                     </span>
                                 </td>
                                 <td class="{{ $cellClasses }}">

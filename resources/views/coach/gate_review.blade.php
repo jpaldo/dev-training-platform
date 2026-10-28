@@ -114,7 +114,7 @@
                 </div>
             </x-ui.card>
 
-            <x-ui.card as="form" method="POST" action="{{ route('training.coach.gates.update', [$trainingSession, $trainingWeek, $participant, $gate]) }}" id="gate-review-form" class="grid gap-6" aria-labelledby="gate-decision-title">
+            <x-ui.card as="form" method="POST" action="{{ route('training.coach.gates.update', [$program, $trainingWeek, $participant, $gate]) }}" id="gate-review-form" class="grid gap-6" aria-labelledby="gate-decision-title">
                 @csrf
                 <h2 id="gate-decision-title" class="m-0 text-xl font-extrabold">Mentor decision</h2>
 

@@ -9,11 +9,11 @@
         </header>
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <x-ui.card as="section" class="grid content-start gap-3" aria-labelledby="participant-session-title">
-                <h2 id="participant-session-title" class="m-0 text-xl font-extrabold">Training session</h2>
+            <x-ui.card as="section" class="grid content-start gap-3" aria-labelledby="participant-program-title">
+                <h2 id="participant-program-title" class="m-0 text-xl font-extrabold">Curriculum</h2>
                 <p class="m-0 grid gap-0.5 leading-relaxed">
-                    <span class="wrap-break-word">{{ $trainingSession->title }}</span>
-                    <span class="text-muted">{{ $trainingSession->dateRangeLabel() }}</span>
+                    <span class="wrap-break-word">{{ $program->name }}</span>
+                    <span class="text-muted">{{ $programDates }}</span>
                 </p>
                 @if($mentorName !== null)
                     <p class="m-0 leading-relaxed text-muted">Mentor: {{ $mentorName }}</p>

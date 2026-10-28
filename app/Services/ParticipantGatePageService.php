@@ -5,8 +5,8 @@ namespace App\Services;
 use App\Enums\GateEvaluationStatus;
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
+use App\Models\Program;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -16,19 +16,19 @@ class ParticipantGatePageService
     public function __construct(private readonly GateReadinessService $gates) {}
 
     /**
-     * Everything the participant Gate page renders from their work in the session: the Gate status, the readiness
+     * Everything the participant Gate page renders from their work in the week: the Gate status, the readiness
      * summary, the Weekly Video Recording state (null when the Gate has no weekly video criterion, so it does not
      * require a video), the week's checklist (read only, each required item with its review status) and the coach
-     * feedback. The main action (Choose Weekly Video, within the session) is offered only while the Gate requires a
+     * feedback. The main action (Choose Weekly Video, within the curriculum) is offered only while the Gate requires a
      * video and none is linked.
      *
      * @return array{trainingWeek: TrainingWeek, gate: TrainingGate, statusLabel: string, statusTone: string, readinessItems: list<array{label: string, progress: string, message: string}>, showsReadyNotice: bool, weeklyVideo: ?array{description: ?string, status_label: string, status_tone: string, url: ?string}, chooseVideoUrl: ?string, criteria: list<array{title: string, description: ?string, is_met: bool, status_label: string, status_tone: string}>, coachFeedback: ?string}
      */
-    public function showData(TrainingSession $trainingSession, TrainingWeek $week, User $participant, TrainingGate $gate): array
+    public function showData(Program $program, TrainingWeek $week, User $participant, TrainingGate $gate): array
     {
-        $evaluation = $gate->evaluations()->where('training_session_id', $trainingSession->id)->where('user_id', $participant->id)->with('criterionEvaluations')->first();
-        $readiness = $this->gates->readiness($trainingSession, $participant, $gate);
-        $weeklyVideo = $this->gates->weeklyVideo($trainingSession, $participant, $gate);
+        $evaluation = $gate->evaluations()->where('user_id', $participant->id)->with('criterionEvaluations')->first();
+        $readiness = $this->gates->readiness($participant, $gate);
+        $weeklyVideo = $this->gates->weeklyVideo($participant, $gate);
         $gate->load('criteria');
         $readinessItems = $this->readinessItems($readiness);
         $requiresVideo = $weeklyVideo['status'] !== 'not_required';
@@ -50,7 +50,7 @@ class ParticipantGatePageService
                 },
                 'url' => $weeklyVideo['url'],
             ] : null,
-            'chooseVideoUrl' => $requiresVideo && ! $weeklyVideo['url'] ? route('training.video-recording.edit', [$trainingSession, $week]) : null,
+            'chooseVideoUrl' => $requiresVideo && ! $weeklyVideo['url'] ? route('training.video-recording.edit', [$program, $week]) : null,
             'criteria' => $this->criterionRows($gate, $evaluation),
             'coachFeedback' => $evaluation?->comments ?: null,
         ];

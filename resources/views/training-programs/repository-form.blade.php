@@ -1,6 +1,6 @@
 {{--
-    The form that saves the participant's GitHub repository for the session, filled with the saved link (or the rejected
-    input after a failed save). Rendered once on the session page: as the prompt until a repository is saved, then
+    The form that saves the participant's GitHub repository for the curriculum, filled with the saved link (or the
+    rejected input after a failed save). Rendered once on the curriculum page: as the prompt until a repository is saved, then
     inside the Change disclosure.
 --}}
 <form method="POST" action="{{ $repositoryFormUrl }}" class="grid min-w-0 grid-cols-1 gap-2 sm:max-w-xl">

@@ -9,42 +9,40 @@
             <x-ui.alert tone="success">Training complete — every week completed.</x-ui.alert>
         @endif
         @unless($acceptsWork)
-            <x-ui.alert role="status" data-session-ended>This training session has ended. You can still view every week, your submissions and your scores. If your mentor sends an activity back for revision, you can revise and resubmit it.</x-ui.alert>
+            <x-ui.alert role="status" data-program-ended>This curriculum has ended. You can still view every week, your submissions and your scores. If your mentor sends an activity back for revision, you can revise and resubmit it.</x-ui.alert>
         @endunless
 
         <header class="grid min-w-0 gap-2">
-            <x-ui.eyebrow>TRAINING SESSION</x-ui.eyebrow>
+            <x-ui.eyebrow>CURRICULUM</x-ui.eyebrow>
             <x-ui.page-title>{{ $title }}</x-ui.page-title>
             <div class="flex flex-wrap items-center gap-x-3 gap-y-2 leading-relaxed text-muted">
-                <span class="wrap-break-word">{{ $program }}</span>
-                <span aria-hidden="true">·</span>
                 <span class="whitespace-nowrap">{{ $dateRange }}</span>
                 <x-ui.badge :tone="$statusTone">{{ $statusLabel }}</x-ui.badge>
             </div>
         </header>
 
-        <x-ui.card as="section" padding="p-5" class="grid min-w-0 grid-cols-1 gap-3" aria-labelledby="session-repository-title">
+        <x-ui.card as="section" padding="p-5" class="grid min-w-0 grid-cols-1 gap-3" aria-labelledby="program-repository-title">
             @if($repositoryUrl)
-                <h2 id="session-repository-title" class="text-base font-extrabold">Your GitHub repository</h2>
+                <h2 id="program-repository-title" class="text-base font-extrabold">Your GitHub repository</h2>
                 <a href="{{ $repositoryUrl }}" target="_blank" rel="noopener noreferrer" class="justify-self-start font-bold break-all text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">{{ $repositoryUrl }}<span class="sr-only"> (opens in a new tab)</span></a>
                 <details class="min-w-0" @error('repository_url') open @enderror>
                     <summary aria-label="Change repository" class="inline-flex cursor-pointer list-none items-center rounded-xl border border-line bg-raised px-4 py-2.5 text-sm font-extrabold text-white hover:border-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent/50 [&::-webkit-details-marker]:hidden">Change</summary>
                     <div class="mt-3">
-                        @include('training-sessions.repository-form')
+                        @include('training-programs.repository-form')
                     </div>
                 </details>
             @else
-                <h2 id="session-repository-title" class="text-base font-extrabold">Add your GitHub repository for this session</h2>
+                <h2 id="program-repository-title" class="text-base font-extrabold">Add your GitHub repository for this curriculum</h2>
                 <p class="text-sm/relaxed text-muted">Your mentor checks your session logs and deliverables there. You can change it later.</p>
-                @include('training-sessions.repository-form')
+                @include('training-programs.repository-form')
             @endif
         </x-ui.card>
 
         <div class="min-w-0" data-page-tabs>
-            <x-ui.tab-list :tabs="$tabs" :selected="$selectedTab" id-prefix="session" label="Training session sections" />
+            <x-ui.tab-list :tabs="$tabs" :selected="$selectedTab" id-prefix="program" label="Curriculum sections" />
 
             @foreach($weeks as $item)
-                <x-ui.tab-panel :name="$item['tab_key']" :selected="$selectedTab" id-prefix="session">
+                <x-ui.tab-panel :name="$item['tab_key']" :selected="$selectedTab" id-prefix="program">
                     <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
                         <div class="grid max-w-3xl min-w-0 gap-2">
                             <x-ui.eyebrow>WEEK {{ $item['week']->week_number }}</x-ui.eyebrow>
@@ -54,12 +52,12 @@
                         @if($item['available'] && $item['passed'])
                             <x-ui.alert tone="success">Completed</x-ui.alert>
                         @elseif($item['available'])
-                            <x-ui.button :href="route('training.weeks.show', [$trainingSession, $item['week']])">Open week →</x-ui.button>
+                            <x-ui.button :href="route('training.weeks.show', [$program, $item['week']])">Open week →</x-ui.button>
                         @endif
                     </div>
 
                     @if(! $item['available'])
-                        @include('training-sessions.locked-week', [
+                        @include('training-programs.locked-week', [
                             'message' => $item['locked_message'],
                             'lockedByWeekNumber' => $item['locked_by_week_number'],
                             'missingItems' => $item['missing_items'],
@@ -79,7 +77,7 @@
                                 <ol class="grid grid-cols-1 gap-3">
                                     @foreach($item['week']->activities as $activity)
                                         @php
-                                            $activityUrl = route('training.activities.show', [$trainingSession, $item['week'], $activity]);
+                                            $activityUrl = route('training.activities.show', [$program, $item['week'], $activity]);
                                         @endphp
                                         <li class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-field px-4 py-3.5">
                                             <div class="grid min-w-0 flex-[1_1_260px] gap-1.5">
@@ -125,7 +123,7 @@
                                                 @elseif($gateItem['readiness'] === [] && ! $gateItem['evaluation'])
                                                     <p class="text-sm text-muted">Your Gate is ready for Mentor review.</p>
                                                 @endif
-                                                <x-ui.button variant="secondary" :href="route('training.gates.show', [$trainingSession, $gateItem['week'], $gateItem['gate']])">View Gate</x-ui.button>
+                                                <x-ui.button variant="secondary" :href="route('training.gates.show', [$program, $gateItem['week'], $gateItem['gate']])">View Gate</x-ui.button>
                                             </div>
                                         @empty
                                             <p class="text-sm text-muted">No active Gates are configured.</p>
@@ -140,12 +138,12 @@
                                         @if($item['week']->weekly_video_recording)
                                             <x-weekly-video-actions :recording="$item['week']->weekly_video_recording">
                                                 @if($acceptsWork)
-                                                    <x-ui.button variant="secondary" :href="route('training.video-recording.edit', [$trainingSession, $item['week']])">Change Video</x-ui.button>
+                                                    <x-ui.button variant="secondary" :href="route('training.video-recording.edit', [$program, $item['week']])">Change Video</x-ui.button>
                                                 @endif
                                             </x-weekly-video-actions>
                                         @elseif($acceptsWork)
                                             <div class="flex flex-wrap items-center gap-2.5">
-                                                <x-ui.button variant="secondary" :href="route('training.video-recording.edit', [$trainingSession, $item['week']])">Choose Video</x-ui.button>
+                                                <x-ui.button variant="secondary" :href="route('training.video-recording.edit', [$program, $item['week']])">Choose Video</x-ui.button>
                                             </div>
                                         @endif
                                     </x-ui.card>
@@ -156,7 +154,7 @@
                 </x-ui.tab-panel>
             @endforeach
 
-            <x-ui.tab-panel name="overview" :selected="$selectedTab" id-prefix="session">
+            <x-ui.tab-panel name="overview" :selected="$selectedTab" id-prefix="program">
                 <x-ui.card class="grid grid-cols-1 gap-3.5">
                     <x-ui.eyebrow>TRAINING OVERVIEW</x-ui.eyebrow>
                     <h2 id="training-overview-title" class="text-xl font-extrabold">How this training works</h2>
@@ -179,13 +177,13 @@
                 </x-ui.card>
             </x-ui.tab-panel>
 
-            <x-ui.tab-panel name="resources" :selected="$selectedTab" id-prefix="session">
-                <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="session-resources-title">
-                    <h2 id="session-resources-title" class="text-xl font-extrabold">Resources</h2>
+            <x-ui.tab-panel name="resources" :selected="$selectedTab" id-prefix="program">
+                <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="program-resources-title">
+                    <h2 id="program-resources-title" class="text-xl font-extrabold">Resources</h2>
 
                     @forelse($resourceGroups as $group)
-                        <section class="grid min-w-0 grid-cols-1 gap-3" aria-labelledby="session-resources-{{ $group['key'] }}-title" data-resource-group>
-                            <h3 id="session-resources-{{ $group['key'] }}-title" class="text-base font-extrabold">{{ $group['label'] }}</h3>
+                        <section class="grid min-w-0 grid-cols-1 gap-3" aria-labelledby="program-resources-{{ $group['key'] }}-title" data-resource-group>
+                            <h3 id="program-resources-{{ $group['key'] }}-title" class="text-base font-extrabold">{{ $group['label'] }}</h3>
                             <ul class="grid grid-cols-1 gap-3">
                                 @foreach($group['resources'] as $resource)
                                     <li class="min-w-0">
@@ -195,7 +193,7 @@
                             </ul>
                         </section>
                     @empty
-                        <p class="text-muted">No resources in this session yet.</p>
+                        <p class="text-muted">No resources in this curriculum yet.</p>
                     @endforelse
                 </x-ui.card>
             </x-ui.tab-panel>

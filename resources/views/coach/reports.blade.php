@@ -27,10 +27,10 @@
                 <input id="report-search" name="search" value="{{ $search }}" placeholder="Name or email" class="{{ $controlClasses }}">
             </div>
             <div class="grid min-w-0 gap-2">
-                <label for="report-session" class="{{ $labelClasses }}">Training session</label>
-                <select id="report-session" name="session" class="{{ $controlClasses }}">
-                    <option value="">All training sessions</option>
-                    @foreach($sessionOptions as $option)
+                <label for="report-program" class="{{ $labelClasses }}">Curriculum</label>
+                <select id="report-program" name="program" class="{{ $controlClasses }}">
+                    <option value="">All curricula</option>
+                    @foreach($programOptions as $option)
                         <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
                     @endforeach
                 </select>
@@ -74,7 +74,7 @@
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Training session</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Curriculum</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Reasons</th>
                             </tr>
                         </thead>
@@ -84,8 +84,8 @@
                                     <th scope="row" class="{{ $cellClasses }} wrap-break-word">{{ $row['participant_name'] }}</th>
                                     <td class="{{ $cellClasses }}">
                                         <span class="grid gap-0.5">
-                                            <span class="wrap-break-word">{{ $row['session_title'] }}</span>
-                                            <span class="whitespace-nowrap text-muted">{{ $row['session_dates'] }}</span>
+                                            <span class="wrap-break-word">{{ $row['program_name'] }}</span>
+                                            <span class="whitespace-nowrap text-muted">{{ $row['program_dates'] }}</span>
                                         </span>
                                     </td>
                                     <td class="{{ $cellClasses }} wrap-break-word">{{ $row['reasons'] }}</td>
@@ -113,7 +113,7 @@
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Training session</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Curriculum</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Mentor</th>
                                 <th scope="col" class="{{ $headerCellClasses }} text-right">Submissions</th>
                                 <th scope="col" class="{{ $headerCellClasses }} text-right">Gates</th>
@@ -130,8 +130,8 @@
                                     </th>
                                     <td class="{{ $cellClasses }}">
                                         <span class="grid gap-0.5">
-                                            <span class="wrap-break-word">{{ $row['session_title'] }}</span>
-                                            <span class="whitespace-nowrap text-muted">{{ $row['session_dates'] }}</span>
+                                            <span class="wrap-break-word">{{ $row['program_name'] }}</span>
+                                            <span class="whitespace-nowrap text-muted">{{ $row['program_dates'] }}</span>
                                         </span>
                                     </td>
                                     <td class="{{ $cellClasses }} wrap-break-word">{{ $row['mentor_name'] }}</td>

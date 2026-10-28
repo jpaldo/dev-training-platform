@@ -1,6 +1,8 @@
 # Admin Curriculum Editing Plan
 
-Source: user request of 2026-10-27, "allow admin to modify checklists and the weekly training session details". There is no spec; the **Requirements** section below is the spec of record until `docs/specs/admin-curriculum-editing.md` exists · Last updated: 2026-10-27
+Source: user request of 2026-10-27, "allow admin to modify checklists and the weekly training session details" (a week's details; the session model this plan was written against is superseded, see below). There is no spec; the **Requirements** section below is the spec of record until `docs/specs/admin-curriculum-editing.md` exists · Last updated: 2026-10-28
+
+**Since `docs/plans/curriculum-sessions-merge.md` (2026-10-28):** the program is the curriculum people join; its participants, mentors and resources hang off it and its weeks carry their own dates. Where this plan says an edit applies to "every session of the program", read "the curriculum's participants and mentors". CUR-1 and CUR-13 are reworded (that plan's A10), the session parts of Design › Services and Screens are struck through, and the batch notes below are history.
 
 **Status legend:** `[x]` done · `[ ]` to do · `[~]` in progress · `[-]` deferred
 
@@ -19,14 +21,14 @@ Admins can change a program's weekly content in the app instead of asking a deve
 - **Writes go through services.** Each write runs in `DB::transaction()` with its `AdminAuditService::record()` row. If nothing changed, nothing is saved and no audit row is written (same as `TrainingSessionResourceService::rename()`).
 - **Never replace a `configuration` column wholesale.** Merge into the stored array so keys this plan does not edit survive: `expected_files` (from `docs/plans/repository-ai-check.md` 1.2), `options` on `select` fields, and `deprecated`.
 - **Never delete** activities, submission fields, or checklist items that a mentor has reviewed. They are retired so submissions, scores and ticks keep their rows (see Design).
-- **No migrations.** This plan adds no table or column. If a batch seems to need one, stop and record it under Open decisions.
+- **No migrations.** This plan adds no table or column. If a batch seems to need one, stop and record it under Open decisions. (The rule is this plan's own: `docs/plans/curriculum-sessions-merge.md` added `training_weeks.starts_on` / `ends_on`, the `program_participants`, `program_mentors` and `program_resources` tables and dropped the session tables under its own rules; batches of this plan still add none.)
 - After 1.1, 2.7 and 3.1, update the entries named in their **Do** in `docs/plans/developer-program-and-training-sessions.md` ("Resolved in admin-curriculum-editing X.Y: …"), keeping the original text struck through, as that plan does.
 
 ## Requirements
 
 | ID | Requirement | Covered by |
 |---|---|---|
-| CUR-1 | An admin opens a **Curriculum** area from the sidebar. It lists the programs, then a program's weeks and the sessions that use it, then a week's details, activities and checklist, then an activity's details, fields and scoring. Coaches and participants get 403; guests are sent to login | 1.2, 1.3, 2.2 |
+| CUR-1 | An admin opens a **Curriculum** area from the sidebar. It lists the curricula with their status and dates, then a curriculum's page with its weeks (and, since curriculum-sessions-merge, its participants, mentors, resources, activities and schedule), then a week's details, activities and checklist, then an activity's details, fields and scoring. Coaches and participants get 403; guests are sent to login | 1.2, 1.3, 2.2 |
 | CUR-2 | An admin edits a week's title and description. The week number, its position and whether it is active do not change | 2.1 |
 | CUR-3 | An admin adds an activity to a week (title, description, objectives, instructions). It goes last | 2.3 |
 | CUR-4 | An admin edits an activity's title, description, objectives and instructions | 2.2 |
@@ -38,7 +40,7 @@ Admins can change a program's weekly content in the app instead of asking a deve
 | CUR-10 | An admin adds checklist items, edits their type, title and description, and reorders them | 3.2, 3.3 |
 | CUR-11 | An admin removes a checklist item and can restore it. Removing an item never moves a mentor's tick to another item. A checklist keeps at least one item and has at most one session-logs item and at most one weekly-video item | 3.4 |
 | CUR-12 | A removed checklist item no longer counts anywhere. A removed weekly-video item no longer makes the week ask for a video, and the Gate board's "criteria met" counts only items still on the checklist | 3.1 |
-| CUR-13 | Edits apply at once to every session of the program (upcoming, active and completed). The program, week and activity pages name the sessions that use the program and show a warning while any of them is active. The session dashboard's Activities tab links to the program's curriculum | 1.2, 1.3 |
+| CUR-13 | Edits apply at once to the curriculum's participants and mentors, whatever its status (unscheduled, upcoming, active or completed). The program, week and activity pages show the curriculum's status and dates and a warning while it is active. The Activities tab sits on the curriculum's own page (curriculum-sessions-merge 2.1) | 1.2, 1.3 |
 | CUR-14 | Every change writes one `AdminAuditLog` row through `AdminAuditService`, with the program, week and item ids and the changed values before and after. A save that changes nothing writes no row | 2.1 to 2.7, 3.2 to 3.4 |
 | CUR-15 | Re-running `L4TrainingProgramSeeder`, `app:ensure-development-baseline` or `db:seed` never overwrites or retires content of a program that already exists | 1.1 |
 | CUR-16 | A failed save shows its errors beside the form that sent it, keeps the input and saves nothing. A week, activity, field or checklist item of another program, week or activity gives 404 | 2.1 to 2.7, 3.2 to 3.4 |
@@ -108,11 +110,11 @@ How each scoped binding is checked:
 ### Services
 
 - `CurriculumPageService`:
-  - `indexData()`: programs with `withCount(['weeks', 'trainingSessions'])`.
-  - `programData(Program)`: weeks with `withCount` of active activities and on-checklist items, plus the sessions.
+  - `indexData()`: programs with ~~`withCount(['weeks', 'trainingSessions'])`~~ `withCount(['weeks', 'participants'])` and `withScheduleBounds()` (superseded by curriculum-sessions-merge 1.3 / 2.1).
+  - `programData(Program)`: weeks with `withCount` of active activities and on-checklist items~~, plus the sessions~~, plus the status, dates and Schedule tab (superseded by curriculum-sessions-merge 1.3 / 2.1).
   - `weekData(Program, TrainingWeek)`: tabs **Details**, **Activities** and **Checklist**, with form URLs and error-bag names.
   - `activityData(Program, TrainingWeek, Activity)`: tabs **Details**, **Submission fields** and **Scoring**.
-  - `sessionsNotice(Program)`: `{sessions: list<{title, dates, status_label, status_tone, url}>, has_active: bool, tone: string, message: string}` (`tone` is the `x-ui.alert` tone, `warning` or `info`, so the view holds no logic).
+  - ~~`sessionsNotice(Program)`: `{sessions: list<{title, dates, status_label, status_tone, url}>, has_active: bool, tone: string, message: string}` (`tone` is the `x-ui.alert` tone, `warning` or `info`, so the view holds no logic).~~ **Superseded by curriculum-sessions-merge 2.1:** a schedule notice `{status, tone, message}` from the curriculum's status, rendered by `admin/curriculum/schedule-notice`.
   - Views get prepared arrays only.
 - `CurriculumOrderService::move(Model $item, Builder $siblings, string $direction): bool` swaps `position` with the neighbour in `$siblings`, ordered by position then id. Because `activities` has a unique (`training_week_id`, `position`) index, it parks the moving row on `max(position) + 1` first. Positions are `smallint unsigned`, so no negative values. It returns `false` at either end, and then nothing is saved or audited.
 - `CurriculumWeekService`: `updateWeek`, `addActivity`, `updateActivity`, `moveActivity`, `deactivateActivity`, `reactivateActivity`, `updateScoringDimensions`.
@@ -129,14 +131,14 @@ How each scoped binding is checked:
 
 ### Screens
 
-- **Sidebar:** in the Admin group, after "Training Sessions", add `['label' => 'Curriculum', 'route' => 'admin.programs.index', 'active' => ['admin.programs.*']]`.
-- **Programs index** (`admin/curriculum/index`): a table with name, Active / Inactive badge, number of weeks, number of sessions, and an "Open" link. Empty state: "No programs yet."
+- **Sidebar:** in the Admin group, ~~after "Training Sessions",~~ (superseded by curriculum-sessions-merge 2.1: that link is gone) add `['label' => 'Curriculum', 'route' => 'admin.programs.index', 'active' => ['admin.programs.*']]`.
+- **Programs index** (`admin/curriculum/index`): a table with name, Active / Inactive badge, number of weeks, ~~number of sessions,~~ and an "Open" link (superseded by curriculum-sessions-merge 2.1: the columns are Curriculum, Offered, Schedule, Dates, Weeks, Participants and Actions). Empty state: "No programs yet."
 - **Program page** (`admin/curriculum/program`):
   - The program name and description (read-only).
-  - The sessions notice (see below).
+  - ~~The sessions notice (see below).~~ The schedule notice (superseded by curriculum-sessions-merge 2.1, see below).
   - The weeks table: Week N, title, Active / Inactive badge, active activities, checklist items, and an "Edit week" link.
 - **Week page** (`admin/curriculum/week`):
-  - Header: eyebrow "ADMIN · CURRICULUM", the title "Week N: {title}", a back link to the program, and the sessions notice.
+  - Header: eyebrow "ADMIN · CURRICULUM", the title "Week N: {title}", a back link to the program, and the ~~sessions~~ schedule notice (superseded by curriculum-sessions-merge 2.1).
   - **Details** tab: the title and description form.
   - **Activities** tab: an ordered table of activities with an Active / Inactive badge, number of fields, Edit, Move up / Move down, and Deactivate / Reactivate. Below it, the "Add activity" form.
   - **Checklist** tab: the checklist title and description form, then one row per on-checklist item with its type select, title, description, Save, Move up / Move down and Remove. Then the "Add item" form, then "Removed items" with Restore.
@@ -146,11 +148,12 @@ How each scoped binding is checked:
   - **Submission fields** tab: per-field forms, the add form, and removed fields with Restore.
   - **Scoring** tab: the dimension rows, or a read-only table with "Scored submissions exist, so the dimensions can no longer change."
   - "Back to week" link.
-- **Sessions notice** (on the program, week and activity pages):
-  - With sessions: an `x-ui.alert`, tone `warning` when a session is active and `info` otherwise. It reads: "Used by {n} training sessions ({active} active, {upcoming} upcoming, {completed} completed). Changes show to their participants and mentors right away, including in completed sessions." Each session is listed and links to `admin.sessions.show`.
-  - Without sessions: "No training session uses this program yet."
-- **Session dashboard:** the Activities tab gets an "Edit curriculum" `x-ui.button` (secondary) linking to `admin.programs.show` for the session's program, and the line "Changes apply to every session of {program}." `AdminTrainingSessionPageService::showData()` gains `curriculumUrl` only.
-- **Pattern for every form:** errors appear beside the form that sent it, through `#[ErrorBag]` or a per-row `errorBagFor()`. A failed save returns to the right tab anchor with `old()` input. Success redirects to the tab with a `status` flash, e.g. `Saved "Week 2".` or `Removed "Session logs committed for this week".` Labels, focus states and `aria-label`s on row buttons follow `admin/sessions/show.blade.php`.
+- ~~**Sessions notice** (on the program, week and activity pages):~~
+  - ~~With sessions: an `x-ui.alert`, tone `warning` when a session is active and `info` otherwise. It reads: "Used by {n} training sessions ({active} active, {upcoming} upcoming, {completed} completed). Changes show to their participants and mentors right away, including in completed sessions." Each session is listed and links to `admin.sessions.show`.~~
+  - ~~Without sessions: "No training session uses this program yet."~~
+- ~~**Session dashboard:** the Activities tab gets an "Edit curriculum" `x-ui.button` (secondary) linking to `admin.programs.show` for the session's program, and the line "Changes apply to every session of {program}." `AdminTrainingSessionPageService::showData()` gains `curriculumUrl` only.~~
+- **Superseded by curriculum-sessions-merge 2.1:** the program, week and activity pages show `admin/curriculum/schedule-notice`, an `x-ui.alert` (tone `warning` while the curriculum is Active, `info` otherwise) built from its status: "Not scheduled: participants cannot open any week yet.", "Upcoming {dates}: participants can open the first week on {date}.", "Active {dates}: changes show to its participants and mentors right away." or "Completed {dates}: changes still show to its participants and mentors when they look back." The Activities tab is part of the curriculum page, so it needs no link.
+- **Pattern for every form:** errors appear beside the form that sent it, through `#[ErrorBag]` or a per-row `errorBagFor()`. A failed save returns to the right tab anchor with `old()` input. Success redirects to the tab with a `status` flash, e.g. `Saved "Week 2".` or `Removed "Session logs committed for this week".` Labels, focus states and `aria-label`s on row buttons follow `admin/sessions/show.blade.php` (deleted by curriculum-sessions-merge 2.1; its panels now live in `admin/curriculum/tabs/*`).
 
 ### What changes after an edit (all sessions of the program, immediately)
 
@@ -237,7 +240,7 @@ How each scoped binding is checked:
     - The program page's week rows link to `admin.programs.weeks.show` once 1.3 adds it. Until then, show the week rows without a link.
   - **Acceptance:**
     - An admin sees the list and the program page with weeks in number order, the counts of active activities and on-checklist items, and the sessions with status badges.
-    - The notice is `warning` when a session is active, and reads "No training session uses this program yet." when there are none.
+    - The notice is `warning` when a session is active, and reads "No training session uses this program yet." when there are none. (Superseded by curriculum-sessions-merge 2.1: the schedule notice.)
     - Coaches and participants get 403, and guests are redirected to login.
     - The sidebar marks "Curriculum" active on `admin.programs.*`.
     - The session dashboard's Activities tab links to its program.

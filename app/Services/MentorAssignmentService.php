@@ -4,39 +4,38 @@ namespace App\Services;
 
 use App\Models\AdminAuditLog;
 use App\Models\MentorAssignment;
-use App\Models\TrainingSession;
-use App\Models\TrainingSessionParticipant;
+use App\Models\Program;
+use App\Models\ProgramParticipant;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * A training session's mentors and which of them mentors each participant. A participant has at most one current
- * assignment per session (`ended_at` null); changing the mentor ends it and opens a new one, so the ended rows are
- * the history.
+ * A curriculum's mentors and which of them mentors each participant. A participant has at most one current assignment
+ * per curriculum (`ended_at` null); changing the mentor ends it and opens a new one, so the ended rows are the history.
  */
 class MentorAssignmentService
 {
     public function __construct(private AdminAuditService $audit) {}
 
     /**
-     * Add the coaches to the session as mentors and record `session_mentor_added` for each of them for the admin who
+     * Add the coaches to the curriculum as mentors and record `program_mentor_added` for each of them for the admin who
      * added them. Returns the number added. The caller has already checked that each is an active coach who is not yet
-     * a mentor of the session. Without an admin (demo provisioning, not an admin action) no audit row is written.
+     * a mentor of the curriculum. Without an admin (demo provisioning, not an admin action) no audit row is written.
      *
      * @param  list<int>  $mentorIds
      */
-    public function addMentors(TrainingSession $session, array $mentorIds, ?User $admin): int
+    public function addMentors(Program $program, array $mentorIds, ?User $admin): int
     {
-        return DB::transaction(function () use ($session, $mentorIds, $admin): int {
+        return DB::transaction(function () use ($program, $mentorIds, $admin): int {
             $mentors = User::query()->whereKey($mentorIds)->get();
 
-            $session->mentors()->attach($mentors->modelKeys());
+            $program->mentors()->attach($mentors->modelKeys());
 
             if ($admin !== null) {
-                $mentors->each(fn (User $mentor): AdminAuditLog => $this->audit->record($admin, 'session_mentor_added', $mentor, [
-                    'training_session_id' => $session->id,
+                $mentors->each(fn (User $mentor): AdminAuditLog => $this->audit->record($admin, 'program_mentor_added', $mentor, [
+                    'program_id' => $program->id,
                 ]));
             }
 
@@ -45,52 +44,52 @@ class MentorAssignmentService
     }
 
     /**
-     * Remove the mentor from the session, end their current assignments there (those participants become unassigned)
-     * and record `session_mentor_removed`.
+     * Remove the mentor from the curriculum, end their current assignments there (those participants become
+     * unassigned) and record `program_mentor_removed`.
      */
-    public function removeMentor(TrainingSession $session, User $mentor, User $admin): void
+    public function removeMentor(Program $program, User $mentor, User $admin): void
     {
-        DB::transaction(function () use ($session, $mentor, $admin): void {
-            $session->mentorAssignments()
+        DB::transaction(function () use ($program, $mentor, $admin): void {
+            $program->mentorAssignments()
                 ->where('mentor_id', $mentor->id)
                 ->current()
                 ->update(['ended_at' => now()]);
 
-            $session->mentors()->detach($mentor->id);
+            $program->mentors()->detach($mentor->id);
 
-            $this->audit->record($admin, 'session_mentor_removed', $mentor, [
-                'training_session_id' => $session->id,
+            $this->audit->record($admin, 'program_mentor_removed', $mentor, [
+                'program_id' => $program->id,
             ]);
         });
     }
 
     /**
-     * Make the mentor the participant's current mentor in the session: end the current assignment, if any, and open a
-     * new one from the same moment, and record `session_mentor_assigned` with the previous and new mentor IDs. When the
-     * mentor already is the current one, nothing changes and that assignment is returned. The participant's membership
-     * row is locked first, so two assignments at once cannot both open a row. Without an actor (demo provisioning, not
-     * an admin action) the new assignment has no `assigned_by` and no audit row is written.
+     * Make the mentor the participant's current mentor in the curriculum: end the current assignment, if any, and open
+     * a new one from the same moment, and record `program_mentor_assigned` with the previous and new mentor IDs. When
+     * the mentor already is the current one, nothing changes and that assignment is returned. The participant's
+     * membership row is locked first, so two assignments at once cannot both open a row. Without an actor (demo
+     * provisioning, not an admin action) the new assignment has no `assigned_by` and no audit row is written.
      *
-     * @throws ValidationException when the participant is not in the session (`participant`) or the mentor is not a
-     *                             mentor of the session (`mentor_id`).
+     * @throws ValidationException when the participant is not in the curriculum (`participant`) or the mentor is not a
+     *                             mentor of the curriculum (`mentor_id`).
      */
-    public function assign(TrainingSession $session, User $participant, User $mentor, ?User $actor): MentorAssignment
+    public function assign(Program $program, User $participant, User $mentor, ?User $actor): MentorAssignment
     {
-        return DB::transaction(function () use ($session, $participant, $mentor, $actor): MentorAssignment {
-            $membership = TrainingSessionParticipant::query()
-                ->forParticipantInSession($session->id, $participant->id)
+        return DB::transaction(function () use ($program, $participant, $mentor, $actor): MentorAssignment {
+            $membership = ProgramParticipant::query()
+                ->forParticipantInProgram($program->id, $participant->id)
                 ->lockForUpdate()
                 ->first();
 
             if ($membership === null) {
-                throw ValidationException::withMessages(['participant' => 'The participant is not in this training session.']);
+                throw ValidationException::withMessages(['participant' => 'The participant is not in this curriculum.']);
             }
 
-            if (! $session->includesMentor($mentor)) {
-                throw ValidationException::withMessages(['mentor_id' => 'The selected mentor is not a mentor of this training session.']);
+            if (! $program->includesMentor($mentor)) {
+                throw ValidationException::withMessages(['mentor_id' => 'The selected mentor is not a mentor of this curriculum.']);
             }
 
-            $current = $this->currentAssignment($session, $participant);
+            $current = $this->currentAssignment($program, $participant);
 
             if ($current?->mentor_id === $mentor->id) {
                 return $current;
@@ -100,7 +99,7 @@ class MentorAssignmentService
 
             $current?->update(['ended_at' => $changedAt]);
 
-            $assignment = $session->mentorAssignments()->create([
+            $assignment = $program->mentorAssignments()->create([
                 'participant_id' => $participant->id,
                 'mentor_id' => $mentor->id,
                 'assigned_by' => $actor?->id,
@@ -108,8 +107,8 @@ class MentorAssignmentService
             ]);
 
             if ($actor !== null) {
-                $this->audit->record($actor, 'session_mentor_assigned', $participant, [
-                    'training_session_id' => $session->id,
+                $this->audit->record($actor, 'program_mentor_assigned', $participant, [
+                    'program_id' => $program->id,
                     'previous_mentor_id' => $current?->mentor_id,
                     'mentor_id' => $mentor->id,
                 ]);
@@ -120,44 +119,45 @@ class MentorAssignmentService
     }
 
     /**
-     * End the participant's current assignment in the session, if any, so they are unassigned. Removing the
-     * participant from the session does this (TrainingSessionService::removeParticipant()).
+     * End the participant's current assignment in the curriculum, if any, so they are unassigned. Removing the
+     * participant from the curriculum does this (ProgramEnrollmentService::removeParticipant()).
      */
-    public function endCurrentAssignment(TrainingSession $session, User $participant): void
+    public function endCurrentAssignment(Program $program, User $participant): void
     {
         MentorAssignment::query()
-            ->forParticipantInSession($session->id, $participant->id)
+            ->forParticipantInProgram($program->id, $participant->id)
             ->current()
             ->update(['ended_at' => now()]);
     }
 
     /**
-     * The participant's current mentor in the session, or null when they have none.
+     * The participant's current mentor in the curriculum, or null when they have none.
      */
-    public function currentMentor(TrainingSession $session, User $participant): ?User
+    public function currentMentor(Program $program, User $participant): ?User
     {
-        return $this->currentAssignment($session, $participant)?->mentor;
+        return $this->currentAssignment($program, $participant)?->mentor;
     }
 
     /**
-     * The participant's mentor assignments in the session, current and ended, the earliest first, each with its mentor.
+     * The participant's mentor assignments in the curriculum, current and ended, the earliest first, each with its
+     * mentor.
      *
      * @return Collection<int, MentorAssignment>
      */
-    public function history(TrainingSession $session, User $participant): Collection
+    public function history(Program $program, User $participant): Collection
     {
         return MentorAssignment::query()
-            ->forParticipantInSession($session->id, $participant->id)
+            ->forParticipantInProgram($program->id, $participant->id)
             ->with('mentor')
             ->orderBy('started_at')
             ->orderBy('id')
             ->get();
     }
 
-    private function currentAssignment(TrainingSession $session, User $participant): ?MentorAssignment
+    private function currentAssignment(Program $program, User $participant): ?MentorAssignment
     {
         return MentorAssignment::query()
-            ->forParticipantInSession($session->id, $participant->id)
+            ->forParticipantInProgram($program->id, $participant->id)
             ->current()
             ->first();
     }

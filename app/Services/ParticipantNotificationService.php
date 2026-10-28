@@ -12,10 +12,10 @@ use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\ParticipantNotification;
+use App\Models\Program;
+use App\Models\ProgramParticipant;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
-use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -37,15 +37,15 @@ class ParticipantNotificationService
     }
 
     /**
-     * Raise and resolve the participant's notifications in each training session they are in that is not completed.
-     * Every week of the session they can open there, or have passed there, gets its activity, Weekly Video Recording
-     * and Gate notifications from their work in that session, keyed `session:{id}:…` and linking to the pages under
-     * that session. Active notifications of a session they left, or that has completed, are resolved. Notifications
-     * stored before keys carried their session are deleted (their week and activity links no longer exist); this sync
-     * writes their per-session replacements.
+     * Raise and resolve the participant's notifications in each curriculum they are in that is not completed. Every
+     * active week of the curriculum they can open, or have passed, gets its activity, Weekly Video Recording and Gate
+     * notifications from their work in it, keyed `program:{id}:…` and linking to the pages under that curriculum.
+     * Active notifications of a curriculum they left, or that has completed, are resolved. Notifications stored before
+     * keys carried their curriculum (including the earlier `session:{id}:…` keys) are deleted (their week and activity
+     * links no longer exist); this sync writes their per-curriculum replacements.
      *
-     * The reads take a fixed number of queries per program the participant's sessions belong to, whatever the number of
-     * sessions, weeks and activities, and only notifications that change are written.
+     * The reads take a fixed number of queries, whatever the number of curricula, weeks and activities, and only
+     * notifications that change are written.
      */
     public function sync(User $participant): void
     {
@@ -53,75 +53,72 @@ class ParticipantNotificationService
             return;
         }
 
-        $memberships = TrainingSessionParticipant::query()
+        $memberships = ProgramParticipant::query()
             ->where('user_id', $participant->id)
-            ->whereHas('trainingSession', fn (Builder $query): Builder => $query->notCompleted())
-            ->with('trainingSession')
-            ->orderBy('training_session_id')
+            ->whereHas('program', fn (Builder $query): Builder => $query->notCompleted())
+            ->with(['program' => fn (Relation $programs): Relation => $programs->withScheduleBounds()])
+            ->orderBy('program_id')
             ->get()
-            ->keyBy('training_session_id');
-        $sessionIds = $memberships->keys();
+            ->keyBy('program_id');
+        $programIds = $memberships->keys();
 
-        $this->deleteNotificationsWithoutSession($participant);
-        $this->resolveNotificationsOutsideSessions($participant, $sessionIds);
+        $this->deleteNotificationsWithoutProgram($participant);
+        $this->resolveNotificationsOutsidePrograms($participant, $programIds);
 
         if ($memberships->isEmpty()) {
             return;
         }
 
-        $openWeeksBySession = $this->openWeeksBySession($memberships);
-        $weeks = $openWeeksBySession->collapse()->unique('id');
+        $openWeeksByProgram = $this->openWeeksByProgram($memberships);
+        $weeks = $openWeeksByProgram->collapse()->unique('id');
         $activityIds = $weeks->flatMap(fn (TrainingWeek $week): array => $week->activities->modelKeys())->unique()->values();
         $gates = $weeks->map(fn (TrainingWeek $week): ?TrainingGate => $week->gates->first())->filter()->unique('id')->values();
 
-        $latestSubmissions = $this->latestSubmissions($participant, $sessionIds, $activityIds);
-        $readiness = $this->gates->readinessForMemberships($memberships, $gates);
+        $latestSubmissions = $this->latestSubmissions($participant, $activityIds);
+        $readiness = $this->gates->readinessForGates($participant, $gates);
         $passedEvaluations = GateEvaluation::query()
-            ->whereIn('training_session_id', $sessionIds)
             ->where('user_id', $participant->id)
             ->whereIn('training_gate_id', $gates->pluck('id'))
             ->where('status', GateEvaluationStatus::Passed)
             ->latest('evaluated_at')
             ->get()
-            ->unique(fn (GateEvaluation $evaluation): string => "{$evaluation->training_session_id}:{$evaluation->training_gate_id}")
-            ->keyBy(fn (GateEvaluation $evaluation): string => "{$evaluation->training_session_id}:{$evaluation->training_gate_id}");
-        $recordedWeeks = WeeklyVideoRecording::query()
-            ->whereIn('training_session_id', $sessionIds)
+            ->unique('training_gate_id')
+            ->keyBy('training_gate_id');
+        $recordedWeekIds = WeeklyVideoRecording::query()
             ->where('user_id', $participant->id)
             ->whereIn('training_week_id', $weeks->pluck('id'))
-            ->get(['training_session_id', 'training_week_id'])
-            ->map(fn (WeeklyVideoRecording $recording): string => "{$recording->training_session_id}:{$recording->training_week_id}");
+            ->pluck('training_week_id');
         $stored = $participant->participantNotifications()
-            ->where(fn (Builder $query): Builder => $this->whereKeyInSessions($query, $sessionIds))
+            ->where(fn (Builder $query): Builder => $this->whereKeyInPrograms($query, $programIds))
             ->get()
             ->keyBy('key');
         $notification = fn (string $key): ParticipantNotification => $stored->get($key) ?? $participant->participantNotifications()->make(['key' => $key]);
 
-        foreach ($memberships as $sessionId => $membership) {
-            $trainingSession = $membership->trainingSession;
+        foreach ($memberships as $programId => $membership) {
+            $program = $membership->program;
 
-            foreach ($openWeeksBySession->get($sessionId) as $week) {
-                $weekKey = "session:{$sessionId}:week:{$week->id}";
+            foreach ($openWeeksByProgram->get($programId) as $week) {
+                $weekKey = "program:{$programId}:week:{$week->id}";
 
                 foreach ($week->activities as $activity) {
-                    $this->syncActivity($notification, $weekKey, $trainingSession, $week, $activity, $latestSubmissions->get("{$sessionId}:{$activity->id}"));
+                    $this->syncActivity($notification, $weekKey, $program, $week, $activity, $latestSubmissions->get($activity->id));
                 }
 
                 $allSubmitted = $week->activities->every(fn (Activity $activity): bool => in_array(
-                    $latestSubmissions->get("{$sessionId}:{$activity->id}")?->status,
+                    $latestSubmissions->get($activity->id)?->status,
                     [...SubmissionStatus::handedIn(), SubmissionStatus::UnderReview],
                     true,
                 ));
-                $videoMissing = $week->asksForWeeklyVideo() && $allSubmitted && ! $recordedWeeks->contains("{$sessionId}:{$week->id}");
-                $this->state($notification("{$weekKey}:video"), ParticipantNotificationType::MissingVideo, 'Weekly Video Recording missing', "Choose your Week {$week->week_number} video from Google Drive.", route('training.video-recording.edit', [$trainingSession, $week]), $videoMissing);
+                $videoMissing = $week->asksForWeeklyVideo() && $allSubmitted && ! $recordedWeekIds->contains($week->id);
+                $this->state($notification("{$weekKey}:video"), ParticipantNotificationType::MissingVideo, 'Weekly Video Recording missing', "Choose your Week {$week->week_number} video from Google Drive.", route('training.video-recording.edit', [$program, $week]), $videoMissing);
 
                 $gate = $week->gates->first();
                 if ($gate) {
-                    $reasons = $readiness->get($sessionId)->get($gate->id);
-                    $passed = $passedEvaluations->get("{$sessionId}:{$gate->id}");
-                    $this->state($notification("{$weekKey}:gate"), ParticipantNotificationType::GateIncomplete, "Week {$week->week_number} requirements incomplete", "You still have requirements to complete before your mentor can mark Week {$week->week_number} completed.", route('training.gates.show', [$trainingSession, $week, $gate]), ! $passed && $reasons !== []);
+                    $reasons = $readiness->get($gate->id);
+                    $passed = $passedEvaluations->get($gate->id);
+                    $this->state($notification("{$weekKey}:gate"), ParticipantNotificationType::GateIncomplete, "Week {$week->week_number} requirements incomplete", "You still have requirements to complete before your mentor can mark Week {$week->week_number} completed.", route('training.gates.show', [$program, $week, $gate]), ! $passed && $reasons !== []);
                     if ($passed) {
-                        $this->event($notification("session:{$sessionId}:event:gate:{$passed->id}"), ParticipantNotificationType::GatePassed, "Week {$week->week_number} completed", "Your mentor marked Week {$week->week_number} completed.", route('training.weeks.show', [$trainingSession, $week]));
+                        $this->event($notification("program:{$programId}:event:gate:{$passed->id}"), ParticipantNotificationType::GatePassed, "Week {$week->week_number} completed", "Your mentor marked Week {$week->week_number} completed.", route('training.weeks.show', [$program, $week]));
                     }
                 }
             }
@@ -144,15 +141,15 @@ class ParticipantNotificationService
     }
 
     /**
-     * Raise and resolve one activity's notifications in the session from the participant's latest attempt there.
+     * Raise and resolve one activity's notifications in the curriculum from the participant's latest attempt at it.
      *
      * @param  callable(string): ParticipantNotification  $notification  the stored or a new notification for a key
      */
-    private function syncActivity(callable $notification, string $weekKey, TrainingSession $trainingSession, TrainingWeek $week, Activity $activity, ?ActivitySubmission $submission): void
+    private function syncActivity(callable $notification, string $weekKey, Program $program, TrainingWeek $week, Activity $activity, ?ActivitySubmission $submission): void
     {
         $activityKey = "{$weekKey}:activity:{$activity->id}";
-        $url = route('training.activities.show', [$trainingSession, $week, $activity]);
-        $submissionUrl = route('training.submission.edit', [$trainingSession, $week, $activity]);
+        $url = route('training.activities.show', [$program, $week, $activity]);
+        $submissionUrl = route('training.submission.edit', [$program, $week, $activity]);
         $latestReview = $submission?->versions->first()?->reviews->first();
 
         $this->state($notification("{$activityKey}:incomplete"), ParticipantNotificationType::ActivityIncomplete, 'Activity incomplete', "{$activity->title} has not been completed for Week {$week->week_number}.", $url, ! $submission || $submission->isFailed());
@@ -161,23 +158,24 @@ class ParticipantNotificationService
         $this->state($notification("{$activityKey}:revision"), ParticipantNotificationType::NeedsRevision, 'Revision required', "Your submission for {$activity->title} needs revision. Mentor feedback is available.", $submissionUrl, $needsRevision, ParticipantNotificationPriority::High);
         $this->state($notification("{$activityKey}:review"), ParticipantNotificationType::AwaitingReview, 'Awaiting mentor review', "Your {$activity->title} submission has been submitted and is awaiting review.", $submissionUrl, $submission?->isAwaitingReview() === true);
         if ($latestReview?->decision === ReviewDecision::Approved) {
-            $this->event($notification("session:{$trainingSession->id}:event:review:{$latestReview->id}"), ParticipantNotificationType::ActivityApproved, 'Activity approved', "Your {$activity->title} submission has been approved.", $submissionUrl);
+            $this->event($notification("program:{$program->id}:event:review:{$latestReview->id}"), ParticipantNotificationType::ActivityApproved, 'Activity approved', "Your {$activity->title} submission has been approved.", $submissionUrl);
         }
         $this->state($notification("{$activityKey}:evidence"), ParticipantNotificationType::MissingEvidence, 'Evidence missing', "{$activity->title} is missing required evidence.", $url, $this->missingEvidence($activity, $submission));
     }
 
     /**
-     * Per membership (keyed by session id), the session's weeks the participant can open there or has passed there, in
+     * Per membership (keyed by program id), the curriculum's active weeks the participant can open or has passed, in
      * week order, with their active activities (and those activities' required evidence), their Gates and whether they
-     * ask for a Weekly Video Recording. One weeks query for every program, and one week-state lookup per program.
+     * ask for a Weekly Video Recording. One weeks query for every curriculum, and one week-state lookup.
      *
-     * @param  Collection<int, TrainingSessionParticipant>  $memberships  keyed by session id, with their session loaded
+     * @param  Collection<int, ProgramParticipant>  $memberships  keyed by program id, with their program loaded
      * @return SupportCollection<int, SupportCollection<int, TrainingWeek>>
      */
-    private function openWeeksBySession(Collection $memberships): SupportCollection
+    private function openWeeksByProgram(Collection $memberships): SupportCollection
     {
         $programWeeks = TrainingWeek::query()
-            ->whereIn('program_id', $memberships->map(fn (TrainingSessionParticipant $membership): int => $membership->trainingSession->program_id)->unique()->values())
+            ->whereIn('program_id', $memberships->keys())
+            ->where('is_active', true)
             ->withAsksForWeeklyVideo()
             ->with([
                 'activities' => fn (Relation $query): Relation => $query
@@ -190,38 +188,35 @@ class ParticipantNotificationService
                 'gates',
             ])
             ->get();
+        $weekStates = $this->progression->weekStatesForMemberships($memberships, $programWeeks);
 
-        $weekStates = collect();
-        foreach ($memberships->groupBy(fn (TrainingSessionParticipant $membership): int => $membership->trainingSession->program_id, preserveKeys: true) as $programId => $programMemberships) {
-            $weekStates = $weekStates->union($this->progression->weekStatesForMemberships($programMemberships, $programWeeks->where('program_id', $programId)));
-        }
+        return $memberships->map(fn (ProgramParticipant $membership, int $programId): SupportCollection => $programWeeks
+            ->filter(function (TrainingWeek $week) use ($weekStates, $programId): bool {
+                $state = $weekStates->get($programId)->get($week->id);
 
-        return $memberships->map(fn (TrainingSessionParticipant $membership, int $sessionId): SupportCollection => $programWeeks
-            ->filter(fn (TrainingWeek $week): bool => $membership->trainingSession->includesWeek($week)
-                && ($weekStates->get($sessionId)->get($week->id)->isOpen() || $weekStates->get($sessionId)->get($week->id)->passed))
+                return $state !== null && ($state->isOpen() || $state->passed);
+            })
             ->sortBy('position')
             ->values()
             ->toBase());
     }
 
     /**
-     * The participant's latest attempt at each activity in each session, keyed "{session id}:{activity id}", with its
-     * versions (latest first), each version's reviews (latest first) and evidence.
+     * The participant's latest attempt at each activity, keyed by activity id, with its versions (latest first), each
+     * version's reviews (latest first) and evidence.
      *
-     * @param  SupportCollection<int, int>  $sessionIds
      * @param  SupportCollection<int, int>  $activityIds
-     * @return Collection<string, ActivitySubmission>
+     * @return Collection<int, ActivitySubmission>
      */
-    private function latestSubmissions(User $participant, SupportCollection $sessionIds, SupportCollection $activityIds): Collection
+    private function latestSubmissions(User $participant, SupportCollection $activityIds): Collection
     {
         return ActivitySubmission::query()
-            ->whereIn('training_session_id', $sessionIds)
             ->where('user_id', $participant->id)
             ->whereIn('activity_id', $activityIds)
             ->orderByDesc('attempt_number')
             ->get()
-            ->unique(fn (ActivitySubmission $submission): string => "{$submission->training_session_id}:{$submission->activity_id}")
-            ->keyBy(fn (ActivitySubmission $submission): string => "{$submission->training_session_id}:{$submission->activity_id}")
+            ->unique('activity_id')
+            ->keyBy('activity_id')
             ->load([
                 'versions' => fn (Relation $query): Relation => $query
                     ->latest('version_number')
@@ -254,39 +249,41 @@ class ParticipantNotificationService
     }
 
     /**
-     * Delete the notifications stored before keys carried their session (`week:…`, `event:…`). Their links point at
-     * week and activity URLs that no longer exist, and the sync raises their per-session replacements.
+     * Delete the notifications stored before keys carried their curriculum (`week:…`, `event:…`, and the earlier
+     * `session:{id}:…`). Their links point at week and activity URLs that no longer exist, and the sync raises their
+     * per-curriculum replacements.
      */
-    private function deleteNotificationsWithoutSession(User $participant): void
+    private function deleteNotificationsWithoutProgram(User $participant): void
     {
-        $participant->participantNotifications()->where('key', 'not like', 'session:%')->delete();
+        $participant->participantNotifications()->where('key', 'not like', 'program:%')->delete();
     }
 
     /**
-     * Resolve the active notifications of every session other than the given ones: sessions the participant left and
-     * sessions that have completed.
+     * Resolve the active notifications of every curriculum other than the given ones: curricula the participant left
+     * and curricula that have completed.
      *
-     * @param  SupportCollection<int, int>  $sessionIds
+     * @param  SupportCollection<int, int>  $programIds
      */
-    private function resolveNotificationsOutsideSessions(User $participant, SupportCollection $sessionIds): void
+    private function resolveNotificationsOutsidePrograms(User $participant, SupportCollection $programIds): void
     {
         $participant->participantNotifications()
             ->active()
-            ->whereNot(fn (Builder $query): Builder => $this->whereKeyInSessions($query, $sessionIds))
+            ->whereNot(fn (Builder $query): Builder => $this->whereKeyInPrograms($query, $programIds))
             ->update(['resolved_at' => now()]);
     }
 
     /**
-     * Limit the query to notification keys of the given sessions (`session:{id}:…`); with no sessions it adds nothing.
+     * Limit the query to notification keys of the given curricula (`program:{id}:…`); with no curricula it adds
+     * nothing.
      *
      * @param  Builder<ParticipantNotification>  $query
-     * @param  SupportCollection<int, int>  $sessionIds
+     * @param  SupportCollection<int, int>  $programIds
      * @return Builder<ParticipantNotification>
      */
-    private function whereKeyInSessions(Builder $query, SupportCollection $sessionIds): Builder
+    private function whereKeyInPrograms(Builder $query, SupportCollection $programIds): Builder
     {
-        foreach ($sessionIds as $sessionId) {
-            $query->orWhere('key', 'like', "session:{$sessionId}:%");
+        foreach ($programIds as $programId) {
+            $query->orWhere('key', 'like', "program:{$programId}:%");
         }
 
         return $query;

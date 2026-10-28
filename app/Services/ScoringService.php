@@ -6,8 +6,8 @@ use App\Enums\SubmissionStatus;
 use App\Models\Activity;
 use App\Models\ActivityScore;
 use App\Models\ActivitySubmission;
+use App\Models\ProgramParticipant;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -36,47 +36,44 @@ class ScoringService
     }
 
     /**
-     * Summarize every week of each membership's training session (TrainingSession::includesWeek()), by week number,
-     * from the participant's attempts in that session only, with a fixed number of queries. A participant in two
-     * sessions gets one summary per session.
+     * Summarize every active week of each membership's curriculum, by week number, from the participant's attempts at
+     * that curriculum's activities, with a fixed number of queries. A participant in two curricula gets one summary per
+     * curriculum.
      *
-     * @param  Collection<int, TrainingSessionParticipant>  $memberships  each with its trainingSession loaded
+     * @param  Collection<int, ProgramParticipant>  $memberships
      * @return Collection<int, array{weeks: Collection<int, array{rows: Collection<int, array{activity: Activity, submission: ?ActivitySubmission, version: ?SubmissionVersion, score: ?ActivityScore}>, completed: int, total: int, scored: int, average: ?int}>, completed: int, total: int, scored: int, average: ?int}> keyed by membership id
      */
-    public function sessionSummaries(Collection $memberships): Collection
+    public function programSummaries(Collection $memberships): Collection
     {
         if ($memberships->isEmpty()) {
             return collect();
         }
 
-        $trainingSessions = $memberships->pluck('trainingSession')->unique('id');
         $weeks = TrainingWeek::query()
-            ->whereIn('program_id', $trainingSessions->pluck('program_id')->unique()->values())
+            ->whereIn('program_id', $memberships->pluck('program_id')->unique()->values())
             ->where('is_active', true)
             ->orderBy('week_number')
             ->get();
         $activitiesByWeek = Activity::query()->whereIn('training_week_id', $weeks->modelKeys())->where('is_active', true)->orderBy('position')->get()->groupBy('training_week_id');
         $attempts = ActivitySubmission::query()
-            ->whereIn('training_session_id', $trainingSessions->pluck('id'))
             ->whereIn('user_id', $memberships->pluck('user_id')->unique()->values())
             ->whereIn('activity_id', $activitiesByWeek->flatten()->pluck('id'))
             ->with('versions.publishedActivityScore.dimensions')
             ->latest('attempt_number')
             ->get()
-            ->groupBy(['training_session_id', 'user_id', 'activity_id']);
+            ->groupBy(['user_id', 'activity_id']);
 
-        return $memberships->mapWithKeys(function (TrainingSessionParticipant $membership) use ($weeks, $activitiesByWeek, $attempts): array {
-            $trainingSession = $membership->trainingSession;
-            $sessionWeeks = $weeks
-                ->filter(fn (TrainingWeek $week): bool => $trainingSession->includesWeek($week))
+        return $memberships->mapWithKeys(function (ProgramParticipant $membership) use ($weeks, $activitiesByWeek, $attempts): array {
+            $programWeeks = $weeks
+                ->filter(fn (TrainingWeek $week): bool => (int) $week->program_id === (int) $membership->program_id)
                 ->mapWithKeys(fn (TrainingWeek $week): array => [
                     $week->week_number => $this->weekSummary(($activitiesByWeek[$week->id] ?? collect())->map(
-                        fn (Activity $activity): array => $this->scoreRow($activity, $attempts[$trainingSession->id][$membership->user_id][$activity->id] ?? collect()),
+                        fn (Activity $activity): array => $this->scoreRow($activity, $attempts[$membership->user_id][$activity->id] ?? collect()),
                     )),
                 ]);
-            $rows = $sessionWeeks->flatMap(fn (array $week): Collection => $week['rows']);
+            $rows = $programWeeks->flatMap(fn (array $week): Collection => $week['rows']);
 
-            return [$membership->id => ['weeks' => $sessionWeeks, ...$this->totals($rows)]];
+            return [$membership->id => ['weeks' => $programWeeks, ...$this->totals($rows)]];
         });
     }
 

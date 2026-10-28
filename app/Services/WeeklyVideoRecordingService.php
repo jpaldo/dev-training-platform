@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\GoogleDriveConnection;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -18,10 +17,11 @@ class WeeklyVideoRecordingService
     ) {}
 
     /**
-     * Record the video the participant chose from their own Google Drive as their weekly video for the week in the
-     * session, replacing an earlier choice in that session (a choice in another session is a separate row). The file is
-     * read once through the participant's Drive connection; a non-video, trashed or not-owned file, an unreadable file,
-     * or a missing connection throws a `RuntimeException` with the participant-facing message and saves nothing. Without posted notes the earlier notes are kept.
+     * Record the video the participant chose from their own Google Drive as their weekly video for the week, replacing
+     * an earlier choice (one video per participant and week). The file is read once through the participant's Drive
+     * connection; a non-video, trashed or not-owned file, an unreadable file, or a missing connection throws a
+     * `RuntimeException` with the participant-facing message and saves nothing. Without posted notes the earlier notes
+     * are kept.
      *
      * Once saved, the video is shared view only with the company's Google Workspace domain, and the permission's ID
      * and `shared_at` are stored. Without a share domain, or when Drive refuses the share, the choice is kept with
@@ -32,7 +32,7 @@ class WeeklyVideoRecordingService
      *
      * @throws RuntimeException
      */
-    public function choose(User $participant, TrainingSession $trainingSession, TrainingWeek $week, array $details): WeeklyVideoRecording
+    public function choose(User $participant, TrainingWeek $week, array $details): WeeklyVideoRecording
     {
         $connection = $participant->googleDriveConnection;
 
@@ -42,7 +42,6 @@ class WeeklyVideoRecordingService
 
         $file = $this->drive->videoFile($connection, $details['drive_file_id'], $details['resource_key'] ?? null);
         $recording = WeeklyVideoRecording::query()->firstOrNew([
-            'training_session_id' => $trainingSession->id,
             'user_id' => $participant->id,
             'training_week_id' => $week->id,
         ]);

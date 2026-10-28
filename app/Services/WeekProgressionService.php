@@ -3,19 +3,18 @@
 namespace App\Services;
 
 use App\Enums\GateEvaluationStatus;
-use App\Enums\TrainingSessionStatus;
 use App\Enums\UserRole;
 use App\Enums\WeekAccessState;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
+use App\Models\Program;
+use App\Models\ProgramParticipant;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
-use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Support\SessionWeekState;
+use App\Support\ProgramWeekState;
 use Carbon\CarbonInterface;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,42 +23,41 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Date;
 
 /**
- * Week progression within a training session. A participant opens week N of a session from its open date
- * (`TrainingSession::weekOpensOn()`), without completing earlier weeks, unless an earlier week of the session has an
- * incomplete review (`GateEvaluationStatus::incompleteReviews()`): that locks every later week until the review becomes
- * completed. Once the participant hands in work in the locking week after that review (latestWorkSinceReviews()), the
- * locked weeks wait for the mentor to verify it, still locked. A participant passes a week once every Gate of the week
- * has a completed (`Passed`) review in the session. Coaches and admins open every week. Once the session has ended,
- * the participant views every week, read only: they can only work on an attempt a mentor reopened
- * (`TrainingSession::acceptsWork()`, ensureSessionAcceptsWork()). Work in another session never counts.
+ * Week progression within a curriculum. A participant opens week N of a curriculum from its own start date
+ * (`TrainingWeek::starts_on`; an unscheduled week never opens), without completing earlier weeks, unless an earlier
+ * week has an incomplete review (`GateEvaluationStatus::incompleteReviews()`): that locks every later week until the
+ * review becomes completed. Once the participant hands in work in the locking week after that review
+ * (latestWorkSinceReviews()), the locked weeks wait for the mentor to verify it, still locked. A participant passes a
+ * week once every Gate of the week has a completed (`Passed`) review. Coaches and admins open every week. Once the
+ * curriculum has ended, the participant views every week, read only: they can only work on an attempt a mentor
+ * reopened (`Program::acceptsWork()`, ensureProgramAcceptsWork()). Work belongs to a curriculum through its activity,
+ * Gate or week, so no other curriculum's work can count.
  */
 class WeekProgressionService
 {
-    public function isWeekPassed(User $user, TrainingSession $trainingSession, TrainingWeek $week): bool
+    public function isWeekPassed(User $user, TrainingWeek $week): bool
     {
-        return $this->passedWeekIds($user, $trainingSession, collect([$week]))->contains($week->id);
+        return $this->passedWeekIds($user, collect([$week]))->contains($week->id);
     }
 
     /**
-     * Whether the user has passed one of the week's active Gates in the session, which locks the week's Weekly Video
-     * Recording.
+     * Whether the user has passed one of the week's active Gates, which locks the week's Weekly Video Recording.
      */
-    public function hasPassedActiveGate(User $user, TrainingSession $trainingSession, TrainingWeek $week): bool
+    public function hasPassedActiveGate(User $user, TrainingWeek $week): bool
     {
         return $week->gates()
             ->where('is_active', true)
             ->whereHas('evaluations', fn (Builder $query): Builder => $query
-                ->where('training_session_id', $trainingSession->id)
                 ->where('user_id', $user->id)
                 ->where('status', GateEvaluationStatus::Passed))
             ->exists();
     }
 
     /**
-     * Whether the user can open the week of the session: coaches and admins always, a participant while the week is
-     * viewable for them (open, or any week once the session has ended; see weekStates()).
+     * Whether the user can open the week of the curriculum: coaches and admins always, a participant while the week is
+     * viewable for them (open, or any week once the curriculum has ended; see weekStates()).
      */
-    public function canAccessWeek(User $user, TrainingSession $trainingSession, TrainingWeek $week): bool
+    public function canAccessWeek(User $user, Program $program, TrainingWeek $week): bool
     {
         if ($user->isCoachOrAdmin()) {
             return true;
@@ -68,23 +66,24 @@ class WeekProgressionService
             return false;
         }
 
-        return $this->weekStates($user, $trainingSession)->get($week->id)?->isViewable() ?? false;
+        return $this->weekStates($user, $program)->get($week->id)?->isViewable() ?? false;
     }
 
     /**
-     * The state of each of the session's weeks for the participant, keyed by week id in week order, with a fixed
-     * number of queries (see weekStatesForMemberships()).
+     * The state of each of the curriculum's active weeks for the participant, keyed by week id in week order, with a
+     * fixed number of queries (see weekStatesForMemberships()).
      *
-     * @return Collection<int, SessionWeekState>
+     * @return Collection<int, ProgramWeekState>
      */
-    public function weekStates(User $participant, TrainingSession $trainingSession): Collection
+    public function weekStates(User $participant, Program $program): Collection
     {
-        $weeks = $trainingSession->weeks()->get(['id', 'program_id', 'week_number', 'is_active']);
-        $gatesByWeek = $this->reviewedGatesByWeek(collect([$trainingSession->id]), collect([$participant->id]), $weeks);
-        $lockingReview = $this->lockingReview($trainingSession, $participant->id, $weeks, $gatesByWeek);
+        $weeks = $program->activeWeeks()->get(['id', 'program_id', 'week_number', 'is_active', 'starts_on', 'ends_on']);
+        $gatesByWeek = $this->reviewedGatesByWeek(collect([$participant->id]), $weeks);
+        $lockingReview = $this->lockingReview($program->id, $participant->id, $weeks, $gatesByWeek);
 
-        return $this->sessionWeekStates(
-            $trainingSession,
+        return $this->programWeekStates(
+            $program->id,
+            $program->isCompleted(),
             $participant->id,
             $weeks,
             $gatesByWeek,
@@ -94,30 +93,28 @@ class WeekProgressionService
     }
 
     /**
-     * Resolve the state of each session week for each session membership with a fixed number of queries (two, and a
-     * third when a week is locked). Week N is locked when an earlier week of the session has an incomplete review by the
-     * participant there (the earliest such week locks it, see lockingReview()), otherwise open from its open date and not
-     * open before it. A locked week awaits verification once the participant handed in work in the locking week after
-     * its review (latestWorkSinceReviews()). A week is passed when the participant has a completed review of every Gate
-     * of the week in the session.
+     * Resolve the state of each active week of the curriculum for each membership with a fixed number of queries (two,
+     * a third when a week is locked, and one per curriculum not loaded with `Program::withScheduleBounds()` or
+     * `loadScheduleBounds()`). Week N is locked when an earlier week has an incomplete review by the participant (the
+     * earliest such week locks it, see lockingReview()), otherwise open from its start date and not open before it or
+     * while it has none. A locked week awaits verification once the participant handed in work in the locking week
+     * after its review (latestWorkSinceReviews()). A week is passed when the participant has a completed review of
+     * every Gate of the week.
      *
-     * @param  Collection<array-key, TrainingSessionParticipant>  $memberships  participants' memberships of sessions of the program, with their training session loaded
-     * @param  Collection<int, TrainingWeek>  $programWeeks  the weeks of the program (weeks outside a membership's session are left out of its states)
-     * @return Collection<array-key, Collection<int, SessionWeekState>> keyed like the memberships, then by week id in week order
+     * @param  Collection<array-key, ProgramParticipant>  $memberships  participants' memberships of curricula, with their program loaded
+     * @param  Collection<int, TrainingWeek>  $programWeeks  the weeks of the memberships' curricula, with their dates (inactive weeks and other curricula's weeks are left out of a membership's states)
+     * @return Collection<array-key, Collection<int, ProgramWeekState>> keyed like the memberships, then by week id in week order
      */
     public function weekStatesForMemberships(Collection $memberships, Collection $programWeeks): Collection
     {
-        $gatesByWeek = $this->reviewedGatesByWeek(
-            $memberships->pluck('training_session_id'),
-            $memberships->pluck('user_id'),
-            $programWeeks,
-        );
-
+        $gatesByWeek = $this->reviewedGatesByWeek($memberships->pluck('user_id'), $programWeeks);
         $lockingReviews = $this->lockingReviewsOf($memberships, $programWeeks, $gatesByWeek);
         $latestWork = $this->latestWorkSinceReviews($lockingReviews->filter()->values());
+        $completedByProgram = $this->completedByProgram($memberships);
 
-        return $memberships->map(fn (TrainingSessionParticipant $membership, int|string $key): Collection => $this->sessionWeekStates(
-            $membership->trainingSession,
+        return $memberships->map(fn (ProgramParticipant $membership, int|string $key): Collection => $this->programWeekStates(
+            (int) $membership->program_id,
+            $completedByProgram->get($membership->program_id),
             (int) $membership->user_id,
             $programWeeks,
             $gatesByWeek,
@@ -127,13 +124,13 @@ class WeekProgressionService
     }
 
     /**
-     * For each session membership, the participant's incomplete review that locks the later weeks of the session
-     * (lockingReview(): walking the session's weeks in order, the first incomplete review of an active Gate, with its
-     * Gate and the Gate's week set), or null when no week of the session has one. Two queries for any number of
-     * memberships, of any programs; pass the result to latestWorkSinceReviews() to learn which reviews have new work.
+     * For each membership, the participant's incomplete review that locks the later weeks of the curriculum
+     * (lockingReview(): walking the curriculum's active weeks in order, the first incomplete review of an active Gate,
+     * with its Gate and the Gate's week set), or null when no week has one. Two queries for any number of memberships,
+     * of any curricula; pass the result to latestWorkSinceReviews() to learn which reviews have new work.
      *
-     * @param  Collection<array-key, TrainingSessionParticipant>  $memberships  with their training session loaded
-     * @param  Collection<int, TrainingWeek>  $weeks  the weeks of the memberships' programs (weeks outside a membership's session are ignored for it)
+     * @param  Collection<array-key, ProgramParticipant>  $memberships
+     * @param  Collection<int, TrainingWeek>  $weeks  the weeks of the memberships' curricula (other curricula's weeks are ignored for a membership)
      * @return Collection<array-key, ?GateEvaluation> keyed like the memberships
      */
     public function lockingReviewsForMemberships(Collection $memberships, Collection $weeks): Collection
@@ -141,16 +138,15 @@ class WeekProgressionService
         return $this->lockingReviewsOf(
             $memberships,
             $weeks,
-            $this->reviewedGatesByWeek($memberships->pluck('training_session_id'), $memberships->pluck('user_id'), $weeks),
+            $this->reviewedGatesByWeek($memberships->pluck('user_id'), $weeks),
         );
     }
 
     /**
      * For each given incomplete review, the time of the latest activity version its participant handed in after the
-     * review (`submitted_at` after `evaluated_at`) in an activity of the review's week, in the review's session (Q2: any
-     * activity of the week counts), keyed by review id. Reviews without such a version, or without a review time, are
-     * left out, so a key means the participant has new work for the mentor to verify. One query for any number of
-     * reviews.
+     * review (`submitted_at` after `evaluated_at`) in an activity of the review's week (Q2: any activity of the week
+     * counts), keyed by review id. Reviews without such a version, or without a review time, are left out, so a key
+     * means the participant has new work for the mentor to verify. One query for any number of reviews.
      *
      * @param  Collection<array-key, GateEvaluation>  $reviews  with their Gate loaded
      * @return Collection<int, CarbonInterface>
@@ -165,61 +161,60 @@ class WeekProgressionService
         $latestByWeek = SubmissionVersion::query()
             ->join('activity_submissions', 'activity_submissions.id', '=', 'submission_versions.activity_submission_id')
             ->join('activities', 'activities.id', '=', 'activity_submissions.activity_id')
-            ->whereIn('activity_submissions.training_session_id', $reviews->pluck('training_session_id')->unique()->values())
             ->whereIn('activity_submissions.user_id', $reviews->pluck('user_id')->unique()->values())
             ->whereIn('activities.training_week_id', $reviews->map(fn (GateEvaluation $review): int => $review->gate->training_week_id)->unique()->values())
             ->where('submission_versions.submitted_at', '>', $reviews->min('evaluated_at'))
-            ->groupBy(['activity_submissions.training_session_id', 'activity_submissions.user_id', 'activities.training_week_id'])
-            ->select(['activity_submissions.training_session_id', 'activity_submissions.user_id', 'activities.training_week_id'])
+            ->groupBy(['activity_submissions.user_id', 'activities.training_week_id'])
+            ->select(['activity_submissions.user_id', 'activities.training_week_id'])
             ->selectRaw('max(submission_versions.submitted_at) as latest_submitted_at')
             ->toBase()
             ->get()
             ->mapWithKeys(fn (object $row): array => [
-                $this->workKey((int) $row->training_session_id, (int) $row->user_id, (int) $row->training_week_id) => Date::parse($row->latest_submitted_at),
+                $this->workKey((int) $row->user_id, (int) $row->training_week_id) => Date::parse($row->latest_submitted_at),
             ]);
 
         return $reviews->mapWithKeys(function (GateEvaluation $review) use ($latestByWeek): array {
-            $latest = $latestByWeek->get($this->workKey((int) $review->training_session_id, (int) $review->user_id, (int) $review->gate->training_week_id));
+            $latest = $latestByWeek->get($this->workKey((int) $review->user_id, (int) $review->gate->training_week_id));
 
             return $latest?->gt($review->evaluated_at) ? [$review->id => $latest] : [];
         });
     }
 
     /**
-     * The id of the participant's current week among the session's week states: the latest open week of an active
-     * session, or null when the session is not active or no week is open.
+     * The id of the participant's current week among the curriculum's week states: the latest open week of an active
+     * curriculum, or null when no week is open (the curriculum is unscheduled or upcoming) or the curriculum has ended.
      *
-     * @param  Collection<int, SessionWeekState>  $weekStates  keyed by week id (see weekStates())
+     * @param  Collection<int, ProgramWeekState>  $weekStates  keyed by week id (see weekStates())
      */
-    public function currentWeekId(TrainingSession $trainingSession, Collection $weekStates): ?int
+    public function currentWeekId(Collection $weekStates): ?int
     {
-        if ($trainingSession->status() !== TrainingSessionStatus::Active) {
+        if ($weekStates->contains(fn (ProgramWeekState $state): bool => $state->programCompleted)) {
             return null;
         }
 
         return $weekStates
-            ->filter(fn (SessionWeekState $state): bool => $state->isOpen())
-            ->sortBy(fn (SessionWeekState $state): int => $state->weekNumber)
+            ->filter(fn (ProgramWeekState $state): bool => $state->isOpen())
+            ->sortBy(fn (ProgramWeekState $state): int => $state->weekNumber)
             ->keys()
             ->last();
     }
 
     /**
-     * Whether the user passed every week of the session (and it has at least one).
+     * Whether the user passed every active week of the curriculum (and it has at least one).
      */
-    public function hasCompletedSession(User $user, TrainingSession $trainingSession): bool
+    public function hasCompletedProgram(User $user, Program $program): bool
     {
-        $weeks = $trainingSession->weeks()->get();
+        $weeks = $program->activeWeeks()->get();
 
-        return $weeks->isNotEmpty() && $this->allWeeksPassed($weeks, $this->passedWeekIds($user, $trainingSession, $weeks));
+        return $weeks->isNotEmpty() && $this->allWeeksPassed($weeks, $this->passedWeekIds($user, $weeks));
     }
 
     /**
-     * The memberships whose participant passed every week of the membership's session (and it has at least one),
-     * resolved with a fixed number of queries.
+     * The memberships whose participant passed every active week of the membership's curriculum (and it has at least
+     * one), resolved with a fixed number of queries.
      *
-     * @param  Collection<array-key, TrainingSessionParticipant>  $memberships  with their training session loaded
-     * @return Collection<array-key, TrainingSessionParticipant>
+     * @param  Collection<array-key, ProgramParticipant>  $memberships
+     * @return Collection<array-key, ProgramParticipant>
      */
     public function completedMemberships(Collection $memberships): Collection
     {
@@ -228,35 +223,34 @@ class WeekProgressionService
         }
 
         $weeks = TrainingWeek::query()
-            ->whereIn('program_id', $memberships->map(fn (TrainingSessionParticipant $membership): int => $membership->trainingSession->program_id)->unique()->values())
+            ->whereIn('program_id', $memberships->pluck('program_id')->unique()->values())
             ->where('is_active', true)
             ->get();
-        $gatesByWeek = $this->reviewedGatesByWeek($memberships->pluck('training_session_id'), $memberships->pluck('user_id'), $weeks);
+        $gatesByWeek = $this->reviewedGatesByWeek($memberships->pluck('user_id'), $weeks);
 
-        return $memberships->filter(function (TrainingSessionParticipant $membership) use ($weeks, $gatesByWeek): bool {
-            $sessionWeeks = $weeks->filter(fn (TrainingWeek $week): bool => $membership->trainingSession->includesWeek($week));
+        return $memberships->filter(function (ProgramParticipant $membership) use ($weeks, $gatesByWeek): bool {
+            $programWeeks = $this->programWeeks((int) $membership->program_id, $weeks);
 
-            return $sessionWeeks->isNotEmpty() && $sessionWeeks->every(fn (TrainingWeek $week): bool => $this->isPassed(
+            return $programWeeks->isNotEmpty() && $programWeeks->every(fn (TrainingWeek $week): bool => $this->isPassed(
                 $gatesByWeek->get($week->id, collect()),
-                (int) $membership->training_session_id,
                 (int) $membership->user_id,
             ));
         });
     }
 
     /**
-     * Refuse a participant a week of the session they cannot view (not open, and the session has not ended), with the
-     * message its tab shows (when it opens, or which week locks it).
+     * Refuse a participant a week of the curriculum they cannot view (not open, and the curriculum has not ended), with
+     * the message its tab shows (when it opens, that it is not scheduled yet, or which week locks it).
      *
      * @throws AuthorizationException
      */
-    public function ensureCanAccessWeek(User $user, TrainingSession $trainingSession, TrainingWeek $week): void
+    public function ensureCanAccessWeek(User $user, Program $program, TrainingWeek $week): void
     {
         if ($user->isCoachOrAdmin()) {
             return;
         }
 
-        $state = $user->role === UserRole::Participant ? $this->weekStates($user, $trainingSession)->get($week->id) : null;
+        $state = $user->role === UserRole::Participant ? $this->weekStates($user, $program)->get($week->id) : null;
         if ($state?->isViewable()) {
             return;
         }
@@ -264,116 +258,128 @@ class WeekProgressionService
         throw new AuthorizationException($state?->lockedMessage() ?? 'This training week is not available to your account.');
     }
 
-    public function ensureCanAccessActivity(User $user, TrainingSession $trainingSession, TrainingWeek $week, Activity $activity): void
+    public function ensureCanAccessActivity(User $user, Program $program, TrainingWeek $week, Activity $activity): void
     {
         abort_unless($activity->training_week_id === $week->id, 404);
-        $this->ensureCanAccessWeek($user, $trainingSession, $week);
+        $this->ensureCanAccessWeek($user, $program, $week);
     }
 
     /**
-     * Whether the week is the participant's current week in the session (see currentWeekId()).
+     * Whether the week is the participant's current week in the curriculum (see currentWeekId()).
      */
-    public function isCurrentWeek(User $user, TrainingSession $trainingSession, TrainingWeek $week): bool
+    public function isCurrentWeek(User $user, Program $program, TrainingWeek $week): bool
     {
         if ($user->role !== UserRole::Participant) {
             return false;
         }
 
-        return $this->currentWeekId($trainingSession, $this->weekStates($user, $trainingSession)) === $week->id;
+        return $this->currentWeekId($this->weekStates($user, $program)) === $week->id;
     }
 
     /**
-     * Whether the participant must check in before working on the activity in the session: in their current week,
-     * without an open check-in, while their latest attempt there is missing, a draft or needs revision.
+     * Whether the participant must check in before working on the activity: in their current week, without an open
+     * check-in, while their latest attempt at it is missing, a draft or needs revision.
      */
-    public function requiresAttendanceForActivity(User $user, TrainingSession $trainingSession, TrainingWeek $week, Activity $activity): bool
+    public function requiresAttendanceForActivity(User $user, Program $program, TrainingWeek $week, Activity $activity): bool
     {
-        if ($user->role !== UserRole::Participant || ! $this->isCurrentWeek($user, $trainingSession, $week) || $user->attendanceSessions()->whereNull('check_out_at')->exists()) {
+        if ($user->role !== UserRole::Participant || ! $this->isCurrentWeek($user, $program, $week) || $user->attendanceSessions()->whereNull('check_out_at')->exists()) {
             return false;
         }
 
-        $submission = $this->latestAttempt($user, $trainingSession, $activity);
+        $submission = $this->latestAttempt($user, $activity);
 
         return ! $submission || $submission->isDraft() || $submission->needsRevision();
     }
 
     /**
-     * Whether the participant must check in before starting the activity in the session: in their current week,
-     * without an open check-in, while they have no attempt at it there.
+     * Whether the participant must check in before starting the activity: in their current week, without an open
+     * check-in, while they have no attempt at it.
      */
-    public function requiresAttendanceForNewActivity(User $user, TrainingSession $trainingSession, TrainingWeek $week, Activity $activity): bool
+    public function requiresAttendanceForNewActivity(User $user, Program $program, TrainingWeek $week, Activity $activity): bool
     {
-        return $this->isCurrentWeek($user, $trainingSession, $week)
+        return $this->isCurrentWeek($user, $program, $week)
             && ! $user->attendanceSessions()->whereNull('check_out_at')->exists()
-            && ! $activity->submissions()->where('training_session_id', $trainingSession->id)->where('user_id', $user->id)->exists();
+            && ! $activity->submissions()->where('user_id', $user->id)->exists();
     }
 
     /**
-     * Refuse the participant work on the activity in the session: once the session has ended, unless their latest
-     * attempt there was reopened (ensureSessionAcceptsWork()), and while they must check in first.
+     * Refuse the participant work on the activity: once the curriculum has ended, unless their latest attempt at it
+     * was reopened (ensureProgramAcceptsWork()), and while they must check in first.
      *
      * @throws AuthorizationException
      */
-    public function ensureCanEditActivity(User $user, TrainingSession $trainingSession, TrainingWeek $week, Activity $activity): void
+    public function ensureCanEditActivity(User $user, Program $program, TrainingWeek $week, Activity $activity): void
     {
-        $this->ensureSessionAcceptsWork($user, $trainingSession, $activity);
-        if ($this->requiresAttendanceForActivity($user, $trainingSession, $week, $activity)) {
+        $this->ensureProgramAcceptsWork($user, $program, $activity);
+        if ($this->requiresAttendanceForActivity($user, $program, $week, $activity)) {
             abort(403, 'Please check in to continue editing this activity.');
         }
     }
 
     /**
-     * Refuse the participant's write with "This training session has ended." once the session has ended
-     * (`TrainingSession::acceptsWork()`): with an activity, unless their latest attempt at it in the session was
-     * reopened by a mentor or admin; without one (the weekly video, recovery requests), always.
+     * Refuse the participant's write with "This curriculum has ended." once the curriculum has ended
+     * (`Program::acceptsWork()`): with an activity, unless their latest attempt at it was reopened by a mentor or
+     * admin; without one (the weekly video, recovery requests), always.
      *
      * @throws AuthorizationException
      */
-    public function ensureSessionAcceptsWork(User $user, TrainingSession $trainingSession, ?Activity $activity = null): void
+    public function ensureProgramAcceptsWork(User $user, Program $program, ?Activity $activity = null): void
     {
-        $attempt = $activity !== null && $trainingSession->isCompleted() ? $this->latestAttempt($user, $trainingSession, $activity) : null;
+        if (! $program->isCompleted()) {
+            return;
+        }
 
-        if (! $trainingSession->acceptsWork($attempt)) {
-            throw new AuthorizationException(TrainingSession::ENDED_MESSAGE);
+        $attempt = $activity === null ? null : $this->latestAttempt($user, $activity);
+
+        if (! $program->acceptsWork($attempt)) {
+            throw new AuthorizationException(Program::ENDED_MESSAGE);
         }
     }
 
     /**
-     * The state of each of the session's weeks among the given weeks for one participant, keyed by week id in week
-     * order. Every week after the week of the locking review is locked, and awaits verification when the review has new
-     * work since it.
+     * The participant's latest attempt at the activity, if any.
+     */
+    private function latestAttempt(User $user, Activity $activity): ?ActivitySubmission
+    {
+        return $activity->submissions()
+            ->where('user_id', $user->id)
+            ->latest('attempt_number')
+            ->first();
+    }
+
+    /**
+     * The state of each of the curriculum's active weeks among the given weeks for one participant, keyed by week id in
+     * week order. Every week after the week of the locking review is locked, and awaits verification when the review
+     * has new work since it.
      *
-     * @param  Collection<int, TrainingWeek>  $weeks
+     * @param  Collection<int, TrainingWeek>  $weeks  with their dates
      * @param  Collection<int, Collection<int, TrainingGate>>  $gatesByWeek  see reviewedGatesByWeek()
      * @param  ?GateEvaluation  $lockingReview  see lockingReview()
      * @param  Collection<int, CarbonInterface>  $latestWork  see latestWorkSinceReviews()
-     * @return Collection<int, SessionWeekState>
+     * @return Collection<int, ProgramWeekState>
      */
-    private function sessionWeekStates(TrainingSession $trainingSession, int $userId, Collection $weeks, Collection $gatesByWeek, ?GateEvaluation $lockingReview, Collection $latestWork): Collection
+    private function programWeekStates(int $programId, bool $programCompleted, int $userId, Collection $weeks, Collection $gatesByWeek, ?GateEvaluation $lockingReview, Collection $latestWork): Collection
     {
-        $today = today();
-        $sessionCompleted = $trainingSession->isCompleted();
         $lockingWeekNumber = $lockingReview?->gate->week->week_number;
         $awaitingVerification = $lockingReview !== null && $latestWork->has($lockingReview->id);
         $states = collect();
 
-        foreach ($this->sessionWeeks($trainingSession, $weeks) as $week) {
-            $opensOn = $trainingSession->weekOpensOn($week->week_number);
+        foreach ($this->programWeeks($programId, $weeks) as $week) {
             $isLocked = $lockingWeekNumber !== null && $week->week_number > $lockingWeekNumber;
             $access = match (true) {
                 $isLocked => WeekAccessState::Locked,
-                $opensOn->lte($today) => WeekAccessState::Open,
+                $week->isOpen() => WeekAccessState::Open,
                 default => WeekAccessState::NotOpen,
             };
-            $states->put($week->id, new SessionWeekState(
+            $states->put($week->id, new ProgramWeekState(
                 weekNumber: $week->week_number,
                 access: $access,
-                opensOn: $opensOn,
+                opensOn: $week->starts_on,
                 lockedByWeekNumber: $isLocked ? $lockingWeekNumber : null,
-                passed: $this->isPassed($gatesByWeek->get($week->id, collect()), $trainingSession->id, $userId),
+                passed: $this->isPassed($gatesByWeek->get($week->id, collect()), $userId),
                 lockingReviewId: $isLocked ? $lockingReview->id : null,
                 awaitingVerification: $isLocked && $awaitingVerification,
-                sessionCompleted: $sessionCompleted,
+                programCompleted: $programCompleted,
             ));
         }
 
@@ -381,18 +387,18 @@ class WeekProgressionService
     }
 
     /**
-     * The participant's incomplete review that locks the later weeks of the session: walking the session's weeks in
-     * order, the first incomplete review of an active Gate, with its Gate and the Gate's week set. Null when no week of
-     * the session has one.
+     * The participant's incomplete review that locks the later weeks of the curriculum: walking its active weeks in
+     * order, the first incomplete review of an active Gate, with its Gate and the Gate's week set. Null when no week
+     * has one.
      *
      * @param  Collection<int, TrainingWeek>  $weeks
      * @param  Collection<int, Collection<int, TrainingGate>>  $gatesByWeek  see reviewedGatesByWeek()
      */
-    private function lockingReview(TrainingSession $trainingSession, int $userId, Collection $weeks, Collection $gatesByWeek): ?GateEvaluation
+    private function lockingReview(int $programId, int $userId, Collection $weeks, Collection $gatesByWeek): ?GateEvaluation
     {
-        foreach ($this->sessionWeeks($trainingSession, $weeks) as $week) {
+        foreach ($this->programWeeks($programId, $weeks) as $week) {
             foreach ($gatesByWeek->get($week->id, collect())->where('is_active', true) as $gate) {
-                $review = $gate->evaluations->first(fn (GateEvaluation $evaluation): bool => $this->isReviewBy($evaluation, $trainingSession->id, $userId)
+                $review = $gate->evaluations->first(fn (GateEvaluation $evaluation): bool => (int) $evaluation->user_id === $userId
                     && in_array($evaluation->status, GateEvaluationStatus::incompleteReviews(), true));
 
                 if ($review) {
@@ -407,15 +413,15 @@ class WeekProgressionService
     /**
      * The locking review of each membership (lockingReview()), keyed like the memberships.
      *
-     * @param  Collection<array-key, TrainingSessionParticipant>  $memberships  with their training session loaded
+     * @param  Collection<array-key, ProgramParticipant>  $memberships
      * @param  Collection<int, TrainingWeek>  $weeks
      * @param  Collection<int, Collection<int, TrainingGate>>  $gatesByWeek  see reviewedGatesByWeek()
      * @return Collection<array-key, ?GateEvaluation>
      */
     private function lockingReviewsOf(Collection $memberships, Collection $weeks, Collection $gatesByWeek): Collection
     {
-        return $memberships->map(fn (TrainingSessionParticipant $membership): ?GateEvaluation => $this->lockingReview(
-            $membership->trainingSession,
+        return $memberships->map(fn (ProgramParticipant $membership): ?GateEvaluation => $this->lockingReview(
+            (int) $membership->program_id,
             (int) $membership->user_id,
             $weeks,
             $gatesByWeek,
@@ -423,48 +429,51 @@ class WeekProgressionService
     }
 
     /**
-     * The participant's latest attempt at the activity in the session, if any.
+     * Whether each membership's curriculum has ended, keyed by program id: one status read per curriculum.
+     *
+     * @param  Collection<array-key, ProgramParticipant>  $memberships  with their program loaded
+     * @return Collection<int, bool>
      */
-    private function latestAttempt(User $user, TrainingSession $trainingSession, Activity $activity): ?ActivitySubmission
+    private function completedByProgram(Collection $memberships): Collection
     {
-        return $activity->submissions()
-            ->where('training_session_id', $trainingSession->id)
-            ->where('user_id', $user->id)
-            ->latest('attempt_number')
-            ->first();
+        return $memberships
+            ->map(fn (ProgramParticipant $membership): Program => $membership->program)
+            ->unique('id')
+            ->mapWithKeys(fn (Program $program): array => [$program->id => $program->isCompleted()]);
     }
 
     /**
-     * The session's weeks among the given weeks, in week order.
+     * The curriculum's active weeks among the given weeks, in week order.
      *
      * @param  Collection<int, TrainingWeek>  $weeks
      * @return Collection<int, TrainingWeek>
      */
-    private function sessionWeeks(TrainingSession $trainingSession, Collection $weeks): Collection
+    private function programWeeks(int $programId, Collection $weeks): Collection
     {
-        return $weeks->filter(fn (TrainingWeek $week): bool => $trainingSession->includesWeek($week))->sortBy('week_number');
+        return $weeks
+            ->filter(fn (TrainingWeek $week): bool => (int) $week->program_id === $programId && $week->is_active)
+            ->sortBy('week_number');
     }
 
     /**
-     * The key of a participant's work in one week of one session (see latestWorkSinceReviews()).
+     * The key of a participant's work in one week (see latestWorkSinceReviews()).
      */
-    private function workKey(int $trainingSessionId, int $userId, int $trainingWeekId): string
+    private function workKey(int $userId, int $trainingWeekId): string
     {
-        return "{$trainingSessionId}-{$userId}-{$trainingWeekId}";
+        return "{$userId}-{$trainingWeekId}";
     }
 
     /**
      * The Gates of the given weeks, grouped by week id, each with its completed and incomplete reviews by the given
-     * users in the given sessions: two queries.
+     * users: two queries.
      *
-     * @param  Collection<array-key, int>  $sessionIds
      * @param  Collection<array-key, int>  $userIds
      * @param  Collection<int, TrainingWeek>  $weeks
      * @return Collection<int, Collection<int, TrainingGate>>
      */
-    private function reviewedGatesByWeek(Collection $sessionIds, Collection $userIds, Collection $weeks): Collection
+    private function reviewedGatesByWeek(Collection $userIds, Collection $weeks): Collection
     {
-        if ($weeks->isEmpty() || $sessionIds->isEmpty()) {
+        if ($weeks->isEmpty() || $userIds->isEmpty()) {
             return collect();
         }
 
@@ -472,8 +481,7 @@ class WeekProgressionService
             ->select(['id', 'training_week_id', 'is_active'])
             ->whereIn('training_week_id', $weeks->pluck('id'))
             ->with(['evaluations' => fn (Relation $query): Relation => $query
-                ->select(['id', 'training_gate_id', 'training_session_id', 'user_id', 'status', 'evaluated_at'])
-                ->whereIn('training_session_id', $sessionIds->unique()->values())
+                ->select(['id', 'training_gate_id', 'user_id', 'status', 'evaluated_at'])
                 ->whereIn('user_id', $userIds->unique()->values())
                 ->whereIn('status', [GateEvaluationStatus::Passed, ...GateEvaluationStatus::incompleteReviews()])])
             ->get()
@@ -481,31 +489,25 @@ class WeekProgressionService
     }
 
     /**
-     * Whether the week's Gates (at least one) each have a completed review by the user in the session.
+     * Whether the week's Gates (at least one) each have a completed review by the user.
      *
      * @param  Collection<int, TrainingGate>  $gates  with their reviews loaded (see reviewedGatesByWeek())
      */
-    private function isPassed(Collection $gates, int $trainingSessionId, int $userId): bool
+    private function isPassed(Collection $gates, int $userId): bool
     {
         return $gates->isNotEmpty() && $gates->every(fn (TrainingGate $gate): bool => $gate->evaluations->contains(
-            fn (GateEvaluation $evaluation): bool => $this->isReviewBy($evaluation, $trainingSessionId, $userId)
+            fn (GateEvaluation $evaluation): bool => (int) $evaluation->user_id === $userId
                 && $evaluation->status === GateEvaluationStatus::Passed,
         ));
     }
 
-    private function isReviewBy(GateEvaluation $evaluation, int $trainingSessionId, int $userId): bool
-    {
-        return (int) $evaluation->training_session_id === $trainingSessionId && (int) $evaluation->user_id === $userId;
-    }
-
     /**
-     * Ids of the given weeks that have at least one Gate and a passed evaluation by the user in the session for every
-     * Gate.
+     * Ids of the given weeks that have at least one Gate and a passed evaluation by the user for every Gate.
      *
      * @param  Collection<int, TrainingWeek>  $weeks
      * @return Collection<int, int>
      */
-    private function passedWeekIds(User $user, TrainingSession $trainingSession, Collection $weeks): Collection
+    private function passedWeekIds(User $user, Collection $weeks): Collection
     {
         if ($weeks->isEmpty()) {
             return collect();
@@ -515,7 +517,6 @@ class WeekProgressionService
             ->select(['id', 'training_week_id'])
             ->whereIn('training_week_id', $weeks->pluck('id'))
             ->withExists(['evaluations as passed_by_user' => fn (Builder $query): Builder => $query
-                ->where('training_session_id', $trainingSession->id)
                 ->where('user_id', $user->id)
                 ->where('status', GateEvaluationStatus::Passed)])
             ->get()

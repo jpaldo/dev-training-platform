@@ -6,7 +6,6 @@ use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -15,11 +14,11 @@ use ZipArchive;
 class TrainingWorkbookService
 {
     /**
-     * Build the participant's workbook for one week of a training session: one sheet per active activity of the week,
-     * each with the participant's latest attempt in that session, or a header-only Activities sheet when the week has
+     * Build the participant's workbook for one week: one sheet per active activity of the week, each with the
+     * participant's latest attempt, or a header-only Activities sheet when the week has
      * none, so the file is always a valid workbook. A fixed number of queries, whatever the number of activities.
      */
-    public function forWeek(User $participant, TrainingSession $session, TrainingWeek $week): string
+    public function forWeek(User $participant, TrainingWeek $week): string
     {
         $activities = $week->activities()
             ->where('is_active', true)
@@ -27,7 +26,6 @@ class TrainingWorkbookService
             ->with(['requirements' => fn (Relation $query): Relation => $query->where('requirement_type', 'submission_field')->orderBy('position')])
             ->get();
         $latestAttempts = ActivitySubmission::query()
-            ->where('training_session_id', $session->id)
             ->where('user_id', $participant->id)
             ->whereIn('activity_id', $activities->modelKeys())
             ->with(['versions' => fn (Relation $query): Relation => $query->orderByDesc('version_number')])

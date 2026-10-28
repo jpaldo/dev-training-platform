@@ -4,13 +4,12 @@ namespace App\Services;
 
 use App\Enums\SubmissionStatus;
 use App\Models\ActivitySubmission;
+use App\Models\Program;
+use App\Models\ProgramParticipant;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
-use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
-use App\Support\SessionWeekState;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Arr;
@@ -24,52 +23,49 @@ class MissingSubmissionReportService
     ) {}
 
     /**
-     * The missing requirements of the session memberships the viewer may see (every one for an admin, otherwise those
-     * where the viewer is the participant's current mentor) that match the participant, session and mentor filters:
-     * per membership, each active week of its session that the participant can open there, with the Weekly Video
-     * Recording when the week asks for one and none is chosen in that session, and each active activity without a
-     * submitted version in that session. Rows matching the category, week, requirement and status filters are kept,
-     * ordered like the memberships (participant name, then the latest session first), then by week, category and
-     * requirement.
+     * The missing requirements of the curriculum memberships the viewer may see (every one for an admin, otherwise
+     * those where the viewer is the participant's current mentor) that match the participant, curriculum and mentor
+     * filters: per membership, each active week of its curriculum that the participant can open, with the Weekly Video
+     * Recording when the week asks for one and none is chosen, and each active activity without a submitted version.
+     * Rows matching the category, week, requirement and status filters are kept, ordered like the memberships
+     * (participant name, then the curriculum that starts latest first), then by week, category and requirement.
      *
-     * @param  array{participant?: int|string|null, session?: int|string|null, mentor?: int|string|null, category?: ?string, week?: int|string|null, requirement?: ?string, status?: ?string}  $filters
+     * @param  array{participant?: int|string|null, program?: int|string|null, mentor?: int|string|null, category?: ?string, week?: int|string|null, requirement?: ?string, status?: ?string}  $filters
      * @return Collection<int, array<string, mixed>>
      */
     public function rows(User $viewer, array $filters = []): Collection
     {
-        $memberships = $this->scoringReports->memberships($viewer, Arr::only($filters, ['participant', 'session', 'mentor']))
+        $memberships = $this->scoringReports->memberships($viewer, Arr::only($filters, ['participant', 'program', 'mentor']))
             ->with(['participant' => fn (Relation $participants): Relation => $participants
                 ->select(['id', 'name', 'email', 'employee_id'])
                 ->with(['activitySubmissions.versions.evidence', 'weeklyVideoRecordings'])])
             ->get();
         $programWeeks = $this->programWeeks($memberships);
-        $weekStates = $this->weekStates($memberships, $programWeeks);
+        $weekStates = $this->progression->weekStatesForMemberships($memberships->keyBy('id'), $programWeeks);
         $rows = collect();
 
         foreach ($memberships->values() as $position => $membership) {
             $participant = $membership->participant;
-            $trainingSession = $membership->trainingSession;
+            $program = $membership->program;
             $mentor = $membership->mentor_name ?? 'Not assigned';
-            $submissions = $participant->activitySubmissions->where('training_session_id', $trainingSession->id);
-            $videos = $participant->weeklyVideoRecordings->where('training_session_id', $trainingSession->id);
 
-            foreach ($programWeeks->where('program_id', $trainingSession->program_id) as $week) {
-                if (! $trainingSession->includesWeek($week) || ! $weekStates->get($membership->id)->get($week->id)->isOpen()) {
+            foreach ($programWeeks->where('program_id', $program->id) as $week) {
+                if (! ($weekStates->get($membership->id)->get($week->id)?->isOpen() ?? false)) {
                     continue;
                 }
 
-                if ($week->asksForWeeklyVideo() && ! $videos->contains('training_week_id', $week->id)) {
-                    $rows->push($this->row($participant, $trainingSession, $position, $mentor, 'Video Recording', $week->week_number, 'Weekly Video Recording', 1, 0, 'Not Submitted', 0));
+                if ($week->asksForWeeklyVideo() && ! $participant->weeklyVideoRecordings->contains('training_week_id', $week->id)) {
+                    $rows->push($this->row($participant, $program, $position, $mentor, 'Video Recording', $week->week_number, 'Weekly Video Recording', 1, 0, 'Not Submitted', 0));
                 }
 
                 foreach ($week->activities as $activity) {
-                    $activitySubmissions = $submissions->where('activity_id', $activity->id);
+                    $activitySubmissions = $participant->activitySubmissions->where('activity_id', $activity->id);
                     $hasSubmittedVersion = $activitySubmissions
                         ->contains(fn (ActivitySubmission $submission): bool => $submission->versions->contains(fn (SubmissionVersion $version): bool => filled($version->submitted_at) || in_array($version->status, [...SubmissionStatus::handedIn(), SubmissionStatus::Failed], true)));
                     if ($hasSubmittedVersion) {
                         continue;
                     }
-                    $rows->push($this->row($participant, $trainingSession, $position, $mentor, 'Activities', $week->week_number, $activity->title, 1, 0, 'Not Submitted', $this->activityEvidenceCount($activitySubmissions)));
+                    $rows->push($this->row($participant, $program, $position, $mentor, 'Activities', $week->week_number, $activity->title, 1, 0, 'Not Submitted', $this->activityEvidenceCount($activitySubmissions)));
                 }
             }
         }
@@ -81,16 +77,17 @@ class MissingSubmissionReportService
     }
 
     /**
-     * Every week of the memberships' programs, active or not (the week states keep each session's weeks), in position
-     * order, each with whether it asks for a Weekly Video Recording and its active activities in position order.
+     * Every week of the memberships' curricula, active or not (the week states keep each curriculum's active weeks),
+     * in position order, each with its dates, whether it asks for a Weekly Video Recording and its active activities in
+     * position order.
      *
-     * @param  EloquentCollection<int, TrainingSessionParticipant>  $memberships  with their training session loaded
+     * @param  EloquentCollection<int, ProgramParticipant>  $memberships
      * @return EloquentCollection<int, TrainingWeek>
      */
     private function programWeeks(EloquentCollection $memberships): EloquentCollection
     {
         return TrainingWeek::query()
-            ->whereIn('program_id', $memberships->map(fn (TrainingSessionParticipant $membership): int => $membership->trainingSession->program_id)->unique()->values())
+            ->whereIn('program_id', $memberships->pluck('program_id')->unique()->values())
             ->withAsksForWeeklyVideo()
             ->with(['activities' => fn (Relation $activities): Relation => $activities->where('is_active', true)->orderBy('position')])
             ->orderBy('position')
@@ -98,38 +95,20 @@ class MissingSubmissionReportService
     }
 
     /**
-     * The state of each week of its session per membership, keyed by membership id, then by week id: one week-state
-     * lookup per program.
-     *
-     * @param  EloquentCollection<int, TrainingSessionParticipant>  $memberships  with their training session loaded
-     * @param  EloquentCollection<int, TrainingWeek>  $programWeeks
-     * @return Collection<int, Collection<int, SessionWeekState>>
-     */
-    private function weekStates(EloquentCollection $memberships, EloquentCollection $programWeeks): Collection
-    {
-        $weekStates = collect();
-        foreach ($memberships->keyBy('id')->groupBy(fn (TrainingSessionParticipant $membership): int => $membership->trainingSession->program_id, preserveKeys: true) as $programId => $programMemberships) {
-            $weekStates = $weekStates->union($this->progression->weekStatesForMemberships($programMemberships, $programWeeks->where('program_id', $programId)));
-        }
-
-        return $weekStates;
-    }
-
-    /**
-     * One missing requirement of a participant in a training session; `membership_sort` is the membership's position
-     * in the report's order.
+     * One missing requirement of a participant in a curriculum; `membership_sort` is the membership's position in the
+     * report's order.
      *
      * @return array<string, mixed>
      */
-    private function row(User $participant, TrainingSession $trainingSession, int $membershipSort, string $mentor, string $category, int $week, string $requirement, int $expected, int $submitted, string $status, int $evidences): array
+    private function row(User $participant, Program $program, int $membershipSort, string $mentor, string $category, int $week, string $requirement, int $expected, int $submitted, string $status, int $evidences): array
     {
         return [
             'participant' => $participant,
-            'trainingSession' => $trainingSession,
+            'program' => $program,
             'membership_sort' => $membershipSort,
             'participant_name' => $participant->name,
             'employee_id' => $participant->employee_id,
-            'session' => $trainingSession->titleWithDates(),
+            'program_name' => $program->name,
             'email' => $participant->email,
             'mentor' => $mentor,
             'category' => $category,

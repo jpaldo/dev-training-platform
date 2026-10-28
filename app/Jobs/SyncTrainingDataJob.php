@@ -8,8 +8,8 @@ use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveEvidenceExport;
 use App\Models\GoogleDriveExport;
 use App\Models\GoogleDriveSync;
+use App\Models\Program;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\ExportLifecycleService;
@@ -29,10 +29,10 @@ use Throwable;
 
 /**
  * Syncs a participant's training work into the folder they chose in their own Google Drive: one managed folder per
- * training session they are in, holding Week N/Week N.xlsx (TrainingWorkbookService::forWeek()) and the week's
+ * curriculum they are in, holding Week N/Week N.xlsx (TrainingWorkbookService::forWeek()) and the week's
  * evidence files under Week N/Evidences/{activity}. Weekly videos stay where the participant keeps them and are not
  * copied. Each folder and file is tracked in `google_drive_exports` (and evidence files in
- * `google_drive_evidence_exports`) under a `session:{id}…` scope key and the destination, so a later run updates the
+ * `google_drive_evidence_exports`) under a `program:{id}…` scope key and the destination, so a later run updates the
  * same Drive files instead of adding new ones.
  */
 class SyncTrainingDataJob implements ShouldQueue
@@ -65,20 +65,20 @@ class SyncTrainingDataJob implements ShouldQueue
             $destination = $sync->destination_folder_id;
             $drive->validateDestination($participant, $destination, $sync->destination_resource_key, $sync->destination_drive_id);
             $components = [];
-            foreach ($this->sessionFolders($participant) as ['session' => $session, 'name' => $folderName, 'weeks' => $weeks]) {
-                $sessionFolder = $this->managedFolder($participant, $connection, $drive, $folderName, $destination, 'session_folder', "session:{$session->id}", $destination);
+            foreach ($this->programFolders($participant) as ['program' => $program, 'name' => $folderName, 'weeks' => $weeks]) {
+                $programFolder = $this->managedFolder($participant, $connection, $drive, $folderName, $destination, 'program_folder', "program:{$program->id}", $destination);
                 foreach ($weeks as $week) {
-                    $scope = "session:{$session->id}:week:{$week->id}";
-                    $weekFolder = $this->managedFolder($participant, $connection, $drive, "Week {$week->week_number}", $sessionFolder, 'week_folder', $scope, $destination);
+                    $scope = "program:{$program->id}:week:{$week->id}";
+                    $weekFolder = $this->managedFolder($participant, $connection, $drive, "Week {$week->week_number}", $programFolder, 'week_folder', $scope, $destination);
                     $components[] = [
                         'type' => 'weekly_workbook_nested',
                         'scope' => $scope,
                         'name' => "Week {$week->week_number}.xlsx",
                         'label' => "{$folderName} / Week {$week->week_number}.xlsx",
-                        'content' => $workbooks->forWeek($participant, $session, $week),
+                        'content' => $workbooks->forWeek($participant, $week),
                         'parent' => $weekFolder,
                         'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        'session' => $session,
+                        'program' => $program,
                         'week' => $week,
                     ];
                 }
@@ -105,7 +105,7 @@ class SyncTrainingDataJob implements ShouldQueue
                     $sync->increment('failed_components');
                 }
                 if ($record->status === GoogleDriveExportStatus::Completed) {
-                    $this->syncEvidence($participant, $component['session'], $component['week'], $connection, $drive, $destination, $component['parent'], $sync, $componentErrors, $evidenceStats, $evidenceVersions);
+                    $this->syncEvidence($participant, $component['program'], $component['week'], $connection, $drive, $destination, $component['parent'], $sync, $componentErrors, $evidenceStats, $evidenceVersions);
                 }
             }
             $sync->refresh();
@@ -131,78 +131,72 @@ class SyncTrainingDataJob implements ShouldQueue
     }
 
     /**
-     * The participant's training sessions, earliest start first, each with the name of its managed folder
-     * (folderName()) and its weeks (as TrainingSession::weeks() lists them), in two queries.
+     * The participant's curricula, in the order they were created, each with the name of its managed folder
+     * (folderName()) and its active weeks in week order, in two queries.
      *
-     * @return list<array{session: TrainingSession, name: string, weeks: Collection<int, TrainingWeek>}>
+     * @return list<array{program: Program, name: string, weeks: Collection<int, TrainingWeek>}>
      */
-    private function sessionFolders(User $participant): array
+    private function programFolders(User $participant): array
     {
-        $sessions = $participant->trainingSessions()->orderBy('starts_on')->orderBy('training_sessions.id')->get();
+        $programs = $participant->programs()->orderBy('programs.id')->get();
         $programWeeks = TrainingWeek::query()
-            ->whereIn('program_id', $sessions->pluck('program_id')->unique()->values())
+            ->whereIn('program_id', $programs->modelKeys())
             ->where('is_active', true)
             ->orderBy('week_number')
             ->get()
             ->groupBy('program_id');
 
-        return $sessions->map(fn (TrainingSession $session): array => [
-            'session' => $session,
-            'name' => $this->folderName($session, $sessions),
-            'weeks' => $programWeeks->get($session->program_id, collect())->filter(fn (TrainingWeek $week): bool => $session->includesWeek($week))->values(),
+        return $programs->map(fn (Program $program): array => [
+            'program' => $program,
+            'name' => $this->folderName($program, $programs),
+            'weeks' => $programWeeks->get($program->id, collect())->values(),
         ])->all();
     }
 
     /**
-     * The session's folder name: its title. When another of the participant's sessions has the same title, the date
-     * range follows it, and the session ID too when the dates also match, so Drive's same-name folder lookup in
-     * GoogleDriveService::ensureFolder() never puts two sessions in one folder.
+     * The curriculum's folder name: its name, followed by its ID ("L4 Accelerator Training (#3)") when another of the
+     * participant's curricula has the same name, so Drive's same-name folder lookup in
+     * GoogleDriveService::ensureFolder() never puts two curricula in one folder.
      *
-     * @param  Collection<int, TrainingSession>  $sessions
+     * @param  Collection<int, Program>  $programs
      */
-    private function folderName(TrainingSession $session, Collection $sessions): string
+    private function folderName(Program $program, Collection $programs): string
     {
-        $sameTitle = $sessions->where('title', $session->title);
-        if ($sameTitle->count() === 1) {
-            return $session->title;
-        }
-        $sameDates = $sameTitle->filter(fn (TrainingSession $other): bool => $other->dateRangeLabel() === $session->dateRangeLabel());
-
-        return $sameDates->count() === 1
-            ? "{$session->title} ({$session->dateRangeLabel()})"
-            : "{$session->title} ({$session->dateRangeLabel()}, #{$session->id})";
+        return $programs->where('name', $program->name)->count() === 1
+            ? $program->name
+            : "{$program->name} (#{$program->id})";
     }
 
     /**
-     * Upload the evidence of one session week: the files of each attempt's latest version and of its latest handed-in
-     * version, under Week N/Evidences/{activity}. The session's versions are read once and kept in $evidenceVersions
-     * (by session ID, null when they could not be read) for its other weeks.
+     * Upload the evidence of one curriculum week: the files of each attempt's latest version and of its latest
+     * handed-in version, under Week N/Evidences/{activity}. The curriculum's versions are read once and kept in
+     * $evidenceVersions (by program ID, null when they could not be read) for its other weeks.
      *
      * @param  list<string>  $componentErrors
      * @param  array{eligible: int, completed: int, failed: int}  $evidenceStats
      * @param  array<int, ?Collection<int, Collection<int, SubmissionVersion>>>  $evidenceVersions
      */
-    private function syncEvidence(User $participant, TrainingSession $session, TrainingWeek $week, GoogleDriveConnection $connection, GoogleDriveService $drive, string $destination, string $weekFolder, GoogleDriveSync $sync, array &$componentErrors, array &$evidenceStats, array &$evidenceVersions): void
+    private function syncEvidence(User $participant, Program $program, TrainingWeek $week, GoogleDriveConnection $connection, GoogleDriveService $drive, string $destination, string $weekFolder, GoogleDriveSync $sync, array &$componentErrors, array &$evidenceStats, array &$evidenceVersions): void
     {
-        $scope = "session:{$session->id}:week:{$week->id}";
+        $scope = "program:{$program->id}:week:{$week->id}";
         $evidenceWeekFolder = null;
         $ensureEvidenceFolder = function () use (&$evidenceWeekFolder, $participant, $connection, $drive, $scope, $weekFolder, $destination): string {
             return $evidenceWeekFolder ??= $this->managedFolder($participant, $connection, $drive, 'Evidences', $weekFolder, 'week_evidences_folder', $scope, $destination);
         };
 
-        if (! array_key_exists($session->id, $evidenceVersions)) {
+        if (! array_key_exists($program->id, $evidenceVersions)) {
             try {
-                $evidenceVersions[$session->id] = $this->evidenceVersionsByWeek($participant, $session);
+                $evidenceVersions[$program->id] = $this->evidenceVersionsByWeek($participant, $program);
             } catch (Throwable $exception) {
-                $evidenceVersions[$session->id] = null;
+                $evidenceVersions[$program->id] = null;
                 $sync->increment('failed_components');
                 $componentErrors[] = 'Evidences: Unable to discover activity evidence.';
             }
         }
-        if ($evidenceVersions[$session->id] === null) {
+        if ($evidenceVersions[$program->id] === null) {
             return;
         }
-        $versions = $evidenceVersions[$session->id]->get($week->id, collect());
+        $versions = $evidenceVersions[$program->id]->get($week->id, collect());
         $seenEvidence = [];
         foreach ($versions as $version) {
             $activity = $version->submission->activity;
@@ -251,15 +245,17 @@ class SyncTrainingDataJob implements ShouldQueue
     }
 
     /**
-     * The participant's versions in the session whose evidence is synced, by training week ID: per attempt, the latest
-     * version and the latest handed-in one. One query with its eager loads.
+     * The participant's versions in the curriculum whose evidence is synced, by training week ID: per attempt, the
+     * latest version and the latest handed-in one. One query with its eager loads.
      *
      * @return Collection<int, Collection<int, SubmissionVersion>>
      */
-    private function evidenceVersionsByWeek(User $participant, TrainingSession $session): Collection
+    private function evidenceVersionsByWeek(User $participant, Program $program): Collection
     {
         return SubmissionVersion::query()->with(['submission.activity', 'evidence'])
-            ->whereHas('submission', fn (Builder $query): Builder => $query->where('user_id', $participant->id)->where('training_session_id', $session->id))
+            ->whereHas('submission', fn (Builder $query): Builder => $query
+                ->where('user_id', $participant->id)
+                ->whereHas('activity.week', fn (Builder $weeks): Builder => $weeks->where('program_id', $program->id)))
             ->get()
             ->groupBy('activity_submission_id')
             ->flatMap(function (Collection $items): Collection {

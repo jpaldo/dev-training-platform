@@ -21,11 +21,12 @@ class AttendancePageService
      * selected (the first of the list when none is requested), and the weekly session attendance grid of that
      * curriculum: one column per active week in week order, one row per participant the viewer sees
      * (SessionAttendanceService::memberships()), each with a cell per week and the total "3 of 4" (attended of active
-     * weeks). The grid is replaced by an empty message when there is no curriculum, no active week or no participant.
+     * weeks). Each cell posts `attendance[{participantId}][{weekId}]` to `formUrl` (the area's `attendance.update`). The
+     * grid is replaced by an empty message when there is no curriculum, no active week or no participant.
      * Four queries whatever the number of participants: the options, the curriculum with its active weeks, the
      * memberships with their participants, and the attended sessions.
      *
-     * @return array{areaLabel: string, programOptions: list<array{value: string, label: string, is_selected: bool}>, selectedProgram: array{name: string}|null, weeks: list<array{heading: string, dates: string}>, rows: list<array{participant_name: string, employee_id: string|null, cells: list<array{is_attended: bool, label: string}>, total: string}>, emptyMessage: string|null}
+     * @return array{areaLabel: string, programOptions: list<array{value: string, label: string, is_selected: bool}>, selectedProgram: array{id: int, name: string}|null, weeks: list<array{heading: string, dates: string}>, rows: list<array{participant_name: string, employee_id: string|null, cells: list<array{input_name: string, is_attended: bool, label: string}>, total: string}>, formUrl: string, emptyMessage: string|null}
      */
     public function indexData(User $viewer, ?int $selectedProgramId, bool $isAdminArea): array
     {
@@ -43,9 +44,10 @@ class AttendancePageService
         return [
             'areaLabel' => $isAdminArea ? 'ADMIN' : 'MENTOR',
             'programOptions' => $programOptions,
-            'selectedProgram' => $program === null ? null : ['name' => $program->name],
+            'selectedProgram' => $program === null ? null : ['id' => $program->id, 'name' => $program->name],
             'weeks' => $program === null ? [] : $this->weeks($program),
             'rows' => $program === null ? [] : $this->rows($program, $memberships),
+            'formUrl' => route($isAdminArea ? 'admin.attendance.update' : 'coach.attendance.update'),
             'emptyMessage' => match (true) {
                 $program === null => 'No curricula to show.',
                 $program->activeWeeks->isEmpty() => 'This curriculum has no weeks.',
@@ -89,7 +91,7 @@ class AttendancePageService
 
     /**
      * @param  Collection<int, ProgramParticipant>  $memberships
-     * @return list<array{participant_name: string, employee_id: string|null, cells: list<array{is_attended: bool, label: string}>, total: string}>
+     * @return list<array{participant_name: string, employee_id: string|null, cells: list<array{input_name: string, is_attended: bool, label: string}>, total: string}>
      */
     private function rows(Program $program, Collection $memberships): array
     {
@@ -105,6 +107,7 @@ class AttendancePageService
                     'employee_id' => $participant->employee_id,
                     'cells' => $program->activeWeeks
                         ->map(fn (TrainingWeek $week): array => [
+                            'input_name' => "attendance[{$participant->id}][{$week->id}]",
                             'is_attended' => isset($attendedWeeks[$week->id]),
                             'label' => "{$participant->name} attended Week {$week->week_number}",
                         ])

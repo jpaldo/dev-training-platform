@@ -9,6 +9,7 @@ use App\Models\ProgramParticipant;
 use App\Models\User;
 use App\Models\WeeklySessionAttendance;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Weekly session attendance of a curriculum: which participants the viewer sees and which active weeks' sessions they
@@ -26,17 +27,34 @@ class SessionAttendanceService
      */
     public function memberships(User $viewer, Program $program): Builder
     {
-        $memberships = ProgramParticipant::query();
+        $memberships = $this->visibleMemberships($viewer, $program);
 
         return $memberships
             ->select(['id', 'program_id', 'user_id'])
             ->addSelect(['mentor_name' => MentorAssignment::query()->currentMentorNameOfRow($memberships, 'program_participants.program_id')])
-            ->where('program_id', $program->id)
-            ->whereHas('participant', fn (Builder $participants): Builder => $participants->where('role', UserRole::Participant))
-            ->unless($viewer->hasAnyRole(UserRole::Admin), fn (Builder $query): Builder => $query->currentlyMentoredBy($viewer))
             ->with('participant:id,name,email,employee_id')
             ->orderBy(User::query()->select('name')->whereColumn('users.id', 'program_participants.user_id'))
             ->orderBy('user_id');
+    }
+
+    /**
+     * The ids of the participants the viewer sees in the curriculum (the users of memberships()). One query.
+     *
+     * @return list<int>
+     */
+    public function visibleParticipantIds(User $viewer, Program $program): array
+    {
+        return array_map(intval(...), $this->visibleMemberships($viewer, $program)->pluck('user_id')->all());
+    }
+
+    /**
+     * The ids of the curriculum's active weeks, whatever their dates. One query.
+     *
+     * @return list<int>
+     */
+    public function activeWeekIds(Program $program): array
+    {
+        return array_map(intval(...), $program->activeWeeks()->pluck('id')->all());
     }
 
     /**
@@ -65,5 +83,81 @@ class SessionAttendanceService
         }
 
         return $pairs;
+    }
+
+    /**
+     * Save the posted cells as shown, in one transaction: a cell posted 1 gets a record marked by the viewer now unless
+     * it has one (an existing record keeps its first marker and time, so saving twice changes nothing), and a cell
+     * posted 0 loses its record. The cells must already be in the viewer's scope (UpdateSessionAttendanceRequest).
+     * Queries: one read, one delete per week with unticked records, and one insert, whatever the number of
+     * participants.
+     *
+     * @param  array<int, array<int, bool>>  $cells  keyed by participant id and then week id, true when attended
+     */
+    public function save(User $viewer, array $cells): void
+    {
+        $weekIds = collect($cells)->flatMap(fn (array $weeks): array => array_keys($weeks))->unique()->values()->all();
+
+        if ($weekIds === []) {
+            return;
+        }
+
+        DB::transaction(function () use ($viewer, $cells, $weekIds): void {
+            $existing = [];
+            $records = WeeklySessionAttendance::query()
+                ->whereIn('user_id', array_keys($cells))
+                ->whereIn('training_week_id', $weekIds)
+                ->toBase()
+                ->get(['user_id', 'training_week_id']);
+
+            foreach ($records as $record) {
+                $existing[(int) $record->user_id][(int) $record->training_week_id] = true;
+            }
+
+            $now = now();
+            $absentParticipantIdsByWeek = [];
+            $newRecords = [];
+
+            foreach ($cells as $participantId => $weeks) {
+                foreach ($weeks as $weekId => $isAttended) {
+                    $hasRecord = isset($existing[$participantId][$weekId]);
+
+                    if ($isAttended && ! $hasRecord) {
+                        $newRecords[] = [
+                            'training_week_id' => $weekId,
+                            'user_id' => $participantId,
+                            'marked_by' => $viewer->id,
+                            'marked_at' => $now,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    } elseif (! $isAttended && $hasRecord) {
+                        $absentParticipantIdsByWeek[$weekId][] = $participantId;
+                    }
+                }
+            }
+
+            foreach ($absentParticipantIdsByWeek as $weekId => $participantIds) {
+                WeeklySessionAttendance::query()->where('training_week_id', $weekId)->whereIn('user_id', $participantIds)->delete();
+            }
+
+            if ($newRecords !== []) {
+                WeeklySessionAttendance::query()->insertOrIgnore($newRecords);
+            }
+        });
+    }
+
+    /**
+     * The curriculum's memberships the viewer sees, unordered and without columns chosen: users with the Participant role,
+     * all of them for an admin, otherwise only those whose current mentor in the curriculum is the viewer.
+     *
+     * @return Builder<ProgramParticipant>
+     */
+    private function visibleMemberships(User $viewer, Program $program): Builder
+    {
+        return ProgramParticipant::query()
+            ->where('program_id', $program->id)
+            ->whereHas('participant', fn (Builder $participants): Builder => $participants->where('role', UserRole::Participant))
+            ->unless($viewer->hasAnyRole(UserRole::Admin), fn (Builder $query): Builder => $query->currentlyMentoredBy($viewer));
     }
 }

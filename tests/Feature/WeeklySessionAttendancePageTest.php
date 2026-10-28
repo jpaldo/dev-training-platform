@@ -69,7 +69,12 @@ class WeeklySessionAttendancePageTest extends TestCase
                 '>2 of 4</td>',
                 '>Cal Xu</strong>',
                 '>0 of 4</td>',
+                '>Save attendance</button>',
             ], false)
+            ->assertSee('<form method="POST" action="'.route('admin.attendance.update').'"', false)
+            ->assertSee('<input type="hidden" name="_method" value="PUT">', false)
+            ->assertSee('<input type="hidden" name="program" value="'.$program->id.'">', false)
+            ->assertSee('<input type="hidden" name="attendance['.$ada->id.']['.$weekOne->id.']" value="0">', false)
             ->assertDontSee('Dee Coach')
             ->assertDontSee('Participant Attendance')
             ->assertDontSee('Export CSV')
@@ -89,7 +94,7 @@ class WeeklySessionAttendancePageTest extends TestCase
             'Cal Xu attended Week 2' => false,
             'Cal Xu attended Week 3' => false,
             'Cal Xu attended Week 4' => false,
-        ], $this->disabledCheckboxes($response));
+        ], $this->checkboxes($response));
     }
 
     public function test_page_opens_on_the_first_curriculum_of_the_list_and_shows_another_when_chosen(): void
@@ -161,7 +166,7 @@ class WeeklySessionAttendancePageTest extends TestCase
         $this->assertSame([
             'Ada Young attended Week 1' => true,
             'Ada Young attended Week 2' => false,
-        ], $this->disabledCheckboxes($response));
+        ], $this->checkboxes($response));
     }
 
     public function test_a_removed_participant_disappears_and_shows_the_earlier_marks_when_added_again(): void
@@ -190,7 +195,7 @@ class WeeklySessionAttendancePageTest extends TestCase
         $this->assertSame([
             'Ada Young attended Week 1' => true,
             'Ada Young attended Week 2' => false,
-        ], $this->disabledCheckboxes($response));
+        ], $this->checkboxes($response));
     }
 
     public function test_inactive_weeks_and_their_attendance_are_not_shown(): void
@@ -213,7 +218,7 @@ class WeeklySessionAttendancePageTest extends TestCase
         $this->assertSame([
             'Ada Young attended Week 1' => true,
             'Ada Young attended Week 3' => false,
-        ], $this->disabledCheckboxes($response));
+        ], $this->checkboxes($response));
     }
 
     public function test_mentor_of_no_curriculum_sees_no_curricula_and_no_picker(): void
@@ -225,7 +230,8 @@ class WeeklySessionAttendancePageTest extends TestCase
             ->assertSee('No curricula to show.')
             ->assertDontSee('aria-label="Choose curriculum"', false)
             ->assertDontSee('Backend Track')
-            ->assertDontSee('<table', false);
+            ->assertDontSee('<table', false)
+            ->assertDontSee('Save attendance');
     }
 
     public function test_curriculum_without_active_weeks_says_it_has_no_weeks(): void
@@ -238,7 +244,8 @@ class WeeklySessionAttendancePageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder(['>Backend Track</h2>', 'This curriculum has no weeks.'], false)
             ->assertDontSee('Ada Young')
-            ->assertDontSee('<table', false);
+            ->assertDontSee('<table', false)
+            ->assertDontSee('Save attendance');
     }
 
     public function test_curriculum_without_participants_says_there_are_none_to_show(): void
@@ -248,7 +255,8 @@ class WeeklySessionAttendancePageTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => UserRole::Admin]))->get(route('admin.attendance.index'))
             ->assertOk()
             ->assertSeeInOrder(['>Backend Track</h2>', 'No participants to show.'], false)
-            ->assertDontSee('<table', false);
+            ->assertDontSee('<table', false)
+            ->assertDontSee('Save attendance');
     }
 
     /**
@@ -304,6 +312,261 @@ class WeeklySessionAttendancePageTest extends TestCase
         $this->assertSame($this->pageQueryCount(1), $this->pageQueryCount(3));
     }
 
+    public function test_saving_the_grid_keeps_exactly_the_ticked_cells_and_returns_to_the_curriculum_with_a_flash(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-11 09:00:00'));
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $firstMarker = User::factory()->create(['role' => UserRole::Coach]);
+        $program = Program::factory()->create();
+        $weekOne = $this->week($program, 1, '2026-11-09');
+        $weekTwo = $this->week($program, 2, '2026-11-16');
+        $ada = User::factory()->create(['name' => 'Ada Young']);
+        $bea = User::factory()->create(['name' => 'Bea Zane']);
+        $program->participants()->attach([$ada->id => ['joined_at' => now()], $bea->id => ['joined_at' => now()]]);
+        $this->attend($ada, $weekOne, $firstMarker);
+        $this->attend($bea, $weekTwo, $firstMarker);
+        $this->travelTo(Carbon::parse('2026-11-18 10:30:00'));
+
+        $this->actingAs($admin)->put(route('admin.attendance.update'), [
+            'program' => $program->id,
+            'attendance' => [
+                $ada->id => [$weekOne->id => '0', $weekTwo->id => '1'],
+                $bea->id => [$weekOne->id => '1', $weekTwo->id => '1'],
+            ],
+        ])
+            ->assertRedirect(route('admin.attendance.index', ['program' => $program->id]))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', 'Attendance saved.');
+
+        $this->assertSame([
+            [$ada->id, $weekTwo->id, $admin->id, '2026-11-18 10:30:00'],
+            [$bea->id, $weekOne->id, $admin->id, '2026-11-18 10:30:00'],
+            [$bea->id, $weekTwo->id, $firstMarker->id, '2026-11-11 09:00:00'],
+        ], $this->attendanceRecords());
+        $this->actingAs($admin)->get(route('admin.attendance.index', ['program' => $program->id]))
+            ->assertOk()
+            ->assertSeeInOrder(['role="status"', 'Attendance saved.', '>Ada Young</strong>'], false);
+    }
+
+    public function test_saving_the_same_grid_again_changes_no_row(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-18 10:30:00'));
+        $coach = User::factory()->create(['role' => UserRole::Coach]);
+        $program = Program::factory()->create();
+        $weekOne = $this->week($program, 1, '2026-11-09');
+        $weekTwo = $this->week($program, 2, '2026-11-16');
+        $participant = User::factory()->create();
+        $this->mentor($program, $coach, $participant);
+        $grid = ['program' => $program->id, 'attendance' => [$participant->id => [$weekOne->id => '1', $weekTwo->id => '0']]];
+        $this->actingAs($coach)->put(route('coach.attendance.update'), $grid)->assertSessionHasNoErrors();
+        $saved = WeeklySessionAttendance::query()->orderBy('id')->get()->toArray();
+        $this->travel(2)->hours();
+
+        $this->actingAs($coach)->put(route('coach.attendance.update'), $grid)
+            ->assertRedirect(route('coach.attendance.index', ['program' => $program->id]))
+            ->assertSessionHas('status', 'Attendance saved.');
+
+        $this->assertCount(1, $saved);
+        $this->assertSame($saved, WeeklySessionAttendance::query()->orderBy('id')->get()->toArray());
+    }
+
+    public function test_a_week_of_a_curriculum_that_has_ended_can_still_be_changed(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-18 10:30:00'));
+        $coach = User::factory()->create(['role' => UserRole::Coach]);
+        $program = Program::factory()->create();
+        $weekOne = $this->week($program, 1, '2026-09-07');
+        $weekTwo = $this->week($program, 2, '2026-09-14');
+        $participant = User::factory()->create();
+        $this->mentor($program, $coach, $participant);
+        $this->attend($participant, $weekOne, $coach);
+
+        $this->actingAs($coach)->put(route('coach.attendance.update'), [
+            'program' => $program->id,
+            'attendance' => [$participant->id => [$weekOne->id => '0', $weekTwo->id => '1']],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame([[$participant->id, $weekTwo->id, $coach->id, '2026-11-18 10:30:00']], $this->attendanceRecords());
+    }
+
+    public function test_a_mentor_can_tick_a_week_that_has_not_started_and_an_unscheduled_week(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-01 10:30:00'));
+        $coach = User::factory()->create(['role' => UserRole::Coach]);
+        $program = Program::factory()->create();
+        $futureWeek = $this->week($program, 1, '2026-11-09');
+        $unscheduledWeek = $this->week($program, 2, null);
+        $participant = User::factory()->create();
+        $this->mentor($program, $coach, $participant);
+
+        $this->actingAs($coach)->put(route('coach.attendance.update'), [
+            'program' => $program->id,
+            'attendance' => [$participant->id => [$futureWeek->id => '1', $unscheduledWeek->id => '1']],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame([
+            [$participant->id, $futureWeek->id, $coach->id, '2026-11-01 10:30:00'],
+            [$participant->id, $unscheduledWeek->id, $coach->id, '2026-11-01 10:30:00'],
+        ], $this->attendanceRecords());
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function cellsOutsideTheMentorsScope(): array
+    {
+        return [
+            'another mentor\'s mentee' => ['other mentee', 'You can only record attendance for participants shown in this curriculum.'],
+            'an unassigned participant' => ['unassigned participant', 'You can only record attendance for participants shown in this curriculum.'],
+            'a week of another curriculum' => ['other curriculum week', 'You can only record attendance for active weeks of this curriculum.'],
+            'an inactive week' => ['inactive week', 'You can only record attendance for active weeks of this curriculum.'],
+        ];
+    }
+
+    #[DataProvider('cellsOutsideTheMentorsScope')]
+    public function test_a_mentor_save_with_a_cell_outside_their_scope_is_refused_and_changes_nothing(string $cell, string $message): void
+    {
+        $coach = User::factory()->create(['role' => UserRole::Coach]);
+        $program = Program::factory()->create();
+        $week = $this->week($program, 1, '2026-11-09');
+        $inactiveWeek = $this->week($program, 2, '2026-11-16', isActive: false);
+        $otherCurriculumWeek = TrainingWeek::factory()->create();
+        $mine = User::factory()->create();
+        $theirs = User::factory()->create();
+        $unassigned = User::factory()->create();
+        $this->mentor($program, $coach, $mine);
+        $this->mentor($program, User::factory()->create(['role' => UserRole::Coach]), $theirs);
+        $program->participants()->attach($unassigned->id, ['joined_at' => now()]);
+        $this->attend($mine, $week);
+        $before = $this->attendanceRecords();
+        [$participant, $weekId] = match ($cell) {
+            'other mentee' => [$theirs, $week->id],
+            'unassigned participant' => [$unassigned, $week->id],
+            'other curriculum week' => [$mine, $otherCurriculumWeek->id],
+            'inactive week' => [$mine, $inactiveWeek->id],
+        };
+        $attendance = [$mine->id => [$week->id => '0']];
+        $attendance[$participant->id][$weekId] = '1';
+
+        $this->actingAs($coach)->put(route('coach.attendance.update'), ['program' => $program->id, 'attendance' => $attendance])
+            ->assertRedirect(route('coach.attendance.index', ['program' => $program->id]))
+            ->assertSessionHasErrors(['attendance' => $message])
+            ->assertSessionMissing('status');
+
+        $this->assertSame($before, $this->attendanceRecords());
+    }
+
+    public function test_a_mentor_saving_a_curriculum_they_do_not_mentor_is_refused_on_the_curriculum(): void
+    {
+        $coach = User::factory()->create(['role' => UserRole::Coach]);
+        Program::factory()->withMentors($coach)->withWeeks(1)->create();
+        $otherProgram = Program::factory()->create();
+        $week = $this->week($otherProgram, 1, '2026-11-09');
+        $participant = User::factory()->create();
+        $this->mentor($otherProgram, User::factory()->create(['role' => UserRole::Coach]), $participant);
+        $this->attend($participant, $week);
+        $before = $this->attendanceRecords();
+
+        $this->actingAs($coach)->put(route('coach.attendance.update'), [
+            'program' => $otherProgram->id,
+            'attendance' => [$participant->id => [$week->id => '0']],
+        ])
+            ->assertRedirect(route('coach.attendance.index', ['program' => $otherProgram->id]))
+            ->assertSessionHasErrors(['program' => 'Choose a curriculum from the list.'])
+            ->assertSessionDoesntHaveErrors('attendance');
+
+        $this->assertSame($before, $this->attendanceRecords());
+    }
+
+    public function test_a_cell_posting_anything_but_0_or_1_is_refused_and_changes_nothing(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $program = Program::factory()->create();
+        $weekOne = $this->week($program, 1, '2026-11-09');
+        $weekTwo = $this->week($program, 2, '2026-11-16');
+        $participant = User::factory()->create();
+        $program->participants()->attach($participant->id, ['joined_at' => now()]);
+        $this->attend($participant, $weekOne);
+        $before = $this->attendanceRecords();
+
+        $this->actingAs($admin)->put(route('admin.attendance.update'), [
+            'program' => $program->id,
+            'attendance' => [$participant->id => [$weekOne->id => '0', $weekTwo->id => 'yes']],
+        ])
+            ->assertRedirect(route('admin.attendance.index', ['program' => $program->id]))
+            ->assertSessionHasErrors(["attendance.{$participant->id}.{$weekTwo->id}" => 'The selected attendance is invalid.']);
+
+        $this->assertSame($before, $this->attendanceRecords());
+    }
+
+    public function test_the_new_mentor_can_untick_a_week_the_previous_mentor_marked(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $previousMentor = User::factory()->create(['role' => UserRole::Coach]);
+        $newMentor = User::factory()->create(['role' => UserRole::Coach]);
+        $program = Program::factory()->withMentors($newMentor)->create();
+        $week = $this->week($program, 1, '2026-11-09');
+        $participant = User::factory()->create();
+        $this->mentor($program, $previousMentor, $participant);
+        $this->attend($participant, $week, $previousMentor);
+        app(MentorAssignmentService::class)->assign($program, $participant, $newMentor, $admin);
+
+        $this->actingAs($newMentor)->put(route('coach.attendance.update'), [
+            'program' => $program->id,
+            'attendance' => [$participant->id => [$week->id => '0']],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame([], $this->attendanceRecords());
+    }
+
+    public function test_participant_is_forbidden_from_saving_attendance_in_either_area(): void
+    {
+        $participant = User::factory()->create();
+        $program = Program::factory()->create();
+        $week = $this->week($program, 1, '2026-11-09');
+        $program->participants()->attach($participant->id, ['joined_at' => now()]);
+        $grid = ['program' => $program->id, 'attendance' => [$participant->id => [$week->id => '1']]];
+
+        $this->actingAs($participant)->put(route('coach.attendance.update'), $grid)->assertForbidden();
+        $this->actingAs($participant)->put(route('admin.attendance.update'), $grid)->assertForbidden();
+
+        $this->assertSame([], $this->attendanceRecords());
+    }
+
+    public function test_guest_is_redirected_to_login_when_saving_attendance(): void
+    {
+        $this->put(route('coach.attendance.update'))->assertRedirect(route('login'));
+        $this->put(route('admin.attendance.update'))->assertRedirect(route('login'));
+    }
+
+    public function test_save_query_count_does_not_grow_with_the_number_of_participants(): void
+    {
+        $this->assertSame($this->saveQueryCount(1), $this->saveQueryCount(3));
+    }
+
+    private function saveQueryCount(int $participants): int
+    {
+        $coach = User::factory()->create(['role' => UserRole::Coach]);
+        $program = Program::factory()->withWeeks(3)->create();
+        $weeks = $program->weeks()->orderBy('week_number')->get();
+        $attendance = [];
+        foreach (range(1, $participants) as $index) {
+            $participant = User::factory()->create();
+            $this->mentor($program, $coach, $participant);
+            $this->attend($participant, $weeks[0]);
+            $attendance[$participant->id] = [$weeks[0]->id => '0', $weeks[1]->id => '1', $weeks[2]->id => '0'];
+        }
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->actingAs($coach)->put(route('coach.attendance.update'), ['program' => $program->id, 'attendance' => $attendance])
+            ->assertSessionHasNoErrors();
+        DB::disableQueryLog();
+        $this->assertSame($participants, WeeklySessionAttendance::query()->where('training_week_id', $weeks[1]->id)->count());
+
+        return count(DB::getQueryLog());
+    }
+
     private function pageQueryCount(int $participants): int
     {
         $coach = User::factory()->create(['role' => UserRole::Coach]);
@@ -321,7 +584,7 @@ class WeeklySessionAttendancePageTest extends TestCase
         DB::enableQueryLog();
         $response = $this->actingAs($coach)->get($url)->assertOk();
         DB::disableQueryLog();
-        $this->assertCount($participants * 3, $this->disabledCheckboxes($response));
+        $this->assertCount($participants * 3, $this->checkboxes($response));
 
         return count(DB::getQueryLog());
     }
@@ -362,17 +625,34 @@ class WeeklySessionAttendancePageTest extends TestCase
     }
 
     /**
-     * Whether each checkbox of the grid is ticked, by its label, in page order. Every checkbox must be disabled.
+     * Every attendance record as [participant id, week id, marker id, marked at], by participant and then week.
+     *
+     * @return list<array{0: int, 1: int, 2: int|null, 3: string}>
+     */
+    private function attendanceRecords(): array
+    {
+        return WeeklySessionAttendance::query()
+            ->orderBy('user_id')
+            ->orderBy('training_week_id')
+            ->get()
+            ->map(fn (WeeklySessionAttendance $record): array => [$record->user_id, $record->training_week_id, $record->marked_by, $record->marked_at->toDateTimeString()])
+            ->all();
+    }
+
+    /**
+     * Whether each checkbox of the grid is ticked, by its label, in page order. Every checkbox must be enabled, post 1
+     * and follow a hidden input of the same name posting 0.
      *
      * @return array<string, bool>
      */
-    private function disabledCheckboxes(TestResponse $response): array
+    private function checkboxes(TestResponse $response): array
     {
-        preg_match_all('/<input\s+type="checkbox"\s+aria-label="([^"]+)"\s+(checked\s+)?disabled\s/', $response->getContent(), $matches, PREG_SET_ORDER);
+        preg_match_all('/<input type="hidden" name="([^"]+)" value="0">\s*<input\s+type="checkbox"\s+name="\1"\s+value="1"\s+aria-label="([^"]+)"\s+(checked\s+)?class="/', $response->getContent(), $matches, PREG_SET_ORDER);
         $this->assertSame(substr_count($response->getContent(), 'type="checkbox"'), count($matches));
+        $this->assertDoesNotMatchRegularExpression('/type="checkbox"[^>]*\sdisabled/', $response->getContent());
 
         return collect($matches)
-            ->mapWithKeys(fn (array $match): array => [html_entity_decode($match[1], ENT_QUOTES) => ($match[2] ?? '') !== ''])
+            ->mapWithKeys(fn (array $match): array => [html_entity_decode($match[2], ENT_QUOTES) => ($match[3] ?? '') !== ''])
             ->all();
     }
 }

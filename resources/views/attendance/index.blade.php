@@ -15,6 +15,10 @@
             <p class="leading-relaxed text-muted">Record who joined each week's session of a curriculum.</p>
         </header>
 
+        @if(session('status'))
+            <x-ui.alert tone="success" role="status">{{ session('status') }}</x-ui.alert>
+        @endif
+
         @if($errors->any())
             <x-ui.alert tone="error" role="alert">{{ $errors->first() }}</x-ui.alert>
         @endif
@@ -47,53 +51,63 @@
                 @if($emptyMessage !== null)
                     <p class="text-muted">{{ $emptyMessage }}</p>
                 @else
-                    <div
-                        class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50"
-                        role="region"
-                        aria-labelledby="attendance-grid-title"
-                        tabindex="0"
-                    >
-                        <table class="w-full border-collapse text-sm" aria-labelledby="attendance-grid-title">
-                            <thead>
-                                <tr>
-                                    <th scope="col" class="{{ $headerCellClasses }} {{ $participantCellClasses }}">Participant</th>
-                                    @foreach($weeks as $week)
-                                        <th scope="col" class="{{ $headerCellClasses }} text-center whitespace-nowrap">
-                                            <span class="block">{{ $week['heading'] }}</span>
-                                            <span class="block font-semibold tracking-normal text-subtle normal-case">{{ $week['dates'] }}</span>
-                                        </th>
-                                    @endforeach
-                                    <th scope="col" class="{{ $headerCellClasses }} text-right whitespace-nowrap">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($rows as $row)
+                    <form method="POST" action="{{ $formUrl }}" class="grid grid-cols-1 gap-4">
+                        @csrf
+                        @method('PUT')
+                        <input type="hidden" name="program" value="{{ $selectedProgram['id'] }}">
+
+                        <div
+                            class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50"
+                            role="region"
+                            aria-labelledby="attendance-grid-title"
+                            tabindex="0"
+                        >
+                            <table class="w-full border-collapse text-sm" aria-labelledby="attendance-grid-title">
+                                <thead>
                                     <tr>
-                                        <th scope="row" class="{{ $cellClasses }} {{ $participantCellClasses }} font-normal">
-                                            <span class="grid gap-0.5">
-                                                <strong class="font-extrabold wrap-break-word">{{ $row['participant_name'] }}</strong>
-                                                @if($row['employee_id'] !== null)
-                                                    <span class="text-muted">{{ $row['employee_id'] }}</span>
-                                                @endif
-                                            </span>
-                                        </th>
-                                        @foreach($row['cells'] as $cell)
-                                            <td class="{{ $cellClasses }} text-center">
-                                                <input
-                                                    type="checkbox"
-                                                    aria-label="{{ $cell['label'] }}"
-                                                    @checked($cell['is_attended'])
-                                                    disabled
-                                                    class="size-4.5 accent-brand disabled:cursor-not-allowed focus-visible:outline-3 focus-visible:outline-accent/50"
-                                                >
-                                            </td>
+                                        <th scope="col" class="{{ $headerCellClasses }} {{ $participantCellClasses }}">Participant</th>
+                                        @foreach($weeks as $week)
+                                            <th scope="col" class="{{ $headerCellClasses }} text-center whitespace-nowrap">
+                                                <span class="block">{{ $week['heading'] }}</span>
+                                                <span class="block font-semibold tracking-normal text-subtle normal-case">{{ $week['dates'] }}</span>
+                                            </th>
                                         @endforeach
-                                        <td class="{{ $cellClasses }} text-right whitespace-nowrap">{{ $row['total'] }}</td>
+                                        <th scope="col" class="{{ $headerCellClasses }} text-right whitespace-nowrap">Total</th>
                                     </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    @foreach($rows as $row)
+                                        <tr>
+                                            <th scope="row" class="{{ $cellClasses }} {{ $participantCellClasses }} font-normal">
+                                                <span class="grid gap-0.5">
+                                                    <strong class="font-extrabold wrap-break-word">{{ $row['participant_name'] }}</strong>
+                                                    @if($row['employee_id'] !== null)
+                                                        <span class="text-muted">{{ $row['employee_id'] }}</span>
+                                                    @endif
+                                                </span>
+                                            </th>
+                                            @foreach($row['cells'] as $cell)
+                                                <td class="{{ $cellClasses }} text-center">
+                                                    <input type="hidden" name="{{ $cell['input_name'] }}" value="0">
+                                                    <input
+                                                        type="checkbox"
+                                                        name="{{ $cell['input_name'] }}"
+                                                        value="1"
+                                                        aria-label="{{ $cell['label'] }}"
+                                                        @checked($cell['is_attended'])
+                                                        class="size-4.5 cursor-pointer accent-brand focus-visible:outline-3 focus-visible:outline-accent/50"
+                                                    >
+                                                </td>
+                                            @endforeach
+                                            <td class="{{ $cellClasses }} text-right whitespace-nowrap">{{ $row['total'] }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <x-ui.button type="submit" class="justify-self-start">Save attendance</x-ui.button>
+                    </form>
                 @endif
             </x-ui.card>
         @endif

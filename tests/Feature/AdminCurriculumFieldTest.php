@@ -7,8 +7,8 @@ use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\AdminAuditLog;
 use App\Models\MentorAssignment;
+use App\Models\Program;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Rules\GitHubUrl;
@@ -103,14 +103,14 @@ class AdminCurriculumFieldTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $field = $this->field();
-        [$participant, $session] = $this->participantInSession($field->activity);
+        [$participant, $program] = $this->participantInProgram($field->activity);
 
         $this->actingAs($admin)
             ->put($this->updateUrl($field), ['label' => 'Main takeaway', 'help' => 'One sentence is enough.', 'type' => 'text', 'required' => '1'])
             ->assertSessionHasNoErrors();
 
         $this->actingAs($participant)
-            ->get($this->submissionUrl($session, $field->activity))
+            ->get($this->submissionUrl($program, $field->activity))
             ->assertOk()
             ->assertSeeInOrder(['Main takeaway *', 'id="reflection" type="text" name="field_values[reflection]"', 'required', 'One sentence is enough.'], false)
             ->assertDontSee('Reflection')
@@ -121,9 +121,9 @@ class AdminCurriculumFieldTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $field = $this->field();
-        [$participant, $session] = $this->participantInSession($field->activity);
+        [$participant, $program] = $this->participantInProgram($field->activity);
         $this->actingAs($participant)
-            ->post($this->draftUrl($session, $field->activity), ['field_values' => ['reflection' => 'Tests catch regressions.']])
+            ->post($this->draftUrl($program, $field->activity), ['field_values' => ['reflection' => 'Tests catch regressions.']])
             ->assertSessionHasNoErrors();
 
         $this->actingAs($admin)
@@ -132,7 +132,7 @@ class AdminCurriculumFieldTest extends TestCase
 
         $this->assertSame(['reflection' => 'Tests catch regressions.'], ActivitySubmission::query()->sole()->versions()->sole()->field_values);
         $this->actingAs($participant)
-            ->get($this->submissionUrl($session, $field->activity))
+            ->get($this->submissionUrl($program, $field->activity))
             ->assertOk()
             ->assertSeeInOrder(['Main takeaway', 'name="field_values[reflection]"', 'Tests catch regressions.'], false);
     }
@@ -141,9 +141,9 @@ class AdminCurriculumFieldTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $field = $this->field();
-        [$participant, $session] = $this->participantInSession($field->activity);
+        [$participant, $program] = $this->participantInProgram($field->activity);
         $this->actingAs($participant)
-            ->post($this->draftUrl($session, $field->activity), ['field_values' => ['reflection' => 'Tests catch regressions.']])
+            ->post($this->draftUrl($program, $field->activity), ['field_values' => ['reflection' => 'Tests catch regressions.']])
             ->assertSessionHasNoErrors();
 
         $this->actingAs($admin)
@@ -151,12 +151,12 @@ class AdminCurriculumFieldTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->actingAs($participant)
-            ->post($this->draftUrl($session, $field->activity), ['field_values' => ['reflection' => 'Still not a link.']])
+            ->post($this->draftUrl($program, $field->activity), ['field_values' => ['reflection' => 'Still not a link.']])
             ->assertSessionHasErrors(['field_values.reflection' => GitHubUrl::MESSAGE]);
         $this->assertSame(['reflection' => 'Tests catch regressions.'], ActivitySubmission::query()->sole()->versions()->sole()->field_values);
 
         $this->actingAs($participant)
-            ->post($this->draftUrl($session, $field->activity), ['field_values' => ['reflection' => 'https://github.com/example/repo']])
+            ->post($this->draftUrl($program, $field->activity), ['field_values' => ['reflection' => 'https://github.com/example/repo']])
             ->assertSessionHasNoErrors();
     }
 
@@ -164,9 +164,9 @@ class AdminCurriculumFieldTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $field = $this->field();
-        [$participant, $session] = $this->participantInSession($field->activity);
+        [$participant, $program] = $this->participantInProgram($field->activity);
         $this->actingAs($participant)
-            ->post($this->draftUrl($session, $field->activity), ['field_values' => ['reflection' => '']])
+            ->post($this->draftUrl($program, $field->activity), ['field_values' => ['reflection' => '']])
             ->assertSessionHasNoErrors();
         $version = ActivitySubmission::query()->sole()->versions()->sole();
 
@@ -175,7 +175,7 @@ class AdminCurriculumFieldTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->actingAs($participant)
-            ->post(route('training.submission.submit', [$session, $field->activity->week, $field->activity, $version]))
+            ->post(route('training.submission.submit', [$program, $field->activity->week, $field->activity, $version]))
             ->assertSessionHasErrors(['field_values.reflection' => 'Reflection is required before submission.']);
         $this->assertTrue($version->refresh()->isDraft());
     }
@@ -374,7 +374,7 @@ class AdminCurriculumFieldTest extends TestCase
                 'action="'.$this->fieldUrl('move', $field).'"',
                 '<button type="submit" disabled name="direction" value="up" aria-label="Move Reflection up"',
                 'name="direction" value="down" aria-label="Move Reflection down"',
-                'action="'.$this->fieldUrl('destroy', $field).'" data-confirm="Remove Reflection? Participants&#039; answers to it are kept, but the field leaves the form for every session."',
+                'action="'.$this->fieldUrl('destroy', $field).'" data-confirm="Remove Reflection? Participants&#039; answers to it are kept, but the field leaves the form."',
                 'name="_method" value="DELETE"',
                 'aria-label="Remove Reflection"',
                 'action="'.$this->updateUrl($field).'"',
@@ -452,14 +452,14 @@ class AdminCurriculumFieldTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $field = $this->field();
-        [$participant, $session] = $this->participantInSession($field->activity);
+        [$participant, $program] = $this->participantInProgram($field->activity);
 
         $this->actingAs($admin)
             ->post($this->storeUrl($field->activity), ['label' => 'Pull request link', 'help' => 'Paste the PR URL.', 'type' => 'github_url', 'required' => '1'])
             ->assertSessionHasNoErrors();
 
         $this->actingAs($participant)
-            ->get($this->submissionUrl($session, $field->activity))
+            ->get($this->submissionUrl($program, $field->activity))
             ->assertOk()
             ->assertSeeInOrder(['name="field_values[reflection]"', 'Pull request link *', 'name="field_values[pull_request_link]"', 'Paste the PR URL.'], false);
     }
@@ -584,10 +584,10 @@ class AdminCurriculumFieldTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $field = $this->field(['key' => 'reflection', 'label' => 'Main takeaway', 'type' => 'textarea', 'required' => true, 'help' => 'What did you learn this week?']);
         $activity = $field->activity;
-        [$participant, $session] = $this->participantInSession($activity);
+        [$participant, $program] = $this->participantInProgram($activity);
         $coach = User::factory()->create(['role' => 'coach']);
-        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['training_session_id' => $session->id, 'status' => 'submitted', 'submitted_at' => now()]);
+        MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted', 'submitted_at' => now()]);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now(), 'field_values' => ['reflection' => 'Tests catch regressions.']]);
 
         $this->actingAs($admin)
@@ -613,7 +613,7 @@ class AdminCurriculumFieldTest extends TestCase
         ], $audit->metadata);
 
         $this->actingAs($participant)
-            ->get(route('training.submission.show', [$session, $activity->week, $activity, $version]))
+            ->get(route('training.submission.show', [$program, $activity->week, $activity, $version]))
             ->assertOk()
             ->assertSeeInOrder(['Activity responses', 'Tests catch regressions.']);
         $this->actingAs($coach)
@@ -629,14 +629,14 @@ class AdminCurriculumFieldTest extends TestCase
         $field = $this->field(['key' => 'reflection', 'label' => 'Reflection', 'type' => 'textarea', 'required' => true, 'help' => 'What did you learn this week?']);
         $activity = $field->activity;
         $this->addField($activity, ['key' => 'notes', 'label' => 'Notes', 'type' => 'textarea', 'required' => false, 'help' => null], 2);
-        [$participant, $session] = $this->participantInSession($activity);
+        [$participant, $program] = $this->participantInProgram($activity);
         $this->actingAs($participant)
-            ->post($this->draftUrl($session, $activity), ['field_values' => ['reflection' => 'Tests catch regressions.', 'notes' => '']])
+            ->post($this->draftUrl($program, $activity), ['field_values' => ['reflection' => 'Tests catch regressions.', 'notes' => '']])
             ->assertSessionHasNoErrors();
 
         $this->actingAs($admin)->delete($this->fieldUrl('destroy', $field))->assertSessionHasNoErrors();
         $this->actingAs($participant)
-            ->get($this->submissionUrl($session, $activity))
+            ->get($this->submissionUrl($program, $activity))
             ->assertOk()
             ->assertSee('name="field_values[notes]"', false)
             ->assertDontSee('name="field_values[reflection]"', false)
@@ -660,7 +660,7 @@ class AdminCurriculumFieldTest extends TestCase
         $this->assertSame($field->id, $audit->metadata['activity_requirement_id']);
 
         $this->actingAs($participant)
-            ->get($this->submissionUrl($session, $activity))
+            ->get($this->submissionUrl($program, $activity))
             ->assertOk()
             ->assertSeeInOrder(['Reflection', 'name="field_values[reflection]"', 'Tests catch regressions.', 'name="field_values[notes]"'], false)
             ->assertDontSee('Reflection *');
@@ -687,7 +687,7 @@ class AdminCurriculumFieldTest extends TestCase
         $activity = $field->activity;
         $removed = $this->addField($activity, ['key' => 'old_link', 'label' => 'Retired link', 'type' => 'url', 'required' => false, 'help' => null, 'deprecated' => true], 2);
         $notes = $this->addField($activity, ['key' => 'notes', 'label' => 'Notes', 'type' => 'textarea', 'required' => false, 'help' => null], 3);
-        [$participant, $session] = $this->participantInSession($activity);
+        [$participant, $program] = $this->participantInProgram($activity);
 
         $this->actingAs($admin)
             ->patch($this->fieldUrl('move', $notes), ['direction' => 'up'])
@@ -708,7 +708,7 @@ class AdminCurriculumFieldTest extends TestCase
             'changes' => ['position' => ['from' => 3, 'to' => 1]],
         ], $audit->metadata);
         $this->actingAs($participant)
-            ->get($this->submissionUrl($session, $activity))
+            ->get($this->submissionUrl($program, $activity))
             ->assertOk()
             ->assertSeeInOrder(['name="field_values[notes]"', 'name="field_values[reflection]"'], false);
 
@@ -852,17 +852,18 @@ class AdminCurriculumFieldTest extends TestCase
     }
 
     /**
-     * A checked-in participant of a session of the activity's program.
+     * A checked-in participant of the activity's curriculum.
      *
-     * @return array{User, TrainingSession}
+     * @return array{User, Program}
      */
-    private function participantInSession(Activity $activity): array
+    private function participantInProgram(Activity $activity): array
     {
         $participant = User::factory()->create(['role' => 'participant']);
-        $session = TrainingSession::factory()->forWeek($activity->week)->withParticipants($participant)->create();
+        $program = $activity->week->program;
+        $program->participants()->attach($participant, ['joined_at' => now()]);
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
-        return [$participant, $session];
+        return [$participant, $program];
     }
 
     private function editUrl(ActivityRequirement $field): string
@@ -888,13 +889,13 @@ class AdminCurriculumFieldTest extends TestCase
         return route("admin.programs.fields.{$action}", [$field->activity->week->program_id, $field->activity->week, $field->activity, $field]);
     }
 
-    private function submissionUrl(TrainingSession $session, Activity $activity): string
+    private function submissionUrl(Program $program, Activity $activity): string
     {
-        return route('training.submission.edit', [$session, $activity->week, $activity]);
+        return route('training.submission.edit', [$program, $activity->week, $activity]);
     }
 
-    private function draftUrl(TrainingSession $session, Activity $activity): string
+    private function draftUrl(Program $program, Activity $activity): string
     {
-        return route('training.submission.draft', [$session, $activity->week, $activity]);
+        return route('training.submission.draft', [$program, $activity->week, $activity]);
     }
 }

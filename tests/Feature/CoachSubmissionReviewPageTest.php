@@ -123,14 +123,14 @@ class CoachSubmissionReviewPageTest extends TestCase
             ->assertSee('>Save Review</button>', false);
     }
 
-    public function test_a_coach_who_does_not_mentor_the_participant_in_the_submissions_session_is_forbidden(): void
+    public function test_a_coach_who_does_not_mentor_the_participant_in_the_submissions_curriculum_is_forbidden(): void
     {
         $version = $this->version('submitted');
-        $sessionMentor = User::factory()->create(['role' => 'coach']);
-        $version->submission->trainingSession->mentors()->attach($sessionMentor);
+        $curriculumMentor = User::factory()->create(['role' => 'coach']);
+        $version->submission->activity->week->program->mentors()->attach($curriculumMentor);
 
         $this->actingAs(User::factory()->create(['role' => 'coach']))->get(route('coach.reviews.show', $version))->assertForbidden();
-        $this->actingAs($sessionMentor)->get(route('coach.reviews.show', $version))->assertForbidden();
+        $this->actingAs($curriculumMentor)->get(route('coach.reviews.show', $version))->assertForbidden();
     }
 
     public function test_an_admin_who_mentors_no_one_sees_the_review_form(): void
@@ -224,7 +224,7 @@ class CoachSubmissionReviewPageTest extends TestCase
     }
 
     /**
-     * A coach who is the current mentor, in the submission's session, of the participant of a new version whose
+     * A coach who is the current mentor, in the submission's curriculum, of the participant of a new version whose
      * submission has the given status.
      *
      * @param  array<string, mixed>  $fieldValues
@@ -234,7 +234,7 @@ class CoachSubmissionReviewPageTest extends TestCase
     {
         $coach = User::factory()->create(['role' => 'coach']);
         $version = $this->version($submissionStatus, $fieldValues, $weekNumber, $position);
-        MentorAssignment::factory()->create(['training_session_id' => $version->submission->training_session_id, 'participant_id' => $version->submission->user_id, 'mentor_id' => $coach->id]);
+        MentorAssignment::factory()->create(['program_id' => $version->submission->activity->week->program_id, 'participant_id' => $version->submission->user_id, 'mentor_id' => $coach->id]);
 
         return [$coach, $version];
     }

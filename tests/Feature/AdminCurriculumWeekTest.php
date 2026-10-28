@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\AdminAuditLog;
 use App\Models\Program;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -66,24 +65,24 @@ class AdminCurriculumWeekTest extends TestCase
             ], false);
     }
 
-    public function test_participants_see_the_new_title_on_the_week_page_and_the_session_page(): void
+    public function test_participants_see_the_new_title_on_the_week_page_and_the_curriculum_page(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $participant = User::factory()->create(['role' => 'participant']);
         $week = $this->week(['title' => 'Foundations']);
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $week->program->participants()->attach($participant, ['joined_at' => now()]);
 
         $this->actingAs($admin)
             ->put(route('admin.programs.weeks.update', [$week->program_id, $week]), ['title' => 'Getting started', 'description' => 'Plan the six features.'])
             ->assertSessionHasNoErrors();
 
         $this->actingAs($participant)
-            ->get(route('training.weeks.show', [$session, $week]))
+            ->get(route('training.weeks.show', [$week->program, $week]))
             ->assertOk()
             ->assertSeeInOrder(['Getting started', 'Plan the six features.'])
             ->assertDontSee('Foundations');
         $this->actingAs($participant)
-            ->get(route('training.sessions.show', $session))
+            ->get(route('training.programs.show', $week->program))
             ->assertOk()
             ->assertSeeInOrder(['Getting started', 'Plan the six features.'])
             ->assertDontSee('Foundations');

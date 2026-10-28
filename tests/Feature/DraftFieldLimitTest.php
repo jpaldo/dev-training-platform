@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\ActivityRequirement;
-use App\Models\TrainingSession;
+use App\Models\Program;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,9 +16,9 @@ class DraftFieldLimitTest extends TestCase
 
     /**
      * An open first week with one activity that has a prompt and an AI output textarea, a text field and a URL field,
-     * and a participant in a session of the week's program.
+     * and a participant in the week's curriculum.
      *
-     * @return array{0: TrainingWeek, 1: Activity, 2: User, 3: TrainingSession}
+     * @return array{0: TrainingWeek, 1: Activity, 2: User, 3: Program}
      */
     private function activityScene(): array
     {
@@ -36,32 +36,33 @@ class DraftFieldLimitTest extends TestCase
             ]);
         }
         $participant = User::factory()->create();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $program = $week->program;
+        $program->participants()->attach($participant, ['joined_at' => now()]);
 
-        return [$week, $activity, $participant, $session];
+        return [$week, $activity, $participant, $program];
     }
 
     public function test_each_field_type_enforces_its_character_limit_with_friendly_message(): void
     {
-        [$week, $activity, $participant, $session] = $this->activityScene();
+        [$week, $activity, $participant, $program] = $this->activityScene();
 
-        $this->actingAs($participant)->post(route('training.submission.draft', [$session, $week, $activity]), ['field_values' => ['exact_ai_output' => str_repeat('a', 50001)]])
+        $this->actingAs($participant)->post(route('training.submission.draft', [$program, $week, $activity]), ['field_values' => ['exact_ai_output' => str_repeat('a', 50001)]])
             ->assertSessionHasErrors(['field_values.exact_ai_output' => 'Exact AI Output must be 50,000 characters or fewer.']);
 
-        $this->actingAs($participant)->post(route('training.submission.draft', [$session, $week, $activity]), ['field_values' => ['ai_tool' => str_repeat('a', 1001)]])
+        $this->actingAs($participant)->post(route('training.submission.draft', [$program, $week, $activity]), ['field_values' => ['ai_tool' => str_repeat('a', 1001)]])
             ->assertSessionHasErrors(['field_values.ai_tool' => 'AI Tool must be 1,000 characters or fewer.']);
 
-        $this->actingAs($participant)->post(route('training.submission.draft', [$session, $week, $activity]), ['field_values' => ['repository_thread_link' => str_repeat('a', 2049)]])
+        $this->actingAs($participant)->post(route('training.submission.draft', [$program, $week, $activity]), ['field_values' => ['repository_thread_link' => str_repeat('a', 2049)]])
             ->assertSessionHasErrors(['field_values.repository_thread_link' => 'Repository / Thread / Drive Link must be 2,048 characters or fewer.']);
     }
 
     public function test_fields_at_the_exact_character_limit_are_accepted(): void
     {
-        [$week, $activity, $participant, $session] = $this->activityScene();
+        [$week, $activity, $participant, $program] = $this->activityScene();
 
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
-        $this->actingAs($participant)->post(route('training.submission.draft', [$session, $week, $activity]), ['field_values' => [
+        $this->actingAs($participant)->post(route('training.submission.draft', [$program, $week, $activity]), ['field_values' => [
             'exact_prompt' => str_repeat('a', 50000), 'exact_ai_output' => str_repeat('a', 50000),
             'ai_tool' => str_repeat('a', 1000),
             'repository_thread_link' => 'https://example.com/'.str_repeat('a', 2028),

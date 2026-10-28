@@ -6,8 +6,8 @@ use App\Models\Activity;
 use App\Models\ActivityRequirement;
 use App\Models\ActivitySubmission;
 use App\Models\EvidenceRequirement;
+use App\Models\Program;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\SubmissionWorkflowService;
@@ -33,7 +33,7 @@ class ParticipantFieldGuidanceTest extends TestCase
 
     public function test_participant_submission_page_exposes_expandable_field_guidance(): void
     {
-        [$week, $activity, $participant, $session] = $this->checkedInScene();
+        [$week, $activity, $participant, $program] = $this->checkedInScene();
         $this->submissionField($activity, ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea', 'guidance' => [
             'what' => 'Describe what you found.',
             'why' => 'Your mentor reviews the finding.',
@@ -42,7 +42,7 @@ class ParticipantFieldGuidanceTest extends TestCase
         ]]);
 
         $this->actingAs($participant)
-            ->get(route('training.submission.edit', [$session, $week, $activity]))
+            ->get(route('training.submission.edit', [$program, $week, $activity]))
             ->assertOk()
             ->assertSeeInOrder([
                 'Field guidance',
@@ -55,12 +55,12 @@ class ParticipantFieldGuidanceTest extends TestCase
 
     public function test_deprecated_fields_are_hidden_from_new_participant_forms_but_remain_configured_for_history(): void
     {
-        [$week, $activity, $participant, $session] = $this->checkedInScene();
+        [$week, $activity, $participant, $program] = $this->checkedInScene();
         $this->submissionField($activity, ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea']);
         $deprecated = $this->submissionField($activity, ['key' => 'artifact_context', 'label' => 'Real AI artifact and work context', 'type' => 'textarea', 'deprecated' => true]);
 
         $this->assertSame(['finding'], array_keys(app(SubmissionWorkflowService::class)->fieldDefinitions($activity)));
-        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))
+        $this->actingAs($participant)->get(route('training.submission.edit', [$program, $week, $activity]))
             ->assertOk()
             ->assertSee('Finding')
             ->assertDontSee('Real AI artifact and work context');
@@ -69,10 +69,10 @@ class ParticipantFieldGuidanceTest extends TestCase
 
     public function test_a_form_without_artifact_context_fields_starts_with_the_work_section(): void
     {
-        [$week, $activity, $participant, $session] = $this->checkedInScene();
+        [$week, $activity, $participant, $program] = $this->checkedInScene();
         $this->submissionField($activity, ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea']);
 
-        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))
+        $this->actingAs($participant)->get(route('training.submission.edit', [$program, $week, $activity]))
             ->assertOk()
             ->assertDontSee('AI / ARTIFACT CONTEXT')
             ->assertSee('1. YOUR WORK');
@@ -80,11 +80,11 @@ class ParticipantFieldGuidanceTest extends TestCase
 
     public function test_new_and_revision_forms_show_only_the_configured_fields_and_keep_historical_answers(): void
     {
-        [$week, $activity, $participant, $session] = $this->checkedInScene();
+        [$week, $activity, $participant, $program] = $this->checkedInScene();
         $this->submissionField($activity, ['key' => 'finding', 'label' => 'Finding', 'type' => 'textarea']);
         $unconfiguredLabels = ['AI / ARTIFACT CONTEXT', 'AI Tool', 'Exact Prompt'];
 
-        $response = $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))->assertOk();
+        $response = $this->actingAs($participant)->get(route('training.submission.edit', [$program, $week, $activity]))->assertOk();
         foreach ($unconfiguredLabels as $label) {
             $response->assertDontSee($label);
         }
@@ -95,9 +95,9 @@ class ParticipantFieldGuidanceTest extends TestCase
             'submitted_at' => now(),
             'field_values' => ['ai_tool' => 'Historical tool', 'exact_prompt' => 'Historical prompt'],
         ]);
-        $this->actingAs($participant)->post(route('training.submission.revise', [$session, $week, $activity]))->assertRedirect();
+        $this->actingAs($participant)->post(route('training.submission.revise', [$program, $week, $activity]))->assertRedirect();
 
-        $revision = $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))->assertOk();
+        $revision = $this->actingAs($participant)->get(route('training.submission.edit', [$program, $week, $activity]))->assertOk();
         foreach ($unconfiguredLabels as $label) {
             $revision->assertDontSee($label);
         }
@@ -105,20 +105,21 @@ class ParticipantFieldGuidanceTest extends TestCase
     }
 
     /**
-     * An open first week with one activity, a participant who has checked in and a session of the week's program that
+     * An open first week with one activity, a participant who has checked in and the week's curriculum, which
      * the participant is in.
      *
-     * @return array{0: TrainingWeek, 1: Activity, 2: User, 3: TrainingSession}
+     * @return array{0: TrainingWeek, 1: Activity, 2: User, 3: Program}
      */
     private function checkedInScene(): array
     {
         $week = TrainingWeek::factory()->create(['week_number' => 1, 'position' => 1]);
         $activity = Activity::factory()->for($week, 'week')->create();
         $participant = User::factory()->create();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $program = $week->program;
+        $program->participants()->attach($participant, ['joined_at' => now()]);
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
-        return [$week, $activity, $participant, $session];
+        return [$week, $activity, $participant, $program];
     }
 
     /**

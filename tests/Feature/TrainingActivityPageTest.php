@@ -14,7 +14,6 @@ use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -28,9 +27,9 @@ class TrainingActivityPageTest extends TestCase
 
     public function test_activity_page_shows_the_instructions_requirements_and_submission_tabs(): void
     {
-        [$participant, $week, $activity, $session] = $this->activityFixture();
+        [$participant, $week, $activity, $program] = $this->activityFixture();
 
-        $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))
+        $this->actingAs($participant)->get(route('training.activities.show', [$program, $week, $activity]))
             ->assertOk()
             ->assertSee('role="tablist" aria-label="Activity sections"', false)
             ->assertSeeInOrder([
@@ -46,19 +45,19 @@ class TrainingActivityPageTest extends TestCase
     #[DataProvider('submissionStates')]
     public function test_single_main_action_matches_the_submission_state(?string $status, string $actionLabel, bool $isRevisionForm, string $selectedTab): void
     {
-        [$participant, $week, $activity, $session] = $this->activityFixture();
+        [$participant, $week, $activity, $program] = $this->activityFixture();
         if ($status !== null) {
             $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $status]);
             SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => $status === 'draft' ? 'draft' : 'submitted']);
         }
 
-        $html = $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))->assertOk()->getContent();
+        $html = $this->actingAs($participant)->get(route('training.activities.show', [$program, $week, $activity]))->assertOk()->getContent();
 
         $this->assertSame(1, preg_match('/<div id="activity-main-action"[^>]*>(.*?)<\/div>/s', $html, $mainAction));
         $this->assertStringContainsString($actionLabel, $mainAction[1]);
         $this->assertStringContainsString($isRevisionForm
-            ? 'method="POST" action="'.route('training.submission.revise', [$session, $week, $activity]).'"'
-            : 'href="'.route('training.submission.edit', [$session, $week, $activity]).'"', $mainAction[1]);
+            ? 'method="POST" action="'.route('training.submission.revise', [$program, $week, $activity]).'"'
+            : 'href="'.route('training.submission.edit', [$program, $week, $activity]).'"', $mainAction[1]);
         $this->assertSame(1, substr_count($html, $actionLabel));
         $this->assertStringContainsString('id="activity-tab-'.$selectedTab.'" aria-controls="activity-panel-'.$selectedTab.'" aria-selected="true"', $html);
     }
@@ -78,25 +77,25 @@ class TrainingActivityPageTest extends TestCase
     #[DataProvider('viewSubmissionLinks')]
     public function test_submission_tab_links_to_the_latest_version_only_once_it_is_submitted(string $versionStatus, int $linkCount): void
     {
-        [$participant, $week, $activity, $session] = $this->activityFixture();
+        [$participant, $week, $activity, $program] = $this->activityFixture();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $versionStatus]);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => $versionStatus]);
 
-        $html = $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))->assertOk()->getContent();
+        $html = $this->actingAs($participant)->get(route('training.activities.show', [$program, $week, $activity]))->assertOk()->getContent();
 
-        $this->assertSame($linkCount, substr_count($html, 'href="'.route('training.submission.show', [$session, $week, $activity, $version]).'"'));
+        $this->assertSame($linkCount, substr_count($html, 'href="'.route('training.submission.show', [$program, $week, $activity, $version]).'"'));
     }
 
     public function test_the_week_two_validation_checklist_opens_without_a_lab_record(): void
     {
-        [$participant, $week, , $session] = $this->activityFixture();
+        [$participant, $week, , $program] = $this->activityFixture();
         $activity = Activity::factory()->for($week, 'week')->create(['position' => 1, 'title' => 'Validation Checklist']);
 
-        $html = $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))->assertOk()->getContent();
+        $html = $this->actingAs($participant)->get(route('training.activities.show', [$program, $week, $activity]))->assertOk()->getContent();
 
         $this->assertSame(1, preg_match('/<div id="activity-main-action"[^>]*>(.*?)<\/div>/s', $html, $mainAction));
-        $this->assertStringContainsString('href="'.route('training.submission.edit', [$session, $week, $activity]).'"', $mainAction[1]);
-        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))->assertOk();
+        $this->assertStringContainsString('href="'.route('training.submission.edit', [$program, $week, $activity]).'"', $mainAction[1]);
+        $this->actingAs($participant)->get(route('training.submission.edit', [$program, $week, $activity]))->assertOk();
     }
 
     /**
@@ -113,14 +112,14 @@ class TrainingActivityPageTest extends TestCase
     #[DataProvider('driveSyncStatuses')]
     public function test_google_drive_card_shows_the_latest_workbook_sync_status_and_only_a_failed_sync_error(?string $status, string $statusLabel, bool $showsError): void
     {
-        [$participant, $week, $activity, $session] = $this->activityFixture();
+        [$participant, $week, $activity, $program] = $this->activityFixture();
         GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'connected_at' => now()]);
         if ($status !== null) {
             GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => GoogleDriveSyncStatus::Failed, 'error' => 'An earlier sync failed.']);
             GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => $status, 'error' => 'Week 2.xlsx: Google Drive sync failed.']);
         }
 
-        $response = $this->actingAs($participant->fresh())->get(route('training.activities.show', [$session, $week, $activity]))
+        $response = $this->actingAs($participant->fresh())->get(route('training.activities.show', [$program, $week, $activity]))
             ->assertOk()
             ->assertSee('Sync status: '.$statusLabel)
             ->assertDontSee('An earlier sync failed.');
@@ -148,18 +147,18 @@ class TrainingActivityPageTest extends TestCase
 
     public function test_google_drive_card_shows_the_last_successful_workbook_sync(): void
     {
-        [$participant, $week, $activity, $session] = $this->activityFixture();
+        [$participant, $week, $activity, $program] = $this->activityFixture();
         GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'connected_at' => now()]);
         GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'folder', 'status' => GoogleDriveSyncStatus::Completed, 'last_successful_sync_at' => '2026-10-20 09:30:00']);
 
-        $this->actingAs($participant->fresh())->get(route('training.activities.show', [$session, $week, $activity]))
+        $this->actingAs($participant->fresh())->get(route('training.activities.show', [$program, $week, $activity]))
             ->assertOk()
             ->assertSee('Last successful sync: Oct 20, 2026 9:30 AM');
     }
 
     public function test_google_drive_card_counts_the_completed_and_failed_evidence_exports_of_the_latest_version(): void
     {
-        [$participant, $week, $activity, $session] = $this->activityFixture();
+        [$participant, $week, $activity, $program] = $this->activityFixture();
         GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'connected_at' => now()]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
@@ -167,7 +166,7 @@ class TrainingActivityPageTest extends TestCase
             SubmissionEvidence::factory()->for($version, 'submissionVersion')->create()->googleDriveExport()->create(['status' => $status]);
         }
 
-        $this->actingAs($participant->fresh())->get(route('training.activities.show', [$session, $week, $activity]))
+        $this->actingAs($participant->fresh())->get(route('training.activities.show', [$program, $week, $activity]))
             ->assertOk()
             ->assertSee('Evidence: 2/4 completed · 1 failed');
     }
@@ -175,11 +174,11 @@ class TrainingActivityPageTest extends TestCase
     #[DataProvider('attemptStatuses')]
     public function test_attempt_history_shows_the_label_tone_and_next_step_of_each_attempt_status(string $status, string $label, string $badgeClasses, string $nextStep): void
     {
-        [$participant, $week, $activity, $session] = $this->activityFixture();
+        [$participant, $week, $activity, $program] = $this->activityFixture();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $status]);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => $status === 'draft' ? 'draft' : 'submitted']);
 
-        $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))
+        $this->actingAs($participant)->get(route('training.activities.show', [$program, $week, $activity]))
             ->assertOk()
             ->assertSee('<span class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold '.$badgeClasses.'" role="status">'.$label.'</span>', false)
             ->assertSee($nextStep);
@@ -187,15 +186,15 @@ class TrainingActivityPageTest extends TestCase
 
     public function test_activity_page_and_submission_form_show_the_submission_status_label(): void
     {
-        [$participant, $week, $activity, $session] = $this->activityFixture();
+        [$participant, $week, $activity, $program] = $this->activityFixture();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'needs_revision']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
 
-        $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))
+        $this->actingAs($participant)->get(route('training.activities.show', [$program, $week, $activity]))
             ->assertOk()
             ->assertSee('Status: <strong class="text-slate-100">Needs revision</strong>', false);
 
-        $this->actingAs($participant)->get(route('training.submission.edit', [$session, $week, $activity]))
+        $this->actingAs($participant)->get(route('training.submission.edit', [$program, $week, $activity]))
             ->assertOk()
             ->assertSee('Current status: <strong class="text-slate-100">Needs revision</strong>', false)
             ->assertSee('· Version 1 (Submitted)')
@@ -235,7 +234,7 @@ class TrainingActivityPageTest extends TestCase
      */
     private function activityPageQueryCount(int $rows): int
     {
-        [$participant, $week, $activity, $session] = $this->activityFixture();
+        [$participant, $week, $activity, $program] = $this->activityFixture();
 
         foreach (range(1, $rows) as $position) {
             $requirement = ActivityRequirement::factory()->for($activity)->create(['position' => $position]);
@@ -247,30 +246,31 @@ class TrainingActivityPageTest extends TestCase
             ActivityRecoveryRequest::create(['user_id' => $participant->id, 'activity_submission_id' => $attempt->id, 'status' => 'declined', 'requested_at' => now()]);
         }
 
-        $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))->assertOk();
+        $this->actingAs($participant)->get(route('training.activities.show', [$program, $week, $activity]))->assertOk();
 
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))->assertOk()->assertSee('Attempt '.$rows);
+        $this->actingAs($participant)->get(route('training.activities.show', [$program, $week, $activity]))->assertOk()->assertSee('Attempt '.$rows);
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());
     }
 
     /**
-     * A checked-in manual participant, a Week 2 activity in position 2 and a session of the week's program that the
+     * A checked-in manual participant, a Week 2 activity in position 2 and the week's curriculum, which the
      * participant is in.
      *
-     * @return array{User, TrainingWeek, Activity, TrainingSession}
+     * @return array{User, TrainingWeek, Activity, Program}
      */
     private function activityFixture(): array
     {
         $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 1]);
         $activity = Activity::factory()->for($week, 'week')->create(['position' => 2]);
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $program = $week->program;
+        $program->participants()->attach($participant, ['joined_at' => now()]);
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
-        return [$participant, $week, $activity, $session];
+        return [$participant, $week, $activity, $program];
     }
 }

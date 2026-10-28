@@ -14,10 +14,10 @@ use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -42,19 +42,20 @@ class CoachOperationsControllerTest extends TestCase
         $this->assertSame($singleRowQueryCount, $threeRowQueryCount);
     }
 
-    public function test_dashboard_counts_only_memberships_that_passed_every_active_week_of_their_session(): void
+    public function test_dashboard_counts_only_memberships_that_passed_every_active_week_of_their_curriculum(): void
     {
         $program = Program::factory()->create();
         $weekTwoGate = TrainingGate::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 1]), 'week')->create();
         $weekThreeGate = TrainingGate::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 3, 'position' => 2]), 'week')->create();
         TrainingGate::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 4, 'position' => 3, 'is_active' => false]), 'week')->create();
+        $otherGate = TrainingGate::factory()->for(TrainingWeek::factory()->create(['week_number' => 2]), 'week')->create();
         $completed = User::factory()->create();
         $partlyCompleted = User::factory()->create();
-        $splitAcrossSessions = User::factory()->create();
-        $session = TrainingSession::factory()->forWeek($weekTwoGate->week)->withParticipants($completed, $partlyCompleted, $splitAcrossSessions)->create();
-        $otherSession = TrainingSession::factory()->forWeek($weekTwoGate->week)->withParticipants($splitAcrossSessions)->create();
-        GateEvaluation::factory()->for($session)->for($weekTwoGate, 'gate')->for($splitAcrossSessions, 'participant')->create(['status' => 'passed']);
-        GateEvaluation::factory()->for($otherSession)->for($weekThreeGate, 'gate')->for($splitAcrossSessions, 'participant')->create(['status' => 'passed']);
+        $inTwoCurricula = User::factory()->create();
+        $program->participants()->attach([$completed->id, $partlyCompleted->id, $inTwoCurricula->id], ['joined_at' => now()]);
+        $otherGate->week->program->participants()->attach($inTwoCurricula, ['joined_at' => now()]);
+        GateEvaluation::factory()->for($otherGate, 'gate')->for($inTwoCurricula, 'participant')->create(['status' => 'passed']);
+        GateEvaluation::factory()->for($weekTwoGate, 'gate')->for($inTwoCurricula, 'participant')->create(['status' => 'passed']);
         GateEvaluation::factory()->for($weekTwoGate, 'gate')->for($completed, 'participant')->create(['status' => 'passed']);
         GateEvaluation::factory()->for($weekThreeGate, 'gate')->for($completed, 'participant')->create(['status' => 'passed']);
         GateEvaluation::factory()->for($weekTwoGate, 'gate')->for($partlyCompleted, 'participant')->create(['status' => 'passed']);
@@ -63,21 +64,20 @@ class CoachOperationsControllerTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('coach.dashboard'))
             ->assertOk()
-            ->assertViewHas('stats', fn (array $stats): bool => $stats['participants']['value'] === 4 && $stats['completed']['value'] === 1);
+            ->assertViewHas('stats', fn (array $stats): bool => $stats['participants']['value'] === 4 && $stats['completed']['value'] === 2);
     }
 
     public function test_dashboard_counts_at_risk_memberships_without_loading_their_progress(): void
     {
         $activity = Activity::factory()->create();
         $gate = TrainingGate::factory()->for($activity->week, 'week')->create();
-        $session = TrainingSession::factory()->forWeek($activity->week)->create();
         [$revising, $failing, $failedGate, $steady] = User::factory()->count(4)->create()->all();
-        $session->participants()->attach(collect([$revising, $failing, $failedGate, $steady])->mapWithKeys(fn (User $participant): array => [$participant->id => ['joined_at' => now()]])->all());
-        ActivitySubmission::factory()->for($activity)->for($revising, 'participant')->create(['training_session_id' => $session->id, 'status' => 'needs_revision']);
-        ActivitySubmission::factory()->for($activity)->for($failing, 'participant')->create(['training_session_id' => $session->id, 'status' => 'failed']);
-        GateEvaluation::factory()->for($gate, 'gate')->for($failedGate, 'participant')->for($session)->create(['status' => 'failed']);
-        ActivitySubmission::factory()->for($activity)->for($steady, 'participant')->create(['training_session_id' => $session->id, 'status' => 'approved']);
-        GateEvaluation::factory()->for($gate, 'gate')->for($steady, 'participant')->for($session)->create(['status' => 'passed']);
+        $activity->week->program->participants()->attach(collect([$revising, $failing, $failedGate, $steady])->mapWithKeys(fn (User $participant): array => [$participant->id => ['joined_at' => now()]])->all());
+        ActivitySubmission::factory()->for($activity)->for($revising, 'participant')->create(['status' => 'needs_revision']);
+        ActivitySubmission::factory()->for($activity)->for($failing, 'participant')->create(['status' => 'failed']);
+        GateEvaluation::factory()->for($gate, 'gate')->for($failedGate, 'participant')->create(['status' => 'failed']);
+        ActivitySubmission::factory()->for($activity)->for($steady, 'participant')->create(['status' => 'approved']);
+        GateEvaluation::factory()->for($gate, 'gate')->for($steady, 'participant')->create(['status' => 'passed']);
 
         DB::enableQueryLog();
         $this->actingAs(User::factory()->create(['role' => 'admin']))
@@ -109,10 +109,10 @@ class CoachOperationsControllerTest extends TestCase
     {
         $coach = User::factory()->create(['role' => 'coach']);
 
-        $this->mentorInSessionsOfTheirGates($coach, $this->createGateProgress(1));
+        $this->mentorInCurriculaOfTheirGates($coach, $this->createGateProgress(1));
         $singleRowQueryCount = $this->queryCount($coach, route('coach.gates'));
 
-        $this->mentorInSessionsOfTheirGates($coach, $this->createGateProgress(3));
+        $this->mentorInCurriculaOfTheirGates($coach, $this->createGateProgress(3));
         $threeRowQueryCount = $this->queryCount($coach, route('coach.gates'), expectedRows: 1 + 3 * 3);
 
         $this->assertSame($singleRowQueryCount, $threeRowQueryCount);
@@ -151,35 +151,46 @@ class CoachOperationsControllerTest extends TestCase
     }
 
     /**
-     * Add the participant to the session of their training records, make the coach their current mentor there and
-     * return the coach participant page of that session.
+     * Add the participant to the curriculum of their training records, make the coach their current mentor there and
+     * return the coach participant page of that curriculum.
      */
     private function mentoredParticipantUrl(User $coach, User $participant): string
     {
-        $session = TrainingSession::query()->findOrFail(ActivitySubmission::query()->where('user_id', $participant->id)->value('training_session_id'));
-        $session->participants()->attach($participant, ['joined_at' => now()]);
-        $session->mentors()->attach($coach);
-        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+        $program = $this->curriculaOfGateEvaluations($participant)->sole();
+        $program->participants()->attach($participant, ['joined_at' => now()]);
+        $program->mentors()->attach($coach);
+        MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
 
-        return route('coach.participants.show', [$session, $participant]);
+        return route('coach.participants.show', [$program, $participant]);
     }
 
     /**
-     * Add each participant to the sessions of their Gate evaluations and make the coach a mentor of those sessions and
+     * Add each participant to the curricula of their Gate evaluations and make the coach a mentor of those curricula and
      * the participant's current mentor there, so the coach's Gate board lists their rows.
      *
      * @param  Collection<int, User>  $participants
      */
-    private function mentorInSessionsOfTheirGates(User $coach, Collection $participants): void
+    private function mentorInCurriculaOfTheirGates(User $coach, Collection $participants): void
     {
         foreach ($participants as $participant) {
-            foreach (GateEvaluation::query()->where('user_id', $participant->id)->distinct()->pluck('training_session_id') as $trainingSessionId) {
-                $session = TrainingSession::query()->findOrFail($trainingSessionId);
-                $session->participants()->attach($participant, ['joined_at' => now()]);
-                $session->mentors()->syncWithoutDetaching([$coach->id]);
-                MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+            foreach ($this->curriculaOfGateEvaluations($participant) as $program) {
+                $program->participants()->attach($participant, ['joined_at' => now()]);
+                $program->mentors()->syncWithoutDetaching([$coach->id]);
+                MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
             }
         }
+    }
+
+    /**
+     * The curricula whose weeks hold the participant's Gate evaluations.
+     *
+     * @return Collection<int, Program>
+     */
+    private function curriculaOfGateEvaluations(User $participant): Collection
+    {
+        return Program::query()
+            ->whereHas('weeks.gates.evaluations', fn (Builder $evaluations): Builder => $evaluations->where('user_id', $participant->id))
+            ->get();
     }
 
     /**

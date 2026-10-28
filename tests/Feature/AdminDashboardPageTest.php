@@ -7,12 +7,11 @@ use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\AdminSettingsStatusService;
-use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class AdminDashboardPageTest extends TestCase
@@ -64,7 +63,7 @@ class AdminDashboardPageTest extends TestCase
             ->assertDontSee('CALENDAR ATTENTION');
     }
 
-    public function test_review_counts_cover_every_program_and_session_and_no_program_wide_training_stats_are_shown(): void
+    public function test_review_counts_cover_every_program_and_no_program_wide_training_stats_are_shown(): void
     {
         $activePrograms = Program::factory()->count(2)->create();
         $inactiveProgram = Program::factory()->create(['is_active' => false]);
@@ -72,10 +71,9 @@ class AdminDashboardPageTest extends TestCase
         foreach ([...$activePrograms, $inactiveProgram] as $program) {
             $week = TrainingWeek::factory()->for($program)->create(['week_number' => 1]);
             $activity = Activity::factory()->for($week, 'week')->create();
-            $session = TrainingSession::factory()->for($program)->create();
-            ActivitySubmission::factory()->for($activity)->for($session)->create(['status' => 'submitted']);
-            ActivitySubmission::factory()->for($activity)->for($session)->create(['status' => 'needs_revision']);
-            GateEvaluation::factory()->for($session)->create([
+            ActivitySubmission::factory()->for($activity)->create(['status' => 'submitted']);
+            ActivitySubmission::factory()->for($activity)->create(['status' => 'needs_revision']);
+            GateEvaluation::factory()->create([
                 'training_gate_id' => TrainingGate::factory()->create(['training_week_id' => $week->id])->id,
                 'status' => 'needs_revision',
             ]);
@@ -95,58 +93,53 @@ class AdminDashboardPageTest extends TestCase
             ->assertDontSee('No training program is active yet.');
     }
 
-    public function test_the_training_sessions_card_lists_the_five_newest_sessions_by_start_date_linked_to_their_dashboards(): void
+    public function test_the_curricula_card_lists_the_five_latest_starting_curricula_unscheduled_last_linked_to_their_pages(): void
     {
         $this->travelTo('2026-11-20 09:00:00');
         $admin = User::factory()->create(['role' => 'admin']);
-        $program = Program::factory()->create(['name' => 'L4 Accelerator']);
-        $sessions = TrainingSession::factory()
-            ->for($program)
-            ->count(6)
-            ->state(new Sequence(
-                ['title' => 'October Run', 'starts_on' => '2026-10-05', 'ends_on' => '2026-11-01'],
-                ['title' => 'January Run', 'starts_on' => '2027-01-04', 'ends_on' => '2027-01-31'],
-                ['title' => 'September Run', 'starts_on' => '2026-09-07', 'ends_on' => '2026-10-04'],
-                ['title' => 'November Run', 'starts_on' => '2026-11-09', 'ends_on' => '2026-12-06'],
-                ['title' => 'August Run', 'starts_on' => '2026-08-03', 'ends_on' => '2026-08-30'],
-                ['title' => 'December Run', 'starts_on' => '2026-12-07', 'ends_on' => '2027-01-03'],
-            ))
-            ->create()
-            ->keyBy('title');
-        $sessions['November Run']->participants()->attach(User::factory()->count(2)->create(), ['joined_at' => now()]);
+        $programs = collect([
+            'October Run' => '2026-10-05',
+            'January Run' => '2027-01-04',
+            'September Run' => '2026-09-07',
+            'November Run' => '2026-11-09',
+            'August Run' => '2026-08-03',
+            'December Run' => '2026-12-07',
+        ])->map(fn (string $startsOn, string $name): Program => Program::factory()->withWeeks(4, Carbon::parse($startsOn))->create(['name' => $name]));
+        Program::factory()->withWeeks(4)->unscheduled()->create(['name' => 'Draft Run']);
+        $programs['November Run']->participants()->attach(User::factory()->count(2)->create(), ['joined_at' => now()]);
 
         $response = $this->actingAs($admin)
             ->get(route('admin.dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                'Training sessions',
-                'href="'.route('admin.sessions.index').'"', 'View all sessions',
-                'href="'.route('admin.sessions.show', $sessions['January Run']).'"', 'January Run', 'Upcoming',
-                'href="'.route('admin.sessions.show', $sessions['December Run']).'"', 'December Run', 'Upcoming',
-                'href="'.route('admin.sessions.show', $sessions['November Run']).'"', 'November Run', 'Active', 'L4 Accelerator', '9 Nov – 6 Dec 2026', 'Participants: <strong class="text-white tabular-nums">2</strong>',
-                'href="'.route('admin.sessions.show', $sessions['October Run']).'"', 'October Run', 'Completed', 'Participants: <strong class="text-white tabular-nums">0</strong>',
-                'href="'.route('admin.sessions.show', $sessions['September Run']).'"', 'September Run', 'Completed',
+                'Curricula',
+                'href="'.route('admin.programs.index').'"', 'View all curricula',
+                'href="'.route('admin.programs.show', $programs['January Run']).'"', 'January Run', 'Upcoming',
+                'href="'.route('admin.programs.show', $programs['December Run']).'"', 'December Run', 'Upcoming',
+                'href="'.route('admin.programs.show', $programs['November Run']).'"', 'November Run', 'Active', '9 Nov – 6 Dec 2026', 'Participants: <strong class="text-white tabular-nums">2</strong>',
+                'href="'.route('admin.programs.show', $programs['October Run']).'"', 'October Run', 'Completed', 'Participants: <strong class="text-white tabular-nums">0</strong>',
+                'href="'.route('admin.programs.show', $programs['September Run']).'"', 'September Run', 'Completed',
                 'Review / Gate overview',
             ], false)
             ->assertDontSee('August Run')
-            ->assertDontSee('No training sessions yet.');
+            ->assertDontSee('Draft Run')
+            ->assertDontSee('No curricula yet.');
 
-        $this->assertSame(5, substr_count($response->getContent(), 'data-recent-session-row'));
+        $this->assertSame(5, substr_count($response->getContent(), 'data-recent-program-row'));
     }
 
-    public function test_the_training_sessions_card_shows_an_empty_state_with_a_create_link_without_sessions(): void
+    public function test_the_curricula_card_shows_an_empty_state_without_curricula(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('admin.dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                'Training sessions',
-                'href="'.route('admin.sessions.index').'"', 'View all sessions',
-                'No training sessions yet.',
-                'href="'.route('admin.sessions.create').'"', 'Create session',
+                'Curricula',
+                'href="'.route('admin.programs.index').'"', 'View all curricula',
+                'No curricula yet.',
                 'Review / Gate overview',
             ], false)
-            ->assertDontSee('data-recent-session-row', false)
+            ->assertDontSee('data-recent-program-row', false)
             ->assertDontSee('No training program is active yet.');
     }
 }

@@ -10,10 +10,9 @@ use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use Database\Seeders\L4TrainingProgramSeeder;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -26,8 +25,8 @@ class CoachReportsTest extends TestCase
         $this->seed(L4TrainingProgramSeeder::class);
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Mentor Ely']);
         $participant = User::factory()->create(['name' => 'Combined Path']);
-        $session = TrainingSession::factory()->withParticipants($participant)->withMentors($coach)->create();
-        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+        $program = Program::factory()->withParticipants($participant)->withMentors($coach)->create();
+        MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
 
         $this->actingAs($coach)->get(route('coach.reports', ['mentor' => $coach->id]))
             ->assertOk()->assertDontSee('Automation / Manual')->assertSee('Combined Path')->assertSee('Mentor Ely')->assertSee('Gates Passed')->assertSee('Total Participants');
@@ -35,7 +34,7 @@ class CoachReportsTest extends TestCase
 
     public function test_admin_can_view_missing_submissions_and_participants_cannot(): void
     {
-        $this->seed(L4TrainingProgramSeeder::class);
+        $this->seedL4InItsFirstWeek();
         $admin = User::factory()->create(['role' => 'admin']);
         $participant = User::factory()->create(['role' => 'participant']);
 
@@ -49,10 +48,10 @@ class CoachReportsTest extends TestCase
 
     public function test_missing_report_uses_bounded_custom_pagination_icons(): void
     {
-        $this->seed(L4TrainingProgramSeeder::class);
+        $this->seedL4InItsFirstWeek();
         $admin = User::factory()->create(['role' => 'admin']);
         User::factory()->count(9)->create(['role' => 'participant']);
-        $this->enrollParticipantsInL4Session();
+        $this->enrollParticipantsInL4Program();
 
         $response = $this->actingAs($admin)->get(route('coach.reports.missing-submissions'));
 
@@ -64,7 +63,7 @@ class CoachReportsTest extends TestCase
 
     public function test_missing_report_treats_drafts_and_evidence_only_as_not_submitted_but_submitted_revision_as_submitted(): void
     {
-        $this->seed(L4TrainingProgramSeeder::class);
+        $this->seedL4InItsFirstWeek();
         $admin = User::factory()->create(['role' => 'admin']);
         $participant = User::factory()->create();
         $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
@@ -80,7 +79,7 @@ class CoachReportsTest extends TestCase
         SubmissionVersion::factory()->for($failed, 'submission')->create(['status' => 'failed', 'submitted_at' => now()]);
         $retry = ActivitySubmission::factory()->for($participant, 'participant')->for($failedActivity)->create(['attempt_number' => 2, 'status' => 'draft']);
         SubmissionVersion::factory()->for($retry, 'submission')->create(['status' => 'draft']);
-        $this->enrollParticipantsInL4Session();
+        $this->enrollParticipantsInL4Program();
 
         $response = $this->actingAs($admin)->get(route('coach.reports.missing-submissions', [
             'participant' => $participant->id,
@@ -93,7 +92,7 @@ class CoachReportsTest extends TestCase
 
     public function test_missing_report_counts_a_submitted_version_without_a_submission_time_as_submitted(): void
     {
-        $this->seed(L4TrainingProgramSeeder::class);
+        $this->seedL4InItsFirstWeek();
         $admin = User::factory()->create(['role' => 'admin']);
         $participant = User::factory()->create();
         $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
@@ -101,7 +100,7 @@ class CoachReportsTest extends TestCase
         $submittedActivity = $week->activities()->where('position', 2)->firstOrFail();
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($submittedActivity)->create(['status' => 'submitted']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => null]);
-        $this->enrollParticipantsInL4Session();
+        $this->enrollParticipantsInL4Program();
 
         $this->actingAs($admin)->get(route('coach.reports.missing-submissions', [
             'participant' => $participant->id,
@@ -112,13 +111,12 @@ class CoachReportsTest extends TestCase
 
     public function test_missing_report_supports_mentor_category_and_csv_filters(): void
     {
-        $this->seed(L4TrainingProgramSeeder::class);
+        $this->seedL4InItsFirstWeek();
         $admin = User::factory()->create(['role' => 'admin']);
         $mentor = User::factory()->create(['role' => 'coach', 'name' => 'Mentor Ely']);
         $participant = User::factory()->create(['name' => 'Combined QA', 'employee_id' => 'EMP-6001']);
-        $this->enrollParticipantsInL4Session();
-        $session = TrainingSession::query()->whereHas('participants', fn (Builder $participants): Builder => $participants->whereKey($participant->id))->sole();
-        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $mentor->id]);
+        $program = $this->enrollParticipantsInL4Program();
+        MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $mentor->id]);
 
         $response = $this->actingAs($admin)->get(route('coach.reports.missing-submissions', [
             'mentor' => $mentor->id,
@@ -131,7 +129,7 @@ class CoachReportsTest extends TestCase
             'mentor' => $mentor->id,
             'category' => 'activities',
         ]))->streamedContent();
-        $this->assertStringContainsString('Participant,"Employee ID","Training session",Email,Mentor,Category', $csv);
+        $this->assertStringContainsString('Participant,"Employee ID",Curriculum,Email,Mentor,Category', $csv);
         $this->assertStringContainsString(',Expected,Submitted,Missing,Evidences,Status'."\n", $csv);
         $this->assertStringNotContainsString('Log Date', $csv);
         $this->assertStringContainsString('Combined QA', $csv);
@@ -140,84 +138,83 @@ class CoachReportsTest extends TestCase
         $this->assertSame([['Combined QA', 'EMP-6001']], array_values(array_unique(array_map(fn (array $row): array => array_slice($row, 0, 2), $rows), SORT_REGULAR)));
     }
 
-    public function test_review_queue_export_lists_only_the_viewers_current_participants_with_their_training_session(): void
+    public function test_review_queue_export_lists_only_the_viewers_current_participants_with_their_curriculum(): void
     {
         $ana = User::factory()->create(['role' => 'coach']);
         $ben = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create(['name' => 'Pat Participant', 'employee_id' => 'EMP-7001']);
         $other = User::factory()->create(['name' => 'Quinn Other']);
-        $activity = Activity::factory()->create(['title' => 'Kickoff deliverable']);
-        $sessionX = TrainingSession::factory()->forWeek($activity->week)->create(['title' => 'Session X']);
-        $sessionY = TrainingSession::factory()->forWeek($activity->week)->create(['title' => 'Session Y']);
-        MentorAssignment::factory()->ended()->create(['training_session_id' => $sessionX->id, 'participant_id' => $participant->id, 'mentor_id' => $ana->id]);
-        MentorAssignment::factory()->create(['training_session_id' => $sessionX->id, 'participant_id' => $participant->id, 'mentor_id' => $ben->id]);
-        foreach ([[$participant, $sessionX], [$participant, $sessionY], [$other, $sessionX]] as [$submitter, $trainingSession]) {
-            ActivitySubmission::factory()->for($activity)->for($submitter, 'participant')->create(['training_session_id' => $trainingSession->id, 'status' => 'submitted', 'submitted_at' => now()]);
+        $activityX = $this->activityIn(Program::factory()->create(['name' => 'Curriculum X']), 'Kickoff deliverable');
+        $activityY = $this->activityIn(Program::factory()->create(['name' => 'Curriculum Y']), 'Kickoff deliverable');
+        MentorAssignment::factory()->ended()->create(['program_id' => $activityX->week->program_id, 'participant_id' => $participant->id, 'mentor_id' => $ana->id]);
+        MentorAssignment::factory()->create(['program_id' => $activityX->week->program_id, 'participant_id' => $participant->id, 'mentor_id' => $ben->id]);
+        foreach ([[$participant, $activityX], [$participant, $activityY], [$other, $activityX]] as [$submitter, $activity]) {
+            ActivitySubmission::factory()->for($activity)->for($submitter, 'participant')->create(['status' => 'submitted', 'submitted_at' => now()]);
         }
 
         $benRows = $this->csvRows($this->actingAs($ben)->get(route('coach.reports.export', ['type' => 'reviews']))->assertOk()->streamedContent());
-        $this->assertSame(['Participant', 'Employee ID', 'Training session', 'Week', 'Activity'], array_slice($benRows[0], 0, 5));
-        $this->assertSame([['Pat Participant', 'EMP-7001', $sessionX->titleWithDates(), (string) $activity->week->week_number, 'Kickoff deliverable']], array_map(fn (array $row): array => array_slice($row, 0, 5), array_slice($benRows, 1)));
+        $this->assertSame(['Participant', 'Employee ID', 'Curriculum', 'Week', 'Activity'], array_slice($benRows[0], 0, 5));
+        $this->assertSame([['Pat Participant', 'EMP-7001', 'Curriculum X', (string) $activityX->week->week_number, 'Kickoff deliverable']], array_map(fn (array $row): array => array_slice($row, 0, 5), array_slice($benRows, 1)));
 
         $this->assertCount(1, $this->csvRows($this->actingAs($ana)->get(route('coach.reports.export', ['type' => 'reviews']))->assertOk()->streamedContent()));
 
         $admin = User::factory()->create(['role' => 'admin']);
         $adminRows = $this->csvRows($this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'reviews']))->assertOk()->streamedContent());
         $this->assertCount(4, $adminRows);
-        $sessionYRows = $this->csvRows($this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'reviews', 'session' => $sessionY->id]))->assertOk()->streamedContent());
-        $this->assertSame([['Pat Participant', $sessionY->titleWithDates()]], array_map(fn (array $row): array => [$row[0], $row[2]], array_slice($sessionYRows, 1)));
+        $programYRows = $this->csvRows($this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'reviews', 'program' => $activityY->week->program_id]))->assertOk()->streamedContent());
+        $this->assertSame([['Pat Participant', 'Curriculum Y']], array_map(fn (array $row): array => [$row[0], $row[2]], array_slice($programYRows, 1)));
 
-        $this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'reviews', 'session' => 999]))->assertSessionHasErrors(['session']);
+        $this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'reviews', 'program' => 999]))->assertSessionHasErrors(['program']);
     }
 
-    public function test_gate_results_export_lists_only_the_viewers_current_participants_with_their_training_session(): void
+    public function test_gate_results_export_lists_only_the_viewers_current_participants_with_their_curriculum(): void
     {
         $ana = User::factory()->create(['role' => 'coach']);
         $ben = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create(['name' => 'Pat Participant', 'employee_id' => 'EMP-7001']);
         $other = User::factory()->create(['name' => 'Quinn Other']);
-        $gate = TrainingGate::factory()->create(['title' => 'Week checklist']);
-        $sessionX = TrainingSession::factory()->forWeek($gate->week)->create(['title' => 'Session X']);
-        $sessionY = TrainingSession::factory()->forWeek($gate->week)->create(['title' => 'Session Y']);
-        MentorAssignment::factory()->ended()->create(['training_session_id' => $sessionX->id, 'participant_id' => $participant->id, 'mentor_id' => $ana->id]);
-        MentorAssignment::factory()->create(['training_session_id' => $sessionX->id, 'participant_id' => $participant->id, 'mentor_id' => $ben->id]);
-        foreach ([[$participant, $sessionX], [$participant, $sessionY], [$other, $sessionX]] as [$evaluated, $trainingSession]) {
-            GateEvaluation::factory()->for($gate, 'gate')->for($evaluated, 'participant')->for($trainingSession)->create(['status' => 'passed', 'evaluated_at' => now()]);
+        $gateX = TrainingGate::factory()->for(TrainingWeek::factory()->for(Program::factory()->state(['name' => 'Curriculum X'])), 'week')->create(['title' => 'Week checklist']);
+        $gateY = TrainingGate::factory()->for(TrainingWeek::factory()->for(Program::factory()->state(['name' => 'Curriculum Y'])), 'week')->create(['title' => 'Week checklist']);
+        MentorAssignment::factory()->ended()->create(['program_id' => $gateX->week->program_id, 'participant_id' => $participant->id, 'mentor_id' => $ana->id]);
+        MentorAssignment::factory()->create(['program_id' => $gateX->week->program_id, 'participant_id' => $participant->id, 'mentor_id' => $ben->id]);
+        foreach ([[$participant, $gateX], [$participant, $gateY], [$other, $gateX]] as [$evaluated, $gate]) {
+            GateEvaluation::factory()->for($gate, 'gate')->for($evaluated, 'participant')->create(['status' => 'passed', 'evaluated_at' => now()]);
         }
 
         $benRows = $this->csvRows($this->actingAs($ben)->get(route('coach.reports.export', ['type' => 'gates']))->assertOk()->streamedContent());
-        $this->assertSame(['Participant', 'Employee ID', 'Training session', 'Week', 'Gate'], array_slice($benRows[0], 0, 5));
-        $this->assertSame([['Pat Participant', 'EMP-7001', $sessionX->titleWithDates(), (string) $gate->week->week_number, 'Week checklist']], array_map(fn (array $row): array => array_slice($row, 0, 5), array_slice($benRows, 1)));
+        $this->assertSame(['Participant', 'Employee ID', 'Curriculum', 'Week', 'Gate'], array_slice($benRows[0], 0, 5));
+        $this->assertSame([['Pat Participant', 'EMP-7001', 'Curriculum X', (string) $gateX->week->week_number, 'Week checklist']], array_map(fn (array $row): array => array_slice($row, 0, 5), array_slice($benRows, 1)));
 
         $this->assertCount(1, $this->csvRows($this->actingAs($ana)->get(route('coach.reports.export', ['type' => 'gates']))->assertOk()->streamedContent()));
 
         $admin = User::factory()->create(['role' => 'admin']);
         $adminRows = $this->csvRows($this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'gates']))->assertOk()->streamedContent());
         $this->assertCount(4, $adminRows);
-        $sessionYRows = $this->csvRows($this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'gates', 'session' => $sessionY->id]))->assertOk()->streamedContent());
-        $this->assertSame([['Pat Participant', $sessionY->titleWithDates()]], array_map(fn (array $row): array => [$row[0], $row[2]], array_slice($sessionYRows, 1)));
+        $programYRows = $this->csvRows($this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'gates', 'program' => $gateY->week->program_id]))->assertOk()->streamedContent());
+        $this->assertSame([['Pat Participant', 'Curriculum Y']], array_map(fn (array $row): array => [$row[0], $row[2]], array_slice($programYRows, 1)));
     }
 
-    public function test_progress_and_at_risk_exports_list_only_the_viewers_current_participants_per_training_session(): void
+    public function test_progress_and_at_risk_exports_list_only_the_viewers_current_participants_per_curriculum(): void
     {
         $ana = User::factory()->create(['role' => 'coach']);
         $ben = User::factory()->create(['role' => 'coach']);
         $participant = User::factory()->create(['name' => 'Pat Participant', 'employee_id' => 'EMP-7001']);
         $other = User::factory()->create(['name' => 'Quinn Other']);
-        $activity = Activity::factory()->create(['title' => 'Kickoff deliverable']);
-        $sessionX = TrainingSession::factory()->forWeek($activity->week)->withParticipants($participant, $other)->create(['title' => 'Session X']);
-        $sessionY = TrainingSession::factory()->forWeek($activity->week)->withParticipants($participant)->create(['title' => 'Session Y']);
-        MentorAssignment::factory()->ended()->create(['training_session_id' => $sessionX->id, 'participant_id' => $participant->id, 'mentor_id' => $ana->id]);
-        MentorAssignment::factory()->create(['training_session_id' => $sessionX->id, 'participant_id' => $participant->id, 'mentor_id' => $ben->id]);
-        foreach ([[$participant, $sessionX], [$participant, $sessionY], [$other, $sessionX]] as [$submitter, $trainingSession]) {
-            ActivitySubmission::factory()->for($activity)->for($submitter, 'participant')->create(['training_session_id' => $trainingSession->id, 'status' => 'needs_revision']);
+        $programX = Program::factory()->withParticipants($participant, $other)->create(['name' => 'Curriculum X']);
+        $programY = Program::factory()->withParticipants($participant)->create(['name' => 'Curriculum Y']);
+        $activityX = $this->activityIn($programX, 'Kickoff deliverable');
+        $activityY = $this->activityIn($programY, 'Kickoff deliverable');
+        MentorAssignment::factory()->ended()->create(['program_id' => $programX->id, 'participant_id' => $participant->id, 'mentor_id' => $ana->id]);
+        MentorAssignment::factory()->create(['program_id' => $programX->id, 'participant_id' => $participant->id, 'mentor_id' => $ben->id]);
+        foreach ([[$participant, $activityX], [$participant, $activityY], [$other, $activityX]] as [$submitter, $activity]) {
+            ActivitySubmission::factory()->for($activity)->for($submitter, 'participant')->create(['status' => 'needs_revision']);
         }
 
         $benProgress = $this->csvRows($this->actingAs($ben)->get(route('coach.reports.export', ['type' => 'progress']))->assertOk()->streamedContent());
-        $this->assertSame(['Name', 'Employee ID', 'Training session', 'Email', 'Submissions', 'Gate evaluations'], $benProgress[0]);
-        $this->assertSame([['Pat Participant', 'EMP-7001', $sessionX->titleWithDates(), $participant->email, '1', '0']], array_slice($benProgress, 1));
+        $this->assertSame(['Name', 'Employee ID', 'Curriculum', 'Email', 'Submissions', 'Gate evaluations'], $benProgress[0]);
+        $this->assertSame([['Pat Participant', 'EMP-7001', 'Curriculum X', $participant->email, '1', '0']], array_slice($benProgress, 1));
         $benRisk = $this->csvRows($this->actingAs($ben)->get(route('coach.reports.export', ['type' => 'risk']))->assertOk()->streamedContent());
-        $this->assertSame([['Participant', 'Training session', 'Reason'], ['Pat Participant', $sessionX->titleWithDates(), 'Kickoff deliverable: Needs revision']], $benRisk);
+        $this->assertSame([['Participant', 'Curriculum', 'Reason'], ['Pat Participant', 'Curriculum X', 'Kickoff deliverable: Needs revision']], $benRisk);
 
         $this->assertCount(1, $this->csvRows($this->actingAs($ana)->get(route('coach.reports.export', ['type' => 'progress']))->assertOk()->streamedContent()));
         $this->assertCount(1, $this->csvRows($this->actingAs($ana)->get(route('coach.reports.export', ['type' => 'risk']))->assertOk()->streamedContent()));
@@ -225,10 +222,10 @@ class CoachReportsTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $this->assertCount(4, $this->csvRows($this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'progress']))->assertOk()->streamedContent()));
         $this->assertCount(4, $this->csvRows($this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'risk']))->assertOk()->streamedContent()));
-        $sessionYRisk = $this->csvRows($this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'risk', 'session' => $sessionY->id]))->assertOk()->streamedContent());
-        $this->assertSame([['Pat Participant', $sessionY->titleWithDates()]], array_map(fn (array $row): array => [$row[0], $row[1]], array_slice($sessionYRisk, 1)));
+        $programYRisk = $this->csvRows($this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'risk', 'program' => $programY->id]))->assertOk()->streamedContent());
+        $this->assertSame([['Pat Participant', 'Curriculum Y']], array_map(fn (array $row): array => [$row[0], $row[1]], array_slice($programYRisk, 1)));
         $benMentees = $this->csvRows($this->actingAs($admin)->get(route('coach.reports.export', ['type' => 'progress', 'mentor' => $ben->id]))->assertOk()->streamedContent());
-        $this->assertSame([['Pat Participant', $sessionX->titleWithDates()]], array_map(fn (array $row): array => [$row[0], $row[2]], array_slice($benMentees, 1)));
+        $this->assertSame([['Pat Participant', 'Curriculum X']], array_map(fn (array $row): array => [$row[0], $row[2]], array_slice($benMentees, 1)));
     }
 
     /**
@@ -242,16 +239,33 @@ class CoachReportsTest extends TestCase
     }
 
     /**
-     * Add every participant to an active session of the seeded L4 program: the missing submissions report lists only
-     * weeks a participant can open in a session.
+     * A new activity with the given title in a new week of the curriculum.
      */
-    private function enrollParticipantsInL4Session(): void
+    private function activityIn(Program $program, string $title): Activity
+    {
+        return Activity::factory()->for(TrainingWeek::factory()->for($program), 'week')->create(['title' => $title]);
+    }
+
+    /**
+     * Seed the L4 curriculum at 9:00 on the day its first week opens (its weeks are dated from 9 Nov 2026), so the
+     * missing submissions report, which lists only weeks a participant can open, has week 1 to list.
+     */
+    private function seedL4InItsFirstWeek(): void
+    {
+        $this->travelTo(L4TrainingProgramSeeder::FIRST_WEEK_STARTS_ON.' 09:00:00');
+        $this->seed(L4TrainingProgramSeeder::class);
+    }
+
+    /**
+     * Add every participant to the seeded L4 curriculum and return it.
+     */
+    private function enrollParticipantsInL4Program(): Program
     {
         $program = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail();
-        $session = TrainingSession::query()->where('program_id', $program->id)->orderBy('id')->first()
-            ?? TrainingSession::factory()->for($program)->create();
-        $session->participants()->syncWithoutDetaching(
+        $program->participants()->syncWithoutDetaching(
             User::query()->where('role', UserRole::Participant)->pluck('id')->mapWithKeys(fn (int $id): array => [$id => ['joined_at' => now()]])->all(),
         );
+
+        return $program;
     }
 }

@@ -115,14 +115,13 @@ class AppLayoutTest extends TestCase
         $this->assertSame(['Overview', 'People', 'Review', 'Admin'], $this->groupLabels($sidebar));
         $this->assertSame([
             ['Admin Dashboard', route('admin.dashboard'), false, 0],
-            ['Training Sessions', route('admin.sessions.index'), false, 0],
             ['Curriculum', route('admin.programs.index'), false, 0],
             ['Users / Participants', route('admin.users.index'), false, 0],
             ['Settings', route('admin.settings.index'), false, 0],
             ['Google Drive', route('admin.settings.google-drive'), true, 0],
             ['AI', route('admin.settings.ai'), false, 0],
             ['Profile', route('profile.show'), false, 0],
-        ], array_slice($this->sidebarLinks($sidebar), -8));
+        ], array_slice($this->sidebarLinks($sidebar), -7));
         $this->assertSame(1, substr_count($sidebar, 'aria-current="page"'));
         $this->assertStringContainsString('>Admin</span>', $sidebar);
     }
@@ -135,6 +134,19 @@ class AppLayoutTest extends TestCase
         $sidebar = $this->sidebar($this->actingAs($admin)->get(route('admin.programs.show', $program))->assertOk());
 
         $this->assertSame([['Curriculum', route('admin.programs.index'), true, 0]], array_values(array_filter(
+            $this->sidebarLinks($sidebar),
+            fn (array $link): bool => $link[2],
+        )));
+    }
+
+    public function test_participant_sidebar_marks_the_dashboard_as_the_current_page_on_a_curriculum_page(): void
+    {
+        $participant = User::factory()->create();
+        $program = Program::factory()->withParticipants($participant)->create();
+
+        $sidebar = $this->sidebar($this->actingAs($participant)->get(route('training.programs.show', $program))->assertOk());
+
+        $this->assertSame([['Dashboard', route('dashboard'), true, 0]], array_values(array_filter(
             $this->sidebarLinks($sidebar),
             fn (array $link): bool => $link[2],
         )));

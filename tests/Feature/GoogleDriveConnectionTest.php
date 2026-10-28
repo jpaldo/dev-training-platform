@@ -8,7 +8,6 @@ use App\Models\GoogleDriveConnection;
 use App\Models\GoogleDriveSync;
 use App\Models\Program;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\GoogleDriveConfigurationService;
@@ -338,16 +337,17 @@ class GoogleDriveConnectionTest extends TestCase
     }
 
     /**
-     * A week whose checklist asks for the weekly video, in an active session with the participant in it.
+     * A week whose checklist asks for the weekly video, in an active curriculum with the participant in it.
      *
-     * @return array{TrainingSession, TrainingWeek}
+     * @return array{Program, TrainingWeek}
      */
     private function weekAskingForTheVideo(User $participant): array
     {
-        $week = TrainingWeek::factory()->for(Program::factory()->create(['is_active' => true]))->create(['week_number' => 1, 'position' => 1, 'is_active' => true]);
+        $program = Program::factory()->withParticipants($participant)->create(['is_active' => true]);
+        $week = TrainingWeek::factory()->for($program)->create(['week_number' => 1, 'position' => 1, 'is_active' => true]);
         $gate = TrainingGate::factory()->for($week, 'week')->create(['is_active' => true, 'position' => 1]);
         GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_video']);
 
-        return [TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create(), $week];
+        return [$program, $week];
     }
 }

@@ -12,7 +12,6 @@ use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
 use App\Models\Program;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -29,17 +28,17 @@ class ParticipantGatePageTest extends TestCase
     public function test_not_ready_participant_sees_the_readiness_summary_and_a_single_choose_main_action(): void
     {
         $participant = User::factory()->create();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        ['program' => $program, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
         [$activityCriterion] = $criteria;
 
-        $response = $this->actingAs($participant)->get(route('training.gates.show', [$session, $week, $gate]))
+        $response = $this->actingAs($participant)->get(route('training.gates.show', [$program, $week, $gate]))
             ->assertOk()
             ->assertSeeInOrder([
                 'WEEK 2 · GATE',
                 e($gate->title),
                 e($gate->description),
                 'id="gate-main-action"',
-                'href="'.route('training.video-recording.edit', [$session, $week]).'"',
+                'href="'.route('training.video-recording.edit', [$program, $week]).'"',
                 'Choose Weekly Video →',
                 'Gate readiness',
                 'NOT READY',
@@ -75,12 +74,12 @@ class ParticipantGatePageTest extends TestCase
     public function test_readiness_summary_lists_each_outstanding_reason_once(): void
     {
         $participant = User::factory()->create();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 2, extraCriteriaCount: 1);
+        ['program' => $program, 'week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 2, extraCriteriaCount: 1);
         [$firstActivity] = $activities;
         EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($firstActivity), 'activityRequirement')->create();
         ActivitySubmission::factory()->for($participant, 'participant')->for($firstActivity)->create(['status' => 'submitted']);
 
-        $response = $this->actingAs($participant)->get(route('training.gates.show', [$session, $week, $gate]))
+        $response = $this->actingAs($participant)->get(route('training.gates.show', [$program, $week, $gate]))
             ->assertOk()
             ->assertSeeInOrder([
                 'Gate readiness',
@@ -102,11 +101,11 @@ class ParticipantGatePageTest extends TestCase
     public function test_ready_participant_without_an_evaluation_sees_the_ready_notice_and_no_main_action(): void
     {
         $participant = User::factory()->create();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        ['program' => $program, 'week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
         $this->completeWeek($participant, $activities->first());
         $recording = $this->chooseWeeklyVideo($participant, $week);
 
-        $this->actingAs($participant)->get(route('training.gates.show', [$session, $week, $gate]))
+        $this->actingAs($participant)->get(route('training.gates.show', [$program, $week, $gate]))
             ->assertOk()
             ->assertSeeInOrder([
                 'READY FOR REVIEW',
@@ -126,10 +125,11 @@ class ParticipantGatePageTest extends TestCase
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 2]);
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         GateCriterion::factory()->for($gate, 'gate')->create();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $program = $week->program;
+        $program->participants()->attach($participant, ['joined_at' => now()]);
         $this->completeWeek($participant, Activity::factory()->for($week, 'week')->create(['position' => 1]));
 
-        $this->actingAs($participant)->get(route('training.gates.show', [$session, $week, $gate]))
+        $this->actingAs($participant)->get(route('training.gates.show', [$program, $week, $gate]))
             ->assertOk()
             ->assertSeeInOrder([
                 'READY FOR REVIEW',
@@ -145,7 +145,7 @@ class ParticipantGatePageTest extends TestCase
     public function test_evaluated_gate_shows_the_decision_the_ticked_checklist_items_and_coach_feedback(): void
     {
         $participant = User::factory()->create();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        ['program' => $program, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
         [$activityCriterion, $videoCriterion] = $criteria;
         $this->completeWeek($participant, $activities->first());
         $this->chooseWeeklyVideo($participant, $week);
@@ -153,7 +153,7 @@ class ParticipantGatePageTest extends TestCase
         GateCriterionEvaluation::factory()->create(['gate_evaluation_id' => $evaluation->id, 'gate_criterion_id' => $activityCriterion->id, 'status' => 'not_met']);
         GateCriterionEvaluation::factory()->create(['gate_evaluation_id' => $evaluation->id, 'gate_criterion_id' => $videoCriterion->id, 'status' => 'met']);
 
-        $response = $this->actingAs($participant)->get(route('training.gates.show', [$session, $week, $gate]))
+        $response = $this->actingAs($participant)->get(route('training.gates.show', [$program, $week, $gate]))
             ->assertOk()
             ->assertSeeInOrder([
                 'INCOMPLETE',
@@ -176,39 +176,12 @@ class ParticipantGatePageTest extends TestCase
         $this->assertSame(1, substr_count($response->getContent(), '✓'));
     }
 
-    public function test_work_and_the_review_in_another_session_do_not_show(): void
+    public function test_a_participant_who_is_not_in_the_curriculum_cannot_open_its_gate_page(): void
     {
         $participant = User::factory()->create();
-        ['session' => $sessionA, 'week' => $week, 'gate' => $gate, 'activities' => $activities] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
-        $sessionB = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        $this->completeWeek($participant, $activities->first());
-        $this->chooseWeeklyVideo($participant, $week);
-        GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'passed', 'comments' => 'Great work in session A.']);
+        ['program' => $program, 'week' => $week, 'gate' => $gate] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
 
-        $this->actingAs($participant)->get(route('training.gates.show', [$sessionA, $week, $gate]))
-            ->assertOk()
-            ->assertSee('COMPLETED')
-            ->assertSee('Great work in session A.');
-
-        $this->actingAs($participant)->get(route('training.gates.show', [$sessionB, $week, $gate]))
-            ->assertOk()
-            ->assertSeeInOrder([
-                'href="'.route('training.video-recording.edit', [$sessionB, $week]).'"',
-                'Choose Weekly Video →',
-                'NOT READY',
-                'Activity 1 must have a submitted version.',
-            ], false)
-            ->assertDontSee('COMPLETED')
-            ->assertDontSee('Great work in session A.')
-            ->assertDontSee('View Video');
-    }
-
-    public function test_a_participant_who_is_not_in_the_session_cannot_open_its_gate_page(): void
-    {
-        $participant = User::factory()->create();
-        ['session' => $session, 'week' => $week, 'gate' => $gate] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
-
-        $this->actingAs(User::factory()->create())->get(route('training.gates.show', [$session, $week, $gate]))->assertForbidden();
+        $this->actingAs(User::factory()->create())->get(route('training.gates.show', [$program, $week, $gate]))->assertForbidden();
         $this->actingAs($participant)->get("/training/weeks/{$week->id}/gates/{$gate->id}")->assertNotFound();
     }
 
@@ -216,10 +189,10 @@ class ParticipantGatePageTest extends TestCase
     public function test_gate_status_badge_shows_the_saved_evaluation_status_with_its_tone(GateEvaluationStatus $status, string $badge): void
     {
         $participant = User::factory()->create();
-        ['session' => $session, 'week' => $week, 'gate' => $gate] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
+        ['program' => $program, 'week' => $week, 'gate' => $gate] = $this->gateFixture($participant, activityCount: 1, extraCriteriaCount: 1);
         GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => $status]);
 
-        $this->actingAs($participant)->get(route('training.gates.show', [$session, $week, $gate]))
+        $this->actingAs($participant)->get(route('training.gates.show', [$program, $week, $gate]))
             ->assertOk()
             ->assertSee($badge, false);
     }
@@ -252,7 +225,7 @@ class ParticipantGatePageTest extends TestCase
     private function gatePageQueryCount(int $rows): int
     {
         $participant = User::factory()->create();
-        ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture($participant, activityCount: $rows, extraCriteriaCount: $rows);
+        ['program' => $program, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities] = $this->gateFixture($participant, activityCount: $rows, extraCriteriaCount: $rows);
         foreach ($activities as $activity) {
             ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
         }
@@ -261,7 +234,7 @@ class ParticipantGatePageTest extends TestCase
         foreach ($criteria as $criterion) {
             GateCriterionEvaluation::factory()->create(['gate_evaluation_id' => $evaluation->id, 'gate_criterion_id' => $criterion->id]);
         }
-        $url = route('training.gates.show', [$session, $week, $gate]);
+        $url = route('training.gates.show', [$program, $week, $gate]);
 
         $this->actingAs($participant)->get($url)->assertOk();
         DB::flushQueryLog();
@@ -274,15 +247,16 @@ class ParticipantGatePageTest extends TestCase
 
     /**
      * A Week 2 Gate with the given number of other required criteria, a required weekly video criterion, one optional
-     * criterion and the given number of active activities, and an active session of the week's program with the
-     * participant in it.
+     * criterion and the given number of active activities, and the week's curriculum with the participant in
+     * it.
      *
-     * @return array{session: TrainingSession, week: TrainingWeek, gate: TrainingGate, criteria: Collection<int, GateCriterion>, activities: Collection<int, Activity>}
+     * @return array{program: Program, week: TrainingWeek, gate: TrainingGate, criteria: Collection<int, GateCriterion>, activities: Collection<int, Activity>}
      */
     private function gateFixture(User $participant, int $activityCount, int $extraCriteriaCount): array
     {
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 2]);
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $program = $week->program;
+        $program->participants()->attach($participant, ['joined_at' => now()]);
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         $criteria = collect(range(1, $extraCriteriaCount))
             ->map(fn (int $position): GateCriterion => GateCriterion::factory()->for($gate, 'gate')->create(['position' => $position]))
@@ -291,7 +265,7 @@ class ParticipantGatePageTest extends TestCase
         $activities = collect(range(1, $activityCount))
             ->map(fn (int $position): Activity => Activity::factory()->for($week, 'week')->create(['position' => $position]));
 
-        return ['session' => $session, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities];
+        return ['program' => $program, 'week' => $week, 'gate' => $gate, 'criteria' => $criteria, 'activities' => $activities];
     }
 
     /**

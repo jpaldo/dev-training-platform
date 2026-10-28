@@ -119,6 +119,23 @@ class L4TrainingProgramSeederTest extends TestCase
         }
     }
 
+    public function test_dates_the_four_weeks_monday_to_sunday_from_9_nov_to_6_dec_2026_without_an_audit_row(): void
+    {
+        $this->seed(L4TrainingProgramSeeder::class);
+
+        $this->assertSame(
+            [
+                1 => ['2026-11-09', '2026-11-15'],
+                2 => ['2026-11-16', '2026-11-22'],
+                3 => ['2026-11-23', '2026-11-29'],
+                4 => ['2026-11-30', '2026-12-06'],
+            ],
+            $this->weekDates(),
+        );
+        $this->assertSame('9 Nov – 6 Dec 2026', Program::query()->sole()->dateRangeLabel());
+        $this->assertDatabaseEmpty('admin_audit_logs');
+    }
+
     public function test_a_second_run_changes_nothing_even_after_admin_edits(): void
     {
         $this->seed(L4TrainingProgramSeeder::class);
@@ -140,6 +157,50 @@ class L4TrainingProgramSeederTest extends TestCase
         $this->assertDatabaseHas('training_weeks', ['week_number' => 1, 'title' => 'Kick-off']);
         $this->assertDatabaseHas('gate_criteria', ['id' => GateCriterion::query()->where('title', 'Repository set up')->sole()->id]);
         $this->assertFalse($notes->fresh()->is_required);
+    }
+
+    public function test_a_second_run_keeps_an_admins_week_dates(): void
+    {
+        $this->seed(L4TrainingProgramSeeder::class);
+        TrainingWeek::query()->where('week_number', 1)->sole()->update(['starts_on' => '2026-11-18', 'ends_on' => '2026-11-24']);
+        TrainingWeek::query()->where('week_number', '>', 1)->update(['starts_on' => null, 'ends_on' => null]);
+
+        $this->artisan('db:seed', ['--class' => L4TrainingProgramSeeder::class])
+            ->expectsOutput('L4 Accelerator Training already exists; edit it on the admin Curriculum pages.')
+            ->assertExitCode(0);
+
+        $this->assertSame(
+            [1 => ['2026-11-18', '2026-11-24'], 2 => [null, null], 3 => [null, null], 4 => [null, null]],
+            $this->weekDates(),
+        );
+    }
+
+    public function test_a_rerun_dates_the_weeks_of_a_program_without_week_dates_once_and_keeps_its_content(): void
+    {
+        $this->seed(L4TrainingProgramSeeder::class);
+        TrainingWeek::query()->update(['starts_on' => null, 'ends_on' => null]);
+        TrainingWeek::query()->where('week_number', 3)->sole()->update(['title' => 'Kick-off', 'is_active' => false]);
+
+        $this->artisan('db:seed', ['--class' => L4TrainingProgramSeeder::class])
+            ->expectsOutput('L4 Accelerator Training had no week dates; its weeks now run from 2026-11-09.')
+            ->assertExitCode(0);
+
+        $this->assertSame(
+            [
+                1 => ['2026-11-09', '2026-11-15'],
+                2 => ['2026-11-16', '2026-11-22'],
+                3 => ['2026-11-23', '2026-11-29'],
+                4 => ['2026-11-30', '2026-12-06'],
+            ],
+            $this->weekDates(),
+        );
+        $this->assertDatabaseHas('training_weeks', ['week_number' => 3, 'title' => 'Kick-off', 'is_active' => false]);
+        $this->assertDatabaseCount('training_weeks', 4);
+        $this->assertDatabaseEmpty('admin_audit_logs');
+
+        $this->artisan('db:seed', ['--class' => L4TrainingProgramSeeder::class])
+            ->expectsOutput('L4 Accelerator Training already exists; edit it on the admin Curriculum pages.')
+            ->assertExitCode(0);
     }
 
     public function test_a_second_run_leaves_a_submission_and_a_review_untouched(): void
@@ -220,6 +281,18 @@ class L4TrainingProgramSeederTest extends TestCase
             $item->criterion_type,
             $item->title,
         ])->values()->all();
+    }
+
+    /**
+     * Each L4 week's start and end date ("Y-m-d", null when unscheduled), by week number.
+     *
+     * @return array<int, array{?string, ?string}>
+     */
+    private function weekDates(): array
+    {
+        return TrainingWeek::query()->orderBy('week_number')->get()->mapWithKeys(fn (TrainingWeek $week): array => [
+            $week->week_number => [$week->starts_on?->toDateString(), $week->ends_on?->toDateString()],
+        ])->all();
     }
 
     /**

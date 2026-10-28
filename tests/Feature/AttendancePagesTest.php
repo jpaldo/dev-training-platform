@@ -6,7 +6,6 @@ use App\Enums\UserRole;
 use App\Models\AttendanceSession;
 use App\Models\MentorAssignment;
 use App\Models\Program;
-use App\Models\TrainingSession;
 use App\Models\User;
 use Carbon\Carbon;
 use Database\Seeders\L4TrainingProgramSeeder;
@@ -21,10 +20,12 @@ class AttendancePagesTest extends TestCase
     public function test_participant_without_an_open_session_gets_check_in_now_as_the_single_main_action(): void
     {
         $participant = User::factory()->create();
+        $this->travelTo(L4TrainingProgramSeeder::FIRST_WEEK_STARTS_ON.' 09:00:00');
         $this->seed(L4TrainingProgramSeeder::class);
-        $week = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        $returnTo = route('training.submission.edit', [$session, $week, $week->activities()->firstOrFail()]);
+        $program = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->sole();
+        $program->participants()->attach($participant, ['joined_at' => now()]);
+        $week = $program->weeks()->where('week_number', 1)->firstOrFail();
+        $returnTo = route('training.submission.edit', [$program, $week, $week->activities()->firstOrFail()]);
 
         $response = $this->actingAs($participant)
             ->followingRedirects()
@@ -105,7 +106,7 @@ class AttendancePagesTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $manual = User::factory()->create(['name' => 'Ana Manual']);
         $automation = User::factory()->create(['name' => 'Ben Automation']);
-        $this->mentor(TrainingSession::factory()->create(), $coach, $manual, $automation);
+        $this->mentor(Program::factory()->create(), $coach, $manual, $automation);
         $this->attendanceSession($manual, '2026-09-09 09:00:00', '2026-09-09 11:30:00');
         $this->attendanceSession($automation, '2026-09-10 08:00:00');
         $this->attendanceSession($automation, '2026-09-08 08:00:00', '2026-09-08 09:00:00');
@@ -145,15 +146,15 @@ class AttendancePagesTest extends TestCase
 
     public function test_a_mentor_sees_and_exports_only_the_attendance_of_their_current_mentees(): void
     {
-        $sessionX = TrainingSession::factory()->create();
-        $sessionY = TrainingSession::factory()->create();
+        $programX = Program::factory()->create();
+        $programY = Program::factory()->create();
         $pat = User::factory()->create(['name' => 'Pat Participant']);
         $quinn = User::factory()->create(['name' => 'Quinn Other']);
         [$ana, $ben, $cy] = User::factory()->count(3)->create(['role' => 'coach'])->all();
-        $this->mentor($sessionX, $ana, $pat);
+        $this->mentor($programX, $ana, $pat);
         MentorAssignment::query()->where('mentor_id', $ana->id)->update(['ended_at' => now()]);
-        $this->mentor($sessionX, $ben, $pat);
-        $this->mentor($sessionY, $cy, $quinn);
+        $this->mentor($programX, $ben, $pat);
+        $this->mentor($programY, $cy, $quinn);
         $this->attendanceSession($pat, '2026-09-09 09:00:00', '2026-09-09 11:00:00');
         $this->attendanceSession($quinn, '2026-09-10 09:00:00', '2026-09-10 10:00:00');
 
@@ -226,10 +227,10 @@ class AttendancePagesTest extends TestCase
     {
         AttendanceSession::query()->delete();
         $coach = User::factory()->create(['role' => 'coach']);
-        $session = TrainingSession::factory()->create();
+        $program = Program::factory()->create();
         foreach (range(1, $participants) as $day) {
             $participant = User::factory()->create();
-            $this->mentor($session, $coach, $participant);
+            $this->mentor($program, $coach, $participant);
             $this->attendanceSession($participant, "2026-09-0{$day} 09:00:00", "2026-09-0{$day} 10:00:00");
         }
 
@@ -249,15 +250,15 @@ class AttendancePagesTest extends TestCase
     }
 
     /**
-     * Add the coach to the session's mentors and the participants to the session, with the coach as their current
+     * Add the coach to the curriculum's mentors and the participants to the curriculum, with the coach as their current
      * mentor there.
      */
-    private function mentor(TrainingSession $session, User $coach, User ...$participants): void
+    private function mentor(Program $program, User $coach, User ...$participants): void
     {
-        $session->mentors()->syncWithoutDetaching([$coach->id]);
+        $program->mentors()->syncWithoutDetaching([$coach->id]);
         foreach ($participants as $participant) {
-            $session->participants()->syncWithoutDetaching([$participant->id => ['joined_at' => now()]]);
-            MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+            $program->participants()->syncWithoutDetaching([$participant->id => ['joined_at' => now()]]);
+            MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         }
     }
 

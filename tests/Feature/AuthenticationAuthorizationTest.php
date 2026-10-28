@@ -7,11 +7,11 @@ use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\GateEvaluation;
 use App\Models\MentorAssignment;
+use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -51,71 +51,72 @@ class AuthenticationAuthorizationTest extends TestCase
             'job_role' => 'qa_tester',
             'role' => 'participant',
         ]);
-        $this->assertDatabaseCount('training_session_participants', 0);
+        $this->assertDatabaseCount('program_participants', 0);
     }
 
-    public function test_registration_joins_the_ticked_trainings_and_lists_them_under_my_trainings(): void
+    public function test_registration_joins_the_ticked_curricula_and_lists_them_under_my_curricula(): void
     {
         $this->travelTo('2026-11-10 09:30:00');
-        $active = TrainingSession::factory()->active()->create(['title' => 'November run']);
-        $upcoming = TrainingSession::factory()->upcoming()->create(['title' => 'December run']);
-        TrainingSession::factory()->upcoming()->create(['title' => 'January run']);
+        $active = Program::factory()->withWeeks(4, today()->subDay())->create(['name' => 'November run']);
+        $upcoming = Program::factory()->withWeeks(4)->upcoming()->create(['name' => 'December run']);
+        Program::factory()->withWeeks(4, today()->addWeeks(2))->create(['name' => 'January run']);
 
         $this->post(route('register.store'), [
             ...$this->registrationFields(),
-            'training_session_ids' => [(string) $active->id, (string) $upcoming->id],
+            'program_ids' => [(string) $active->id, (string) $upcoming->id],
         ])->assertRedirect(route('profile.show'));
 
         $participant = User::query()->where('email', 'manual@example.test')->sole();
         $this->assertAuthenticatedAs($participant);
-        foreach ([$active, $upcoming] as $session) {
-            $this->assertDatabaseHas('training_session_participants', [
-                'training_session_id' => $session->id,
+        foreach ([$active, $upcoming] as $program) {
+            $this->assertDatabaseHas('program_participants', [
+                'program_id' => $program->id,
                 'user_id' => $participant->id,
                 'joined_at' => '2026-11-10 09:30:00',
                 'added_by' => null,
             ]);
         }
-        $this->assertDatabaseCount('training_session_participants', 2);
+        $this->assertDatabaseCount('program_participants', 2);
 
         $this->get(route('dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                '>My trainings</h2>',
+                '>My curricula</h2>',
                 '>November run</a>',
                 '>December run</a>',
-                '>Available trainings</h2>',
+                '>Available curricula</h2>',
                 '>January run</p>',
-                '>Past trainings</h2>',
+                '>Past curricula</h2>',
             ], false);
     }
 
     /**
-     * @param  callable(): string  $sessionId
+     * @param  callable(): string  $programId
      */
-    #[DataProvider('trainingSessionsNotOpenToJoin')]
-    public function test_registration_with_a_training_not_open_to_join_creates_nothing(callable $sessionId): void
+    #[DataProvider('programsNotOpenToJoin')]
+    public function test_registration_with_a_curriculum_not_open_to_join_creates_nothing(callable $programId): void
     {
-        $openSession = TrainingSession::factory()->upcoming()->create();
+        $openProgram = Program::factory()->withWeeks(4)->upcoming()->create();
 
         $this->post(route('register.store'), [
             ...$this->registrationFields(),
-            'training_session_ids' => [(string) $openSession->id, $sessionId()],
-        ])->assertSessionHasErrors(['training_session_ids.1' => 'The selected training is not open to join.']);
+            'program_ids' => [(string) $openProgram->id, $programId()],
+        ])->assertSessionHasErrors(['program_ids.1' => 'The selected curriculum is not open to join.']);
 
         $this->assertGuest();
         $this->assertDatabaseMissing('users', ['email' => 'manual@example.test']);
-        $this->assertDatabaseCount('training_session_participants', 0);
+        $this->assertDatabaseCount('program_participants', 0);
     }
 
     /**
      * @return array<string, array{callable(): string}>
      */
-    public static function trainingSessionsNotOpenToJoin(): array
+    public static function programsNotOpenToJoin(): array
     {
         return [
-            'completed session' => [fn (): string => (string) TrainingSession::factory()->completed()->create()->id],
-            'unknown session' => [fn (): string => '999999'],
+            'completed curriculum' => [fn (): string => (string) Program::factory()->withWeeks(4)->completed()->create()->id],
+            'curriculum not offered' => [fn (): string => (string) Program::factory()->withWeeks(4)->create(['is_active' => false])->id],
+            'unknown curriculum' => [fn (): string => '999999'],
         ];
     }
 
@@ -273,7 +274,7 @@ class AuthenticationAuthorizationTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->create();
         $gateEvaluation = GateEvaluation::factory()->for(TrainingGate::factory(), 'gate')->for($participant, 'participant')->create();
-        MentorAssignment::factory()->create(['training_session_id' => $gateEvaluation->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+        MentorAssignment::factory()->create(['program_id' => $gateEvaluation->gate->week->program_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
 
         $this->assertTrue($coach->can('view', $participant));
         $this->assertFalse($coach->can('update', $participant));
@@ -367,7 +368,7 @@ class AuthenticationAuthorizationTest extends TestCase
         );
     }
 
-    public function test_only_admins_and_the_current_mentor_in_the_session_mentor_a_participant(): void
+    public function test_only_admins_and_the_current_mentor_in_the_curriculum_mentor_a_participant(): void
     {
         $participant = User::factory()->create();
         $otherParticipant = User::factory()->create();
@@ -375,19 +376,19 @@ class AuthenticationAuthorizationTest extends TestCase
         $previousMentor = User::factory()->create(['role' => 'coach']);
         $otherCoach = User::factory()->create(['role' => 'coach']);
         $admin = User::factory()->create(['role' => 'admin']);
-        $session = TrainingSession::factory()->create();
-        $otherSession = TrainingSession::factory()->create();
-        MentorAssignment::factory()->ended()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $previousMentor->id]);
-        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $currentMentor->id]);
-        MentorAssignment::factory()->create(['training_session_id' => $otherSession->id, 'participant_id' => $participant->id, 'mentor_id' => $otherCoach->id]);
+        $program = Program::factory()->create();
+        $otherProgram = Program::factory()->create();
+        MentorAssignment::factory()->ended()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $previousMentor->id]);
+        MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $currentMentor->id]);
+        MentorAssignment::factory()->create(['program_id' => $otherProgram->id, 'participant_id' => $participant->id, 'mentor_id' => $otherCoach->id]);
 
-        $this->assertTrue($admin->mentorsParticipantInSession($participant, $session));
-        $this->assertTrue($currentMentor->mentorsParticipantInSession($participant, $session));
-        $this->assertFalse($currentMentor->mentorsParticipantInSession($participant, $otherSession));
-        $this->assertFalse($currentMentor->mentorsParticipantInSession($otherParticipant, $session));
-        $this->assertFalse($previousMentor->mentorsParticipantInSession($participant, $session));
-        $this->assertFalse($otherCoach->mentorsParticipantInSession($participant, $session));
-        $this->assertFalse($otherParticipant->mentorsParticipantInSession($participant, $session));
+        $this->assertTrue($admin->mentorsParticipantInProgram($participant, $program));
+        $this->assertTrue($currentMentor->mentorsParticipantInProgram($participant, $program));
+        $this->assertFalse($currentMentor->mentorsParticipantInProgram($participant, $otherProgram));
+        $this->assertFalse($currentMentor->mentorsParticipantInProgram($otherParticipant, $program));
+        $this->assertFalse($previousMentor->mentorsParticipantInProgram($participant, $program));
+        $this->assertFalse($otherCoach->mentorsParticipantInProgram($participant, $program));
+        $this->assertFalse($otherParticipant->mentorsParticipantInProgram($participant, $program));
     }
 
     public function test_validation_lab_pages_are_gone(): void

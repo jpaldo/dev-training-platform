@@ -3,8 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\AdminAuditLog;
-use App\Models\TrainingSession;
-use App\Models\TrainingSessionResource;
+use App\Models\Program;
+use App\Models\ProgramResource;
+use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
-class AdminTrainingSessionResourceTest extends TestCase
+class AdminProgramResourceTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
@@ -25,32 +26,32 @@ class AdminTrainingSessionResourceTest extends TestCase
     public function test_admin_adds_google_slides_to_week_one_with_a_lazy_preview_and_an_audit_row(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $session = TrainingSession::factory()->create();
+        $program = Program::factory()->withWeeks(4)->create();
 
         $this->actingAs($admin)
-            ->post(route('admin.sessions.resources.store', $session), [
+            ->post(route('admin.programs.resources.store', $program), [
                 'title' => 'Week 1 slides',
                 'week_number' => '1',
                 'url' => self::SLIDES_URL,
             ])
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('admin.sessions.show', $session).'#resources')
+            ->assertRedirect(route('admin.programs.show', $program).'#resources')
             ->assertSessionHas('status', 'Added "Week 1 slides".');
 
-        $resource = TrainingSessionResource::query()->sole();
-        $this->assertSame($session->id, $resource->training_session_id);
+        $resource = ProgramResource::query()->sole();
+        $this->assertSame($program->id, $resource->program_id);
         $this->assertSame(1, $resource->week_number);
         $this->assertSame('Week 1 slides', $resource->title);
         $this->assertSame(self::SLIDES_URL, $resource->url);
         $this->assertSame($admin->id, $resource->added_by);
-        $this->assertAudit($admin, 'session_resource_added', [
-            'training_session_id' => $session->id,
-            'training_session_resource_id' => $resource->id,
+        $this->assertAudit($admin, 'program_resource_added', [
+            'program_id' => $program->id,
+            'program_resource_id' => $resource->id,
             'title' => 'Week 1 slides',
         ]);
 
         $response = $this->actingAs($admin)
-            ->get(route('admin.sessions.show', $session))
+            ->get(route('admin.programs.show', $program))
             ->assertOk()
             ->assertSeeInOrder(['Week 1', 'Week 1 slides', 'Google Slides', 'docs.google.com', '>Open in Drive<', 'Show preview'], false)
             ->assertSee('href="'.e(self::SLIDES_URL).'" target="_blank" rel="noopener noreferrer"', false)
@@ -65,16 +66,16 @@ class AdminTrainingSessionResourceTest extends TestCase
     public function test_drive_docs_and_sheets_links_get_their_preview_and_label(string $url, string $previewUrl, string $label): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $session = TrainingSession::factory()->create();
+        $program = Program::factory()->withWeeks(4)->create();
 
         $this->actingAs($admin)
-            ->post(route('admin.sessions.resources.store', $session), ['title' => 'Shared file', 'url' => $url])
+            ->post(route('admin.programs.resources.store', $program), ['title' => 'Shared file', 'url' => $url])
             ->assertSessionHasNoErrors();
 
         $this->actingAs($admin)
-            ->get(route('admin.sessions.show', $session))
+            ->get(route('admin.programs.show', $program))
             ->assertOk()
-            ->assertSeeInOrder(['Whole session', 'Shared file', $label, '>Open in Drive<', 'Show preview'], false)
+            ->assertSeeInOrder(['Whole curriculum', 'Shared file', $label, '>Open in Drive<', 'Show preview'], false)
             ->assertSee('data-preview-src="'.$previewUrl.'"', false);
     }
 
@@ -95,17 +96,17 @@ class AdminTrainingSessionResourceTest extends TestCase
     public function test_other_links_get_an_open_link_and_no_preview(string $url, string $host): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $session = TrainingSession::factory()->create();
+        $program = Program::factory()->withWeeks(4)->create();
 
         $this->actingAs($admin)
-            ->post(route('admin.sessions.resources.store', $session), ['title' => 'Kick-off', 'week_number' => '', 'url' => $url])
+            ->post(route('admin.programs.resources.store', $program), ['title' => 'Kick-off', 'week_number' => '', 'url' => $url])
             ->assertSessionHasNoErrors();
 
-        $this->assertNull(TrainingSessionResource::query()->sole()->week_number);
+        $this->assertNull(ProgramResource::query()->sole()->week_number);
         $this->actingAs($admin)
-            ->get(route('admin.sessions.show', $session))
+            ->get(route('admin.programs.show', $program))
             ->assertOk()
-            ->assertSeeInOrder(['Whole session', 'Kick-off', '>Link<', $host, '>Open<'], false)
+            ->assertSeeInOrder(['Whole curriculum', 'Kick-off', '>Link<', $host, '>Open<'], false)
             ->assertSee('href="'.e($url).'" target="_blank" rel="noopener noreferrer"', false)
             ->assertDontSee('Show preview')
             ->assertDontSee('<iframe', false)
@@ -123,42 +124,43 @@ class AdminTrainingSessionResourceTest extends TestCase
         ];
     }
 
-    public function test_the_tab_counts_and_groups_resources_by_whole_session_then_week(): void
+    public function test_the_tab_counts_and_groups_resources_by_whole_curriculum_then_week(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $session = TrainingSession::factory()->create();
-        TrainingSessionResource::factory()->for($session)->forWeek(2)->create(['title' => 'Week 2 workbook']);
-        TrainingSessionResource::factory()->for($session)->googleDrive()->forWeek(1)->create(['title' => 'Week 1 slides']);
-        $link = TrainingSessionResource::factory()->for($session)->create(['title' => 'Kick-off recording', 'url' => self::YOUTUBE_URL]);
-        TrainingSessionResource::factory()->create(['title' => 'Other session resource']);
+        $program = Program::factory()->withWeeks(4)->create();
+        ProgramResource::factory()->for($program)->forWeek(2)->create(['title' => 'Week 2 workbook']);
+        ProgramResource::factory()->for($program)->googleDrive()->forWeek(1)->create(['title' => 'Week 1 slides']);
+        $link = ProgramResource::factory()->for($program)->create(['title' => 'Kick-off recording', 'url' => self::YOUTUBE_URL]);
+        ProgramResource::factory()->create(['title' => 'Other curriculum resource']);
 
         $this->actingAs($admin)
-            ->get(route('admin.sessions.show', $session))
+            ->get(route('admin.programs.show', $program))
             ->assertOk()
             ->assertSee('Resources (3)')
-            ->assertDontSee('No resources in this session yet.')
-            ->assertDontSee('Other session resource')
-            ->assertSeeInOrder(['Whole session', 'Kick-off recording', 'Week 1', 'Week 1 slides', 'Google Drive', 'Week 2', 'Week 2 workbook'])
-            ->assertSee('action="'.route('admin.sessions.resources.update', [$session, $link]).'"', false)
-            ->assertSee('action="'.route('admin.sessions.resources.destroy', [$session, $link]).'" data-confirm="Remove Kick-off recording from this session?"', false);
+            ->assertDontSee('No resources in this curriculum yet.')
+            ->assertDontSee('Other curriculum resource')
+            ->assertSeeInOrder(['Whole curriculum', 'Kick-off recording', 'Week 1', 'Week 1 slides', 'Google Drive', 'Week 2', 'Week 2 workbook'])
+            ->assertSee('action="'.route('admin.programs.resources.update', [$program, $link]).'"', false)
+            ->assertSee('action="'.route('admin.programs.resources.destroy', [$program, $link]).'" data-confirm="Remove Kick-off recording from this curriculum?"', false);
     }
 
-    public function test_the_add_form_takes_a_link_shows_the_sharing_hint_and_offers_each_session_week(): void
+    public function test_the_add_form_takes_a_link_shows_the_sharing_hint_and_offers_each_active_week(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $session = TrainingSession::factory()->create(['weeks_count' => 2]);
+        $program = Program::factory()->withWeeks(2)->create();
+        TrainingWeek::factory()->for($program)->create(['week_number' => 3, 'position' => 3, 'is_active' => false]);
 
         $this->actingAs($admin)
-            ->get(route('admin.sessions.show', $session))
+            ->get(route('admin.programs.show', $program))
             ->assertOk()
-            ->assertSee('No resources in this session yet.')
+            ->assertSee('No resources in this curriculum yet.')
             ->assertSee('Add a resource')
             ->assertSee('Google Drive, Docs, Slides and Sheets links show a preview here. Other links, such as YouTube, open in a new tab.')
             ->assertSee('Share Google Drive files with ‘Anyone with the link’ or with everyone at Full Scale. The app cannot check sharing, and people without access cannot see the file.')
-            ->assertSee('name="url" type="url" required', false)
+            ->assertSeeInOrder(['id="program-resource-add-url"', 'name="url"', 'type="url"', 'required'], false)
             ->assertDontSee('type="file"', false)
             ->assertDontSee('enctype=', false)
-            ->assertSeeInOrder(['>Whole session</option>', '<option value="1" >Week 1</option>', '<option value="2" >Week 2</option>'], false)
+            ->assertSeeInOrder(['>Whole curriculum</option>', '<option value="1" >Week 1</option>', '<option value="2" >Week 2</option>'], false)
             ->assertDontSee('>Week 3</option>', false);
     }
 
@@ -166,11 +168,11 @@ class AdminTrainingSessionResourceTest extends TestCase
     public function test_a_link_must_be_an_http_or_https_address(string $url): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $session = TrainingSession::factory()->create();
+        $program = Program::factory()->withWeeks(4)->create();
 
         $this->actingAs($admin)
-            ->post(route('admin.sessions.resources.store', $session), ['title' => 'Bad link', 'url' => $url])
-            ->assertRedirect(route('admin.sessions.show', $session).'#resources')
+            ->post(route('admin.programs.resources.store', $program), ['title' => 'Bad link', 'url' => $url])
+            ->assertRedirect(route('admin.programs.show', $program).'#resources')
             ->assertSessionHasErrorsIn('resources', ['url' => self::SCHEME_MESSAGE]);
 
         $this->assertNothingAdded();
@@ -191,23 +193,36 @@ class AdminTrainingSessionResourceTest extends TestCase
     public function test_the_title_and_the_link_are_required(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $session = TrainingSession::factory()->create();
+        $program = Program::factory()->withWeeks(4)->create();
 
         $this->actingAs($admin)
-            ->post(route('admin.sessions.resources.store', $session), [])
+            ->post(route('admin.programs.resources.store', $program), [])
             ->assertSessionHasErrorsIn('resources', ['title' => 'The title field is required.', 'url' => 'The link field is required.']);
 
         $this->assertNothingAdded();
     }
 
-    public function test_a_week_after_the_sessions_last_week_is_rejected(): void
+    public function test_a_week_after_the_curriculums_last_active_week_is_rejected(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $session = TrainingSession::factory()->create(['weeks_count' => 4]);
+        $program = Program::factory()->withWeeks(4)->create();
+        TrainingWeek::factory()->for($program)->create(['week_number' => 5, 'position' => 5, 'is_active' => false]);
 
         $this->actingAs($admin)
-            ->post(route('admin.sessions.resources.store', $session), ['title' => 'Week 5 slides', 'week_number' => '5', 'url' => self::SLIDES_URL])
-            ->assertSessionHasErrorsIn('resources', ['week_number' => 'This session has only 4 weeks.']);
+            ->post(route('admin.programs.resources.store', $program), ['title' => 'Week 5 slides', 'week_number' => '5', 'url' => self::SLIDES_URL])
+            ->assertSessionHasErrorsIn('resources', ['week_number' => "This curriculum's last week is Week 4."]);
+
+        $this->assertNothingAdded();
+    }
+
+    public function test_a_week_resource_for_a_curriculum_without_active_weeks_is_rejected(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $program = Program::factory()->create();
+
+        $this->actingAs($admin)
+            ->post(route('admin.programs.resources.store', $program), ['title' => 'Week 1 slides', 'week_number' => '1', 'url' => self::SLIDES_URL])
+            ->assertSessionHasErrorsIn('resources', ['week_number' => 'This curriculum has no active weeks yet.']);
 
         $this->assertNothingAdded();
     }
@@ -216,10 +231,10 @@ class AdminTrainingSessionResourceTest extends TestCase
     {
         Storage::fake('local');
         $admin = User::factory()->create(['role' => 'admin']);
-        $session = TrainingSession::factory()->create();
+        $program = Program::factory()->withWeeks(4)->create();
 
         $this->actingAs($admin)
-            ->post(route('admin.sessions.resources.store', $session), [
+            ->post(route('admin.programs.resources.store', $program), [
                 'type' => 'file',
                 'title' => 'Week 1 slides',
                 'file' => UploadedFile::fake()->create('slides.pdf', 2048, 'application/pdf'),
@@ -233,15 +248,15 @@ class AdminTrainingSessionResourceTest extends TestCase
     public function test_a_failed_add_shows_its_errors_and_keeps_its_input(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $session = TrainingSession::factory()->create();
+        $program = Program::factory()->withWeeks(4)->create();
 
         $this->actingAs($admin)
             ->followingRedirects()
-            ->post(route('admin.sessions.resources.store', $session), ['title' => 'Shared drive', 'week_number' => '2', 'url' => 'ftp://files.example.com'])
+            ->post(route('admin.programs.resources.store', $program), ['title' => 'Shared drive', 'week_number' => '2', 'url' => 'ftp://files.example.com'])
             ->assertOk()
             ->assertSeeInOrder([
                 'Add a resource', self::SCHEME_MESSAGE,
-                'id="session-resource-add-name" name="title" type="text" required maxlength="255" value="Shared drive"',
+                'id="program-resource-add-name"', 'value="Shared drive"',
                 'value="ftp://files.example.com"',
                 '<option value="2" selected>Week 2</option>',
             ], false);
@@ -250,39 +265,38 @@ class AdminTrainingSessionResourceTest extends TestCase
     public function test_a_failed_rename_shows_its_error_beside_that_resource_only(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $session = TrainingSession::factory()->create();
-        $renamed = TrainingSessionResource::factory()->for($session)->create(['title' => 'Slides']);
-        $other = TrainingSessionResource::factory()->for($session)->create(['title' => 'Recording']);
+        $program = Program::factory()->withWeeks(4)->create();
+        $renamed = ProgramResource::factory()->for($program)->create(['title' => 'Slides']);
+        $other = ProgramResource::factory()->for($program)->create(['title' => 'Recording']);
 
         $this->actingAs($admin)
             ->followingRedirects()
-            ->put(route('admin.sessions.resources.update', [$session, $renamed]), ['title' => ''])
+            ->put(route('admin.programs.resources.update', [$program, $renamed]), ['title' => ''])
             ->assertOk()
-            ->assertSee('id="session-resource-'.$renamed->id.'-title-error" class="text-sm text-rose-200" role="alert">The title field is required.</p>', false)
-            ->assertDontSee('id="session-resource-'.$other->id.'-title-error"', false)
-            ->assertSee('id="session-resource-'.$other->id.'-title" name="title" type="text" required maxlength="255" value="Recording"', false)
-            ->assertSee('id="session-resource-add-name" name="title" type="text" required maxlength="255" value=""', false);
+            ->assertSee('id="program-resource-'.$renamed->id.'-title-error" class="text-sm text-rose-200" role="alert">The title field is required.</p>', false)
+            ->assertDontSee('id="program-resource-'.$other->id.'-title-error"', false)
+            ->assertSeeInOrder(['id="program-resource-add-name"', 'value=""', 'id="program-resource-'.$other->id.'-title"', 'value="Recording"'], false);
     }
 
     public function test_rename_changes_only_the_title_and_is_audited(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $resource = TrainingSessionResource::factory()->googleDrive()->forWeek(1)->create(['title' => 'Slides', 'added_by' => $admin->id]);
-        $before = $resource->only(['training_session_id', 'week_number', 'url', 'added_by']);
+        $resource = ProgramResource::factory()->googleDrive()->forWeek(1)->create(['title' => 'Slides', 'added_by' => $admin->id]);
+        $before = $resource->only(['program_id', 'week_number', 'url', 'added_by']);
 
         $this->actingAs($admin)
-            ->put(route('admin.sessions.resources.update', [$resource->training_session_id, $resource]), ['title' => 'Week 1 slides', 'week_number' => '2', 'url' => self::YOUTUBE_URL])
+            ->put(route('admin.programs.resources.update', [$resource->program_id, $resource]), ['title' => 'Week 1 slides', 'week_number' => '2', 'url' => self::YOUTUBE_URL])
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('admin.sessions.show', $resource->training_session_id).'#resources')
+            ->assertRedirect(route('admin.programs.show', $resource->program_id).'#resources')
             ->assertSessionHas('status', 'Renamed the resource to "Week 1 slides".');
 
         $resource->refresh();
         $this->assertSame('Week 1 slides', $resource->title);
         $this->assertSame($before, $resource->only(array_keys($before)));
 
-        $this->assertAudit($admin, 'session_resource_renamed', [
-            'training_session_id' => $resource->training_session_id,
-            'training_session_resource_id' => $resource->id,
+        $this->assertAudit($admin, 'program_resource_renamed', [
+            'program_id' => $resource->program_id,
+            'program_resource_id' => $resource->id,
             'title' => 'Week 1 slides',
             'previous_title' => 'Slides',
         ]);
@@ -291,11 +305,11 @@ class AdminTrainingSessionResourceTest extends TestCase
     public function test_a_rename_without_a_title_fails_in_the_resources_own_error_bag(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $resource = TrainingSessionResource::factory()->create(['title' => 'Slides']);
+        $resource = ProgramResource::factory()->create(['title' => 'Slides']);
 
         $this->actingAs($admin)
-            ->put(route('admin.sessions.resources.update', [$resource->training_session_id, $resource]), ['title' => ''])
-            ->assertRedirect(route('admin.sessions.show', $resource->training_session_id).'#resources')
+            ->put(route('admin.programs.resources.update', [$resource->program_id, $resource]), ['title' => ''])
+            ->assertRedirect(route('admin.programs.show', $resource->program_id).'#resources')
             ->assertSessionHasErrorsIn("renameResource{$resource->id}", ['title' => 'The title field is required.']);
 
         $this->assertSame('Slides', $resource->refresh()->title);
@@ -305,31 +319,31 @@ class AdminTrainingSessionResourceTest extends TestCase
     public function test_remove_deletes_only_that_row_and_is_audited(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $resource = TrainingSessionResource::factory()->googleDrive()->create(['title' => 'Slides']);
-        $kept = TrainingSessionResource::factory()->for($resource->trainingSession)->create();
+        $resource = ProgramResource::factory()->googleDrive()->create(['title' => 'Slides']);
+        $kept = ProgramResource::factory()->for($resource->program)->create();
 
         $this->actingAs($admin)
-            ->delete(route('admin.sessions.resources.destroy', [$resource->training_session_id, $resource]))
-            ->assertRedirect(route('admin.sessions.show', $resource->training_session_id).'#resources')
+            ->delete(route('admin.programs.resources.destroy', [$resource->program_id, $resource]))
+            ->assertRedirect(route('admin.programs.show', $resource->program_id).'#resources')
             ->assertSessionHas('status', 'Removed "Slides".');
 
         $this->assertModelMissing($resource);
         $this->assertModelExists($kept);
-        $this->assertAudit($admin, 'session_resource_removed', [
-            'training_session_id' => $resource->training_session_id,
-            'training_session_resource_id' => $resource->id,
+        $this->assertAudit($admin, 'program_resource_removed', [
+            'program_id' => $resource->program_id,
+            'program_resource_id' => $resource->id,
             'title' => 'Slides',
         ]);
     }
 
-    public function test_a_resource_of_another_session_is_not_found(): void
+    public function test_a_resource_of_another_curriculum_is_not_found(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $session = TrainingSession::factory()->create();
-        $resource = TrainingSessionResource::factory()->create(['title' => 'Slides']);
+        $program = Program::factory()->withWeeks(4)->create();
+        $resource = ProgramResource::factory()->create(['title' => 'Slides']);
 
-        $this->actingAs($admin)->put(route('admin.sessions.resources.update', [$session, $resource]), ['title' => 'Renamed'])->assertNotFound();
-        $this->actingAs($admin)->delete(route('admin.sessions.resources.destroy', [$session, $resource]))->assertNotFound();
+        $this->actingAs($admin)->put(route('admin.programs.resources.update', [$program, $resource]), ['title' => 'Renamed'])->assertNotFound();
+        $this->actingAs($admin)->delete(route('admin.programs.resources.destroy', [$program, $resource]))->assertNotFound();
 
         $this->assertSame('Slides', $resource->refresh()->title);
         $this->assertDatabaseCount('admin_audit_logs', 0);
@@ -338,33 +352,36 @@ class AdminTrainingSessionResourceTest extends TestCase
     public function test_the_old_resource_open_route_is_gone(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $resource = TrainingSessionResource::factory()->create();
+        $resource = ProgramResource::factory()->create();
 
         $this->actingAs($admin)
-            ->get("/training/sessions/{$resource->training_session_id}/resources/{$resource->id}")
+            ->get("/training/programs/{$resource->program_id}/resources/{$resource->id}")
             ->assertNotFound();
     }
 
     public function test_participants_and_coaches_are_forbidden_and_guests_are_sent_to_login(): void
     {
-        $resource = TrainingSessionResource::factory()->create(['title' => 'Slides']);
-        $session = $resource->trainingSession;
+        $resource = ProgramResource::factory()->create(['title' => 'Slides']);
+        $program = $resource->program;
         $payload = ['title' => 'Recording', 'url' => 'https://example.com/recording'];
 
-        $this->post(route('admin.sessions.resources.store', $session), $payload)->assertRedirect(route('login'));
-        $this->put(route('admin.sessions.resources.update', [$session, $resource]), ['title' => 'Renamed'])->assertRedirect(route('login'));
-        $this->delete(route('admin.sessions.resources.destroy', [$session, $resource]))->assertRedirect(route('login'));
+        $this->post(route('admin.programs.resources.store', $program), $payload)->assertRedirect(route('login'));
+        $this->put(route('admin.programs.resources.update', [$program, $resource]), ['title' => 'Renamed'])->assertRedirect(route('login'));
+        $this->delete(route('admin.programs.resources.destroy', [$program, $resource]))->assertRedirect(route('login'));
 
         foreach (['participant', 'coach'] as $role) {
             $user = User::factory()->create(['role' => $role]);
-            $session->participants()->attach($user, ['joined_at' => now()]);
+            match ($role) {
+                'participant' => $program->participants()->attach($user, ['joined_at' => now()]),
+                'coach' => $program->mentors()->attach($user),
+            };
 
-            $this->actingAs($user)->post(route('admin.sessions.resources.store', $session), $payload)->assertForbidden();
-            $this->actingAs($user)->put(route('admin.sessions.resources.update', [$session, $resource]), ['title' => 'Renamed'])->assertForbidden();
-            $this->actingAs($user)->delete(route('admin.sessions.resources.destroy', [$session, $resource]))->assertForbidden();
+            $this->actingAs($user)->post(route('admin.programs.resources.store', $program), $payload)->assertForbidden();
+            $this->actingAs($user)->put(route('admin.programs.resources.update', [$program, $resource]), ['title' => 'Renamed'])->assertForbidden();
+            $this->actingAs($user)->delete(route('admin.programs.resources.destroy', [$program, $resource]))->assertForbidden();
         }
 
-        $this->assertSame(['Slides'], TrainingSessionResource::query()->pluck('title')->all());
+        $this->assertSame(['Slides'], ProgramResource::query()->pluck('title')->all());
         $this->assertDatabaseCount('admin_audit_logs', 0);
     }
 
@@ -384,7 +401,7 @@ class AdminTrainingSessionResourceTest extends TestCase
 
     private function assertNothingAdded(): void
     {
-        $this->assertDatabaseCount('training_session_resources', 0);
+        $this->assertDatabaseCount('program_resources', 0);
         $this->assertDatabaseCount('admin_audit_logs', 0);
     }
 }

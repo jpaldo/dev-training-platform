@@ -9,7 +9,6 @@ use App\Models\AdminAuditLog;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\CurriculumOrderService;
@@ -38,7 +37,6 @@ class AdminCurriculumActivityTest extends TestCase
         $this->field($activity, ['key' => 'pull_request', 'label' => 'Pull request link', 'type' => 'github_url', 'required' => true, 'help' => null], 1);
         $this->field($activity, ['key' => 'old_link', 'label' => 'Retired link', 'type' => 'url', 'required' => false, 'help' => null, 'deprecated' => true], 3);
         ActivityRequirement::factory()->for($activity)->create(['title' => 'Legacy deliverable requirement']);
-        TrainingSession::factory()->for($program)->active()->create(['title' => 'Live Run']);
 
         $this->actingAs($admin)
             ->get(route('admin.programs.activities.edit', [$program, $week, $activity]))
@@ -46,8 +44,7 @@ class AdminCurriculumActivityTest extends TestCase
             ->assertSee('<title>Unit testing basics</title>', false)
             ->assertSeeInOrder(['ADMIN · CURRICULUM', 'Unit testing basics', 'Week 2: Testing', 'L4 Accelerator Training', 'Active'])
             ->assertSee('<a href="'.route('admin.programs.weeks.show', [$program, $week]).'#activities"', false)
-            ->assertSee('data-sessions-notice="warning"', false)
-            ->assertSee('Live Run')
+            ->assertSee('data-schedule-notice="active"', false)
             ->assertSeeInOrder(['Details', 'Submission fields', 'Scoring'])
             ->assertSeeInOrder([
                 'action="'.route('admin.programs.activities.update', [$program, $week, $activity]).'"',
@@ -125,7 +122,7 @@ class AdminCurriculumActivityTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $participant = User::factory()->create(['role' => 'participant']);
         $activity = $this->activity();
-        $session = TrainingSession::factory()->forWeek($activity->week)->withParticipants($participant)->create();
+        $activity->week->program->participants()->attach($participant, ['joined_at' => now()]);
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
         $this->actingAs($admin)
@@ -138,7 +135,7 @@ class AdminCurriculumActivityTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->actingAs($participant)
-            ->get(route('training.activities.show', [$session, $activity->week, $activity]))
+            ->get(route('training.activities.show', [$activity->week->program, $activity->week, $activity]))
             ->assertOk()
             ->assertSeeInOrder(['Objective', 'Cover the failure paths too.', 'Instructions', 'Write a failing test first.'])
             ->assertDontSee('Cover the happy path.')
@@ -346,21 +343,21 @@ class AdminCurriculumActivityTest extends TestCase
         ], $audit->metadata);
     }
 
-    public function test_a_new_activity_shows_on_the_week_page_of_every_session_of_the_program(): void
+    public function test_a_new_activity_shows_on_the_week_page_of_every_participant_of_the_curriculum(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $activity = $this->activity();
         $week = $activity->week;
         $participants = User::factory()->count(2)->create(['role' => 'participant']);
-        $sessions = $participants->map(fn (User $participant): TrainingSession => TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create());
+        $week->program->participants()->attach($participants, ['joined_at' => now()]);
 
         $this->actingAs($admin)
             ->post($this->storeUrl($week), ['title' => 'Pair programming', 'description' => 'Work with a partner.'])
             ->assertSessionHasNoErrors();
 
-        foreach ($participants as $index => $participant) {
+        foreach ($participants as $participant) {
             $this->actingAs($participant)
-                ->get(route('training.weeks.show', [$sessions[$index], $week]))
+                ->get(route('training.weeks.show', [$week->program, $week]))
                 ->assertOk()
                 ->assertSeeInOrder(['Unit testing basics', 'Pair programming', 'Work with a partner.']);
         }
@@ -467,7 +464,7 @@ class AdminCurriculumActivityTest extends TestCase
                 'action="'.$this->moveUrl($first).'"',
                 'name="direction" value="up" aria-label="Move Unit testing basics up"',
                 'name="direction" value="down" aria-label="Move Unit testing basics down"',
-                'action="'.$this->deactivateUrl($first).'" data-confirm="Deactivate Unit testing basics? Participants keep their submissions, but the activity leaves the week for every session."',
+                'action="'.$this->deactivateUrl($first).'" data-confirm="Deactivate Unit testing basics? Participants keep their submissions, but the activity leaves the week."',
                 'aria-label="Deactivate Unit testing basics"',
                 'Mocking drill',
                 'action="'.$this->reactivateUrl($middle).'"',
@@ -578,12 +575,12 @@ class AdminCurriculumActivityTest extends TestCase
         [$first, $middle, $last] = $this->threeActivities();
         $week = $first->week;
         $gate = TrainingGate::factory()->for($week, 'week')->create();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        $this->handIn($session, $participant, $first);
-        $this->handIn($session, $participant, $last);
-        $middleSubmission = ActivitySubmission::factory()->for($middle)->for($session)->for($participant, 'participant')->create();
+        $week->program->participants()->attach($participant, ['joined_at' => now()]);
+        $this->handIn($participant, $first);
+        $this->handIn($participant, $last);
+        $middleSubmission = ActivitySubmission::factory()->for($middle)->for($participant, 'participant')->create();
         $readiness = app(GateReadinessService::class);
-        $this->assertSame(['activity_2'], array_keys($readiness->readiness($session, $participant, $gate)));
+        $this->assertSame(['activity_2'], array_keys($readiness->readiness($participant, $gate)));
 
         $this->actingAs($admin)
             ->patch($this->deactivateUrl($middle))
@@ -594,9 +591,9 @@ class AdminCurriculumActivityTest extends TestCase
         $this->assertFalse($middle->refresh()->is_active);
         $this->assertSame(2, $middle->position);
         $this->assertModelExists($middleSubmission);
-        $this->assertSame([], $readiness->readiness($session, $participant, $gate));
+        $this->assertSame([], $readiness->readiness($participant, $gate));
         $this->actingAs($participant)
-            ->get(route('training.weeks.show', [$session, $week]))
+            ->get(route('training.weeks.show', [$week->program, $week]))
             ->assertOk()
             ->assertSeeInOrder(['Unit testing basics', 'Refactor kata'])
             ->assertDontSee('Mocking drill');
@@ -618,7 +615,7 @@ class AdminCurriculumActivityTest extends TestCase
         $participant = User::factory()->create(['role' => 'participant']);
         [$first, $middle, $last] = $this->threeActivities();
         $middle->update(['is_active' => false]);
-        $session = TrainingSession::factory()->forWeek($middle->week)->withParticipants($participant)->create();
+        $middle->week->program->participants()->attach($participant, ['joined_at' => now()]);
 
         $this->actingAs($admin)
             ->patch($this->reactivateUrl($middle))
@@ -629,7 +626,7 @@ class AdminCurriculumActivityTest extends TestCase
         $this->assertTrue($middle->refresh()->is_active);
         $this->assertPositions([$first, $middle, $last]);
         $this->actingAs($participant)
-            ->get(route('training.weeks.show', [$session, $middle->week]))
+            ->get(route('training.weeks.show', [$middle->week->program, $middle->week]))
             ->assertOk()
             ->assertSeeInOrder(['Unit testing basics', 'Mocking drill', 'Refactor kata']);
 
@@ -819,11 +816,11 @@ class AdminCurriculumActivityTest extends TestCase
     }
 
     /**
-     * The participant hands in the activity in the session: a submitted attempt with a submitted version.
+     * The participant hands in the activity: a submitted attempt with a submitted version.
      */
-    private function handIn(TrainingSession $session, User $participant, Activity $activity): void
+    private function handIn(User $participant, Activity $activity): void
     {
-        $submission = ActivitySubmission::factory()->for($activity)->for($session)->for($participant, 'participant')->create(['status' => 'submitted', 'submitted_at' => now()]);
+        $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'submitted', 'submitted_at' => now()]);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
     }
 

@@ -12,7 +12,6 @@ use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -27,13 +26,13 @@ class CoachGateBoardPageTest extends TestCase
 
     public function test_a_mentor_sees_the_summary_and_one_row_per_participant_and_gate_sorted_by_status(): void
     {
-        $week = TrainingWeek::factory()->create(['week_number' => 2]);
+        $program = Program::factory()->create(['name' => 'November training']);
+        $week = TrainingWeek::factory()->for($program)->create(['week_number' => 2]);
         $gate = TrainingGate::factory()->for($week, 'week')->create(['title' => 'Release readiness']);
         $videoCriterion = GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_video']);
         $activityCriterion = GateCriterion::factory()->for($gate, 'gate')->create();
         GateCriterion::factory()->for($gate, 'gate')->create(['is_required' => false]);
         $activity = Activity::factory()->for($week, 'week')->create(['position' => 1]);
-        $session = TrainingSession::factory()->forWeek($week)->create(['title' => 'November training']);
 
         $passed = User::factory()->create(['name' => 'Pat Passed', 'email' => 'pat@example.test']);
         $passedEvaluation = GateEvaluation::factory()->for($gate, 'gate')->for($passed, 'participant')->create(['status' => 'passed']);
@@ -49,7 +48,7 @@ class CoachGateBoardPageTest extends TestCase
 
         $notReady = User::factory()->create(['name' => 'Nell Notready', 'email' => 'nell@example.test']);
         $mentor = User::factory()->create(['role' => 'coach']);
-        $this->mentor($session, $mentor, $passed, $awaiting, $notReady);
+        $this->mentor($program, $mentor, $passed, $awaiting, $notReady);
 
         $this->actingAs($mentor)->get(route('coach.gates'))
             ->assertOk()
@@ -61,27 +60,27 @@ class CoachGateBoardPageTest extends TestCase
                 'AWAITING REVIEW', '>1</dd>',
                 'COMPLETED', '>1</dd>',
                 'NOT READY', '>1</dd>',
-                'One row per participant, training session and Gate',
+                'One row per participant, curriculum and Gate',
                 '>Week 2</strong>', '>Release readiness</span>',
-                'href="'.route('coach.participants.show', [$session, $awaiting]).'"', '>Ada Awaiting</a>', '>ada@example.test</span>',
-                '>November training</span>', '>'.$session->dateRangeLabel().'</span>',
+                'href="'.route('coach.participants.show', [$program, $awaiting]).'"', '>Ada Awaiting</a>', '>ada@example.test</span>',
+                '>November training</span>', '>'.$program->dateRangeLabel().'</span>',
                 'border-accent text-cyan-200 whitespace-nowrap">AWAITING REVIEW</span>',
                 '>0 / 2</span>', '>criteria met</span>',
                 'href="'.$awaitingRecording->driveViewUrl().'" target="_blank" rel="noopener noreferrer"', '>Awaiting Review<span class="sr-only"> (opens Google Drive in a new tab)</span></a>',
                 '>—</span>',
-                'href="'.route('training.coach.gates.show', [$session, $week, $awaiting, $gate]).'"', '>Review Gate</a>',
+                'href="'.route('training.coach.gates.show', [$program, $week, $awaiting, $gate]).'"', '>Review Gate</a>',
                 '>Nell Notready</a>',
                 'border-line text-muted whitespace-nowrap">NOT READY</span>',
                 '>0 / 2</span>',
                 '>Missing</span>',
                 '>2 blockers</strong>',
-                'href="'.route('training.coach.gates.show', [$session, $week, $notReady, $gate]).'"', '>Review Gate</a>',
+                'href="'.route('training.coach.gates.show', [$program, $week, $notReady, $gate]).'"', '>Review Gate</a>',
                 '>Pat Passed</a>',
                 'border-emerald-400 text-emerald-200 whitespace-nowrap">COMPLETED</span>',
                 '>2 / 2</span>',
                 'href="'.$passedRecording->driveViewUrl().'" target="_blank" rel="noopener noreferrer"', '>✓ Chosen<span class="sr-only"> (opens Google Drive in a new tab)</span></a>',
                 '>—</span>',
-                'href="'.route('training.coach.gates.show', [$session, $week, $passed, $gate]).'"', '>View Gate</a>',
+                'href="'.route('training.coach.gates.show', [$program, $week, $passed, $gate]).'"', '>View Gate</a>',
             ], false)
             ->assertDontSee('No Gate rows match these filters.')
             ->assertDontSee('Daily Logs')
@@ -95,10 +94,9 @@ class CoachGateBoardPageTest extends TestCase
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         GateCriterion::factory()->for($gate, 'gate')->create();
         $activity = Activity::factory()->for($week, 'week')->create(['position' => 1]);
-        $session = TrainingSession::factory()->forWeek($week)->create();
         $ready = User::factory()->create(['name' => 'Ada Ready']);
         $this->submitActivity($ready, $activity);
-        $this->join($session, $ready, User::factory()->create(['name' => 'Bo Blocked']));
+        $this->join($week->program, $ready, User::factory()->create(['name' => 'Bo Blocked']));
 
         $this->actingAs($this->admin())->get(route('coach.gates'))
             ->assertOk()
@@ -111,14 +109,13 @@ class CoachGateBoardPageTest extends TestCase
         $week = TrainingWeek::factory()->create(['week_number' => 2]);
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         $criteria = GateCriterion::factory()->count(5)->for($gate, 'gate')->create(['criterion_type' => GateCriterion::TYPE_DELIVERABLE]);
-        $session = TrainingSession::factory()->forWeek($week)->create();
         $participant = User::factory()->create(['name' => 'Pat Passed']);
         $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
         foreach ($criteria as $criterion) {
             GateCriterionEvaluation::factory()->for($evaluation, 'gateEvaluation')->for($criterion, 'criterion')->create(['status' => 'met']);
         }
         $criteria->last()->update(['is_required' => false]);
-        $this->join($session, $participant);
+        $this->join($week->program, $participant);
 
         $this->actingAs($this->admin())->get(route('coach.gates'))
             ->assertOk()
@@ -132,16 +129,16 @@ class CoachGateBoardPageTest extends TestCase
         TrainingGate::factory()->for($week, 'week')->create();
         Activity::factory()->for($week, 'week')->create(['position' => 1]);
         TrainingGate::factory()->for(TrainingWeek::factory()->state(['week_number' => 3]), 'week')->create(['title' => 'Week three gate']);
-        $session = TrainingSession::factory()->forWeek($week)->create();
-        $this->join($session, ...User::factory()->count(26)->sequence(fn (Sequence $sequence): array => ['name' => 'Page Person '.($sequence->index + 1)])->create());
-        $this->join($session, User::factory()->create(['name' => 'Other Person']));
-        $filters = ['search' => 'Page', 'session' => $session->id, 'week' => 2, 'status' => 'not_ready'];
+        $program = $week->program;
+        $this->join($program, ...User::factory()->count(26)->sequence(fn (Sequence $sequence): array => ['name' => 'Page Person '.($sequence->index + 1)])->create());
+        $this->join($program, User::factory()->create(['name' => 'Other Person']));
+        $filters = ['search' => 'Page', 'program' => $program->id, 'week' => 2, 'status' => 'not_ready'];
         $admin = $this->admin();
 
         $firstPage = $this->actingAs($admin)->get(route('coach.gates', $filters))
             ->assertOk()
             ->assertSee('value="Page"', false)
-            ->assertSee('<option value="'.$session->id.'" selected>'.e($session->titleWithDates()).'</option>', false)
+            ->assertSee('<option value="'.$program->id.'" selected>'.e($this->optionLabel($program)).'</option>', false)
             ->assertSee('<option value="2" selected>Week 2</option>', false)
             ->assertSee('<option value="not_ready" selected>Not Ready</option>', false)
             ->assertSee('>26</dd>', false)
@@ -160,7 +157,7 @@ class CoachGateBoardPageTest extends TestCase
     {
         $gate = TrainingGate::factory()->for(TrainingWeek::factory()->state(['week_number' => 2]), 'week')->create();
         $this->join(
-            TrainingSession::factory()->forWeek($gate->week)->create(),
+            $gate->week->program,
             User::factory()->create(['name' => 'Mia Manual']),
             User::factory()->create(['name' => 'Abe Automation']),
         );
@@ -183,7 +180,7 @@ class CoachGateBoardPageTest extends TestCase
         $weekOneGate = TrainingGate::factory()->for($weeks[1], 'week')->create(['title' => 'Week one gate']);
         TrainingGate::factory()->for($weeks[2], 'week')->create(['title' => 'Week two gate']);
         $participant = User::factory()->create(['name' => 'Wendy WeekOne']);
-        $session = TrainingSession::factory()->forWeek($weeks[1])->withParticipants($participant)->create();
+        $this->join($program, $participant);
 
         $this->actingAs($this->admin())->get(route('coach.gates', ['week' => 1]))
             ->assertOk()
@@ -191,35 +188,37 @@ class CoachGateBoardPageTest extends TestCase
             ->assertSeeInOrder([
                 '<option value="1" selected>Week 1</option>', '<option value="2" >Week 2</option>', '<option value="3" >Week 3</option>', '<option value="4" >Week 4</option>',
                 '>Week 1</strong>', '>Week one gate</span>', '>Wendy WeekOne</a>',
-                'href="'.route('training.coach.gates.show', [$session, $weeks[1], $participant, $weekOneGate]).'"', '>Review Gate</a>',
+                'href="'.route('training.coach.gates.show', [$program, $weeks[1], $participant, $weekOneGate]).'"', '>Review Gate</a>',
             ], false)
             ->assertDontSee('Week two gate');
     }
 
-    public function test_each_session_membership_gets_its_own_row_with_that_sessions_status_and_link(): void
+    public function test_each_curriculum_membership_gets_its_own_row_with_that_curriculums_status_and_link(): void
     {
-        $week = TrainingWeek::factory()->create(['week_number' => 2]);
-        $gate = TrainingGate::factory()->for($week, 'week')->create(['title' => 'Release readiness']);
-        Activity::factory()->for($week, 'week')->create(['position' => 1]);
-        $sessionA = TrainingSession::factory()->forWeek($week)->create(['title' => 'Session A']);
-        $sessionB = TrainingSession::factory()->forWeek($week)->create(['title' => 'Session B']);
-        $tooShort = TrainingSession::factory()->forWeek($week)->create(['weeks_count' => 1]);
-        $participant = User::factory()->create(['name' => 'Sam Twosessions']);
-        $this->join($sessionA, $participant);
-        $this->join($sessionB, $participant);
-        $this->join($tooShort, User::factory()->create(['name' => 'Wes Weekone']));
-        User::factory()->create(['name' => 'Nina Nosession']);
-        GateEvaluation::factory()->for($sessionA)->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+        $weekA = TrainingWeek::factory()->for(Program::factory()->state(['name' => 'Curriculum A']))->create(['week_number' => 2]);
+        $gateA = TrainingGate::factory()->for($weekA, 'week')->create(['title' => 'Release readiness']);
+        Activity::factory()->for($weekA, 'week')->create(['position' => 1]);
+        $weekB = TrainingWeek::factory()->for(Program::factory()->state(['name' => 'Curriculum B']))->create(['week_number' => 2]);
+        $gateB = TrainingGate::factory()->for($weekB, 'week')->create(['title' => 'Release readiness']);
+        Activity::factory()->for($weekB, 'week')->create(['position' => 1]);
+        $inactiveWeek = TrainingWeek::factory()->create(['week_number' => 2, 'is_active' => false]);
+        TrainingGate::factory()->for($inactiveWeek, 'week')->create();
+        $participant = User::factory()->create(['name' => 'Sam Twocurricula']);
+        $this->join($weekA->program, $participant);
+        $this->join($weekB->program, $participant);
+        $this->join($inactiveWeek->program, User::factory()->create(['name' => 'Wes Inactiveweek']));
+        User::factory()->create(['name' => 'Nina Nocurriculum']);
+        GateEvaluation::factory()->for($gateA, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
 
         $response = $this->actingAs($this->admin())->get(route('coach.gates'))
             ->assertOk()
             ->assertSeeInOrder(['TOTAL GATES', '>2</dd>', 'COMPLETED', '>1</dd>', 'NOT READY', '>1</dd>'], false)
             ->assertSeeInOrder([
-                '>Sam Twosessions</a>', 'NOT READY</span>', 'href="'.route('training.coach.gates.show', [$sessionB, $week, $participant, $gate]).'"', '>Review Gate</a>',
-                '>Sam Twosessions</a>', 'COMPLETED</span>', 'href="'.route('training.coach.gates.show', [$sessionA, $week, $participant, $gate]).'"', '>View Gate</a>',
+                '>Sam Twocurricula</a>', '>Curriculum B</span>', 'NOT READY</span>', 'href="'.route('training.coach.gates.show', [$weekB->program, $weekB, $participant, $gateB]).'"', '>Review Gate</a>',
+                '>Sam Twocurricula</a>', '>Curriculum A</span>', 'COMPLETED</span>', 'href="'.route('training.coach.gates.show', [$weekA->program, $weekA, $participant, $gateA]).'"', '>View Gate</a>',
             ], false)
-            ->assertDontSee('Wes Weekone')
-            ->assertDontSee('Nina Nosession');
+            ->assertDontSee('Wes Inactiveweek')
+            ->assertDontSee('Nina Nocurriculum');
 
         $this->assertSame(2, substr_count($response->getContent(), 'data-gate-row'));
     }
@@ -295,23 +294,23 @@ class CoachGateBoardPageTest extends TestCase
         $this->assertSame(0, substr_count($response->getContent(), 'data-gate-row'));
     }
 
-    public function test_a_mentor_sees_only_the_rows_of_their_current_participants_in_that_session(): void
+    public function test_a_mentor_sees_only_the_rows_of_their_current_participants_in_that_curriculum(): void
     {
-        ['sessionX' => $sessionX, 'sessionY' => $sessionY, 'week' => $week, 'gate' => $gate, 'pat' => $pat, 'ana' => $ana, 'ben' => $ben, 'cy' => $cy] = $this->mentorScopeFixture();
+        ['programX' => $programX, 'programY' => $programY, 'weekX' => $weekX, 'gateX' => $gateX, 'weekY' => $weekY, 'gateY' => $gateY, 'pat' => $pat, 'ana' => $ana, 'ben' => $ben, 'cy' => $cy] = $this->mentorScopeFixture();
 
         $benResponse = $this->actingAs($ben)->get(route('coach.gates'))
             ->assertOk()
             ->assertSeeInOrder(['TOTAL GATES', '>1</dd>'], false)
-            ->assertSee('<option value="'.$sessionX->id.'" >'.e($sessionX->titleWithDates()).'</option>', false)
-            ->assertSeeInOrder(['>Pat Participant</a>', '>Session X</span>', 'href="'.route('training.coach.gates.show', [$sessionX, $week, $pat, $gate]).'"'], false)
-            ->assertDontSee('Session Y')
+            ->assertSee('<option value="'.$programX->id.'" >'.e($this->optionLabel($programX)).'</option>', false)
+            ->assertSeeInOrder(['>Pat Participant</a>', '>Curriculum X</span>', 'href="'.route('training.coach.gates.show', [$programX, $weekX, $pat, $gateX]).'"'], false)
+            ->assertDontSee('Curriculum Y')
             ->assertDontSee('Quinn Other');
         $this->assertSame(1, substr_count($benResponse->getContent(), 'data-gate-row'));
 
         $cyResponse = $this->actingAs($cy)->get(route('coach.gates'))
             ->assertOk()
-            ->assertSeeInOrder(['>Pat Participant</a>', '>Session Y</span>', 'href="'.route('training.coach.gates.show', [$sessionY, $week, $pat, $gate]).'"'], false)
-            ->assertDontSee('Session X')
+            ->assertSeeInOrder(['>Pat Participant</a>', '>Curriculum Y</span>', 'href="'.route('training.coach.gates.show', [$programY, $weekY, $pat, $gateY]).'"'], false)
+            ->assertDontSee('Curriculum X')
             ->assertDontSee('Quinn Other');
         $this->assertSame(1, substr_count($cyResponse->getContent(), 'data-gate-row'));
 
@@ -321,50 +320,52 @@ class CoachGateBoardPageTest extends TestCase
             ->assertDontSee('Pat Participant');
     }
 
-    public function test_an_admin_sees_every_membership_and_the_session_filter_narrows_them(): void
+    public function test_an_admin_sees_every_membership_and_the_curriculum_filter_narrows_them(): void
     {
-        ['sessionY' => $sessionY] = $this->mentorScopeFixture();
+        ['programY' => $programY] = $this->mentorScopeFixture();
         $admin = $this->admin();
 
         $everyRow = $this->actingAs($admin)->get(route('coach.gates'))->assertOk();
         $this->assertSame(3, substr_count($everyRow->getContent(), 'data-gate-row'));
 
-        $sessionYRows = $this->actingAs($admin)->get(route('coach.gates', ['session' => $sessionY->id]))
+        $programYRows = $this->actingAs($admin)->get(route('coach.gates', ['program' => $programY->id]))
             ->assertOk()
-            ->assertSee('<option value="'.$sessionY->id.'" selected>'.e($sessionY->titleWithDates()).'</option>', false)
-            ->assertSeeInOrder(['>Pat Participant</a>', '>Session Y</span>'], false)
+            ->assertSee('<option value="'.$programY->id.'" selected>'.e($this->optionLabel($programY)).'</option>', false)
+            ->assertSeeInOrder(['>Pat Participant</a>', '>Curriculum Y</span>'], false)
             ->assertDontSee('Quinn Other');
-        $this->assertSame(1, substr_count($sessionYRows->getContent(), 'data-gate-row'));
+        $this->assertSame(1, substr_count($programYRows->getContent(), 'data-gate-row'));
     }
 
-    public function test_an_unknown_session_fails_validation(): void
+    public function test_an_unknown_curriculum_fails_validation(): void
     {
-        $this->actingAs($this->admin())->get(route('coach.gates', ['session' => 999]))
-            ->assertSessionHasErrors(['session']);
+        $this->actingAs($this->admin())->get(route('coach.gates', ['program' => 999]))
+            ->assertSessionHasErrors(['program']);
     }
 
     /**
-     * A Week 2 Gate and two sessions of its program. In session X an admin assigned Ana and then Ben as Pat's mentor,
-     * and Dan mentors Quinn; in session Y Cy mentors Pat.
+     * Two curricula X and Y, each with a Week 2 Gate. In X an admin assigned Ana and then Ben as Pat's mentor, and Dan
+     * mentors Quinn; in Y Cy mentors Pat.
      *
-     * @return array{sessionX: TrainingSession, sessionY: TrainingSession, week: TrainingWeek, gate: TrainingGate, pat: User, ana: User, ben: User, cy: User}
+     * @return array{programX: Program, programY: Program, weekX: TrainingWeek, gateX: TrainingGate, weekY: TrainingWeek, gateY: TrainingGate, pat: User, ana: User, ben: User, cy: User}
      */
     private function mentorScopeFixture(): array
     {
-        $week = TrainingWeek::factory()->create(['week_number' => 2]);
-        $gate = TrainingGate::factory()->for($week, 'week')->create();
-        $sessionX = TrainingSession::factory()->forWeek($week)->create(['title' => 'Session X']);
-        $sessionY = TrainingSession::factory()->forWeek($week)->create(['title' => 'Session Y']);
+        $programX = Program::factory()->create(['name' => 'Curriculum X']);
+        $programY = Program::factory()->create(['name' => 'Curriculum Y']);
+        $weekX = TrainingWeek::factory()->for($programX)->create(['week_number' => 2]);
+        $weekY = TrainingWeek::factory()->for($programY)->create(['week_number' => 2]);
+        $gateX = TrainingGate::factory()->for($weekX, 'week')->create();
+        $gateY = TrainingGate::factory()->for($weekY, 'week')->create();
         $pat = User::factory()->create(['name' => 'Pat Participant']);
         $quinn = User::factory()->create(['name' => 'Quinn Other']);
         [$ana, $ben, $cy, $dan] = User::factory()->count(4)->create(['role' => 'coach'])->all();
-        $this->mentor($sessionX, $ana, $pat);
+        $this->mentor($programX, $ana, $pat);
         MentorAssignment::query()->where('mentor_id', $ana->id)->update(['ended_at' => now()]);
-        $this->mentor($sessionX, $ben, $pat);
-        $this->mentor($sessionX, $dan, $quinn);
-        $this->mentor($sessionY, $cy, $pat);
+        $this->mentor($programX, $ben, $pat);
+        $this->mentor($programX, $dan, $quinn);
+        $this->mentor($programY, $cy, $pat);
 
-        return ['sessionX' => $sessionX, 'sessionY' => $sessionY, 'week' => $week, 'gate' => $gate, 'pat' => $pat, 'ana' => $ana, 'ben' => $ben, 'cy' => $cy];
+        return compact('programX', 'programY', 'weekX', 'gateX', 'weekY', 'gateY', 'pat', 'ana', 'ben', 'cy');
     }
 
     /**
@@ -380,12 +381,11 @@ class CoachGateBoardPageTest extends TestCase
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         GateCriterion::factory()->for($gate, 'gate')->create(['criterion_type' => 'weekly_video']);
         $activity = Activity::factory()->for($week, 'week')->create(['position' => 1]);
-        $session = TrainingSession::factory()->forWeek($week)->create();
         $participants = [];
         foreach (GateEvaluationStatus::cases() as $status) {
             $participants[$status->value] = User::factory()->create(['name' => 'Participant '.$status->label()]);
         }
-        $this->join($session, ...array_values($participants));
+        $this->join($week->program, ...array_values($participants));
         $this->submitActivity($participants['ready_for_review'], $activity);
         $this->recordWeeklyVideo($participants['ready_for_review'], $week);
         foreach ([GateEvaluationStatus::AwaitingReview, GateEvaluationStatus::NeedsRevision, GateEvaluationStatus::Failed, GateEvaluationStatus::Passed] as $status) {
@@ -401,25 +401,33 @@ class CoachGateBoardPageTest extends TestCase
     }
 
     /**
-     * Add the coach to the session's mentors and the participants to the session, with the coach as their current
-     * mentor there.
+     * The curriculum filter's option text for the curriculum: its name and dates.
      */
-    private function mentor(TrainingSession $session, User $coach, User ...$participants): void
+    private function optionLabel(Program $program): string
     {
-        $session->mentors()->syncWithoutDetaching([$coach->id]);
-        $this->join($session, ...$participants);
+        return $program->name.' ('.$program->dateRangeLabel().')';
+    }
+
+    /**
+     * Add the coach to the curriculum's mentors and the participants to the curriculum, with the coach as their
+     * current mentor there.
+     */
+    private function mentor(Program $program, User $coach, User ...$participants): void
+    {
+        $program->mentors()->syncWithoutDetaching([$coach->id]);
+        $this->join($program, ...$participants);
         foreach ($participants as $participant) {
-            MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+            MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         }
     }
 
     /**
-     * Add the participants to the session.
+     * Add the participants to the curriculum.
      */
-    private function join(TrainingSession $session, User ...$participants): void
+    private function join(Program $program, User ...$participants): void
     {
         foreach ($participants as $participant) {
-            $session->participants()->syncWithoutDetaching([$participant->id => ['joined_at' => now()]]);
+            $program->participants()->syncWithoutDetaching([$participant->id => ['joined_at' => now()]]);
         }
     }
 

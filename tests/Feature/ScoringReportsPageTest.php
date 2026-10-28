@@ -8,7 +8,6 @@ use App\Models\ActivitySubmission;
 use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -20,7 +19,7 @@ class ScoringReportsPageTest extends TestCase
 
     public function test_the_mentor_sees_the_exports_filters_scoring_completion_and_band_distribution(): void
     {
-        ['mentor' => $mentor, 'session' => $session] = $this->submittedVersions();
+        ['mentor' => $mentor, 'program' => $program] = $this->submittedVersions();
 
         $response = $this->actingAs($mentor)->get(route('coach.scoring.reports'))->assertOk();
 
@@ -31,7 +30,7 @@ class ScoringReportsPageTest extends TestCase
             'href="'.route('coach.reports.scores').'"', '>Activity Scores CSV</a>',
             'href="'.route('coach.reports.participant-summary').'"', '>Participant Summary CSV</a>',
             'aria-label="Scoring report filters"',
-            'for="report-session"', '>Training session</label>', '<option value="">All training sessions</option>', '>'.$session->titleWithDates().'</option>',
+            'for="report-program"', '>Curriculum</label>', '<option value="">All curricula</option>', '>'.$program->name.' ('.$program->dateRangeLabel().')</option>',
             'for="report-week"', '>Week</label>', '>Week 2</option>', '>Week 3</option>', '>Week 4</option>',
             'for="report-status"', '>Score status</label>', '>Scored</option>', '>Unscored</option>',
             'for="report-band"', '>Performance band</label>', '>Exemplary</option>', '>Minimal</option>',
@@ -55,12 +54,12 @@ class ScoringReportsPageTest extends TestCase
 
     public function test_filters_keep_their_values_narrow_the_counts_and_carry_over_to_the_exports(): void
     {
-        ['mentor' => $mentor, 'session' => $session] = $this->submittedVersions();
-        $filters = ['session' => $session->id, 'mentor' => $mentor->id, 'week' => 2, 'score_status' => 'scored', 'band' => 'Proficient'];
+        ['mentor' => $mentor, 'program' => $program] = $this->submittedVersions();
+        $filters = ['program' => $program->id, 'mentor' => $mentor->id, 'week' => 2, 'score_status' => 'scored', 'band' => 'Proficient'];
 
         $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.scoring.reports', $filters))
             ->assertOk()
-            ->assertSee('<option value="'.$session->id.'" selected>', false)
+            ->assertSee('<option value="'.$program->id.'" selected>', false)
             ->assertSeeInOrder(['for="report-mentor"', '>Mentor</label>', '<option value="">All mentors</option>', '<option value="'.$mentor->id.'" selected>'], false)
             ->assertSee('href="'.e(route('coach.reports.scores', $filters)).'"', false)
             ->assertSee('href="'.e(route('coach.reports.participant-summary', $filters)).'"', false)
@@ -135,26 +134,27 @@ class ScoringReportsPageTest extends TestCase
             ->assertSeeInOrder(['>COMPLETED ACTIVITIES</dt>', '>0</dd>'], false);
     }
 
-    public function test_a_mentor_counts_only_their_current_mentees_per_session_and_an_admin_filters_by_session_and_mentor(): void
+    public function test_a_mentor_counts_only_their_current_mentees_per_curriculum_and_an_admin_filters_by_curriculum_and_mentor(): void
     {
-        $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 2, 'position' => 2]);
-        $activity = Activity::factory()->for($week, 'week')->create();
-        [$sessionX, $sessionY] = TrainingSession::factory()->forWeek($week)->count(2)->create()->all();
+        $activityX = Activity::factory()->for(TrainingWeek::factory()->for(Program::factory())->state(['week_number' => 2, 'position' => 2]), 'week')->create();
+        $activityY = Activity::factory()->for(TrainingWeek::factory()->for(Program::factory())->state(['week_number' => 2, 'position' => 2]), 'week')->create();
+        $programX = $activityX->week->program;
+        $programY = $activityY->week->program;
         $pat = User::factory()->create();
         $quinn = User::factory()->create();
         [$ana, $ben, $cy, $dan] = User::factory()->count(4)->create(['role' => 'coach'])->all();
-        $this->mentor($sessionX, $ana, $pat);
+        $this->mentor($programX, $ana, $pat);
         MentorAssignment::query()->where('mentor_id', $ana->id)->update(['ended_at' => now()]);
-        $this->mentor($sessionX, $ben, $pat);
-        $this->mentor($sessionX, $dan, $quinn);
-        $this->mentor($sessionY, $cy, $pat);
-        $this->score($this->version($pat, $activity, session: $sessionX), 'published', 83, 'Proficient');
-        $this->version($pat, $activity, session: $sessionY);
-        $this->version($quinn, $activity, session: $sessionX);
+        $this->mentor($programX, $ben, $pat);
+        $this->mentor($programX, $dan, $quinn);
+        $this->mentor($programY, $cy, $pat);
+        $this->score($this->version($pat, $activityX), 'published', 83, 'Proficient');
+        $this->version($pat, $activityY);
+        $this->version($quinn, $activityX);
         $admin = User::factory()->create(['role' => 'admin']);
 
         foreach (['coach.scoring.reports', 'coach.reports.scoring-completion'] as $routeName) {
-            foreach ([[$ben, [], '1', '1'], [$cy, [], '1', '0'], [$ana, [], '0', '0'], [$admin, [], '3', '1'], [$admin, ['session' => $sessionY->id], '1', '0'], [$admin, ['mentor' => $dan->id], '1', '0']] as [$viewer, $filters, $completed, $scored]) {
+            foreach ([[$ben, [], '1', '1'], [$cy, [], '1', '0'], [$ana, [], '0', '0'], [$admin, [], '3', '1'], [$admin, ['program' => $programY->id], '1', '0'], [$admin, ['mentor' => $dan->id], '1', '0']] as [$viewer, $filters, $completed, $scored]) {
                 $this->actingAs($viewer)->get(route($routeName, $filters))
                     ->assertOk()
                     ->assertSeeInOrder(['>COMPLETED ACTIVITIES</dt>', '>'.$completed.'</dd>', '>SCORED ACTIVITIES</dt>', '>'.$scored.'</dd>'], false);
@@ -162,13 +162,13 @@ class ScoringReportsPageTest extends TestCase
         }
     }
 
-    public function test_an_unknown_session_or_a_mentor_who_is_not_a_coach_fails_validation(): void
+    public function test_an_unknown_curriculum_or_a_mentor_who_is_not_a_coach_fails_validation(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $filters = ['session' => 999, 'mentor' => User::factory()->create()->id];
+        $filters = ['program' => 999, 'mentor' => User::factory()->create()->id];
 
         foreach (['coach.scoring.reports', 'coach.reports.scoring-completion'] as $routeName) {
-            $this->actingAs($admin)->get(route($routeName, $filters))->assertSessionHasErrors(['session', 'mentor']);
+            $this->actingAs($admin)->get(route($routeName, $filters))->assertSessionHasErrors(['program', 'mentor']);
         }
     }
 
@@ -181,12 +181,11 @@ class ScoringReportsPageTest extends TestCase
     }
 
     /**
-     * A program of Weeks 2 to 4 (Week 4 without activities) and a session of it whose mentor mentors both of its
-     * participants, with three submitted versions and one draft: a participant (with the former Automation path) with a
+     * A curriculum of Weeks 2 to 4 (Week 4 without activities) whose mentor mentors both of its participants, with three submitted versions and one draft: a participant (with the former Automation path) with a
      * published Proficient score in Week 2 and a draft Developing score in Week 3, and a participant (with the former
      * Manual path) with an unscored Week 2 version and a draft version (never counted).
      *
-     * @return array{mentor: User, session: TrainingSession}
+     * @return array{mentor: User, program: Program}
      */
     private function submittedVersions(): array
     {
@@ -195,38 +194,36 @@ class ScoringReportsPageTest extends TestCase
         $weekTwoActivity = Activity::factory()->for($weekTwo, 'week')->create();
         $weekThreeActivity = Activity::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 3, 'position' => 3]), 'week')->create();
         TrainingWeek::factory()->for($program)->create(['week_number' => 4, 'position' => 4]);
-        $session = TrainingSession::factory()->forWeek($weekTwo)->create();
         $mentor = User::factory()->create(['role' => 'coach']);
         $ada = User::factory()->create();
         $ben = User::factory()->create();
-        $this->mentor($session, $mentor, $ada, $ben);
+        $this->mentor($program, $mentor, $ada, $ben);
 
         $this->score($this->version($ada, $weekTwoActivity), 'published', 83, 'Proficient');
         $this->score($this->version($ada, $weekThreeActivity), 'draft', 65, 'Developing');
         $this->version($ben, $weekTwoActivity);
         $this->version($ben, $weekThreeActivity, 'draft');
 
-        return ['mentor' => $mentor, 'session' => $session];
+        return ['mentor' => $mentor, 'program' => $program];
     }
 
     /**
-     * Add the coach to the session's mentors and the participants to the session, with the coach as their current
-     * mentor there.
+     * Add the coach to the curriculum's mentors and the participants to the curriculum, with the coach as their
+     * current mentor there.
      */
-    private function mentor(TrainingSession $session, User $coach, User ...$participants): void
+    private function mentor(Program $program, User $coach, User ...$participants): void
     {
-        $session->mentors()->syncWithoutDetaching([$coach->id]);
+        $program->mentors()->syncWithoutDetaching([$coach->id]);
         foreach ($participants as $participant) {
-            $session->participants()->syncWithoutDetaching([$participant->id => ['joined_at' => now()]]);
-            MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+            $program->participants()->syncWithoutDetaching([$participant->id => ['joined_at' => now()]]);
+            MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         }
     }
 
-    private function version(User $participant, Activity $activity, string $status = 'submitted', ?TrainingSession $session = null): SubmissionVersion
+    private function version(User $participant, Activity $activity, string $status = 'submitted'): SubmissionVersion
     {
         $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create([
             'status' => $status,
-            ...($session ? ['training_session_id' => $session->id] : []),
         ]);
 
         return SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => $status, 'submitted_at' => now()]);

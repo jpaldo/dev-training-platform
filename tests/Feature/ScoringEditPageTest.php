@@ -211,19 +211,19 @@ class ScoringEditPageTest extends TestCase
         $this->assertSame(70, $version->activityScore()->value('second_score'));
     }
 
-    public function test_only_an_admin_or_the_participants_current_mentor_in_the_session_opens_the_page(): void
+    public function test_only_an_admin_or_the_participants_current_mentor_in_the_curriculum_opens_the_page(): void
     {
         [$currentMentor, $version] = $this->assignedCoachWithVersion();
         $this->score($version, ['D1' => [25, 'Saved D1']], null, ['second_reader_required' => true]);
-        $session = $version->submission->trainingSession;
+        $program = $version->submission->activity->week->program;
         $previousMentor = User::factory()->create(['role' => 'coach']);
-        MentorAssignment::factory()->ended()->create(['training_session_id' => $session->id, 'participant_id' => $version->submission->user_id, 'mentor_id' => $previousMentor->id]);
-        $sessionMentorOfAnother = User::factory()->create(['role' => 'coach']);
-        $session->mentors()->attach($sessionMentorOfAnother);
-        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'mentor_id' => $sessionMentorOfAnother->id]);
+        MentorAssignment::factory()->ended()->create(['program_id' => $program->id, 'participant_id' => $version->submission->user_id, 'mentor_id' => $previousMentor->id]);
+        $curriculumMentorOfAnother = User::factory()->create(['role' => 'coach']);
+        $program->mentors()->attach($curriculumMentorOfAnother);
+        MentorAssignment::factory()->create(['program_id' => $program->id, 'mentor_id' => $curriculumMentorOfAnother->id]);
         $url = route('coach.scoring.edit', $version);
 
-        foreach ([$previousMentor, $sessionMentorOfAnother, User::factory()->create(['role' => 'coach'])] as $coach) {
+        foreach ([$previousMentor, $curriculumMentorOfAnother, User::factory()->create(['role' => 'coach'])] as $coach) {
             $this->actingAs($coach)->get($url)->assertForbidden();
         }
         $this->actingAs($currentMentor)->get($url)->assertOk()->assertSee('id="score-form"', false)->assertSee('Assign second reader');
@@ -299,7 +299,7 @@ class ScoringEditPageTest extends TestCase
     }
 
     /**
-     * A coach who is the current mentor, in the submission's session, of the participant of a new submitted version.
+     * A coach who is the current mentor, in the submission's curriculum, of the participant of a new submitted version.
      *
      * @param  array<string, mixed>  $fieldValues
      * @param  list<array{key: string, label: string, max: int}>  $dimensions
@@ -309,7 +309,7 @@ class ScoringEditPageTest extends TestCase
     {
         $coach = User::factory()->create(['role' => 'coach']);
         $version = $this->version($fieldValues, $dimensions);
-        MentorAssignment::factory()->create(['training_session_id' => $version->submission->training_session_id, 'participant_id' => $version->submission->user_id, 'mentor_id' => $coach->id]);
+        MentorAssignment::factory()->create(['program_id' => $version->submission->activity->week->program_id, 'participant_id' => $version->submission->user_id, 'mentor_id' => $coach->id]);
 
         return [$coach, $version];
     }

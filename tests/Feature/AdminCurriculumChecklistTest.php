@@ -12,7 +12,6 @@ use App\Models\GateEvaluation;
 use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\ChecklistService;
@@ -46,7 +45,7 @@ class AdminCurriculumChecklistTest extends TestCase
                 'name="_method" value="PATCH"',
                 '<button type="submit" disabled name="direction" value="up" aria-label="Move Feature shipped up"',
                 '<button type="submit"  name="direction" value="down" aria-label="Move Feature shipped down"',
-                'action="'.$this->destroyUrl($deliverable).'" data-confirm="Remove Feature shipped? Mentors&#039; earlier ticks are kept; the item leaves the checklist of every session."',
+                'action="'.$this->destroyUrl($deliverable).'" data-confirm="Remove Feature shipped? Mentors&#039; earlier ticks are kept; the item leaves the checklist."',
                 'name="_method" value="DELETE"',
                 'aria-label="Remove Feature shipped"',
                 'action="'.$this->itemUrl($deliverable).'"',
@@ -162,9 +161,10 @@ class AdminCurriculumChecklistTest extends TestCase
         [$deliverable] = $this->items($checklist);
         $participant = User::factory()->create(['role' => 'participant']);
         $mentor = User::factory()->create(['role' => 'coach']);
-        $session = TrainingSession::factory()->forWeek($checklist->week)->withParticipants($participant)->create();
-        $session->mentors()->attach($mentor->id);
-        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $mentor->id]);
+        $program = $checklist->week->program;
+        $program->participants()->attach($participant, ['joined_at' => now()]);
+        $program->mentors()->attach($mentor->id);
+        MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $mentor->id]);
         $review = GateEvaluation::factory()->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
         $tick = GateCriterionEvaluation::factory()->for($review)->for($deliverable, 'criterion')->create(['status' => GateCriterionStatus::Met]);
 
@@ -175,17 +175,17 @@ class AdminCurriculumChecklistTest extends TestCase
         $this->assertSame($deliverable->id, $tick->refresh()->gate_criterion_id);
         $this->assertSame(GateCriterionStatus::Met, $tick->status);
         $this->actingAs($participant)
-            ->get(route('training.gates.show', [$session, $checklist->week, $checklist]))
+            ->get(route('training.gates.show', [$program, $checklist->week, $checklist]))
             ->assertOk()
             ->assertSeeInOrder(['>✓</span>', 'Checkout flow shipped', 'Met', 'Customers can pay.'], false)
             ->assertDontSee('Feature shipped');
         $this->actingAs($participant)
-            ->get(route('training.weeks.show', [$session, $checklist->week]))
+            ->get(route('training.weeks.show', [$program, $checklist->week]))
             ->assertOk()
             ->assertSeeInOrder(['Checkout flow shipped', 'Met'])
             ->assertDontSee('Feature shipped');
         $this->actingAs($mentor)
-            ->get(route('training.coach.gates.show', [$session, $checklist->week, $participant, $checklist]))
+            ->get(route('training.coach.gates.show', [$program, $checklist->week, $participant, $checklist]))
             ->assertOk()
             ->assertSeeInOrder([
                 'id="criterion-'.$deliverable->id.'"',
@@ -254,8 +254,9 @@ class AdminCurriculumChecklistTest extends TestCase
         $checklist = $this->checklist();
         [, , $video] = $this->items($checklist);
         $participant = User::factory()->create(['role' => 'participant']);
-        $session = TrainingSession::factory()->forWeek($checklist->week)->withParticipants($participant)->create();
-        $weekUrl = route('training.weeks.show', [$session, $checklist->week]);
+        $program = $checklist->week->program;
+        $program->participants()->attach($participant, ['joined_at' => now()]);
+        $weekUrl = route('training.weeks.show', [$program, $checklist->week]);
         $this->actingAs($participant)->get($weekUrl)->assertSee('Choose Weekly Video');
 
         $this->actingAs($admin)
@@ -267,7 +268,7 @@ class AdminCurriculumChecklistTest extends TestCase
             ->assertOk()
             ->assertDontSee('Choose Weekly Video');
         $this->actingAs($participant)
-            ->get(route('training.video-recording.edit', [$session, $checklist->week]))
+            ->get(route('training.video-recording.edit', [$program, $checklist->week]))
             ->assertNotFound();
     }
 
@@ -497,8 +498,8 @@ class AdminCurriculumChecklistTest extends TestCase
         $checklist = $this->checklist();
         $deliverable = $this->addItem($checklist, GateCriterion::TYPE_DELIVERABLE, 'Feature shipped', 1);
         $sessionLogs = $this->addItem($checklist, GateCriterion::TYPE_SESSION_LOGS, 'Session logs committed', 2);
-        [$session, $participant, $mentor] = $this->sessionWithMentor($checklist);
-        $review = GateEvaluation::factory()->for($session)->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::Passed]);
+        [$program, $participant, $mentor] = $this->programWithMentor($checklist);
+        $review = GateEvaluation::factory()->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::Passed]);
         GateCriterionEvaluation::factory()->for($review)->for($deliverable, 'criterion')->create(['status' => GateCriterionStatus::Met]);
         GateCriterionEvaluation::factory()->for($review)->for($sessionLogs, 'criterion')->create(['status' => GateCriterionStatus::Met]);
 
@@ -509,11 +510,11 @@ class AdminCurriculumChecklistTest extends TestCase
 
         $this->assertSame(GateEvaluationStatus::Passed, $review->refresh()->status);
         $this->actingAs($participant)
-            ->get(route('training.gates.show', [$session, $checklist->week, $checklist]))
+            ->get(route('training.gates.show', [$program, $checklist->week, $checklist]))
             ->assertOk()
             ->assertSeeInOrder(['COMPLETED', 'Feature shipped', 'Met', 'Session logs committed', 'Met', 'Demo recorded', 'Awaiting Review', 'Record a short demo.']);
         $reviewPage = $this->actingAs($mentor)
-            ->get(route('training.coach.gates.show', [$session, $checklist->week, $participant, $checklist]))
+            ->get(route('training.coach.gates.show', [$program, $checklist->week, $participant, $checklist]))
             ->assertOk()
             ->assertSeeInOrder(['Feature shipped', 'Session logs committed', 'Demo recorded</label>', 'Record a short demo.'], false)
             ->getContent();
@@ -526,13 +527,13 @@ class AdminCurriculumChecklistTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $checklist = $this->checklist();
         $deliverable = $this->addItem($checklist, GateCriterion::TYPE_DELIVERABLE, 'Feature shipped', 1);
-        [$session, $participant, $mentor] = $this->sessionWithMentor($checklist);
-        $review = GateEvaluation::factory()->for($session)->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::Passed]);
+        [$program, $participant, $mentor] = $this->programWithMentor($checklist);
+        $review = GateEvaluation::factory()->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::Passed]);
         GateCriterionEvaluation::factory()->for($review)->for($deliverable, 'criterion')->create(['status' => GateCriterionStatus::Met]);
         $this->actingAs($admin)
             ->post($this->storeUrl($checklist), ['type' => GateCriterion::TYPE_DELIVERABLE, 'title' => 'Demo recorded', 'description' => null])
             ->assertSessionHasNoErrors();
-        $reviewUrl = route('training.coach.gates.update', [$session, $checklist->week, $participant, $checklist]);
+        $reviewUrl = route('training.coach.gates.update', [$program, $checklist->week, $participant, $checklist]);
         $ticks = ['criteria' => [$deliverable->id => GateCriterionStatus::Met->value]];
 
         $this->actingAs($mentor)
@@ -546,7 +547,7 @@ class AdminCurriculumChecklistTest extends TestCase
 
         $this->assertSame(GateEvaluationStatus::NeedsRevision, $review->refresh()->status);
         $this->actingAs($participant)
-            ->get(route('training.gates.show', [$session, $checklist->week, $checklist]))
+            ->get(route('training.gates.show', [$program, $checklist->week, $checklist]))
             ->assertOk()
             ->assertSeeInOrder(['INCOMPLETE', 'Feature shipped', 'Met', 'Demo recorded', 'Missing']);
     }
@@ -556,8 +557,8 @@ class AdminCurriculumChecklistTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $checklist = $this->checklist();
         [$deliverable, $sessionLogs, $video] = $this->items($checklist);
-        [$session, $participant] = $this->sessionWithMentor($checklist);
-        $review = GateEvaluation::factory()->for($session)->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
+        [$program, $participant] = $this->programWithMentor($checklist);
+        $review = GateEvaluation::factory()->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
         $deliverableTick = GateCriterionEvaluation::factory()->for($review)->for($deliverable, 'criterion')->create(['status' => GateCriterionStatus::Met]);
         $sessionLogsTick = GateCriterionEvaluation::factory()->for($review)->for($sessionLogs, 'criterion')->create(['status' => GateCriterionStatus::NotMet]);
 
@@ -573,7 +574,7 @@ class AdminCurriculumChecklistTest extends TestCase
         $this->assertDatabaseHas('gate_criterion_evaluations', ['id' => $deliverableTick->id, 'gate_criterion_id' => $deliverable->id, 'status' => 'met']);
         $this->assertDatabaseHas('gate_criterion_evaluations', ['id' => $sessionLogsTick->id, 'gate_criterion_id' => $sessionLogs->id, 'status' => 'not_met']);
         $this->actingAs($participant)
-            ->get(route('training.gates.show', [$session, $checklist->week, $checklist]))
+            ->get(route('training.gates.show', [$program, $checklist->week, $checklist]))
             ->assertOk()
             ->assertSeeInOrder(['Session logs committed', 'Missing', 'Feature shipped', 'Met', 'Video walkthrough', 'Awaiting Review']);
 
@@ -724,8 +725,8 @@ class AdminCurriculumChecklistTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $checklist = $this->checklist();
         [$deliverable, $sessionLogs, $video] = $this->items($checklist);
-        [$session, $participant] = $this->sessionWithMentor($checklist);
-        $review = GateEvaluation::factory()->for($session)->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
+        [$program, $participant] = $this->programWithMentor($checklist);
+        $review = GateEvaluation::factory()->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
         $deliverableTick = GateCriterionEvaluation::factory()->for($review)->for($deliverable, 'criterion')->create(['status' => GateCriterionStatus::Met]);
 
         $this->actingAs($admin)
@@ -760,8 +761,8 @@ class AdminCurriculumChecklistTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $checklist = $this->checklist();
         [$deliverable, $sessionLogs, $video] = $this->items($checklist);
-        [$session, $participant] = $this->sessionWithMentor($checklist);
-        $review = GateEvaluation::factory()->for($session)->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
+        [$program, $participant] = $this->programWithMentor($checklist);
+        $review = GateEvaluation::factory()->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
         GateCriterionEvaluation::factory()->for($review)->for($deliverable, 'criterion')->create(['status' => GateCriterionStatus::Met]);
         GateCriterionEvaluation::factory()->for($review)->for($sessionLogs, 'criterion')->create(['status' => GateCriterionStatus::NotMet]);
         GateCriterionEvaluation::factory()->for($review)->for($video, 'criterion')->create(['status' => GateCriterionStatus::Met]);
@@ -801,27 +802,27 @@ class AdminCurriculumChecklistTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $checklist = $this->checklist();
         [$deliverable, $sessionLogs] = $this->items($checklist);
-        [$session, $participant, $mentor] = $this->sessionWithMentor($checklist);
-        $review = GateEvaluation::factory()->for($session)->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
+        [$program, $participant, $mentor] = $this->programWithMentor($checklist);
+        $review = GateEvaluation::factory()->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
         GateCriterionEvaluation::factory()->for($review)->for($deliverable, 'criterion')->create(['status' => GateCriterionStatus::NotMet]);
         GateCriterionEvaluation::factory()->for($review)->for($sessionLogs, 'criterion')->create(['status' => GateCriterionStatus::Met]);
 
         $this->actingAs($admin)->delete($this->destroyUrl($deliverable))->assertSessionHas('status', 'Removed "Feature shipped".');
 
         $this->actingAs($participant)
-            ->get(route('training.gates.show', [$session, $checklist->week, $checklist]))
+            ->get(route('training.gates.show', [$program, $checklist->week, $checklist]))
             ->assertOk()
             ->assertSeeInOrder(['Session logs committed', 'Met', 'Video walkthrough', 'Awaiting Review'])
             ->assertDontSee('Feature shipped');
         $this->actingAs($mentor)
-            ->get(route('training.coach.gates.show', [$session, $checklist->week, $participant, $checklist]))
+            ->get(route('training.coach.gates.show', [$program, $checklist->week, $participant, $checklist]))
             ->assertOk()
             ->assertSee('id="criterion-'.$sessionLogs->id.'"', false)
             ->assertDontSee('id="criterion-'.$deliverable->id.'"', false)
             ->assertDontSee('Feature shipped');
     }
 
-    public function test_a_retired_item_leaves_the_missing_items_on_the_participants_session_page(): void
+    public function test_a_retired_item_leaves_the_missing_items_on_the_participants_curriculum_page(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $checklist = $this->checklist();
@@ -829,23 +830,24 @@ class AdminCurriculumChecklistTest extends TestCase
         $program = $checklist->week->program;
         Activity::factory()->for(TrainingWeek::factory()->for($program)->create(['week_number' => 2, 'position' => 2]), 'week')->create();
         $participant = User::factory()->create(['role' => 'participant']);
-        $session = TrainingSession::factory()->for($program)->withParticipants($participant)->create(['weeks_count' => 2, 'starts_on' => today()->subWeek()]);
-        $review = GateEvaluation::factory()->for($session)->for($checklist, 'gate')->for($participant, 'participant')->create([
+        $program->participants()->attach($participant, ['joined_at' => now()]);
+        $checklist->week->update(['starts_on' => today()->subWeek(), 'ends_on' => today()->subDay()]);
+        $review = GateEvaluation::factory()->for($checklist, 'gate')->for($participant, 'participant')->create([
             'status' => GateEvaluationStatus::NeedsRevision,
             'evaluated_at' => now()->subDay(),
         ]);
         GateCriterionEvaluation::factory()->for($review)->for($deliverable, 'criterion')->create(['status' => GateCriterionStatus::NotMet]);
         GateCriterionEvaluation::factory()->for($review)->for($sessionLogs, 'criterion')->create(['status' => GateCriterionStatus::NotMet]);
-        $sessionUrl = route('training.sessions.show', $session);
+        $programUrl = route('training.programs.show', $program);
         $this->actingAs($participant)
-            ->get($sessionUrl)
+            ->get($programUrl)
             ->assertOk()
             ->assertSeeInOrder(['Not met in your Week 1 review:', '>Feature shipped</a>', '>Session logs committed</a>'], false);
 
         $this->actingAs($admin)->delete($this->destroyUrl($deliverable))->assertSessionHas('status', 'Removed "Feature shipped".');
 
         $this->actingAs($participant)
-            ->get($sessionUrl)
+            ->get($programUrl)
             ->assertOk()
             ->assertSeeInOrder(['Not met in your Week 1 review:', '>Session logs committed</a>'], false)
             ->assertDontSee('>Feature shipped</a>', false);
@@ -859,8 +861,8 @@ class AdminCurriculumChecklistTest extends TestCase
         $retired = $this->addItem($checklist, GateCriterion::TYPE_DELIVERABLE, 'Demo recorded', 2, onChecklist: false);
         $sessionLogs = $this->addItem($checklist, GateCriterion::TYPE_SESSION_LOGS, 'Session logs committed', 3);
         $olderRetired = $this->addItem($checklist, GateCriterion::TYPE_DELIVERABLE, 'Older retired deliverable', 4, onChecklist: false);
-        [$session, $participant] = $this->sessionWithMentor($checklist);
-        $review = GateEvaluation::factory()->for($session)->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
+        [$program, $participant] = $this->programWithMentor($checklist);
+        $review = GateEvaluation::factory()->for($checklist, 'gate')->for($participant, 'participant')->create(['status' => GateEvaluationStatus::NeedsRevision]);
         GateCriterionEvaluation::factory()->for($review)->for($deliverable, 'criterion')->create(['status' => GateCriterionStatus::NotMet]);
         $retiredTick = GateCriterionEvaluation::factory()->for($review)->for($retired, 'criterion')->create(['status' => GateCriterionStatus::Met]);
 
@@ -877,7 +879,7 @@ class AdminCurriculumChecklistTest extends TestCase
         $this->assertFalse($olderRetired->is_required);
         $this->assertDatabaseHas('gate_criterion_evaluations', ['id' => $retiredTick->id, 'gate_criterion_id' => $retired->id, 'status' => 'met']);
         $this->actingAs($participant)
-            ->get(route('training.gates.show', [$session, $checklist->week, $checklist]))
+            ->get(route('training.gates.show', [$program, $checklist->week, $checklist]))
             ->assertOk()
             ->assertSeeInOrder(['Feature shipped', 'Missing', 'Session logs committed', 'Awaiting Review', 'Demo recorded', 'Met']);
 
@@ -1105,19 +1107,20 @@ class AdminCurriculumChecklistTest extends TestCase
     }
 
     /**
-     * A session of the checklist's week with one participant and their mentor.
+     * The checklist's curriculum with one participant and their mentor.
      *
-     * @return array{TrainingSession, User, User}
+     * @return array{Program, User, User}
      */
-    private function sessionWithMentor(TrainingGate $checklist): array
+    private function programWithMentor(TrainingGate $checklist): array
     {
         $participant = User::factory()->create(['role' => 'participant']);
         $mentor = User::factory()->create(['role' => 'coach']);
-        $session = TrainingSession::factory()->forWeek($checklist->week)->withParticipants($participant)->create();
-        $session->mentors()->attach($mentor->id);
-        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $mentor->id]);
+        $program = $checklist->week->program;
+        $program->participants()->attach($participant, ['joined_at' => now()]);
+        $program->mentors()->attach($mentor->id);
+        MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $mentor->id]);
 
-        return [$session, $participant, $mentor];
+        return [$program, $participant, $mentor];
     }
 
     /**

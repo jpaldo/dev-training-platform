@@ -10,12 +10,10 @@ use App\Models\ActivitySubmission;
 use App\Models\AdminAuditLog;
 use App\Models\MentorAssignment;
 use App\Models\Program;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\DevelopmentAccountProvisioner;
 use App\Services\MentorAssignmentService;
-use Database\Seeders\L4FirstSessionSeeder;
 use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -48,19 +46,20 @@ class DevelopmentAccountProvisioningTest extends TestCase
             $this->assertTrue(Hash::check($password, $user->password));
         }
 
-        $session = TrainingSession::query()->sole();
-        $this->assertEqualsCanonicalizing(array_keys(self::demoMentorEmails()), $session->participants()->pluck('email')->all());
-        $this->assertEqualsCanonicalizing(array_values(self::demoMentorEmails()), $session->mentors()->pluck('email')->all());
-        $this->assertSame(3, MentorAssignment::query()->current()->count());
+        $program = Program::query()->sole();
+        $this->assertEqualsCanonicalizing(array_keys(self::demoMentorEmails()), $program->participants()->pluck('email')->all());
+        $this->assertEqualsCanonicalizing(array_values(self::demoMentorEmails()), $program->mentors()->pluck('email')->all());
+        $this->assertSame(3, MentorAssignment::query()->whereBelongsTo($program)->current()->count());
     }
 
-    public function test_database_seeder_seeds_the_l4_program_as_the_only_program_with_its_first_session(): void
+    public function test_database_seeder_seeds_the_l4_program_as_the_only_program_with_its_weeks_dated_from_9_nov_2026(): void
     {
         $this->seed();
 
-        $this->assertSame([L4TrainingProgramSeeder::PROGRAM_NAME], Program::query()->pluck('name')->all());
-        $this->assertTrue(Program::query()->sole()->is_active);
-        $this->assertSame([L4FirstSessionSeeder::SESSION_TITLE], TrainingSession::query()->whereBelongsTo(Program::query()->sole())->pluck('title')->all());
+        $program = Program::query()->sole();
+        $this->assertSame(L4TrainingProgramSeeder::PROGRAM_NAME, $program->name);
+        $this->assertTrue($program->is_active);
+        $this->assertSame('9 Nov – 6 Dec 2026', $program->dateRangeLabel());
     }
 
     public function test_development_account_command_creates_nothing_and_changes_nothing_on_a_second_run(): void
@@ -79,7 +78,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
         }
     }
 
-    public function test_baseline_command_restores_the_l4_program_and_its_first_session_idempotently_without_deleting_users(): void
+    public function test_baseline_command_restores_the_dated_l4_program_idempotently_without_deleting_users(): void
     {
         $participant = User::factory()->create(['role' => 'participant']);
 
@@ -104,7 +103,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
         $this->assertDatabaseHas('activity_submissions', ['id' => $submission->id, 'user_id' => $participant->id]);
         $this->assertDatabaseHas('programs', ['name' => L4TrainingProgramSeeder::PROGRAM_NAME, 'is_active' => true]);
         $this->assertDatabaseCount('training_weeks', 4);
-        $this->assertSame(L4FirstSessionSeeder::SESSION_TITLE, TrainingSession::query()->sole()->title);
+        $this->assertSame('9 Nov – 6 Dec 2026', Program::query()->sole()->dateRangeLabel());
     }
 
     public function test_baseline_command_refuses_production(): void
@@ -128,12 +127,12 @@ class DevelopmentAccountProvisioningTest extends TestCase
         $this->assertSame(3, User::query()->where('role', UserRole::Coach)->where('job_role', JobRole::Developer)->count());
     }
 
-    public function test_development_account_command_enrolls_each_demo_participant_in_the_first_session_with_their_demo_mentor_once(): void
+    public function test_development_account_command_enrolls_each_demo_participant_in_the_l4_curriculum_with_their_demo_mentor_once(): void
     {
         $this->travelTo('2026-11-02 09:00:00');
-        $this->seed([L4TrainingProgramSeeder::class, L4FirstSessionSeeder::class]);
+        $this->seed(L4TrainingProgramSeeder::class);
         config()->set('app.env', 'staging');
-        $enrolledMessage = 'Ensured 3 demo participants in "'.L4FirstSessionSeeder::SESSION_TITLE.'", each with their demo mentor.';
+        $enrolledMessage = 'Ensured 3 demo participants in "L4 Accelerator Training", each with their demo mentor.';
 
         $this->artisan('app:ensure-development-accounts')->expectsOutput($enrolledMessage)->assertExitCode(0);
         $before = $this->enrollmentRows();
@@ -141,16 +140,16 @@ class DevelopmentAccountProvisioningTest extends TestCase
         $this->artisan('app:ensure-development-accounts')->expectsOutput($enrolledMessage)->assertExitCode(0);
 
         $this->assertSame($before, $this->enrollmentRows());
-        $session = TrainingSession::query()->sole();
-        $this->assertEqualsCanonicalizing(array_values(self::demoMentorEmails()), $session->mentors()->pluck('email')->all());
-        $this->assertCount(3, $before['training_session_participants']);
+        $program = Program::query()->sole();
+        $this->assertEqualsCanonicalizing(array_values(self::demoMentorEmails()), $program->mentors()->pluck('email')->all());
+        $this->assertCount(3, $before['program_participants']);
         $this->assertCount(3, $before['mentor_assignments']);
         $this->assertSame(0, AdminAuditLog::count());
 
         foreach (self::demoMentorEmails() as $participantEmail => $mentorEmail) {
             $participant = User::query()->where('email', $participantEmail)->sole();
-            $membership = $session->participants()->whereKey($participant->id)->sole()->pivot;
-            $assignment = MentorAssignment::query()->forParticipantInSession($session->id, $participant->id)->sole();
+            $membership = $program->participants()->whereKey($participant->id)->sole()->pivot;
+            $assignment = MentorAssignment::query()->forParticipantInProgram($program->id, $participant->id)->sole();
 
             $this->assertNull($membership->added_by);
             $this->assertSame($mentorEmail, $assignment->mentor->email);
@@ -159,38 +158,39 @@ class DevelopmentAccountProvisioningTest extends TestCase
             $this->actingAs($participant)->get(route('dashboard'))
                 ->assertOk()
                 ->assertSeeInOrder([
-                    '>My trainings</h2>',
-                    'href="'.route('training.sessions.show', $session).'"',
-                    '>'.L4FirstSessionSeeder::SESSION_TITLE.'</a>',
-                    '>Available trainings</h2>',
+                    '>My curricula</h2>',
+                    'href="'.route('training.programs.show', $program).'"',
+                    '>L4 Accelerator Training</a>',
+                    '>Available curricula</h2>',
                 ], false);
         }
     }
 
     public function test_development_account_command_keeps_a_demo_participants_mentor_chosen_by_an_admin(): void
     {
-        $this->seed([L4TrainingProgramSeeder::class, L4FirstSessionSeeder::class]);
+        $this->seed(L4TrainingProgramSeeder::class);
         $this->artisan('app:ensure-development-accounts')->assertExitCode(0);
-        $session = TrainingSession::query()->sole();
+        $program = Program::query()->sole();
         $participant = User::query()->where('email', 'participant1.dev@example.test')->sole();
         $coach = User::query()->where('email', 'coach.dev@example.test')->sole();
-        app(MentorAssignmentService::class)->assign($session, $participant, $coach, User::query()->where('email', 'admin.dev@example.test')->sole());
+        app(MentorAssignmentService::class)->assign($program, $participant, $coach, User::query()->where('email', 'admin.dev@example.test')->sole());
 
         $this->artisan('app:ensure-development-accounts')->assertExitCode(0);
 
-        $this->assertTrue($coach->is(app(MentorAssignmentService::class)->currentMentor($session, $participant)));
+        $this->assertTrue($coach->is(app(MentorAssignmentService::class)->currentMentor($program, $participant)));
         $this->assertSame(4, MentorAssignment::count());
     }
 
-    public function test_development_account_command_skips_the_demo_enrollment_when_the_first_session_does_not_exist(): void
+    public function test_development_account_command_skips_the_demo_enrollment_when_the_l4_curriculum_does_not_exist(): void
     {
         $this->artisan('app:ensure-development-accounts')
             ->expectsOutput('Ensured '.count(self::seededAccounts()).' development accounts.')
-            ->expectsOutput('Skipped the demo enrollment: the training session "'.L4FirstSessionSeeder::SESSION_TITLE.'" does not exist.')
+            ->expectsOutput('Skipped the demo enrollment: the curriculum "L4 Accelerator Training" does not exist.')
             ->assertExitCode(0);
 
         $this->assertSame(count(self::seededAccounts()), User::count());
-        $this->assertDatabaseCount('training_session_mentors', 0);
+        $this->assertDatabaseCount('program_participants', 0);
+        $this->assertDatabaseCount('program_mentors', 0);
         $this->assertDatabaseCount('mentor_assignments', 0);
     }
 
@@ -219,16 +219,16 @@ class DevelopmentAccountProvisioningTest extends TestCase
     #[DataProvider('refusedEnvironments')]
     public function test_demo_enrollment_throws_and_enrolls_nobody_outside_local_staging_and_testing(string $environment): void
     {
-        $this->seed([L4TrainingProgramSeeder::class, L4FirstSessionSeeder::class]);
+        $this->seed(L4TrainingProgramSeeder::class);
         app(DevelopmentAccountProvisioner::class)->provision();
         config()->set('app.env', $environment);
 
         $this->assertThrows(
-            fn (): ?int => app(DevelopmentAccountProvisioner::class)->enrollInFirstSession(),
+            fn (): ?int => app(DevelopmentAccountProvisioner::class)->enrollInL4Program(),
             LogicException::class,
         );
-        $this->assertDatabaseCount('training_session_participants', 0);
-        $this->assertDatabaseCount('training_session_mentors', 0);
+        $this->assertDatabaseCount('program_participants', 0);
+        $this->assertDatabaseCount('program_mentors', 0);
         $this->assertDatabaseCount('mentor_assignments', 0);
     }
 
@@ -284,10 +284,10 @@ class DevelopmentAccountProvisioningTest extends TestCase
             'requirement_type' => 'submission_field',
             'configuration' => ['key' => 'artifact_type', 'label' => 'Artifact Type', 'type' => 'text', 'required' => false],
         ]);
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $week->program->participants()->attach($participant, ['joined_at' => now()]);
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
 
-        $this->actingAs($participant)->post(route('training.submission.draft', [$session, $week, $activity]), [
+        $this->actingAs($participant)->post(route('training.submission.draft', [$week->program, $week, $activity]), [
             'field_values' => ['artifact_type' => 'Other', 'artifact_type_other' => '  API contract test  '],
         ])->assertRedirect();
 
@@ -354,13 +354,14 @@ class DevelopmentAccountProvisioningTest extends TestCase
     }
 
     /**
-     * Every row of the session membership, mentor and assignment tables, to compare one provisioning run with the next.
+     * Every row of the curriculum membership, mentor and assignment tables, to compare one provisioning run with the
+     * next.
      *
-     * @return array{training_session_participants: list<array<string, mixed>>, training_session_mentors: list<array<string, mixed>>, mentor_assignments: list<array<string, mixed>>}
+     * @return array{program_participants: list<array<string, mixed>>, program_mentors: list<array<string, mixed>>, mentor_assignments: list<array<string, mixed>>}
      */
     private function enrollmentRows(): array
     {
-        return collect(['training_session_participants', 'training_session_mentors', 'mentor_assignments'])
+        return collect(['program_participants', 'program_mentors', 'mentor_assignments'])
             ->mapWithKeys(fn (string $table): array => [$table => DB::table($table)->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all()])
             ->all();
     }

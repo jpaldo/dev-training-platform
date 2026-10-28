@@ -13,7 +13,6 @@ use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionInteraction;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\OpenRouterScoringSuggestionProvider;
 use App\Services\ScoringService;
@@ -54,8 +53,8 @@ class ScoringTest extends TestCase
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
         $submission = ActivitySubmission::factory()->create(['activity_id' => $activity->id, 'user_id' => $participant->id, 'status' => 'submitted', 'submitted_at' => now()]);
-        $submission->trainingSession->participants()->attach($participant, ['joined_at' => now()]);
-        MentorAssignment::factory()->create(['training_session_id' => $submission->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+        $program->participants()->attach($participant, ['joined_at' => now()]);
+        MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         $version = $submission->versions()->create(['version_number' => 1, 'status' => 'submitted', 'field_values' => ['exact_prompt' => 'Prompt'], 'submitted_at' => now()]);
 
         return [$participant, $coach, $version];
@@ -68,13 +67,13 @@ class ScoringTest extends TestCase
         $this->actingAs($coach)->get(route('coach.scoring.criteria'))->assertOk()->assertSee('D1')->assertSee('D5')->assertSee('second reader')->assertSee('Bias watch');
         $this->actingAs($coach)->get(route('coach.scoring.edit', $version))->assertOk()->assertSee('Evidence / Reasoning');
         $payload = ['dimensions' => ['D1' => ['points' => 25, 'evidence_reasoning' => 'Requirements met.'], 'D2' => ['points' => 21, 'evidence_reasoning' => 'Validation executed.'], 'D3' => ['points' => 17, 'evidence_reasoning' => 'AI used deliberately.'], 'D4' => ['points' => 12, 'evidence_reasoning' => 'Judgment documented.'], 'D5' => ['points' => 8, 'evidence_reasoning' => 'Evidence supplied.']]];
-        $this->actingAs($coach)->post(route('coach.scoring.store', $version), $payload)->assertRedirect(route('coach.scoring.participant', [$version->submission->trainingSession, $participant]));
+        $this->actingAs($coach)->post(route('coach.scoring.store', $version), $payload)->assertRedirect(route('coach.scoring.participant', [$version->submission->activity->week->program, $participant]));
         $score = ActivityScore::with('dimensions')->firstOrFail();
         $this->assertSame(ActivityScoreStatus::Published, $score->status);
         $this->assertSame(83, $score->total_score);
         $this->assertSame('Proficient', $score->performance_band);
         $this->assertCount(5, $score->dimensions);
-        $this->actingAs($coach)->get(route('coach.scoring.participant', [$version->submission->trainingSession, $participant]))->assertOk()->assertSee('83')->assertSee('Proficient');
+        $this->actingAs($coach)->get(route('coach.scoring.participant', [$version->submission->activity->week->program, $participant]))->assertOk()->assertSee('83')->assertSee('Proficient');
     }
 
     public function test_overall_feedback_is_saved_reloaded_and_updated_separately_from_change_reason(): void
@@ -286,15 +285,15 @@ class ScoringTest extends TestCase
     {
         $activity = Activity::factory()->create();
         $participant = User::factory()->create();
-        $session = TrainingSession::factory()->forWeek($activity->week)->withParticipants($participant)->create();
+        $activity->week->program->participants()->attach($participant, ['joined_at' => now()]);
         $workflow = app(SubmissionWorkflowService::class);
-        $draft = $workflow->saveDraft($participant, $session, $activity, ['prompt' => 'Legacy prompt'], null, [
+        $draft = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy prompt'], null, [
             ['prompt' => 'Initial prompt', 'output' => 'Initial output'],
             ['prompt' => 'Follow-up prompt', 'output' => 'Follow-up output'],
         ]);
 
         $this->assertCount(2, $draft->fresh()->interactions);
-        $submitted = $workflow->saveDraft($participant, $session, $activity, ['prompt' => 'Legacy prompt'], null, [
+        $submitted = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy prompt'], null, [
             ['prompt' => 'Initial prompt', 'output' => 'Updated output'],
             ['prompt' => 'Follow-up prompt', 'output' => 'Follow-up output'],
             ['prompt' => 'Third prompt', 'output' => 'Third output'],
@@ -308,13 +307,13 @@ class ScoringTest extends TestCase
     {
         $activity = Activity::factory()->create();
         $participant = User::factory()->create();
-        $session = TrainingSession::factory()->forWeek($activity->week)->withParticipants($participant)->create();
+        $activity->week->program->participants()->attach($participant, ['joined_at' => now()]);
         $workflow = app(SubmissionWorkflowService::class);
-        $v1 = $workflow->saveDraft($participant, $session, $activity, ['prompt' => 'Legacy'], null, [['prompt' => 'Prompt 1', 'output' => 'Output 1'], ['prompt' => 'Prompt 2', 'output' => 'Output 2']]);
+        $v1 = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy'], null, [['prompt' => 'Prompt 1', 'output' => 'Output 1'], ['prompt' => 'Prompt 2', 'output' => 'Output 2']]);
         $workflow->submit($participant, $v1);
         $v1->refresh();
         $v1->submission->update(['status' => 'needs_revision']);
-        $v2 = $workflow->saveDraft($participant, $session, $activity, ['prompt' => 'Legacy'], null, [['prompt' => 'Prompt 1', 'output' => 'Output 1'], ['prompt' => 'Prompt 2 revised', 'output' => 'Output 2 revised'], ['prompt' => 'Prompt 3', 'output' => 'Output 3']]);
+        $v2 = $workflow->saveDraft($participant, $activity, ['prompt' => 'Legacy'], null, [['prompt' => 'Prompt 1', 'output' => 'Output 1'], ['prompt' => 'Prompt 2 revised', 'output' => 'Output 2 revised'], ['prompt' => 'Prompt 3', 'output' => 'Output 3']]);
         $workflow->submit($participant, $v2);
 
         $this->assertSame(['Output 1', 'Output 2'], $v1->fresh()->interactions->pluck('output')->all());
@@ -535,7 +534,7 @@ class ScoringTest extends TestCase
     }
 
     /**
-     * A coach who is the current mentor, in the submission's session, of the participant of a submitted version of an
+     * A coach who is the current mentor, in the submission's curriculum, of the participant of a submitted version of an
      * activity with the given scoring dimensions.
      *
      * @param  list<array{key: string, label: string, max: int}>  $dimensions
@@ -547,7 +546,7 @@ class ScoringTest extends TestCase
         $submission = ActivitySubmission::factory()->for($activity)->create(['status' => 'submitted', 'submitted_at' => now()]);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
         $coach = User::factory()->create(['role' => 'coach']);
-        MentorAssignment::factory()->create(['training_session_id' => $submission->training_session_id, 'participant_id' => $submission->user_id, 'mentor_id' => $coach->id]);
+        MentorAssignment::factory()->create(['program_id' => $activity->week->program_id, 'participant_id' => $submission->user_id, 'mentor_id' => $coach->id]);
 
         return [$coach, $version];
     }

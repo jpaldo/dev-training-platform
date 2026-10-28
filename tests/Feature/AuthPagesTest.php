@@ -2,10 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\TrainingSession;
+use App\Models\Program;
 use App\Models\User;
 use App\Services\PasswordSetupService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class AuthPagesTest extends TestCase
@@ -94,39 +95,46 @@ class AuthPagesTest extends TestCase
             ->assertDontSee('role="alert"', false)
             ->assertDontSee('id="name"', false)
             ->assertDontSee('Training path')
-            ->assertDontSee('Trainings to join');
+            ->assertDontSee('Curricula to join');
 
         $this->assertStringStartsWith('<!doctype html>', ltrim($response->getContent()));
         $this->assertSame(1, substr_count($response->getContent(), '<button'));
     }
 
-    public function test_registration_form_offers_the_trainings_open_to_join_as_optional_checkboxes(): void
+    public function test_registration_form_offers_the_curricula_open_to_join_as_optional_checkboxes(): void
     {
         $this->travelTo('2026-11-10 09:00:00');
-        $december = TrainingSession::factory()->create(['title' => 'December run', 'starts_on' => '2026-12-07', 'ends_on' => '2027-01-03']);
-        $november = TrainingSession::factory()->create(['title' => 'November run', 'starts_on' => '2026-11-09', 'ends_on' => '2026-12-06']);
-        TrainingSession::factory()->completed()->create(['title' => 'October run']);
+        $draft = Program::factory()->withWeeks(2)->unscheduled()->create(['name' => 'Draft run']);
+        $december = Program::factory()->withWeeks(4, Carbon::parse('2026-12-07'))->create(['name' => 'December run']);
+        $november = Program::factory()->withWeeks(4, Carbon::parse('2026-11-09'))->create(['name' => 'November run']);
+        Program::factory()->withWeeks(4, Carbon::parse('2026-10-05'))->create(['name' => 'October run']);
+        Program::factory()->withWeeks(4, Carbon::parse('2026-11-16'))->create(['name' => 'Retired run', 'is_active' => false]);
 
         $response = $this->get(route('register'))
             ->assertOk()
             ->assertSeeInOrder([
                 'id="password_confirmation"',
-                '<fieldset class="grid min-w-0 grid-cols-1 gap-3" aria-describedby="training_session_ids-hint">',
-                'Trainings to join',
+                '<fieldset class="grid min-w-0 grid-cols-1 gap-3" aria-describedby="program_ids-hint">',
+                'Curricula to join',
                 '(optional)</span></legend>',
-                'id="training_session_ids-hint"',
-                'name="training_session_ids[]"',
+                'id="program_ids-hint"',
+                'name="program_ids[]"',
                 'value="'.$november->id.'"',
                 '>November run</span>',
                 '>9 Nov – 6 Dec 2026</span>',
-                'name="training_session_ids[]"',
+                'name="program_ids[]"',
                 'value="'.$december->id.'"',
                 '>December run</span>',
                 '>7 Dec 2026 – 3 Jan 2027</span>',
+                'name="program_ids[]"',
+                'value="'.$draft->id.'"',
+                '>Draft run</span>',
+                '>Not scheduled</span>',
                 '</fieldset>',
                 '>Create account</button>',
             ], false)
-            ->assertDontSee('October run');
+            ->assertDontSee('October run')
+            ->assertDontSee('Retired run');
 
         $this->assertDoesNotMatchRegularExpression('/\schecked\s/', $response->getContent());
     }
@@ -134,7 +142,7 @@ class AuthPagesTest extends TestCase
     public function test_rejected_registration_shows_field_errors_and_keeps_the_entered_values(): void
     {
         User::factory()->create(['email' => 'taken@example.test', 'employee_id' => 'FS-1001']);
-        $session = TrainingSession::factory()->upcoming()->create(['title' => 'December run']);
+        $program = Program::factory()->withWeeks(4)->upcoming()->create(['name' => 'December run']);
 
         $this->from(route('register'))
             ->post(route('register.store'), [
@@ -145,7 +153,7 @@ class AuthPagesTest extends TestCase
                 'job_role' => 'qa_tester',
                 'password' => 'short',
                 'password_confirmation' => 'short',
-                'training_session_ids' => [(string) $session->id],
+                'program_ids' => [(string) $program->id],
             ])
             ->assertRedirect(route('register'));
 
@@ -165,7 +173,7 @@ class AuthPagesTest extends TestCase
             ], false)
             ->assertDontSee('value="short"', false);
 
-        $this->assertMatchesRegularExpression('/value="'.$session->id.'"\s+checked\s/', $response->getContent());
+        $this->assertMatchesRegularExpression('/value="'.$program->id.'"\s+checked\s/', $response->getContent());
     }
 
     public function test_password_setup_page_shows_the_invited_email_and_the_form_for_its_token(): void

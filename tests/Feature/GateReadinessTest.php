@@ -12,11 +12,10 @@ use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
 use App\Models\MentorAssignment;
 use App\Models\Program;
+use App\Models\ProgramParticipant;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
-use App\Models\TrainingSessionParticipant;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -36,7 +35,8 @@ class GateReadinessTest extends TestCase
         $gates = $weeks->pluck('gate');
         $participant = User::factory()->create();
         $finisher = User::factory()->create();
-        $session = TrainingSession::factory()->forWeek($weeks[0]['week'])->withParticipants($participant, $finisher)->create();
+        $program = $weeks[0]['week']->program;
+        $program->participants()->attach([$participant->id, $finisher->id], ['joined_at' => now()]);
         foreach ($weeks as $week) {
             $this->handIn($participant, $week['submitted']);
             $this->handIn($finisher, $week['unsubmitted'], $week['evidence']['unsubmitted']);
@@ -44,7 +44,7 @@ class GateReadinessTest extends TestCase
             $this->chooseWeeklyVideo($finisher, $week['week']);
         }
 
-        $memberships = TrainingSessionParticipant::query()->where('training_session_id', $session->id)->get()->keyBy('user_id');
+        $memberships = ProgramParticipant::query()->where('program_id', $program->id)->get()->keyBy('user_id');
         $readiness = app(GateReadinessService::class)->readinessForMemberships($memberships, $gates);
 
         $withoutVideo = [
@@ -68,63 +68,41 @@ class GateReadinessTest extends TestCase
         [$weekOne, $weekTwo, $weekThree] = $weeks->pluck('week')->all();
         [$gateOne, $gateTwo, $gateThree] = $weeks->pluck('gate')->all();
         $participant = User::factory()->create();
-        $session = TrainingSession::factory()->forWeek($weekOne)->withParticipants($participant)->create();
         $service = app(GateReadinessService::class);
 
-        $this->assertSame(['status' => 'not_required', 'url' => null, 'criterion' => null, 'recording' => null], $service->weeklyVideo($session, $participant, $gateOne));
-        $this->assertSame('missing', $service->weeklyVideo($session, $participant, $gateTwo)['status']);
-        $this->assertTrue($service->weeklyVideo($session, $participant, $gateTwo)['criterion']->is($weeks[1]['video_criterion']));
+        $this->assertSame(['status' => 'not_required', 'url' => null, 'criterion' => null, 'recording' => null], $service->weeklyVideo($participant, $gateOne));
+        $this->assertSame('missing', $service->weeklyVideo($participant, $gateTwo)['status']);
+        $this->assertTrue($service->weeklyVideo($participant, $gateTwo)['criterion']->is($weeks[1]['video_criterion']));
 
         $this->chooseWeeklyVideo($participant, $weekOne);
         $this->chooseWeeklyVideo($participant, $weekThree);
-        $this->assertSame('not_required', $service->weeklyVideo($session, $participant, $gateThree)['status']);
-        $this->assertSame('missing', $service->weeklyVideo($session, $participant, $gateTwo)['status']);
+        $this->assertSame('not_required', $service->weeklyVideo($participant, $gateThree)['status']);
+        $this->assertSame('missing', $service->weeklyVideo($participant, $gateTwo)['status']);
 
         $recording = $this->chooseWeeklyVideo($participant, $weekTwo);
-        $awaiting = $service->weeklyVideo($session, $participant, $gateTwo);
+        $awaiting = $service->weeklyVideo($participant, $gateTwo);
         $this->assertSame('awaiting_review', $awaiting['status']);
         $this->assertSame($recording->driveViewUrl(), $awaiting['url']);
         $this->assertTrue($awaiting['recording']->is($recording));
-        $this->assertArrayNotHasKey('weekly_video', $service->readiness($session, $participant, $gateTwo));
+        $this->assertArrayNotHasKey('weekly_video', $service->readiness($participant, $gateTwo));
 
         $evaluation = GateEvaluation::factory()->for($gateTwo, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
         GateCriterionEvaluation::factory()->for($evaluation)->for($weeks[1]['video_criterion'], 'criterion')->create(['status' => GateCriterionStatus::Met]);
-        $this->assertSame('met', $service->weeklyVideo($session, $participant, $gateTwo)['status']);
+        $this->assertSame('met', $service->weeklyVideo($participant, $gateTwo)['status']);
     }
 
     public function test_a_weekly_video_item_removed_from_the_checklist_no_longer_requires_the_video(): void
     {
         ['week' => $week, 'gate' => $gate, 'video_criterion' => $videoCriterion, 'unsubmitted' => $firstActivity, 'submitted' => $secondActivity, 'evidence' => $evidence] = $this->threeWeekProgram()[1];
         $participant = User::factory()->create();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
         $this->handIn($participant, $firstActivity, $evidence['unsubmitted']);
         $this->handIn($participant, $secondActivity, $evidence['submitted']);
         $videoCriterion->update(['is_required' => false]);
         $service = app(GateReadinessService::class);
 
-        $this->assertSame([], $service->readiness($session, $participant, $gate));
-        $this->assertSame(['status' => 'not_required', 'url' => null, 'criterion' => null, 'recording' => null], $service->weeklyVideo($session, $participant, $gate));
+        $this->assertSame([], $service->readiness($participant, $gate));
+        $this->assertSame(['status' => 'not_required', 'url' => null, 'criterion' => null, 'recording' => null], $service->weeklyVideo($participant, $gate));
         $this->assertFalse($week->asksForWeeklyVideo());
-    }
-
-    public function test_work_and_reviews_in_another_session_do_not_count(): void
-    {
-        ['week' => $week, 'gate' => $gate, 'video_criterion' => $videoCriterion, 'unsubmitted' => $firstActivity, 'submitted' => $secondActivity, 'evidence' => $evidence] = $this->threeWeekProgram()[1];
-        $participant = User::factory()->create();
-        $sessionA = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        $sessionB = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        $this->handIn($participant, $firstActivity, $evidence['unsubmitted']);
-        $this->handIn($participant, $secondActivity, $evidence['submitted']);
-        $recording = $this->chooseWeeklyVideo($participant, $week);
-        $evaluation = GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'needs_revision']);
-        GateCriterionEvaluation::factory()->for($evaluation)->for($videoCriterion, 'criterion')->create(['status' => GateCriterionStatus::Met]);
-        $service = app(GateReadinessService::class);
-
-        $this->assertTrue($recording->trainingSession->is($sessionA));
-        $this->assertSame([], $service->readiness($sessionA, $participant, $gate));
-        $this->assertSame('met', $service->weeklyVideo($sessionA, $participant, $gate)['status']);
-        $this->assertSame(['activity_1', 'activity_2', 'weekly_video'], array_keys($service->readiness($sessionB, $participant, $gate)));
-        $this->assertSame('missing', $service->weeklyVideo($sessionB, $participant, $gate)['status']);
     }
 
     public function test_required_evidence_is_checked_on_the_latest_handed_in_version(): void
@@ -134,17 +112,16 @@ class GateReadinessTest extends TestCase
         $evidenceRequirement = EvidenceRequirement::factory()->for(ActivityRequirement::factory()->for($activity))->create(['is_required' => true, 'minimum_count' => 1]);
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         $participant = User::factory()->create();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
         $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'resubmitted']);
         $firstVersion = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 1, 'status' => 'submitted']);
         $latestVersion = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 2, 'status' => 'resubmitted']);
         SubmissionEvidence::factory()->for($firstVersion, 'submissionVersion')->for($evidenceRequirement, 'evidenceRequirement')->create();
 
-        $this->assertArrayHasKey('evidence_1', app(GateReadinessService::class)->readiness($session, $participant, $gate));
+        $this->assertArrayHasKey('evidence_1', app(GateReadinessService::class)->readiness($participant, $gate));
 
         SubmissionEvidence::factory()->for($latestVersion, 'submissionVersion')->for($evidenceRequirement, 'evidenceRequirement')->create();
 
-        $this->assertArrayNotHasKey('evidence_1', app(GateReadinessService::class)->readiness($session, $participant, $gate));
+        $this->assertArrayNotHasKey('evidence_1', app(GateReadinessService::class)->readiness($participant, $gate));
     }
 
     public function test_inactive_activities_optional_evidence_and_gate_evidence_are_not_required(): void
@@ -156,10 +133,9 @@ class GateReadinessTest extends TestCase
         Activity::factory()->for($week, 'week')->create(['position' => 2, 'is_active' => false]);
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         $participant = User::factory()->create();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
         $this->handIn($participant, $activity);
 
-        $this->assertSame([], app(GateReadinessService::class)->readiness($session, $participant, $gate));
+        $this->assertSame([], app(GateReadinessService::class)->readiness($participant, $gate));
     }
 
     #[DataProvider('latestAttemptStates')]
@@ -169,14 +145,13 @@ class GateReadinessTest extends TestCase
         $activity = Activity::factory()->for($week, 'week')->create(['position' => 1]);
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         $participant = User::factory()->create();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
         foreach ($states as $attempt => $status) {
             $isHandedInStatus = in_array($status, ['submitted', 'approved'], true);
             $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['attempt_number' => $attempt, 'status' => $status, 'submitted_at' => $isHandedInStatus ? now() : null]);
             SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => $isHandedInStatus ? $status : 'draft']);
         }
 
-        $readiness = app(GateReadinessService::class)->readiness($session, $participant, $gate);
+        $readiness = app(GateReadinessService::class)->readiness($participant, $gate);
 
         $this->assertSame($isHandedIn, ! array_key_exists('activity_1', $readiness));
     }
@@ -208,17 +183,19 @@ class GateReadinessTest extends TestCase
         ['week' => $week, 'gate' => $gate, 'video_criterion' => $videoCriterion] = $weekTwo;
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->withMentors($coach)->create();
-        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+        $program = $week->program;
+        $program->participants()->attach($participant, ['joined_at' => now()]);
+        $program->mentors()->attach($coach);
+        MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         $review = ['status' => 'needs_revision', 'criteria' => [$videoCriterion->id => 'met']];
 
-        $this->actingAs($coach)->post(route('training.coach.gates.update', [$session, $week, $participant, $gate]), $review)
+        $this->actingAs($coach)->post(route('training.coach.gates.update', [$program, $week, $participant, $gate]), $review)
             ->assertSessionHasErrors(['criteria.'.$videoCriterion->id => 'The Weekly Video Recording cannot be marked Met until the participant has chosen a video.']);
         $this->assertDatabaseMissing('gate_evaluations', ['user_id' => $participant->id]);
 
         $this->chooseWeeklyVideo($participant, $week);
 
-        $this->actingAs($coach)->post(route('training.coach.gates.update', [$session, $week, $participant, $gate]), $review)
+        $this->actingAs($coach)->post(route('training.coach.gates.update', [$program, $week, $participant, $gate]), $review)
             ->assertSessionHasNoErrors();
         $this->assertDatabaseHas('gate_criterion_evaluations', ['gate_criterion_id' => $videoCriterion->id, 'status' => 'met']);
     }

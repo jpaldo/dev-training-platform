@@ -7,10 +7,10 @@ use App\Models\Activity;
 use App\Models\ActivitySubmission;
 use App\Models\GateCriterion;
 use App\Models\MentorAssignment;
+use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -50,11 +50,11 @@ class ParticipantNotificationTriggersTest extends TestCase
         $this->assertQueuedOneSyncFor(User::where('email', 'registered@example.test')->sole());
     }
 
-    public function test_registering_with_a_training_ticked_raises_that_trainings_notifications(): void
+    public function test_registering_with_a_curriculum_ticked_raises_that_curriculums_notifications(): void
     {
         $week = TrainingWeek::factory()->create(['week_number' => 1, 'position' => 1]);
         $activity = Activity::factory()->for($week, 'week')->create();
-        $session = TrainingSession::factory()->forWeek($week)->create();
+        $program = $week->program;
 
         $this->post(route('register.store'), [
             'employee_id' => 'FS-3002',
@@ -64,32 +64,32 @@ class ParticipantNotificationTriggersTest extends TestCase
             'job_role' => 'developer',
             'password' => 'password123',
             'password_confirmation' => 'password123',
-            'training_session_ids' => [(string) $session->id],
+            'program_ids' => [(string) $program->id],
         ])->assertRedirect(route('profile.show'));
 
         $participant = User::where('email', 'joining@example.test')->sole();
-        $this->assertTrue($participant->participantNotifications()->active()->where('key', "session:{$session->id}:week:{$week->id}:activity:{$activity->id}:incomplete")->exists());
+        $this->assertTrue($participant->participantNotifications()->active()->where('key', "program:{$program->id}:week:{$week->id}:activity:{$activity->id}:incomplete")->exists());
     }
 
-    public function test_joining_a_session_queues_a_sync(): void
+    public function test_joining_a_curriculum_queues_a_sync(): void
     {
         $participant = User::factory()->create();
-        $session = TrainingSession::factory()->create();
+        $program = Program::factory()->create();
 
         $this->assertWriteQueuesOneSyncFor($participant, fn (): mixed => $this->actingAs($participant)
-            ->post(route('training.sessions.join', $session))
-            ->assertRedirect(route('training.sessions.show', $session)));
+            ->post(route('training.programs.join', $program))
+            ->assertRedirect(route('training.programs.show', $program)));
     }
 
     public function test_an_admin_adding_participants_queues_a_sync_for_each(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $session = TrainingSession::factory()->create();
+        $program = Program::factory()->create();
         $participants = User::factory()->count(2)->create();
         Queue::fake();
 
         $this->actingAs($admin)
-            ->post(route('admin.sessions.participants.store', $session), ['user_ids' => $participants->map(fn (User $participant): string => (string) $participant->id)->all()])
+            ->post(route('admin.programs.participants.store', $program), ['user_ids' => $participants->map(fn (User $participant): string => (string) $participant->id)->all()])
             ->assertSessionHasNoErrors();
 
         Queue::assertPushed(GenerateParticipantNotificationsJob::class, 2);
@@ -102,10 +102,10 @@ class ParticipantNotificationTriggersTest extends TestCase
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $participant = User::factory()->create();
-        $session = TrainingSession::factory()->withParticipants($participant)->create();
+        $program = Program::factory()->withParticipants($participant)->create();
 
         $this->assertWriteQueuesOneSyncFor($participant, fn (): mixed => $this->actingAs($admin)
-            ->delete(route('admin.sessions.participants.destroy', [$session, $participant]))
+            ->delete(route('admin.programs.participants.destroy', [$program, $participant]))
             ->assertRedirect());
     }
 
@@ -164,7 +164,7 @@ class ParticipantNotificationTriggersTest extends TestCase
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->create(['status' => 'submitted']);
-        MentorAssignment::factory()->create(['training_session_id' => $submission->training_session_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+        MentorAssignment::factory()->create(['program_id' => $submission->activity->week->program_id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
 
         $this->assertWriteQueuesOneSyncFor($participant, fn (): mixed => $this->actingAs($coach)
@@ -180,13 +180,15 @@ class ParticipantNotificationTriggersTest extends TestCase
         $week = TrainingWeek::factory()->create(['week_number' => 2]);
         $gate = TrainingGate::factory()->for($week, 'week')->create();
         $criterion = GateCriterion::factory()->for($gate, 'gate')->create();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->withMentors($coach)->create();
-        MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+        $program = $week->program;
+        $program->participants()->attach($participant, ['joined_at' => now()]);
+        $program->mentors()->attach($coach);
+        MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
 
         $this->assertWriteQueuesOneSyncFor($participant, fn (): mixed => $this->actingAs($coach)
-            ->post(route('training.coach.gates.update', [$session, $week, $participant, $gate]), ['status' => 'needs_revision', 'criteria' => [$criterion->id => 'not_met']])
+            ->post(route('training.coach.gates.update', [$program, $week, $participant, $gate]), ['status' => 'needs_revision', 'criteria' => [$criterion->id => 'not_met']])
             ->assertRedirect());
-        $this->assertDatabaseHas('gate_evaluations', ['training_session_id' => $session->id, 'training_gate_id' => $gate->id, 'user_id' => $participant->id, 'status' => 'needs_revision']);
+        $this->assertDatabaseHas('gate_evaluations', ['training_gate_id' => $gate->id, 'user_id' => $participant->id, 'status' => 'needs_revision']);
     }
 
     public function test_several_writes_for_one_participant_queue_one_sync_until_it_runs(): void

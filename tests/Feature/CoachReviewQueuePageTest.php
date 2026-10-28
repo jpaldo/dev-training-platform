@@ -9,7 +9,6 @@ use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -37,15 +36,15 @@ class CoachReviewQueuePageTest extends TestCase
         $this->submission($activity, 'Dora Draft', 'draft', now());
         $this->submission($activity, 'Abe Approved', 'approved', now());
 
-        $sessionLabel = e($revised->trainingSession->titleWithDates());
+        $programLabel = e($this->programLabel($activity->week->program));
 
         $this->actingAs($admin)->get(route('coach.reviews'))
             ->assertOk()
             ->assertSeeInOrder([
                 'MENTOR · REVIEW QUEUE',
                 'Submission reviews',
-                '>Nora Noversion</h2>', 'Training session:', $sessionLabel, 'Week 3 · Exploratory charter', 'Status:', 'border-accent text-cyan-200">Submitted</span>',
-                '>Rita Revised</h2>', 'Training session:', $sessionLabel, 'Week 3 · Exploratory charter', 'Status:', 'border-amber-500 text-amber-200">Needs revision</span>',
+                '>Nora Noversion</h2>', 'Curriculum:', $programLabel, 'Week 3 · Exploratory charter', 'Status:', 'border-accent text-cyan-200">Submitted</span>',
+                '>Rita Revised</h2>', 'Curriculum:', $programLabel, 'Week 3 · Exploratory charter', 'Status:', 'border-amber-500 text-amber-200">Needs revision</span>',
                 'href="'.route('coach.reviews.show', $latestVersion).'"', '>Review latest version</a>',
             ], false)
             ->assertDontSee('href="'.route('coach.reviews.show', $olderVersion).'"', false)
@@ -56,22 +55,22 @@ class CoachReviewQueuePageTest extends TestCase
         $this->assertSame(1, substr_count($this->actingAs($admin)->get(route('coach.reviews'))->getContent(), 'Review latest version'));
     }
 
-    public function test_a_mentor_sees_only_their_current_participants_submissions_in_the_sessions_they_mentor(): void
+    public function test_a_mentor_sees_only_their_current_participants_submissions_in_the_curricula_they_mentor(): void
     {
-        ['ana' => $ana, 'ben' => $ben, 'cy' => $cy, 'sessionX' => $sessionX, 'sessionY' => $sessionY, 'versions' => $versions] = $this->mentorScopeFixture();
+        ['ana' => $ana, 'ben' => $ben, 'cy' => $cy, 'programX' => $programX, 'programY' => $programY, 'versions' => $versions] = $this->mentorScopeFixture();
 
         $response = $this->actingAs($ben)->get(route('coach.reviews'))
             ->assertOk()
             ->assertSeeInOrder([
-                '<option value="'.$sessionX->id.'" >'.e($sessionX->titleWithDates()).'</option>',
+                '<option value="'.$programX->id.'" >'.e($this->programLabel($programX)).'</option>',
                 '>Pat Participant</option>',
-                '>Pat Participant</h2>', 'Training session:', e($sessionX->titleWithDates()),
+                '>Pat Participant</h2>', 'Curriculum:', e($this->programLabel($programX)),
                 'href="'.route('coach.reviews.show', $versions['patInX']).'"',
             ], false)
             ->assertDontSee(route('coach.reviews.show', $versions['patInY']), false)
             ->assertDontSee(route('coach.reviews.show', $versions['quinnInX']), false)
             ->assertDontSee('Quinn Other')
-            ->assertDontSee(e($sessionY->titleWithDates()), false);
+            ->assertDontSee(e($this->programLabel($programY)), false);
         $this->assertSame(1, substr_count($response->getContent(), 'Review latest version'));
 
         $this->actingAs($cy)->get(route('coach.reviews'))
@@ -87,9 +86,9 @@ class CoachReviewQueuePageTest extends TestCase
             ->assertDontSee('Review latest version');
     }
 
-    public function test_an_admin_sees_every_submission_and_the_session_filter_narrows_the_queue(): void
+    public function test_an_admin_sees_every_submission_and_the_curriculum_filter_narrows_the_queue(): void
     {
-        ['sessionX' => $sessionX, 'sessionY' => $sessionY, 'versions' => $versions] = $this->mentorScopeFixture();
+        ['programX' => $programX, 'programY' => $programY, 'versions' => $versions] = $this->mentorScopeFixture();
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)->get(route('coach.reviews'))
@@ -98,21 +97,21 @@ class CoachReviewQueuePageTest extends TestCase
             ->assertSee(route('coach.reviews.show', $versions['patInY']), false)
             ->assertSee(route('coach.reviews.show', $versions['quinnInX']), false);
 
-        $this->actingAs($admin)->get(route('coach.reviews', ['session' => $sessionY->id]))
+        $this->actingAs($admin)->get(route('coach.reviews', ['program' => $programY->id]))
             ->assertOk()
-            ->assertSee('<option value="'.$sessionY->id.'" selected>'.e($sessionY->titleWithDates()).'</option>', false)
-            ->assertSee('<option value="'.$sessionX->id.'" >'.e($sessionX->titleWithDates()).'</option>', false)
+            ->assertSee('<option value="'.$programY->id.'" selected>'.e($this->programLabel($programY)).'</option>', false)
+            ->assertSee('<option value="'.$programX->id.'" >'.e($this->programLabel($programX)).'</option>', false)
             ->assertSee('href="'.route('coach.reviews.show', $versions['patInY']).'"', false)
             ->assertDontSee(route('coach.reviews.show', $versions['patInX']), false)
             ->assertDontSee(route('coach.reviews.show', $versions['quinnInX']), false)
             ->assertSee('>Clear</a>', false);
     }
 
-    public function test_an_unknown_session_filter_fails_validation(): void
+    public function test_an_unknown_curriculum_filter_fails_validation(): void
     {
         $this->actingAs(User::factory()->create(['role' => 'admin']))
-            ->get(route('coach.reviews', ['session' => 999]))
-            ->assertSessionHasErrors(['session']);
+            ->get(route('coach.reviews', ['program' => 999]))
+            ->assertSessionHasErrors(['program']);
     }
 
     public function test_filters_apply_and_the_pagination_links_keep_them(): void
@@ -157,7 +156,7 @@ class CoachReviewQueuePageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 'action="'.route('coach.reviews').'"', 'aria-label="Filter submissions"',
-                'for="review-session"', '<option value="">All training sessions</option>',
+                'for="review-program"', '<option value="">All curricula</option>',
                 'for="review-participant"', '<option value="">All participants</option>', '>Amy Participant</option>', '<option value="'.$participant->id.'" selected>Zed Participant</option>',
                 'for="review-week"', '<option value="">All weeks</option>', '<option value="1" >Week 1</option>', '<option value="2" >Week 2</option>', '<option value="3" selected>Week 3</option>',
                 'for="review-activity"', '<option value="'.$checklist->id.'" >Week 2 · Validation checklist</option>', '<option value="'.$charter->id.'" selected>Week 3 · Exploratory charter</option>',
@@ -314,57 +313,69 @@ class CoachReviewQueuePageTest extends TestCase
     }
 
     /**
-     * Sessions X and Y of one program and a submitted Week 1 version each of Pat's work in X and in Y and of Quinn's
-     * work in X. In X an admin assigned Ana and then Ben as Pat's mentor, and Dan mentors Quinn; in Y Cy mentors Pat.
+     * Curricula X and Y, each with a Week 1 activity, and a submitted version each of Pat's work in X and in Y and of
+     * Quinn's work in X. In X an admin assigned Ana and then Ben as Pat's mentor, and Dan mentors Quinn; in Y Cy mentors
+     * Pat.
      *
-     * @return array{ana: User, ben: User, cy: User, sessionX: TrainingSession, sessionY: TrainingSession, versions: array{patInX: SubmissionVersion, patInY: SubmissionVersion, quinnInX: SubmissionVersion}}
+     * @return array{ana: User, ben: User, cy: User, programX: Program, programY: Program, versions: array{patInX: SubmissionVersion, patInY: SubmissionVersion, quinnInX: SubmissionVersion}}
      */
     private function mentorScopeFixture(): array
     {
         [$ana, $ben, $cy, $dan] = User::factory()->count(4)->create(['role' => 'coach'])->all();
         $pat = User::factory()->create(['name' => 'Pat Participant']);
         $quinn = User::factory()->create(['name' => 'Quinn Other']);
-        $activity = Activity::factory()->for(TrainingWeek::factory()->state(['week_number' => 1]), 'week')->create();
-        $sessionX = TrainingSession::factory()->forWeek($activity->week)->withMentors($ana, $ben, $dan)->create(['title' => 'Session X']);
-        $sessionY = TrainingSession::factory()->forWeek($activity->week)->withMentors($cy)->create(['title' => 'Session Y']);
-        MentorAssignment::factory()->ended()->create(['training_session_id' => $sessionX->id, 'participant_id' => $pat->id, 'mentor_id' => $ana->id]);
-        MentorAssignment::factory()->create(['training_session_id' => $sessionX->id, 'participant_id' => $pat->id, 'mentor_id' => $ben->id]);
-        MentorAssignment::factory()->create(['training_session_id' => $sessionX->id, 'participant_id' => $quinn->id, 'mentor_id' => $dan->id]);
-        MentorAssignment::factory()->create(['training_session_id' => $sessionY->id, 'participant_id' => $pat->id, 'mentor_id' => $cy->id]);
-        $version = fn (User $participant, TrainingSession $trainingSession): SubmissionVersion => SubmissionVersion::factory()
-            ->for(ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->state(['training_session_id' => $trainingSession->id, 'status' => 'submitted', 'submitted_at' => now()]), 'submission')
+        $programX = Program::factory()->withParticipants($pat, $quinn)->withMentors($ana, $ben, $dan)->create(['name' => 'Curriculum X']);
+        $programY = Program::factory()->withParticipants($pat)->withMentors($cy)->create(['name' => 'Curriculum Y']);
+        MentorAssignment::factory()->ended()->create(['program_id' => $programX->id, 'participant_id' => $pat->id, 'mentor_id' => $ana->id]);
+        MentorAssignment::factory()->create(['program_id' => $programX->id, 'participant_id' => $pat->id, 'mentor_id' => $ben->id]);
+        MentorAssignment::factory()->create(['program_id' => $programX->id, 'participant_id' => $quinn->id, 'mentor_id' => $dan->id]);
+        MentorAssignment::factory()->create(['program_id' => $programY->id, 'participant_id' => $pat->id, 'mentor_id' => $cy->id]);
+        $activities = [
+            $programX->id => Activity::factory()->for(TrainingWeek::factory()->for($programX)->state(['week_number' => 1]), 'week')->create(),
+            $programY->id => Activity::factory()->for(TrainingWeek::factory()->for($programY)->state(['week_number' => 1]), 'week')->create(),
+        ];
+        $version = fn (User $participant, Program $program): SubmissionVersion => SubmissionVersion::factory()
+            ->for(ActivitySubmission::factory()->for($activities[$program->id])->for($participant, 'participant')->state(['status' => 'submitted', 'submitted_at' => now()]), 'submission')
             ->create(['version_number' => 1]);
 
         return [
             'ana' => $ana,
             'ben' => $ben,
             'cy' => $cy,
-            'sessionX' => $sessionX,
-            'sessionY' => $sessionY,
+            'programX' => $programX,
+            'programY' => $programY,
             'versions' => [
-                'patInX' => $version($pat, $sessionX),
-                'patInY' => $version($pat, $sessionY),
-                'quinnInX' => $version($quinn, $sessionX),
+                'patInX' => $version($pat, $programX),
+                'patInY' => $version($pat, $programY),
+                'quinnInX' => $version($quinn, $programX),
             ],
         ];
     }
 
     /**
-     * Create a submission of the activity by a new participant with the given name, status and submission time, in the
-     * given session (or the activity's default one), with the given coach as the participant's current mentor there.
+     * Create a submission of the activity by a new participant with the given name, status and submission time, with
+     * the given coach as the participant's current mentor in the activity's curriculum.
      */
-    private function submission(Activity $activity, string $participantName, string $status, CarbonInterface $submittedAt, ?User $mentor = null, ?TrainingSession $trainingSession = null): ActivitySubmission
+    private function submission(Activity $activity, string $participantName, string $status, CarbonInterface $submittedAt, ?User $mentor = null): ActivitySubmission
     {
         $submission = ActivitySubmission::factory()
             ->for($activity)
             ->for(User::factory()->state(['name' => $participantName]), 'participant')
-            ->create(['status' => $status, 'submitted_at' => $submittedAt, ...($trainingSession ? ['training_session_id' => $trainingSession->id] : [])]);
+            ->create(['status' => $status, 'submitted_at' => $submittedAt]);
 
         if ($mentor instanceof User) {
-            MentorAssignment::factory()->create(['training_session_id' => $submission->training_session_id, 'participant_id' => $submission->user_id, 'mentor_id' => $mentor->id]);
+            MentorAssignment::factory()->create(['program_id' => $activity->week->program_id, 'participant_id' => $submission->user_id, 'mentor_id' => $mentor->id]);
         }
 
         return $submission;
+    }
+
+    /**
+     * The curriculum as the filter and the queue items show it: its name and dates.
+     */
+    private function programLabel(Program $program): string
+    {
+        return "{$program->name} ({$program->dateRangeLabel()})";
     }
 
     /**

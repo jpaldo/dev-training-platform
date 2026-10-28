@@ -8,7 +8,6 @@ use App\Models\ActivitySubmission;
 use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -19,20 +18,21 @@ class ScoringOverviewPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_a_mentor_sees_one_row_per_mentee_and_session_with_the_scores_and_completion_of_that_session(): void
+    public function test_a_mentor_sees_one_row_per_mentee_and_curriculum_with_the_scores_and_completion_of_that_curriculum(): void
     {
-        $activities = $this->program();
+        $activities = $this->program(name: 'November curriculum');
+        $otherActivities = $this->program(name: 'December curriculum');
+        $programA = $activities[2][0]->week->program;
+        $programB = $otherActivities[2][0]->week->program;
         $coach = User::factory()->create(['role' => 'coach', 'name' => 'Coach Carter']);
         $mia = User::factory()->create(['role' => 'coach', 'name' => 'Mia Mentor']);
         $ada = User::factory()->create(['name' => 'Ada Automation', 'email' => 'ada@example.com']);
         $ben = User::factory()->create(['name' => 'Ben Both', 'email' => 'ben@example.com']);
-        $sessionA = TrainingSession::factory()->forWeek($activities[2][0]->week)->create(['title' => 'November training']);
-        $sessionB = TrainingSession::factory()->forWeek($activities[2][0]->week)->create(['title' => 'December training']);
-        $this->mentor($sessionA, $coach, $ada);
-        $this->mentor($sessionB, $mia, $ada);
-        $this->join($sessionA, $ben);
-        $this->score($ada, $activities[2][0], 83, 'Proficient', session: $sessionA);
-        $this->score($ada, $activities[3][0], 40, 'Beginning', session: $sessionB);
+        $this->mentor($programA, $coach, $ada);
+        $this->mentor($programB, $mia, $ada);
+        $this->join($programA, $ben);
+        $this->score($ada, $activities[2][0], 83, 'Proficient');
+        $this->score($ada, $otherActivities[3][0], 40, 'Beginning');
 
         $response = $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk();
 
@@ -43,20 +43,20 @@ class ScoringOverviewPageTest extends TestCase
             'href="'.route('coach.scoring.criteria').'"', '>View Scoring Criteria</a>',
             'href="'.route('coach.scoring.reports').'"', '>Scoring Reports</a>',
             'aria-label="Filter participants"',
-            '>Training session</label>', '<option value="">All training sessions</option>', '>'.$sessionA->titleWithDates().'</option>',
-            '>Participant</th>', '>Training session</th>',
+            '>Curriculum</label>', '<option value="">All curricula</option>', '>'.$this->optionLabel($programA).'</option>',
+            '>Participant</th>', '>Curriculum</th>',
             '>W2</th>', '>W2 Completion</th>', '>W3</th>', '>W3 Completion</th>', '>W4</th>', '>W4 Completion</th>',
             '>Overall</th>', '>Completion</th>', '>Assigned Mentor</th>',
             '>Ada Automation</strong>', 'ada@example.com',
-            '>November training</span>', '>'.$sessionA->dateRangeLabel().'</span>',
+            '>November curriculum</span>', '>'.$programA->dateRangeLabel().'</span>',
             '>83</strong>', 'Proficient', '1 / 2 (50%)',
             '—', '0 / 1 (0%)',
             '—', '0 / 1 (0%)',
             '>83</td>', '1 / 4 (25%)', 'Coach Carter',
-            'href="'.route('coach.scoring.participant', [$sessionA, $ada]).'"', '>View Scoring</a>',
+            'href="'.route('coach.scoring.participant', [$programA, $ada]).'"', '>View Scoring</a>',
         ], false);
         $this->assertSame(1, substr_count($response->getContent(), 'data-scoring-row'));
-        $response->assertDontSee('December training')
+        $response->assertDontSee('December curriculum')
             ->assertDontSee('Mia Mentor')
             ->assertDontSee('>Ben Both</strong>', false)
             ->assertDontSee('id="score-mentor"', false)
@@ -65,22 +65,22 @@ class ScoringOverviewPageTest extends TestCase
             ->assertDontSee('No participants match these filters.');
     }
 
-    public function test_mentors_see_only_their_current_mentees_in_each_session(): void
+    public function test_mentors_see_only_their_current_mentees_in_each_curriculum(): void
     {
-        ['sessionX' => $sessionX, 'sessionY' => $sessionY, 'pat' => $pat, 'ana' => $ana, 'ben' => $ben, 'cy' => $cy] = $this->mentorScopeFixture();
+        ['programX' => $programX, 'programY' => $programY, 'pat' => $pat, 'ana' => $ana, 'ben' => $ben, 'cy' => $cy] = $this->mentorScopeFixture();
 
         $this->actingAs($ben)->get(route('coach.scoring.index'))
             ->assertOk()
-            ->assertSeeInOrder(['>Pat Participant</strong>', '>Session X</span>', '>83</strong>', 'href="'.route('coach.scoring.participant', [$sessionX, $pat]).'"'], false)
-            ->assertSee('>'.$sessionX->titleWithDates().'</option>', false)
-            ->assertDontSee('>'.$sessionY->titleWithDates().'</option>', false)
-            ->assertDontSee('>Session Y</span>', false)
+            ->assertSeeInOrder(['>Pat Participant</strong>', '>Curriculum X</span>', '>83</strong>', 'href="'.route('coach.scoring.participant', [$programX, $pat]).'"'], false)
+            ->assertSee('>'.$this->optionLabel($programX).'</option>', false)
+            ->assertDontSee('>'.$this->optionLabel($programY).'</option>', false)
+            ->assertDontSee('>Curriculum Y</span>', false)
             ->assertDontSee('Quinn Other');
 
         $this->actingAs($cy)->get(route('coach.scoring.index'))
             ->assertOk()
-            ->assertSeeInOrder(['>Pat Participant</strong>', '>Session Y</span>', '>60</strong>', 'href="'.route('coach.scoring.participant', [$sessionY, $pat]).'"'], false)
-            ->assertDontSee('>Session X</span>', false)
+            ->assertSeeInOrder(['>Pat Participant</strong>', '>Curriculum Y</span>', '>60</strong>', 'href="'.route('coach.scoring.participant', [$programY, $pat]).'"'], false)
+            ->assertDontSee('>Curriculum X</span>', false)
             ->assertDontSee('>83</strong>', false);
 
         $this->actingAs($ana)->get(route('coach.scoring.index'))
@@ -89,25 +89,25 @@ class ScoringOverviewPageTest extends TestCase
             ->assertDontSee('data-scoring-row', false);
     }
 
-    public function test_an_admin_sees_every_membership_and_filters_by_session_and_by_mentor(): void
+    public function test_an_admin_sees_every_membership_and_filters_by_curriculum_and_by_mentor(): void
     {
-        ['sessionX' => $sessionX, 'sessionY' => $sessionY, 'ben' => $ben, 'dan' => $dan] = $this->mentorScopeFixture();
+        ['programY' => $programY, 'ben' => $ben, 'dan' => $dan] = $this->mentorScopeFixture();
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)->get(route('coach.scoring.index'))
             ->assertOk()
             ->assertSeeInOrder(['>Mentor</label>', '<option value="">All mentors</option>', '>'.$ben->name.'</option>'], false)
             ->assertSeeInOrder([
-                '>Pat Participant</strong>', '>Session Y</span>', '>60</strong>',
-                '>Pat Participant</strong>', '>Session X</span>', '>83</strong>', $ben->name,
-                '>Quinn Other</strong>', '>Session X</span>', $dan->name,
+                '>Pat Participant</strong>', '>Curriculum Y</span>', '>60</strong>',
+                '>Pat Participant</strong>', '>Curriculum X</span>', '>83</strong>', $ben->name,
+                '>Quinn Other</strong>', '>Curriculum X</span>', $dan->name,
             ], false);
 
-        $this->actingAs($admin)->get(route('coach.scoring.index', ['session' => $sessionY->id]))
+        $this->actingAs($admin)->get(route('coach.scoring.index', ['program' => $programY->id]))
             ->assertOk()
-            ->assertSee('<option value="'.$sessionY->id.'" selected>', false)
-            ->assertSee('>Session Y</span>', false)
-            ->assertDontSee('>Session X</span>', false);
+            ->assertSee('<option value="'.$programY->id.'" selected>', false)
+            ->assertSee('>Curriculum Y</span>', false)
+            ->assertDontSee('>Curriculum X</span>', false);
 
         $this->actingAs($admin)->get(route('coach.scoring.index', ['mentor' => $dan->id]))
             ->assertOk()
@@ -116,22 +116,21 @@ class ScoringOverviewPageTest extends TestCase
             ->assertDontSee('>Pat Participant</strong>', false);
     }
 
-    public function test_an_unknown_session_or_a_mentor_who_is_not_a_coach_fails_validation(): void
+    public function test_an_unknown_curriculum_or_a_mentor_who_is_not_a_coach_fails_validation(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
 
-        $this->actingAs($admin)->get(route('coach.scoring.index', ['session' => 999, 'mentor' => User::factory()->create()->id]))
-            ->assertSessionHasErrors(['session', 'mentor']);
+        $this->actingAs($admin)->get(route('coach.scoring.index', ['program' => 999, 'mentor' => User::factory()->create()->id]))
+            ->assertSessionHasErrors(['program', 'mentor']);
     }
 
-    public function test_week_columns_cover_every_listed_session_and_a_session_without_the_week_shows_dashes(): void
+    public function test_week_columns_cover_every_listed_curriculum_and_a_curriculum_without_the_week_shows_dashes(): void
     {
-        $activities = $this->program();
-        $longSession = TrainingSession::factory()->forWeek($activities[2][0]->week)->create(['title' => 'Four weeks']);
-        $shortSession = TrainingSession::factory()->forWeek($activities[2][0]->week)->create(['title' => 'Two weeks', 'weeks_count' => 2]);
+        $longProgram = $this->program(name: 'Four weeks')[2][0]->week->program;
+        $shortProgram = $this->program([2 => 2], 'Two weeks')[2][0]->week->program;
         $ada = User::factory()->create(['name' => 'Ada Automation']);
-        $this->join($longSession, $ada);
-        $this->join($shortSession, $ada);
+        $this->join($longProgram, $ada);
+        $this->join($shortProgram, $ada);
 
         $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.scoring.index'))
             ->assertOk()
@@ -145,11 +144,10 @@ class ScoringOverviewPageTest extends TestCase
     public function test_week_one_scores_appear_in_the_overview_and_the_week_filter_offers_week_one(): void
     {
         $activities = $this->program([1 => 1, 2 => 1, 3 => 1, 4 => 1]);
-        $session = TrainingSession::factory()->forWeek($activities[1][0]->week)->create();
         $wendy = User::factory()->create(['name' => 'Wendy WeekOne']);
         $tom = User::factory()->create(['name' => 'Tom NoWork']);
-        $this->join($session, $wendy, $tom);
-        $this->score($wendy, $activities[1][0], 92, 'Exemplary', session: $session);
+        $this->join($activities[1][0]->week->program, $wendy, $tom);
+        $this->score($wendy, $activities[1][0], 92, 'Exemplary');
 
         $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.scoring.index', ['week' => 1]))
             ->assertOk()
@@ -164,18 +162,18 @@ class ScoringOverviewPageTest extends TestCase
             ->assertDontSee('>Tom NoWork</strong>', false);
     }
 
-    public function test_filters_keep_their_values_and_look_at_the_work_in_the_rows_session(): void
+    public function test_filters_keep_their_values_and_look_at_the_work_in_the_rows_curriculum(): void
     {
-        $activities = $this->program();
-        $sessionA = TrainingSession::factory()->forWeek($activities[2][0]->week)->create(['title' => 'Session A']);
-        $sessionB = TrainingSession::factory()->forWeek($activities[2][0]->week)->create(['title' => 'Session B']);
+        $activities = $this->program(name: 'Curriculum A');
+        $programA = $activities[2][0]->week->program;
+        $programB = $this->program(name: 'Curriculum B')[2][0]->week->program;
         $scored = User::factory()->create(['name' => 'Ada Scored']);
         $unscored = User::factory()->create(['name' => 'Ada Unscored']);
         User::factory()->create(['name' => 'Ada Elsewhere']);
-        $this->join($sessionA, $scored, $unscored);
-        $this->join($sessionB, $scored);
-        $this->score($scored, $activities[2][0], 83, 'Proficient', session: $sessionA);
-        $this->score($unscored, $activities[2][0], 65, 'Developing', session: $sessionA);
+        $this->join($programA, $scored, $unscored);
+        $this->join($programB, $scored);
+        $this->score($scored, $activities[2][0], 83, 'Proficient');
+        $this->score($unscored, $activities[2][0], 65, 'Developing');
         $filters = ['search' => 'Ada', 'week' => 2, 'score_status' => 'scored', 'band' => 'Proficient'];
 
         $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.scoring.index', $filters))
@@ -185,8 +183,8 @@ class ScoringOverviewPageTest extends TestCase
             ->assertSee('<option value="scored" selected>Scored</option>', false)
             ->assertSee('<option value="Proficient" selected>Proficient</option>', false)
             ->assertDontSee('name="path"', false)
-            ->assertSeeInOrder(['>Ada Scored</strong>', '>Session A</span>'], false)
-            ->assertDontSee('>Session B</span>', false)
+            ->assertSeeInOrder(['>Ada Scored</strong>', '>Curriculum A</span>'], false)
+            ->assertDontSee('>Curriculum B</span>', false)
             ->assertDontSee('>Ada Unscored</strong>', false)
             ->assertDontSee('>Ada Elsewhere</strong>', false);
     }
@@ -194,12 +192,11 @@ class ScoringOverviewPageTest extends TestCase
     public function test_a_participant_with_only_a_draft_score_is_matched_by_the_unscored_filter_and_not_by_scored_or_band(): void
     {
         $activities = $this->program();
-        $session = TrainingSession::factory()->forWeek($activities[2][0]->week)->create();
         $drafted = User::factory()->create(['name' => 'Dana Draft']);
         $scored = User::factory()->create(['name' => 'Sam Scored']);
-        $this->join($session, $drafted, $scored);
-        $this->score($drafted, $activities[2][0], 83, 'Proficient', 'draft', $session);
-        $this->score($scored, $activities[2][0], 84, 'Proficient', session: $session);
+        $this->join($activities[2][0]->week->program, $drafted, $scored);
+        $this->score($drafted, $activities[2][0], 83, 'Proficient', 'draft');
+        $this->score($scored, $activities[2][0], 84, 'Proficient');
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)->get(route('coach.scoring.index', ['score_status' => 'unscored']))
@@ -218,9 +215,8 @@ class ScoringOverviewPageTest extends TestCase
     public function test_rows_are_paginated_by_25_and_the_page_links_keep_the_filters(): void
     {
         $activities = $this->program();
-        $session = TrainingSession::factory()->forWeek($activities[2][0]->week)->create();
         foreach (range(1, 26) as $number) {
-            $this->join($session, User::factory()->create(['name' => sprintf('Participant %02d', $number)]));
+            $this->join($activities[2][0]->week->program, User::factory()->create(['name' => sprintf('Participant %02d', $number)]));
         }
         $admin = User::factory()->create(['role' => 'admin']);
 
@@ -239,7 +235,7 @@ class ScoringOverviewPageTest extends TestCase
     public function test_an_empty_result_shows_a_notice_instead_of_the_table(): void
     {
         $activities = $this->program();
-        $this->join(TrainingSession::factory()->forWeek($activities[2][0]->week)->create(), User::factory()->create(['name' => 'Some Person']));
+        $this->join($activities[2][0]->week->program, User::factory()->create(['name' => 'Some Person']));
 
         $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('coach.scoring.index', ['search' => 'Nobody']))
@@ -252,8 +248,7 @@ class ScoringOverviewPageTest extends TestCase
     public function test_an_old_path_or_assigned_to_me_filter_is_ignored(): void
     {
         $activities = $this->program();
-        $session = TrainingSession::factory()->forWeek($activities[2][0]->week)->create();
-        $this->join($session, User::factory()->create(['name' => 'Mia Manual']), User::factory()->create(['name' => 'Abe Automation']));
+        $this->join($activities[2][0]->week->program, User::factory()->create(['name' => 'Mia Manual']), User::factory()->create(['name' => 'Abe Automation']));
 
         $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('coach.scoring.index', ['path' => 'automation', 'assigned_to_me' => 1]))
@@ -266,7 +261,7 @@ class ScoringOverviewPageTest extends TestCase
     public function test_the_table_scrolls_inside_a_positioned_region_so_its_screen_reader_only_header_cannot_widen_the_page(): void
     {
         $activities = $this->program();
-        $this->join(TrainingSession::factory()->forWeek($activities[2][0]->week)->create(), User::factory()->create(['name' => 'Manual Person']));
+        $this->join($activities[2][0]->week->program, User::factory()->create(['name' => 'Manual Person']));
 
         $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('coach.scoring.index'))
@@ -283,15 +278,15 @@ class ScoringOverviewPageTest extends TestCase
     }
 
     /**
-     * An active program with the given number of active activities per week (by default two in Week 2 and one each in
-     * Weeks 3 and 4).
+     * An active curriculum (weeks open today) with the given number of active activities per week (by default two in
+     * Week 2 and one each in Weeks 3 and 4).
      *
      * @param  array<int, int>  $activityCounts  keyed by week number
      * @return array<int, list<Activity>> keyed by week number
      */
-    private function program(array $activityCounts = [2 => 2, 3 => 1, 4 => 1]): array
+    private function program(array $activityCounts = [2 => 2, 3 => 1, 4 => 1], ?string $name = null): array
     {
-        $program = Program::factory()->create();
+        $program = Program::factory()->create($name === null ? [] : ['name' => $name]);
 
         return collect($activityCounts)
             ->map(function (int $activityCount, int $weekNumber) use ($program): array {
@@ -305,69 +300,78 @@ class ScoringOverviewPageTest extends TestCase
     }
 
     /**
-     * Two sessions of a Weeks 2–4 program. In session X an admin assigned Ana and then Ben as Pat's mentor, and Dan
-     * mentors Quinn; in session Y Cy mentors Pat. Pat has a published Week 2 score of 83 in X and 60 in Y.
+     * Two Weeks 2–4 curricula: X is active and Y starts next week. In X an admin assigned Ana and then Ben as Pat's
+     * mentor, and Dan mentors Quinn; in Y Cy mentors Pat. Pat has a published Week 2 score of 83 in X and 60 in Y.
      *
-     * @return array{sessionX: TrainingSession, sessionY: TrainingSession, pat: User, ana: User, ben: User, cy: User, dan: User}
+     * @return array{programX: Program, programY: Program, pat: User, ana: User, ben: User, cy: User, dan: User}
      */
     private function mentorScopeFixture(): array
     {
-        $activities = $this->program();
-        $sessionX = TrainingSession::factory()->forWeek($activities[2][0]->week)->create(['title' => 'Session X']);
-        $sessionY = TrainingSession::factory()->forWeek($activities[2][0]->week)->create(['title' => 'Session Y', 'starts_on' => today()->addWeek(), 'ends_on' => today()->addWeeks(5)->subDay()]);
+        $activitiesX = $this->program(name: 'Curriculum X');
+        $activitiesY = $this->program(name: 'Curriculum Y');
+        $programX = $activitiesX[2][0]->week->program;
+        $programY = $activitiesY[2][0]->week->program;
+        $programY->weeks()->update(['starts_on' => today()->addWeek(), 'ends_on' => today()->addWeeks(2)->subDay()]);
         $pat = User::factory()->create(['name' => 'Pat Participant']);
         $quinn = User::factory()->create(['name' => 'Quinn Other']);
         $ana = User::factory()->create(['role' => 'coach', 'name' => 'Ana Earlier']);
         $ben = User::factory()->create(['role' => 'coach', 'name' => 'Ben Current']);
         $cy = User::factory()->create(['role' => 'coach', 'name' => 'Cy Other']);
         $dan = User::factory()->create(['role' => 'coach', 'name' => 'Dan Quinns']);
-        $this->mentor($sessionX, $ana, $pat);
+        $this->mentor($programX, $ana, $pat);
         MentorAssignment::query()->where('mentor_id', $ana->id)->update(['ended_at' => now()]);
-        $this->mentor($sessionX, $ben, $pat);
-        $this->mentor($sessionX, $dan, $quinn);
-        $this->mentor($sessionY, $cy, $pat);
-        $this->score($pat, $activities[2][0], 83, 'Proficient', session: $sessionX);
-        $this->score($pat, $activities[2][0], 60, 'Developing', session: $sessionY);
+        $this->mentor($programX, $ben, $pat);
+        $this->mentor($programX, $dan, $quinn);
+        $this->mentor($programY, $cy, $pat);
+        $this->score($pat, $activitiesX[2][0], 83, 'Proficient');
+        $this->score($pat, $activitiesY[2][0], 60, 'Developing');
 
-        return ['sessionX' => $sessionX, 'sessionY' => $sessionY, 'pat' => $pat, 'ana' => $ana, 'ben' => $ben, 'cy' => $cy, 'dan' => $dan];
+        return ['programX' => $programX, 'programY' => $programY, 'pat' => $pat, 'ana' => $ana, 'ben' => $ben, 'cy' => $cy, 'dan' => $dan];
     }
 
     /**
-     * Add the coach to the session's mentors and the participants to the session, with the coach as their current
-     * mentor there.
+     * Add the coach to the curriculum's mentors and the participants to the curriculum, with the coach as their
+     * current mentor there.
      */
-    private function mentor(TrainingSession $session, User $coach, User ...$participants): void
+    private function mentor(Program $program, User $coach, User ...$participants): void
     {
-        $session->mentors()->syncWithoutDetaching([$coach->id]);
-        $this->join($session, ...$participants);
+        $program->mentors()->syncWithoutDetaching([$coach->id]);
+        $this->join($program, ...$participants);
         foreach ($participants as $participant) {
-            MentorAssignment::factory()->create(['training_session_id' => $session->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
+            MentorAssignment::factory()->create(['program_id' => $program->id, 'participant_id' => $participant->id, 'mentor_id' => $coach->id]);
         }
     }
 
     /**
-     * Add the participants to the session.
+     * Add the participants to the curriculum.
      */
-    private function join(TrainingSession $session, User ...$participants): void
+    private function join(Program $program, User ...$participants): void
     {
         foreach ($participants as $participant) {
-            $session->participants()->syncWithoutDetaching([$participant->id => ['joined_at' => now()]]);
+            $program->participants()->syncWithoutDetaching([$participant->id => ['joined_at' => now()]]);
         }
     }
 
     /**
-     * Build a new active program and session with the given number of participants, each mentored by one coach and
+     * The curriculum filter's option label: "Name (dates)".
+     */
+    private function optionLabel(Program $program): string
+    {
+        return "{$program->name} ({$program->dateRangeLabel()})";
+    }
+
+    /**
+     * Build a new active curriculum with the given number of participants, each mentored by one coach and
      * with a published Week 2 score, and count the queries of that coach's overview request after a warm-up request.
      */
     private function overviewQueryCount(int $participantCount): int
     {
         $activities = $this->program();
-        $session = TrainingSession::factory()->forWeek($activities[2][0]->week)->create();
         $coach = User::factory()->create(['role' => 'coach']);
 
         foreach (User::factory()->count($participantCount)->create() as $participant) {
-            $this->mentor($session, $coach, $participant);
-            $this->score($participant, $activities[2][0], 83, 'Proficient', session: $session);
+            $this->mentor($activities[2][0]->week->program, $coach, $participant);
+            $this->score($participant, $activities[2][0], 83, 'Proficient');
         }
 
         $this->actingAs($coach)->get(route('coach.scoring.index'))->assertOk();
@@ -380,12 +384,11 @@ class ScoringOverviewPageTest extends TestCase
         return count(DB::getQueryLog());
     }
 
-    private function score(User $participant, Activity $activity, int $total, string $band, string $status = 'published', ?TrainingSession $session = null): void
+    private function score(User $participant, Activity $activity, int $total, string $band, string $status = 'published'): void
     {
         $submission = ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create([
             'status' => 'submitted',
             'submitted_at' => now(),
-            ...($session ? ['training_session_id' => $session->id] : []),
         ]);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
         ActivityScore::create([

@@ -16,7 +16,6 @@ use App\Models\GoogleDriveSync;
 use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -137,9 +136,8 @@ class GoogleDriveSyncTest extends TestCase
         }
         $otherProgramWeek = TrainingWeek::factory()->create(['week_number' => 2]);
         Activity::factory()->create(['training_week_id' => $otherProgramWeek->id, 'title' => 'Another program activity']);
-        $session = TrainingSession::factory()->forWeek($week)->create();
 
-        $content = app(TrainingWorkbookService::class)->forWeek($participant, $session, $week);
+        $content = app(TrainingWorkbookService::class)->forWeek($participant, $week);
         $path = tempnam(sys_get_temp_dir(), 'qa-sync-test-');
         file_put_contents($path, $content);
         $zip = new ZipArchive;
@@ -159,9 +157,8 @@ class GoogleDriveSyncTest extends TestCase
     {
         $participant = User::factory()->create(['role' => 'participant']);
         $week = TrainingWeek::factory()->create(['week_number' => 1]);
-        $session = TrainingSession::factory()->forWeek($week)->create();
 
-        $content = app(TrainingWorkbookService::class)->forWeek($participant, $session, $week);
+        $content = app(TrainingWorkbookService::class)->forWeek($participant, $week);
         $path = tempnam(sys_get_temp_dir(), 'qa-empty-week-');
         file_put_contents($path, $content);
         $zip = new ZipArchive;
@@ -185,10 +182,9 @@ class GoogleDriveSyncTest extends TestCase
         $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create();
         $activity = Activity::query()->whereHas('week', fn ($q) => $q->where('week_number', 1))->firstOrFail();
-        $session = TrainingSession::factory()->forWeek($activity->week)->create();
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->for($session, 'trainingSession')->create();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create();
         SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'field_values' => []]);
-        $content = app(TrainingWorkbookService::class)->forWeek($participant, $session, $activity->week);
+        $content = app(TrainingWorkbookService::class)->forWeek($participant, $activity->week);
         $path = tempnam(sys_get_temp_dir(), 'qa-score-');
         file_put_contents($path, $content);
         $zip = new ZipArchive;
@@ -215,12 +211,11 @@ class GoogleDriveSyncTest extends TestCase
         $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create();
         $activity = Activity::query()->whereHas('week', fn (Builder $query): Builder => $query->where('week_number', 1))->firstOrFail();
-        $session = TrainingSession::factory()->forWeek($activity->week)->create();
-        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->for($session, 'trainingSession')->create(['status' => 'draft']);
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 1, 'status' => 'submitted', 'participant_note' => 'Submitted note']);
         SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 2, 'status' => 'draft', 'participant_note' => 'Revision draft note']);
 
-        $xml = $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, $session, $activity->week));
+        $xml = $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, $activity->week));
 
         $this->assertStringContainsString('Submitted note', $xml);
         $this->assertStringNotContainsString('Revision draft note', $xml);
@@ -231,42 +226,36 @@ class GoogleDriveSyncTest extends TestCase
         $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create();
         $weeks = TrainingWeek::query()->whereIn('week_number', [1, 2])->orderBy('week_number')->get()->keyBy('week_number');
-        $session = TrainingSession::factory()->forWeek($weeks[1])->create();
         foreach ([1 => 'under_review', 2 => 'needs_revision'] as $weekNumber => $status) {
             $activity = Activity::query()->where('training_week_id', $weeks[$weekNumber]->id)->where('is_active', true)->orderBy('position')->firstOrFail();
-            $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->for($session, 'trainingSession')->create(['status' => $status]);
+            $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => $status]);
             SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'field_values' => $weekNumber === 2 ? ['deliverable_url' => 'https://github.com/example/checkout'] : []]);
         }
 
-        $this->assertStringContainsString('<t xml:space="preserve">under_review</t>', $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, $session, $weeks[1])));
-        $weekTwoWorkbook = $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, $session, $weeks[2]));
+        $this->assertStringContainsString('<t xml:space="preserve">under_review</t>', $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, $weeks[1])));
+        $weekTwoWorkbook = $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, $weeks[2]));
         $this->assertStringContainsString('<t xml:space="preserve">needs_revision</t>', $weekTwoWorkbook);
         $this->assertStringContainsString('<t xml:space="preserve">Deliverable link</t>', $weekTwoWorkbook);
         $this->assertStringContainsString('<t xml:space="preserve">https://github.com/example/checkout</t>', $weekTwoWorkbook);
     }
 
-    public function test_week_workbook_shows_the_employee_id_and_only_the_latest_attempt_in_its_session(): void
+    public function test_week_workbook_shows_the_employee_id_and_only_the_latest_attempt(): void
     {
         $participant = User::factory()->create(['role' => 'participant', 'employee_id' => 'EMP-004242']);
         $week = TrainingWeek::factory()->create(['week_number' => 1]);
+        $week->program->participants()->attach($participant, ['joined_at' => now()]);
         $activity = Activity::factory()->for($week, 'week')->create(['title' => 'Build the API']);
-        [$sessionA, $sessionB] = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->count(2)->create();
-        foreach ([[$sessionA, 1, 'First attempt in A'], [$sessionA, 2, 'Second attempt in A'], [$sessionB, 1, 'Attempt in B']] as [$session, $attemptNumber, $note]) {
-            $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->for($session, 'trainingSession')->create(['attempt_number' => $attemptNumber, 'status' => 'submitted']);
+        foreach ([1 => 'First attempt', 2 => 'Second attempt'] as $attemptNumber => $note) {
+            $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['attempt_number' => $attemptNumber, 'status' => 'submitted']);
             SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'participant_note' => $note]);
         }
 
-        $workbookA = $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, $sessionA, $week));
-        $workbookB = $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, $sessionB, $week));
+        $workbook = $this->workbookText(app(TrainingWorkbookService::class)->forWeek($participant, $week));
 
-        $this->assertStringContainsString('<c r="B1" t="inlineStr"><is><t xml:space="preserve">Employee ID</t></is></c>', $workbookA);
-        $this->assertStringContainsString('<c r="B2" t="inlineStr"><is><t xml:space="preserve">EMP-004242</t></is></c>', $workbookA);
-        $this->assertStringContainsString('>Second attempt in A</t>', $workbookA);
-        $this->assertStringNotContainsString('First attempt in A', $workbookA);
-        $this->assertStringNotContainsString('Attempt in B', $workbookA);
-        $this->assertStringContainsString('<c r="B2" t="inlineStr"><is><t xml:space="preserve">EMP-004242</t></is></c>', $workbookB);
-        $this->assertStringContainsString('>Attempt in B</t>', $workbookB);
-        $this->assertStringNotContainsString('attempt in A', $workbookB);
+        $this->assertStringContainsString('<c r="B1" t="inlineStr"><is><t xml:space="preserve">Employee ID</t></is></c>', $workbook);
+        $this->assertStringContainsString('<c r="B2" t="inlineStr"><is><t xml:space="preserve">EMP-004242</t></is></c>', $workbook);
+        $this->assertStringContainsString('>Second attempt</t>', $workbook);
+        $this->assertStringNotContainsString('First attempt', $workbook);
     }
 
     public function test_week_workbook_query_count_does_not_grow_with_activities(): void
@@ -275,24 +264,24 @@ class GoogleDriveSyncTest extends TestCase
     }
 
     /**
-     * Build a week with the given number of activities, each with an answer field and a submitted attempt in the
-     * session, and count the queries of building its workbook.
+     * Build a week of a curriculum the participant is in with the given number of activities, each with an answer field
+     * and a submitted attempt, and count the queries of building its workbook.
      */
     private function workbookQueryCount(int $activityCount): int
     {
         $participant = User::factory()->create(['role' => 'participant']);
         $week = TrainingWeek::factory()->create();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $week->program->participants()->attach($participant, ['joined_at' => now()]);
         foreach (range(1, $activityCount) as $index) {
             $activity = Activity::factory()->for($week, 'week')->create();
             ActivityRequirement::factory()->for($activity)->create(['requirement_type' => 'submission_field', 'configuration' => ['key' => "answer_{$index}", 'label' => "Answer {$index}"]]);
-            $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->for($session, 'trainingSession')->create(['status' => 'submitted']);
+            $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
             SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'field_values' => ["answer_{$index}" => 'Done']]);
         }
 
         DB::flushQueryLog();
         DB::enableQueryLog();
-        app(TrainingWorkbookService::class)->forWeek($participant, $session, $week);
+        app(TrainingWorkbookService::class)->forWeek($participant, $week);
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());
@@ -390,11 +379,11 @@ class GoogleDriveSyncTest extends TestCase
         $this->assertSame(2, GoogleDriveExport::query()->where('user_id', $participant->id)->count());
     }
 
-    public function test_sync_does_not_adopt_tracking_from_before_training_sessions(): void
+    public function test_sync_does_not_adopt_tracking_from_before_curriculum_folders(): void
     {
         $participant = $this->connectedParticipant();
-        $week = TrainingWeek::factory()->create(['week_number' => 2]);
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create(['title' => 'November cohort']);
+        $program = Program::factory()->withParticipants($participant)->create(['name' => 'November cohort']);
+        $week = TrainingWeek::factory()->for($program)->create(['week_number' => 2]);
         $oldTracking = collect([
             ['weekly_workbook', 'legacy-root-workbook'],
             ['week_folder', 'root/Week 2'],
@@ -412,7 +401,7 @@ class GoogleDriveSyncTest extends TestCase
             $this->assertSame($row->drive_file_id, $row->fresh()->drive_file_id);
             $this->assertSame('2', $row->fresh()->scope_key);
         }
-        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'weekly_workbook_nested', 'scope_key' => "session:{$session->id}:week:{$week->id}", 'drive_file_id' => 'root/November cohort/Week 2/Week 2.xlsx']);
+        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'weekly_workbook_nested', 'scope_key' => "program:{$program->id}:week:{$week->id}", 'drive_file_id' => 'root/November cohort/Week 2/Week 2.xlsx']);
     }
 
     public function test_full_sync_exports_the_evidence_of_the_latest_submitted_version_and_of_a_newer_revision_draft(): void
@@ -422,7 +411,7 @@ class GoogleDriveSyncTest extends TestCase
         $program = Program::factory()->create(['is_active' => true]);
         $week = TrainingWeek::factory()->create(['program_id' => $program->id, 'week_number' => 2]);
         $activity = Activity::factory()->create(['training_week_id' => $week->id, 'position' => 1, 'title' => 'Validation Checklist']);
-        TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $program->participants()->attach($participant, ['joined_at' => now()]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
         $evidence = collect(['submitted' => 1, 'draft' => 2])->map(function (int $versionNumber, string $status) use ($submission): SubmissionEvidence {
             $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => $versionNumber, 'status' => $status]);
@@ -456,7 +445,7 @@ class GoogleDriveSyncTest extends TestCase
         $program = Program::factory()->create(['is_active' => true]);
         $week = TrainingWeek::factory()->create(['program_id' => $program->id, 'week_number' => 2]);
         $activity = Activity::factory()->create(['training_week_id' => $week->id, 'position' => 1, 'title' => 'Validation Checklist']);
-        TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $program->participants()->attach($participant, ['joined_at' => now()]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'draft']);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'draft']);
         $evidence = SubmissionEvidence::factory()->for($version, 'submissionVersion')->create(['evidence_type' => 'file', 'disk' => 'local', 'path' => 'evidence/activity-proof.png', 'original_filename' => 'activity-proof.png', 'mime_type' => 'image/png']);
@@ -489,7 +478,7 @@ class GoogleDriveSyncTest extends TestCase
         $participant = User::factory()->create(['role' => 'participant']);
         $program = Program::factory()->create(['is_active' => true]);
         $week = TrainingWeek::factory()->create(['program_id' => $program->id, 'week_number' => 2]);
-        TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $program->participants()->attach($participant, ['joined_at' => now()]);
         $video = WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create(['name' => 'week-2-walkthrough.mp4']);
         GoogleDriveConnection::create(['user_id' => $participant->id, 'access_token' => 'token', 'refresh_token' => 'refresh', 'drive_folder_id' => 'root', 'destination_source' => 'picker', 'connected_at' => now()]);
         $sync = GoogleDriveSync::create(['user_id' => $participant->id, 'destination_folder_id' => 'root', 'status' => GoogleDriveSyncStatus::Enqueued]);
@@ -531,7 +520,7 @@ class GoogleDriveSyncTest extends TestCase
         $program = Program::factory()->create(['is_active' => true]);
         $week = TrainingWeek::factory()->create(['program_id' => $program->id, 'week_number' => 2]);
         $activity = Activity::factory()->create(['training_week_id' => $week->id, 'position' => 2, 'title' => 'AI Output Error Detection']);
-        TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $program->participants()->attach($participant, ['joined_at' => now()]);
         $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
         $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted']);
         $names = array_map(static fn (int $index): string => "Week2-Activity2-{$index}.png", range(1, 5));
@@ -588,9 +577,8 @@ class GoogleDriveSyncTest extends TestCase
     public function test_repeated_full_sync_updates_tracked_workbooks_in_place(): void
     {
         $participant = $this->connectedParticipant();
-        $program = Program::factory()->create();
-        $weeks = collect(range(1, 4))->map(fn (int $number): TrainingWeek => TrainingWeek::factory()->for($program)->create(['week_number' => $number]));
-        TrainingSession::factory()->forWeek($weeks->first())->withParticipants($participant)->create(['title' => 'November cohort']);
+        $program = Program::factory()->withParticipants($participant)->create(['name' => 'November cohort']);
+        collect(range(1, 4))->each(fn (int $number): TrainingWeek => TrainingWeek::factory()->for($program)->create(['week_number' => $number]));
         $folders = [];
         $uploads = [];
         $contents = [];
@@ -616,23 +604,23 @@ class GoogleDriveSyncTest extends TestCase
         }
         $this->assertNotContains('Evidences', array_column($folders, 0));
         $this->assertSame(9, GoogleDriveExport::query()->where('user_id', $participant->id)->where('status', GoogleDriveExportStatus::Completed)->count());
-        $this->assertSame(1, GoogleDriveExport::query()->where('user_id', $participant->id)->where('export_type', 'session_folder')->count());
+        $this->assertSame(1, GoogleDriveExport::query()->where('user_id', $participant->id)->where('export_type', 'program_folder')->count());
         $this->assertSame(4, GoogleDriveExport::query()->where('user_id', $participant->id)->where('export_type', 'week_folder')->count());
         $this->assertSame(4, GoogleDriveExport::query()->where('user_id', $participant->id)->where('export_type', 'weekly_workbook_nested')->count());
     }
 
-    public function test_a_participant_in_two_sessions_gets_a_folder_per_session_with_only_that_sessions_work(): void
+    public function test_a_participant_in_two_curricula_gets_a_folder_per_curriculum_with_only_that_curriculums_work(): void
     {
         Storage::fake('local');
         $participant = $this->connectedParticipant(['employee_id' => 'EMP-004242']);
-        $program = Program::factory()->create();
-        $weekOne = TrainingWeek::factory()->for($program)->create(['week_number' => 1]);
-        TrainingWeek::factory()->for($program)->create(['week_number' => 2]);
-        $activity = Activity::factory()->for($weekOne, 'week')->create(['title' => 'Build the API']);
-        $november = TrainingSession::factory()->forWeek($weekOne)->withParticipants($participant)->create(['title' => 'November cohort']);
-        $december = TrainingSession::factory()->forWeek($weekOne)->state(['weeks_count' => 1])->upcoming()->withParticipants($participant)->create(['title' => 'December cohort']);
-        foreach ([[$november, 'Work in November'], [$december, 'Work in December']] as [$session, $note]) {
-            $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->for($session, 'trainingSession')->create(['status' => 'submitted']);
+        $november = Program::factory()->withParticipants($participant)->create(['name' => 'November cohort']);
+        TrainingWeek::factory()->for($november)->create(['week_number' => 1]);
+        TrainingWeek::factory()->for($november)->create(['week_number' => 2]);
+        $december = Program::factory()->withParticipants($participant)->create(['name' => 'December cohort']);
+        $decemberWeekOne = TrainingWeek::factory()->for($december)->upcoming()->create(['week_number' => 1]);
+        foreach ([[$november, 'Work in November'], [$december, 'Work in December']] as [$program, $note]) {
+            $activity = Activity::factory()->for($program->weeks()->where('week_number', 1)->sole(), 'week')->create(['title' => 'Build the API']);
+            $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'submitted']);
             $version = SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'participant_note' => $note]);
         }
         $evidence = SubmissionEvidence::factory()->for($version, 'submissionVersion')->create(['evidence_type' => 'file', 'disk' => 'local', 'path' => 'evidence/december-proof.png', 'original_filename' => 'december-proof.png', 'mime_type' => 'image/png']);
@@ -670,9 +658,9 @@ class GoogleDriveSyncTest extends TestCase
         $firstSync->refresh();
         $this->assertSame(GoogleDriveSyncStatus::Completed, $firstSync->status);
         $this->assertSame(['November cohort / Week 1.xlsx', 'November cohort / Week 2.xlsx', 'December cohort / Week 1.xlsx', 'Evidences'], array_keys($firstSync->component_results));
-        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'session_folder', 'scope_key' => "session:{$november->id}", 'drive_file_id' => 'root/November cohort']);
-        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'weekly_workbook_nested', 'scope_key' => "session:{$december->id}:week:{$weekOne->id}", 'drive_file_id' => 'root/December cohort/Week 1/Week 1.xlsx']);
-        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'evidence_activity_folder', 'scope_key' => "session:{$december->id}:week:{$weekOne->id}:activity:{$activity->id}"]);
+        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'program_folder', 'scope_key' => "program:{$november->id}", 'drive_file_id' => 'root/November cohort']);
+        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'weekly_workbook_nested', 'scope_key' => "program:{$december->id}:week:{$decemberWeekOne->id}", 'drive_file_id' => 'root/December cohort/Week 1/Week 1.xlsx']);
+        $this->assertDatabaseHas('google_drive_exports', ['user_id' => $participant->id, 'export_type' => 'evidence_activity_folder', 'scope_key' => "program:{$december->id}:week:{$decemberWeekOne->id}:activity:{$activity->id}"]);
         $trackingRows = GoogleDriveExport::query()->count();
 
         $folders = [];
@@ -691,33 +679,31 @@ class GoogleDriveSyncTest extends TestCase
         $this->assertDatabaseCount('google_drive_evidence_exports', 1);
     }
 
-    public function test_sessions_with_the_same_title_get_folders_told_apart_by_dates_then_id(): void
+    public function test_curricula_with_the_same_name_get_folders_told_apart_by_id(): void
     {
         $participant = $this->connectedParticipant();
-        $week = TrainingWeek::factory()->create(['week_number' => 1]);
-        $sessions = TrainingSession::factory()->forWeek($week)->withParticipants($participant);
-        $november = $sessions->create(['title' => 'L4 Accelerator']);
-        $solo = $sessions->create(['title' => 'Solo run']);
-        [$decemberA, $decemberB] = $sessions->upcoming()->count(2)->create(['title' => 'L4 Accelerator']);
+        $curricula = Program::factory()->withWeeks(1)->withParticipants($participant);
+        $first = $curricula->create(['name' => 'L4 Accelerator']);
+        $curricula->create(['name' => 'Solo run']);
+        $second = $curricula->create(['name' => 'L4 Accelerator']);
         $folders = [];
         $uploads = [];
         $contents = [];
 
         $this->runSync($this->queuedSync($participant), $this->recordingDrive($folders, $uploads, $contents));
 
-        $sessionFolders = collect($folders)->where(1, 'root')->pluck(0)->all();
+        $programFolders = collect($folders)->where(1, 'root')->pluck(0)->all();
         $this->assertSame([
-            "L4 Accelerator ({$november->dateRangeLabel()})",
+            "L4 Accelerator (#{$first->id})",
             'Solo run',
-            "L4 Accelerator ({$decemberA->dateRangeLabel()}, #{$decemberA->id})",
-            "L4 Accelerator ({$decemberB->dateRangeLabel()}, #{$decemberB->id})",
-        ], $sessionFolders);
+            "L4 Accelerator (#{$second->id})",
+        ], $programFolders);
     }
 
-    public function test_sync_of_a_participant_in_no_session_uploads_nothing(): void
+    public function test_sync_of_a_participant_in_no_curriculum_uploads_nothing(): void
     {
         $participant = $this->connectedParticipant();
-        TrainingSession::factory()->forWeek(TrainingWeek::factory()->create(['week_number' => 1]))->create();
+        TrainingWeek::factory()->create(['week_number' => 1]);
         $folders = [];
         $uploads = [];
         $contents = [];
@@ -816,14 +802,15 @@ class GoogleDriveSyncTest extends TestCase
     public function test_drive_setup_is_required_before_starting_an_official_activity(): void
     {
         $this->configureDrive();
+        $this->travelTo(L4TrainingProgramSeeder::FIRST_WEEK_STARTS_ON.' 09:00:00');
         $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant']);
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()]);
         $week = TrainingWeek::query()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 2)->where('is_active', true)->firstOrFail();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $week->program->participants()->attach($participant, ['joined_at' => now()]);
 
-        $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))
+        $this->actingAs($participant)->get(route('training.activities.show', [$week->program, $week, $activity]))
             ->assertRedirect(route('dashboard'))
             ->assertSessionHasErrors('google_drive_setup');
     }
@@ -831,13 +818,14 @@ class GoogleDriveSyncTest extends TestCase
     public function test_legacy_drive_link_does_not_satisfy_activity_readiness(): void
     {
         $this->configureDrive();
+        $this->travelTo(L4TrainingProgramSeeder::FIRST_WEEK_STARTS_ON.' 09:00:00');
         $this->seed(L4TrainingProgramSeeder::class);
         $participant = User::factory()->create(['role' => 'participant', 'drive_link' => 'https://drive.google.com/drive/folders/legacy']);
         $week = TrainingWeek::query()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 2)->where('is_active', true)->firstOrFail();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $week->program->participants()->attach($participant, ['joined_at' => now()]);
 
-        $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))
+        $this->actingAs($participant)->get(route('training.activities.show', [$week->program, $week, $activity]))
             ->assertRedirect(route('dashboard'));
     }
 }

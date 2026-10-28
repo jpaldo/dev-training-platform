@@ -7,7 +7,6 @@ use App\Models\ApplicationSetting;
 use App\Models\AttendanceSession;
 use App\Models\MentorAssignment;
 use App\Models\Program;
-use App\Models\TrainingSession;
 use App\Models\User;
 use Carbon\Carbon;
 use Database\Seeders\L4TrainingProgramSeeder;
@@ -53,12 +52,11 @@ class AttendanceTest extends TestCase
     public function test_activity_check_in_redirect_preserves_only_a_safe_internal_return_destination(): void
     {
         $participant = User::factory()->create();
-        $this->seed(L4TrainingProgramSeeder::class);
-        $program = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->firstOrFail();
+        $program = $this->seedL4InItsFirstWeek();
         $week = $program->weeks()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->firstOrFail();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        $destination = route('training.submission.edit', [$session, $week, $activity]);
+        $program->participants()->attach($participant, ['joined_at' => now()]);
+        $destination = route('training.submission.edit', [$program, $week, $activity]);
 
         $this->actingAs($participant)->get($destination)->assertRedirect(route('participant.attendance.index'));
         $this->actingAs($participant)->post(route('participant.attendance.check-in'), ['return_to' => $destination])->assertRedirect($destination);
@@ -150,8 +148,8 @@ class AttendanceTest extends TestCase
 
         $response = $this->actingAs($participant)->get(route('dashboard'))->assertOk();
         $html = $response->getContent();
-        $this->assertLessThan(strpos($html, '>My trainings</h2>'), strpos($html, '>ATTENDANCE</div>'));
-        $this->assertLessThan(strpos($html, '>Past trainings</h2>'), strpos($html, '>ATTENDANCE</div>'));
+        $this->assertLessThan(strpos($html, '>My curricula</h2>'), strpos($html, '>ATTENDANCE</div>'));
+        $this->assertLessThan(strpos($html, '>Past curricula</h2>'), strpos($html, '>ATTENDANCE</div>'));
         $response->assertSee('NOT CHECKED IN')->assertSee('CHECK IN')->assertSee('View attendance history');
 
         AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subHours(2), 'check_out_at' => now()->subHour(), 'total_seconds' => 3600]);
@@ -193,14 +191,14 @@ class AttendanceTest extends TestCase
     {
         config(['services.google_drive.enabled' => false]);
         $participant = User::factory()->create();
-        $this->seed(L4TrainingProgramSeeder::class);
+        $program = $this->seedL4InItsFirstWeek();
         ApplicationSetting::query()->where('key', 'google_drive.enabled')->delete();
-        $week = Program::firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
+        $week = $program->weeks()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 2)->firstOrFail();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        $activityUrl = route('training.activities.show', [$session, $week, $activity]);
+        $program->participants()->attach($participant, ['joined_at' => now()]);
+        $activityUrl = route('training.activities.show', [$program, $week, $activity]);
 
-        $this->actingAs($participant)->get(route('training.sessions.show', $session))
+        $this->actingAs($participant)->get(route('training.programs.show', $program))
             ->assertOk()
             ->assertSee('Please check in to access this week')
             ->assertSee('aria-disabled="true"', false)
@@ -216,11 +214,11 @@ class AttendanceTest extends TestCase
     public function test_checkout_relocks_new_current_week_activity_but_preserves_existing_work(): void
     {
         $participant = User::factory()->create();
-        $this->seed(L4TrainingProgramSeeder::class);
-        $week = Program::firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
+        $program = $this->seedL4InItsFirstWeek();
+        $week = $program->weeks()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 2)->firstOrFail();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
-        $activityUrl = route('training.activities.show', [$session, $week, $activity]);
+        $program->participants()->attach($participant, ['joined_at' => now()]);
+        $activityUrl = route('training.activities.show', [$program, $week, $activity]);
 
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
         $this->actingAs($participant)->post(route('participant.attendance.check-out'))->assertRedirect();
@@ -233,16 +231,16 @@ class AttendanceTest extends TestCase
     public function test_checkout_blocks_continuing_an_existing_editable_draft_but_allows_read_only_activity_view(): void
     {
         $participant = User::factory()->create();
-        $this->seed(L4TrainingProgramSeeder::class);
-        $week = Program::firstOrFail()->weeks()->where('week_number', 1)->firstOrFail();
+        $program = $this->seedL4InItsFirstWeek();
+        $week = $program->weeks()->where('week_number', 1)->firstOrFail();
         $activity = $week->activities()->where('position', 2)->firstOrFail();
-        $session = TrainingSession::factory()->forWeek($week)->withParticipants($participant)->create();
+        $program->participants()->attach($participant, ['joined_at' => now()]);
         $submission = ActivitySubmission::factory()->for($activity)->create(['user_id' => $participant->id, 'status' => 'draft']);
         $submission->versions()->create(['version_number' => 1, 'status' => 'draft', 'field_values' => []]);
 
-        $this->actingAs($participant)->get(route('training.activities.show', [$session, $week, $activity]))->assertOk();
+        $this->actingAs($participant)->get(route('training.activities.show', [$program, $week, $activity]))->assertOk();
         $this->actingAs($participant)
-            ->get(route('training.submission.edit', [$session, $week, $activity]))
+            ->get(route('training.submission.edit', [$program, $week, $activity]))
             ->assertRedirect(route('participant.attendance.index'))
             ->assertSessionHasErrors('attendance');
     }
@@ -252,16 +250,28 @@ class AttendanceTest extends TestCase
         $participant = User::factory()->create();
         $coach = User::factory()->create(['role' => 'coach']);
         $admin = User::factory()->create(['role' => 'admin']);
-        $this->seed(L4TrainingProgramSeeder::class);
-        $program = Program::firstOrFail();
+        $program = $this->seedL4InItsFirstWeek();
         $week1 = $program->weeks()->where('week_number', 1)->firstOrFail();
         $week2 = $program->weeks()->where('week_number', 2)->firstOrFail();
         $activity = $week2->activities()->firstOrFail();
-        $session = TrainingSession::factory()->forWeek($week1)->withParticipants($participant)->withMentors($coach)->create();
+        $program->participants()->attach($participant, ['joined_at' => now()]);
+        $program->mentors()->attach($coach);
 
         $this->actingAs($participant)->post(route('participant.attendance.check-in'))->assertRedirect();
-        $this->actingAs($participant)->get(route('training.activities.show', [$session, $week2, $activity]))->assertForbidden();
-        $this->actingAs($coach)->get(route('training.activities.show', [$session, $week1, $week1->activities()->firstOrFail()]))->assertOk();
-        $this->actingAs($admin)->get(route('training.activities.show', [$session, $week1, $week1->activities()->firstOrFail()]))->assertOk();
+        $this->actingAs($participant)->get(route('training.activities.show', [$program, $week2, $activity]))->assertForbidden();
+        $this->actingAs($coach)->get(route('training.activities.show', [$program, $week1, $week1->activities()->firstOrFail()]))->assertOk();
+        $this->actingAs($admin)->get(route('training.activities.show', [$program, $week1, $week1->activities()->firstOrFail()]))->assertOk();
+    }
+
+    /**
+     * Seed the L4 curriculum at 9:00 on the day its first week opens (its weeks are dated from 9 Nov 2026), so week 1
+     * is open, and return it.
+     */
+    private function seedL4InItsFirstWeek(): Program
+    {
+        $this->travelTo(L4TrainingProgramSeeder::FIRST_WEEK_STARTS_ON.' 09:00:00');
+        $this->seed(L4TrainingProgramSeeder::class);
+
+        return Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->sole();
     }
 }

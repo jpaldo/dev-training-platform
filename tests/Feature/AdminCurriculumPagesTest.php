@@ -6,7 +6,6 @@ use App\Models\Activity;
 use App\Models\GateCriterion;
 use App\Models\Program;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -19,26 +18,30 @@ class AdminCurriculumPagesTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_admin_sees_the_programs_by_name_with_their_status_and_counts(): void
+    public function test_admin_sees_the_programs_by_name_with_whether_they_are_offered_and_their_counts(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $program = Program::factory()->create(['name' => 'L4 Accelerator Training']);
+        $program = Program::factory()
+            ->withParticipants(...User::factory()->count(3)->create()->all())
+            ->create(['name' => 'L4 Accelerator Training']);
         $this->week($program, 1);
         $this->week($program, 2);
-        TrainingSession::factory()->for($program)->count(3)->create();
         $retired = Program::factory()->create(['name' => 'Archived Bootcamp', 'is_active' => false]);
         $this->week($retired, 1);
 
         $this->actingAs($admin)
             ->get(route('admin.programs.index'))
             ->assertOk()
-            ->assertSeeInOrder(['Archived Bootcamp', 'Inactive', '1', '0', 'L4 Accelerator Training', 'Active', '2', '3'])
+            ->assertSee('All curricula')
+            ->assertSeeInOrder(['>Curriculum<', '>Offered<', '>Schedule<', '>Dates<', '>Weeks<', '>Participants<', '>Actions<'], false)
+            ->assertSeeInOrder(['Archived Bootcamp', '>No<', 'data-program-participants>0<', 'L4 Accelerator Training', '>Yes<', 'data-program-participants>3<'], false)
             ->assertSee('<a href="'.route('admin.programs.show', $program).'"', false)
             ->assertSee('aria-label="Open Archived Bootcamp"', false)
             ->assertViewHas('programs', fn (array $programs): bool => array_column($programs, 'name') === ['Archived Bootcamp', 'L4 Accelerator Training']
                 && $programs[1]['weeks_count'] === 2
-                && $programs[1]['sessions_count'] === 3
-                && $programs[0]['status_tone'] === 'neutral');
+                && $programs[1]['participants_count'] === 3
+                && $programs[0]['offered_tone'] === 'neutral'
+                && $programs[1]['offered_tone'] === 'success');
     }
 
     public function test_the_list_shows_each_programs_schedule_status_and_dates(): void
@@ -52,7 +55,7 @@ class AdminCurriculumPagesTest extends TestCase
             ->get(route('admin.programs.index'))
             ->assertOk()
             ->assertSeeInOrder(['>Schedule<', '>Dates<'], false)
-            ->assertSeeInOrder(['Autumn Curriculum', 'Active', 'Active', '9 Nov – 6 Dec 2026', 'Draft Curriculum', 'Active', 'Unscheduled', 'Not scheduled'])
+            ->assertSeeInOrder(['Autumn Curriculum', 'Yes', 'Active', '9 Nov – 6 Dec 2026', 'Draft Curriculum', 'Yes', 'Unscheduled', 'Not scheduled'])
             ->assertViewHas('programs', fn (array $programs): bool => $programs[0]['schedule_status_tone'] === 'success'
                 && $programs[1]['schedule_status_label'] === 'Unscheduled'
                 && $programs[1]['schedule_status_tone'] === 'warning');
@@ -65,12 +68,11 @@ class AdminCurriculumPagesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.programs.index'))
             ->assertOk()
-            ->assertSee('No programs yet.');
+            ->assertSee('No curricula yet.');
     }
 
-    public function test_the_program_page_lists_the_weeks_in_number_order_with_their_counts_and_the_sessions_with_status_badges(): void
+    public function test_the_program_page_lists_the_weeks_in_number_order_with_their_counts(): void
     {
-        $this->travelTo('2026-11-12 09:00:00');
         $admin = User::factory()->create(['role' => 'admin']);
         $program = Program::factory()->create(['name' => 'L4 Accelerator Training', 'description' => 'Four weeks of accelerated training.']);
         $secondWeek = $this->week($program, 2, 'Testing');
@@ -83,19 +85,13 @@ class AdminCurriculumPagesTest extends TestCase
         GateCriterion::factory()->for($firstChecklist, 'gate')->create(['is_required' => false]);
         GateCriterion::factory()->for(TrainingGate::factory()->for($firstWeek, 'week')->create(['is_active' => false]), 'gate')->create();
         $this->week(Program::factory()->create(), 1, 'Other program week');
-        $completed = TrainingSession::factory()->for($program)->create(['title' => 'Spring Run', 'starts_on' => '2026-03-02', 'ends_on' => '2026-03-29']);
-        $upcoming = TrainingSession::factory()->for($program)->create(['title' => 'Winter Run', 'starts_on' => '2026-12-07', 'ends_on' => '2027-01-03']);
 
         $this->actingAs($admin)
             ->get(route('admin.programs.show', $program))
             ->assertOk()
-            ->assertSeeInOrder(['L4 Accelerator Training', 'Four weeks of accelerated training.'])
-            ->assertSee('Used by 2 training sessions (0 active, 1 upcoming, 1 completed). Changes show to their participants and mentors right away, including in completed sessions.')
-            ->assertSee('data-sessions-notice="info"', false)
-            ->assertSeeInOrder(['Winter Run', '7 Dec 2026 – 3 Jan 2027', 'Upcoming', 'Spring Run', '2 Mar – 29 Mar 2026', 'Completed'])
-            ->assertSee('<a href="'.route('admin.sessions.show', $upcoming).'"', false)
-            ->assertSee('<a href="'.route('admin.sessions.show', $completed).'"', false)
-            ->assertSeeInOrder(['Week 1', 'Foundations', 'Week 2', 'Testing'])
+            ->assertSeeInOrder(['L4 Accelerator Training', 'Four weeks of accelerated training.', 'All Curricula'])
+            ->assertSee('<a href="'.route('admin.programs.index').'"', false)
+            ->assertSeeInOrder(['id="program-panel-weeks"', 'Week 1', 'Foundations', 'Week 2', 'Testing'], false)
             ->assertSee('<a href="'.route('admin.programs.weeks.show', [$program, $firstWeek]).'"', false)
             ->assertSeeInOrder(['aria-label="Edit Week 2"', '>Edit Week<'], false)
             ->assertDontSee('Other program week')
@@ -106,24 +102,37 @@ class AdminCurriculumPagesTest extends TestCase
                 && $weeks[1]['checklist_item_count'] === 0);
     }
 
-    public function test_the_notice_warns_while_a_session_of_the_program_is_active(): void
+    #[DataProvider('scheduleNotices')]
+    public function test_the_schedule_notice_follows_the_curriculum_status_and_warns_only_while_it_is_active(string $today, string $status, string $tone, string $message): void
     {
+        $this->travelTo($today);
         $admin = User::factory()->create(['role' => 'admin']);
-        $program = Program::factory()->create();
-        TrainingSession::factory()->for($program)->active()->create(['title' => 'Live Run']);
-        TrainingSession::factory()->for($program)->completed()->create();
-        TrainingSession::factory()->for(Program::factory())->active()->create(['title' => 'Other program run']);
+        $program = Program::factory()->withWeeks(4, Carbon::parse('2026-11-09'))->create();
+        $week = $program->weeks()->where('week_number', 2)->sole();
 
-        $this->actingAs($admin)
-            ->get(route('admin.programs.show', $program))
-            ->assertOk()
-            ->assertSee('data-sessions-notice="warning"', false)
-            ->assertSee('Used by 2 training sessions (1 active, 0 upcoming, 1 completed).')
-            ->assertSeeInOrder(['Live Run', 'Active'])
-            ->assertDontSee('Other program run');
+        foreach ([route('admin.programs.show', $program), route('admin.programs.weeks.show', [$program, $week])] as $url) {
+            $this->actingAs($admin)
+                ->get($url)
+                ->assertOk()
+                ->assertSee('data-schedule-notice="'.$status.'"', false)
+                ->assertSee($message)
+                ->assertViewHas('notice', ['status' => $status, 'tone' => $tone, 'message' => $message]);
+        }
     }
 
-    public function test_the_notice_of_a_program_without_sessions_says_so(): void
+    /**
+     * @return array<string, array{string, string, string, string}>
+     */
+    public static function scheduleNotices(): array
+    {
+        return [
+            'upcoming' => ['2026-11-08 09:00:00', 'upcoming', 'info', 'Upcoming 9 Nov – 6 Dec 2026: participants can open the first week on 9 Nov 2026.'],
+            'active' => ['2026-11-12 09:00:00', 'active', 'warning', 'Active 9 Nov – 6 Dec 2026: changes show to its participants and mentors right away.'],
+            'completed' => ['2026-12-07 09:00:00', 'completed', 'info', 'Completed 9 Nov – 6 Dec 2026: changes still show to its participants and mentors when they look back.'],
+        ];
+    }
+
+    public function test_the_notice_of_a_program_without_dated_weeks_says_participants_cannot_open_any_week(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
         $program = Program::factory()->create();
@@ -131,10 +140,10 @@ class AdminCurriculumPagesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.programs.show', $program))
             ->assertOk()
-            ->assertSee('data-sessions-notice="info"', false)
-            ->assertSee('No training session uses this program yet.')
-            ->assertDontSee('data-notice-session', false)
-            ->assertSee('This program has no weeks yet.');
+            ->assertSee('data-schedule-notice="unscheduled"', false)
+            ->assertSee('Not scheduled: participants cannot open any week yet.')
+            ->assertViewHas('notice', fn (array $notice): bool => $notice['tone'] === 'info')
+            ->assertSee('This curriculum has no weeks yet.');
     }
 
     #[DataProvider('scheduleStatusDays')]
@@ -186,11 +195,12 @@ class AdminCurriculumPagesTest extends TestCase
             ->get(route('admin.programs.show', $program))
             ->assertOk()
             ->assertSeeInOrder([
+                'id="program-panel-weeks"',
                 '>Dates<',
                 'Week 1', 'data-week-dates>Not scheduled<',
                 'Week 2', 'data-week-dates>16 – 22 Nov 2026<',
                 'Week 3', 'data-week-dates>23 – 29 Nov 2026<',
-                'id="schedule"',
+                'id="program-panel-schedule"',
                 'action="'.route('admin.programs.schedule.update', $program).'"',
                 'name="_method" value="PUT"',
                 'id="schedule-starts-on"', 'value="2026-11-09"',
@@ -235,18 +245,22 @@ class AdminCurriculumPagesTest extends TestCase
         $this->actingAs($admin)->get(route('admin.programs.show', 999))->assertNotFound();
     }
 
-    public function test_participants_and_coaches_are_forbidden_on_the_curriculum_pages(): void
+    public function test_participants_and_mentors_of_the_curriculum_are_forbidden_on_its_admin_pages(): void
     {
-        $program = Program::factory()->create();
+        $participant = User::factory()->create(['role' => 'participant']);
+        $coach = User::factory()->create(['role' => 'coach']);
+        $program = Program::factory()->withParticipants($participant)->withMentors($coach)->create();
         $week = $this->week($program, 1);
 
-        foreach (['participant', 'coach'] as $role) {
-            $user = User::factory()->create(['role' => $role]);
-
+        foreach ([$participant, $coach] as $user) {
             $this->actingAs($user)->get(route('admin.programs.index'))->assertForbidden();
             $this->actingAs($user)->get(route('admin.programs.show', $program))->assertForbidden();
             $this->actingAs($user)->get(route('admin.programs.weeks.show', [$program, $week]))->assertForbidden();
+            $this->actingAs($user)->put(route('admin.programs.schedule.update', $program), ['starts_on' => '2026-11-09'])->assertForbidden();
         }
+
+        $this->assertSame(today()->toDateString(), $week->fresh()->starts_on->toDateString());
+        $this->assertDatabaseEmpty('admin_audit_logs');
     }
 
     public function test_guests_are_sent_to_login_from_the_curriculum_pages(): void
@@ -257,9 +271,12 @@ class AdminCurriculumPagesTest extends TestCase
         $this->get(route('admin.programs.index'))->assertRedirect(route('login'));
         $this->get(route('admin.programs.show', $program))->assertRedirect(route('login'));
         $this->get(route('admin.programs.weeks.show', [$program, $week]))->assertRedirect(route('login'));
+        $this->put(route('admin.programs.schedule.update', $program), ['starts_on' => '2026-11-09'])->assertRedirect(route('login'));
+
+        $this->assertSame(today()->toDateString(), $week->fresh()->starts_on->toDateString());
     }
 
-    public function test_the_program_page_query_count_does_not_grow_with_weeks_activities_checklists_and_sessions(): void
+    public function test_the_program_page_query_count_does_not_grow_with_weeks_activities_checklists_and_participants(): void
     {
         $this->assertSame($this->programPageQueryCount(1), $this->programPageQueryCount(4));
     }
@@ -283,7 +300,6 @@ class AdminCurriculumPagesTest extends TestCase
         GateCriterion::factory()->for($checklist, 'gate')->create(['criterion_type' => GateCriterion::TYPE_WEEKLY_VIDEO, 'title' => 'Weekly video recorded', 'position' => 3]);
         GateCriterion::factory()->for($checklist, 'gate')->create(['criterion_type' => GateCriterion::TYPE_DELIVERABLE, 'title' => 'Test suite passes', 'description' => 'Every test is green.', 'position' => 1]);
         GateCriterion::factory()->for($checklist, 'gate')->create(['criterion_type' => GateCriterion::TYPE_SESSION_LOGS, 'title' => 'Session logs committed', 'position' => 2]);
-        TrainingSession::factory()->for($program)->active()->create(['title' => 'Live Run']);
 
         $this->actingAs($admin)
             ->get(route('admin.programs.weeks.show', [$program, $week]))
@@ -291,8 +307,7 @@ class AdminCurriculumPagesTest extends TestCase
             ->assertSee('<title>Week 2: Testing</title>', false)
             ->assertSeeInOrder(['ADMIN · CURRICULUM', 'Week 2: Testing', 'L4 Accelerator Training', 'Active'])
             ->assertSee('<a href="'.route('admin.programs.show', $program).'"', false)
-            ->assertSee('data-sessions-notice="warning"', false)
-            ->assertSee('Live Run')
+            ->assertSee('data-schedule-notice="active"', false)
             ->assertSeeInOrder(['Details', 'Activities', 'Checklist'])
             ->assertSeeInOrder(['Testing', 'Write tests before the code.'])
             ->assertSeeInOrder(['Unit testing basics', 'Active', 'Retired mocking drill', 'Inactive', 'Refactor kata', 'Active'])
@@ -365,7 +380,7 @@ class AdminCurriculumPagesTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_the_week_page_query_count_does_not_grow_with_activities_checklist_items_and_sessions(): void
+    public function test_the_week_page_query_count_does_not_grow_with_activities_and_checklist_items(): void
     {
         $this->assertSame($this->weekPageQueryCount(1), $this->weekPageQueryCount(4));
     }
@@ -381,7 +396,7 @@ class AdminCurriculumPagesTest extends TestCase
 
     /**
      * Create a program with the given number of weeks, each with that many activities and a checklist with that many
-     * items, and that many sessions, and count the queries of an admin's program page request after a warm-up request.
+     * items, and that many participants, and count the queries of an admin's program page request after a warm-up request.
      */
     private function programPageQueryCount(int $count): int
     {
@@ -392,7 +407,7 @@ class AdminCurriculumPagesTest extends TestCase
             Activity::factory()->for($week, 'week')->count($count)->create();
             GateCriterion::factory()->for(TrainingGate::factory()->for($week, 'week')->create(), 'gate')->count($count)->create();
         }
-        TrainingSession::factory()->for($program)->count($count)->create();
+        $program->participants()->attach(User::factory()->count($count)->create(), ['joined_at' => now()]);
 
         $this->actingAs($admin)->get(route('admin.programs.show', $program))->assertOk();
         DB::flushQueryLog();
@@ -403,15 +418,14 @@ class AdminCurriculumPagesTest extends TestCase
             ->assertViewHas('weeks', fn (array $weeks): bool => count($weeks) === $count
                 && array_sum(array_column($weeks, 'active_activity_count')) === $count * $count
                 && array_sum(array_column($weeks, 'checklist_item_count')) === $count * $count)
-            ->assertViewHas('notice', fn (array $notice): bool => count($notice['sessions']) === $count);
+            ->assertSee("Participants ({$count})");
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());
     }
 
     /**
-     * Create a week with that many activities, a checklist with that many items on it and that many retired, and a
-     * program with that many sessions, and count the queries of an admin's week page request after a warm-up request.
+     * Create a week with that many activities and a checklist with that many items on it and that many retired, and count the queries of an admin's week page request after a warm-up request.
      */
     private function weekPageQueryCount(int $count): int
     {
@@ -422,7 +436,6 @@ class AdminCurriculumPagesTest extends TestCase
         $checklist = TrainingGate::factory()->for($week, 'week')->create();
         GateCriterion::factory()->for($checklist, 'gate')->count($count)->create();
         GateCriterion::factory()->for($checklist, 'gate')->count($count)->create(['is_required' => false]);
-        TrainingSession::factory()->for($program)->count($count)->create();
 
         $this->actingAs($admin)->get(route('admin.programs.weeks.show', [$program, $week]))->assertOk();
         DB::flushQueryLog();
@@ -432,8 +445,7 @@ class AdminCurriculumPagesTest extends TestCase
             ->assertOk()
             ->assertViewHas('activities', fn (array $activities): bool => count($activities) === $count)
             ->assertViewHas('checklist', fn (array $checklist): bool => count($checklist['items']) === $count
-                && count($checklist['removed_items']) === $count)
-            ->assertViewHas('notice', fn (array $notice): bool => count($notice['sessions']) === $count);
+                && count($checklist['removed_items']) === $count);
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());

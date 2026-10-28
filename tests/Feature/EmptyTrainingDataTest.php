@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\TrainingSession;
+use App\Models\Program;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -70,10 +70,10 @@ class EmptyTrainingDataTest extends TestCase
     public function test_coach_participant_page_opens_without_any_program_weeks_or_training_data(): void
     {
         $participant = User::factory()->create();
-        $session = TrainingSession::factory()->withParticipants($participant)->create();
+        $program = Program::factory()->withParticipants($participant)->create();
 
         $this->actingAs(User::factory()->create(['role' => 'admin']))
-            ->get(route('coach.participants.show', [$session, $participant]))
+            ->get(route('coach.participants.show', [$program, $participant]))
             ->assertOk();
     }
 
@@ -82,11 +82,11 @@ class EmptyTrainingDataTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSeeInOrder(['You are not in a training yet.', 'No past trainings yet.'])
+            ->assertSeeInOrder(['You are not in a curriculum yet.', 'No past curricula yet.'])
             ->assertDontSee('data-page-tabs', false);
     }
 
-    public function test_scoring_overview_lists_no_rows_without_training_sessions(): void
+    public function test_scoring_overview_lists_no_rows_without_curricula(): void
     {
         User::factory()->create(['name' => 'Ada Lovelace']);
 
@@ -99,23 +99,23 @@ class EmptyTrainingDataTest extends TestCase
             ->assertDontSee('>W1<', false);
     }
 
-    public function test_participant_scoring_page_in_a_session_of_a_program_without_weeks_says_so_and_shows_nothing_completed(): void
+    public function test_participant_scoring_page_in_a_curriculum_without_weeks_says_so_and_shows_nothing_completed(): void
     {
         $participant = User::factory()->create();
-        $session = TrainingSession::factory()->withParticipants($participant)->create();
+        $program = Program::factory()->withParticipants($participant)->create();
 
         $this->actingAs(User::factory()->create(['role' => 'admin']))
-            ->get(route('coach.scoring.participant', [$session, $participant]))
+            ->get(route('coach.scoring.participant', [$program, $participant]))
             ->assertOk()
-            ->assertSeeInOrder(['This training session has no weeks to score yet.', 'OVERALL SCORE', '— / 100', 'OVERALL COMPLETION', '0 / 0'])
+            ->assertSeeInOrder(['This curriculum has no weeks to score yet.', 'OVERALL SCORE', '— / 100', 'OVERALL COMPLETION', '0 / 0'])
             ->assertDontSee('WEEK 1')
             ->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE);
     }
 
-    public function test_participant_score_summary_csv_lists_each_session_membership_with_nothing_completed(): void
+    public function test_participant_score_summary_csv_lists_each_curriculum_membership_with_nothing_completed(): void
     {
         $participant = User::factory()->create(['name' => 'Ada Lovelace', 'employee_id' => 'EMP-000001', 'email' => 'ada@example.com']);
-        $session = TrainingSession::factory()->withParticipants($participant)->create();
+        $program = Program::factory()->withParticipants($participant)->create();
 
         $csv = $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('coach.reports.participant-summary'))
@@ -125,7 +125,7 @@ class EmptyTrainingDataTest extends TestCase
 
         $rows = array_map(str_getcsv(...), array_filter(explode("\n", $csv)));
         $this->assertCount(2, $rows);
-        $this->assertSame(['Ada Lovelace', 'EMP-000001', $session->titleWithDates(), 'ada@example.com', ''], array_slice($rows[1], 0, 5));
+        $this->assertSame(['Ada Lovelace', 'EMP-000001', $program->name, 'ada@example.com', ''], array_slice($rows[1], 0, 5));
         $this->assertSame(['0', '0', '0', '', '', '', '', 'Not Scored', ''], array_slice($rows[1], 5));
     }
 }

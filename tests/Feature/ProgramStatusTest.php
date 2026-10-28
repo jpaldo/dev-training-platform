@@ -114,6 +114,39 @@ class ProgramStatusTest extends TestCase
         $this->assertTrue($loaded->last()->is($unscheduled));
     }
 
+    public function test_load_schedule_bounds_reads_the_bounds_once_until_loaded_again_and_keeps_the_program_saveable(): void
+    {
+        $this->travelTo('2026-11-09 08:00:00');
+        $scheduled = Program::factory()->withWeeks(4, Carbon::parse('2026-11-09'))->create();
+        $unscheduled = Program::factory()->withWeeks(2)->unscheduled()->create();
+
+        $this->assertSame($scheduled, $scheduled->loadScheduleBounds());
+        $unscheduled->loadScheduleBounds();
+        $scheduled->weeks()->update(['starts_on' => '2026-11-16', 'ends_on' => '2026-11-22']);
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $read = [
+            $scheduled->status(),
+            $scheduled->dateRangeLabel(),
+            $scheduled->acceptsWork(),
+            $unscheduled->status(),
+            $unscheduled->dateRangeLabel(),
+            $unscheduled->isCompleted(),
+        ];
+        DB::disableQueryLog();
+
+        $this->assertSame([], DB::getQueryLog());
+        $this->assertSame([ProgramStatus::Active, '9 Nov – 6 Dec 2026', true, ProgramStatus::Unscheduled, 'Not scheduled', false], $read);
+        $this->assertSame([ProgramStatus::Upcoming, '16 – 22 Nov 2026'], [
+            $scheduled->loadScheduleBounds()->status(),
+            $scheduled->dateRangeLabel(),
+        ]);
+
+        $scheduled->update(['name' => 'Renamed Curriculum']);
+
+        $this->assertDatabaseHas('programs', ['id' => $scheduled->id, 'name' => 'Renamed Curriculum']);
+    }
+
     public function test_open_to_join_offers_curricula_that_are_offered_and_not_completed(): void
     {
         $this->travelTo('2026-11-09 08:00:00');

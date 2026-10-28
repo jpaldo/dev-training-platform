@@ -64,13 +64,6 @@
                             'missingItemsUrl' => $item['missing_items_url'],
                         ])
                     @else
-                        @if($item['attendance_required'])
-                            <x-ui.alert class="mb-6" role="status">
-                                Please check in to access this week's activities.
-                                <a class="text-accent underline underline-offset-3" href="{{ route('dashboard') }}">Check in on your dashboard</a>
-                            </x-ui.alert>
-                        @endif
-
                         <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
                             <x-ui.card class="min-w-0">
                                 <h3 class="mb-4 text-base font-extrabold">Activities</h3>
@@ -93,9 +86,7 @@
                                                 @endif
                                             </div>
                                             <div class="grid justify-items-start gap-1.5 sm:justify-items-end">
-                                                @if($item['attendance_required'] && ! $activity->participant_submission)
-                                                    <x-ui.button variant="secondary" :href="$activityUrl" disabled>{{ $activity->participant_action }}</x-ui.button>
-                                                @elseif($googleDriveReadinessEnforced && ! $googleDriveReady && ! $activity->participant_submission)
+                                                @if($googleDriveReadinessEnforced && ! $googleDriveReady && ! $activity->participant_submission)
                                                     <x-ui.button variant="secondary" :href="$activityUrl" disabled>Google Drive setup required</x-ui.button>
                                                 @else
                                                     <x-ui.button variant="secondary" :href="$activityUrl">{{ $activity->participant_action }}</x-ui.button>

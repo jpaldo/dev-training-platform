@@ -55,14 +55,7 @@ class ActivitySubmissionController extends Controller
             return redirect()->route('dashboard')->withErrors(['google_drive_setup' => $readiness->message($user)]);
         }
         $progression->ensureCanAccessActivity($user, $program, $trainingWeek, $activity);
-        if ($user->hasAnyRole(UserRole::Participant) && $progression->requiresAttendanceForActivity($user, $program, $trainingWeek, $activity)) {
-            $request->session()->put('attendance_return_to', route('training.submission.edit', [$program, $trainingWeek, $activity]));
-
-            return redirect()->route('participant.attendance.index')->withErrors([
-                'attendance' => 'Please check in before continuing this activity.',
-            ]);
-        }
-        $progression->ensureCanEditActivity($user, $program, $trainingWeek, $activity);
+        $progression->ensureCanEditActivity($user, $program, $activity);
 
         return response()
             ->view('submissions.edit', $pages->editData($user, $program, $trainingWeek, $activity))
@@ -118,6 +111,6 @@ class ActivitySubmissionController extends Controller
     {
         abort_if($user->hasAnyRole(UserRole::Participant) && $readiness->enforced() && ! $readiness->isReady($user), 403, $readiness->message($user));
         $progression->ensureCanAccessActivity($user, $program, $trainingWeek, $activity);
-        $progression->ensureCanEditActivity($user, $program, $trainingWeek, $activity);
+        $progression->ensureCanEditActivity($user, $program, $activity);
     }
 }

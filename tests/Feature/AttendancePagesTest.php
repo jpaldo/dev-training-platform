@@ -8,7 +8,6 @@ use App\Models\MentorAssignment;
 use App\Models\Program;
 use App\Models\User;
 use Carbon\Carbon;
-use Database\Seeders\L4TrainingProgramSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -20,27 +19,16 @@ class AttendancePagesTest extends TestCase
     public function test_participant_without_an_open_session_gets_check_in_now_as_the_single_main_action(): void
     {
         $participant = User::factory()->create();
-        $this->travelTo(L4TrainingProgramSeeder::FIRST_WEEK_STARTS_ON.' 09:00:00');
-        $this->seed(L4TrainingProgramSeeder::class);
-        $program = Program::query()->where('name', L4TrainingProgramSeeder::PROGRAM_NAME)->sole();
-        $program->participants()->attach($participant, ['joined_at' => now()]);
-        $week = $program->weeks()->where('week_number', 1)->firstOrFail();
-        $returnTo = route('training.submission.edit', [$program, $week, $week->activities()->firstOrFail()]);
 
         $response = $this->actingAs($participant)
-            ->followingRedirects()
-            ->get($returnTo)
+            ->get(route('participant.attendance.index'))
             ->assertOk()
             ->assertSeeInOrder([
                 'TRAINING ATTENDANCE',
                 'Attendance',
                 'id="attendance-main-action"',
                 'action="'.route('participant.attendance.check-in').'"',
-                'name="return_to" value="'.$returnTo.'"',
                 'CHECK IN NOW',
-                'role="alert"',
-                'CHECK-IN REQUIRED',
-                'You need to check in before you can start or continue working on this activity.',
                 'NOT CHECKED IN',
                 'Ready to start your training session?',
                 'Session history',

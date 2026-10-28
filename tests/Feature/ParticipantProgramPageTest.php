@@ -14,10 +14,10 @@ use App\Models\GateCriterion;
 use App\Models\GateCriterionEvaluation;
 use App\Models\GateEvaluation;
 use App\Models\Program;
+use App\Models\ProgramResource;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
-use App\Models\ProgramResource;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Models\WeeklyVideoRecording;
@@ -427,11 +427,10 @@ class ParticipantProgramPageTest extends TestCase
                 '<strong>Set up the repository</strong>',
                 'href="'.route('training.activities.show', [$program, $week, $activity]).'"',
                 '>Start</',
-            ], false)
-            ->assertDontSee('Please check in to access this week');
+            ], false);
     }
 
-    public function test_without_a_check_in_the_current_week_asks_the_participant_to_check_in_on_the_dashboard(): void
+    public function test_without_a_check_in_the_current_week_opens_its_activities_and_mentions_no_check_in(): void
     {
         $participant = User::factory()->create();
         $week = TrainingWeek::factory()->for(Program::factory())->create(['week_number' => 1, 'position' => 1]);
@@ -439,15 +438,12 @@ class ParticipantProgramPageTest extends TestCase
         $program = $week->program;
         $program->participants()->attach($participant, ['joined_at' => now()]);
 
-        $this->actingAs($participant)->get(route('training.programs.show', $program))
-            ->assertOk()
-            ->assertSeeInOrder([
-                "Please check in to access this week's activities.",
-                'href="'.route('dashboard').'">Check in on your dashboard</a>',
-                '<span aria-disabled="true"',
-                '>Start</span>',
-            ], false)
-            ->assertDontSee(route('training.activities.show', [$program, $week, $activity]), false);
+        $response = $this->actingAs($participant)->get(route('training.programs.show', $program));
+
+        $response->assertOk()
+            ->assertSee('href="'.route('training.activities.show', [$program, $week, $activity]).'"', false)
+            ->assertDontSee('aria-disabled="true"', false);
+        $this->assertDoesNotMatchRegularExpression('/check[ -]?in/i', $response->getContent());
     }
 
     public function test_the_curriculum_page_shows_only_the_participants_own_work(): void

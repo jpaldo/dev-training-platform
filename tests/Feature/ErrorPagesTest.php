@@ -45,8 +45,8 @@ class ErrorPagesTest extends TestCase
 
     public function test_the_forbidden_page_shows_the_abort_message_escaped(): void
     {
-        $this->view('errors.403', ['exception' => new HttpException(403, 'Please <b>check in</b> to continue editing this activity.')])
-            ->assertSee('Please &lt;b&gt;check in&lt;/b&gt; to continue editing this activity.', false)
+        $this->view('errors.403', ['exception' => new HttpException(403, 'Please <b>save your draft</b> before leaving this activity.')])
+            ->assertSee('Please &lt;b&gt;save your draft&lt;/b&gt; before leaving this activity.', false)
             ->assertDontSee('You do not have permission to view this page.');
     }
 

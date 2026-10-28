@@ -2,9 +2,6 @@
 
 @section('content')
     <div class="grid grid-cols-1 gap-6">
-        @if($errors->has('attendance'))
-            <x-ui.alert tone="error" role="alert">{{ $errors->first('attendance') }}</x-ui.alert>
-        @endif
         @if($errors->has('google_drive_setup'))
             <x-ui.alert tone="error" role="alert" class="grid justify-items-start gap-2">
                 <strong>Google Drive setup required</strong>

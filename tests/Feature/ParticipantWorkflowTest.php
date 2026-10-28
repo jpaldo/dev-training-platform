@@ -53,19 +53,40 @@ class ParticipantWorkflowTest extends TestCase
             ->assertSee('Finding');
     }
 
-    public function test_editing_without_an_open_attendance_session_guides_participant_to_check_in(): void
+    public function test_participant_who_never_checked_in_can_start_save_and_submit_a_current_week_activity(): void
     {
         [$participant, $week2, $activity, $program] = $this->trainingFixture();
 
+        $this->actingAs($participant)->get(route('training.activities.show', [$program, $week2, $activity]))->assertOk();
+        $this->actingAs($participant)->get(route('training.submission.edit', [$program, $week2, $activity]))->assertOk();
         $this->actingAs($participant)
-            ->get(route('training.submission.edit', [$program, $week2, $activity]))
-            ->assertRedirect(route('participant.attendance.index'))
-            ->assertSessionHasErrors(['attendance' => 'Please check in before continuing this activity.']);
+            ->post(route('training.submission.draft', [$program, $week2, $activity]), ['field_values' => []])
+            ->assertRedirect(route('training.submission.edit', [$program, $week2, $activity]));
+        $submission = ActivitySubmission::query()->sole();
+        $this->assertSame(SubmissionStatus::Draft, $submission->status);
+
+        $this->actingAs($participant)->get(route('training.submission.edit', [$program, $week2, $activity]))->assertOk();
+        $this->actingAs($participant)
+            ->post(route('training.submission.submit', [$program, $week2, $activity, $submission->versions()->sole()]))
+            ->assertRedirect(route('training.submission.edit', [$program, $week2, $activity]));
+
+        $this->assertSame(SubmissionStatus::Submitted, $submission->fresh()->status);
+        $this->assertSame(0, $participant->attendanceSessions()->count());
+    }
+
+    public function test_participant_who_never_checked_in_can_revise_a_current_week_attempt_that_needs_revision(): void
+    {
+        Queue::fake();
+        [$participant, $week2, $activity, $program] = $this->trainingFixture();
+        $submission = ActivitySubmission::factory()->for($participant, 'participant')->for($activity)->create(['status' => 'needs_revision']);
+        SubmissionVersion::factory()->for($submission, 'submission')->create(['status' => 'submitted', 'submitted_at' => now()]);
 
         $this->actingAs($participant)
-            ->get(route('participant.attendance.index'))
-            ->assertOk()
-            ->assertSeeText('CHECK IN');
+            ->post(route('training.submission.revise', [$program, $week2, $activity]))
+            ->assertRedirect(route('training.submission.edit', [$program, $week2, $activity]));
+        $this->actingAs($participant)->get(route('training.submission.edit', [$program, $week2, $activity]))->assertOk();
+
+        $this->assertSame(2, $submission->versions()->count());
     }
 
     public function test_participant_can_view_an_available_activity_and_create_edit_submit_a_draft(): void
@@ -1011,20 +1032,20 @@ class ParticipantWorkflowTest extends TestCase
             ->assertSee('Complete your Week 1 deliverables to unlock');
     }
 
-    public function test_the_current_week_is_the_latest_open_unlocked_week_and_only_it_asks_for_a_check_in(): void
+    public function test_the_curriculum_page_selects_the_latest_open_unlocked_week_as_the_current_week(): void
     {
         Queue::fake();
         ['participant' => $participant, 'mentor' => $mentor, 'program' => $program, 'weeks' => $weeks] = $this->scheduleFixture();
         $this->travelTo('2026-11-24 09:00:00');
 
-        $this->actingAs($participant)->get(route('training.submission.edit', [$program, $weeks[3], $weeks[3]->activities->sole()]))
-            ->assertRedirect(route('participant.attendance.index'));
-        $this->actingAs($participant)->get(route('training.submission.edit', [$program, $weeks[2], $weeks[2]->activities->sole()]))->assertOk();
+        $html = $this->actingAs($participant)->get(route('training.programs.show', $program))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/id="program-tab-week-3"[^>]*aria-selected="true"(?:(?!<\/button>).)*\(Current week\)/s', $html);
 
         $this->reviewWeek($mentor, $participant, $program, $weeks[1], GateEvaluationStatus::NeedsRevision)->assertSessionHasNoErrors();
 
-        $this->actingAs($participant)->get(route('training.submission.edit', [$program, $weeks[1], $weeks[1]->activities->sole()]))
-            ->assertRedirect(route('participant.attendance.index'));
+        $html = $this->actingAs($participant)->get(route('training.programs.show', $program))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/id="program-tab-week-1"[^>]*aria-selected="true"(?:(?!<\/button>).)*\(Current week\)/s', $html);
+        $this->actingAs($participant)->get(route('training.submission.edit', [$program, $weeks[1], $weeks[1]->activities->sole()]))->assertOk();
     }
 
     public function test_a_later_week_three_activity_is_submitted_like_any_other_activity(): void

@@ -6,7 +6,6 @@ use App\Enums\GateCriterionStatus;
 use App\Enums\GateEvaluationStatus;
 use App\Enums\SubmissionStatus;
 use App\Models\ActivitySubmission;
-use App\Models\AttendanceSession;
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\Program;
@@ -45,9 +44,9 @@ class ParticipantDashboardService
      * (`WeekProgressionService::currentWeekId()`). Built with a fixed number of queries.
      *
      * @param  ProgramParticipant  $membership  with its curriculum (schedule bounds loaded) and participant loaded
-     * @return Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_message: ?string, locked_by_week_number: ?int, missing_items: list<string>, shows_weekly_video: bool, is_current: bool, attendance_required: bool}>
+     * @return Collection<int, array{week: TrainingWeek, passed: bool, available: bool, locked_message: ?string, locked_by_week_number: ?int, missing_items: list<string>, shows_weekly_video: bool, is_current: bool}>
      */
-    public function weeks(ProgramParticipant $membership, ?AttendanceSession $activeAttendance): Collection
+    public function weeks(ProgramParticipant $membership): Collection
     {
         $program = $membership->program;
         $participant = $membership->participant;
@@ -68,11 +67,10 @@ class ParticipantDashboardService
 
         $currentWeekId = $this->progression->currentWeekId($weekStates);
 
-        return $activeWeeks->map(function (TrainingWeek $week) use ($weekStates, $videoRecordings, $missingItems, $currentWeekId, $activeAttendance): array {
+        return $activeWeeks->map(function (TrainingWeek $week) use ($weekStates, $videoRecordings, $missingItems, $currentWeekId): array {
             $weekState = $weekStates->get($week->id);
             $available = $weekState->isViewable();
             $week->weekly_video_recording = $videoRecordings->get($week->id);
-            $isCurrent = $week->id === $currentWeekId;
 
             return [
                 'week' => $week,
@@ -82,8 +80,7 @@ class ParticipantDashboardService
                 'locked_by_week_number' => $available ? null : $weekState->lockedByWeekNumber,
                 'missing_items' => $this->showsMissingItems($weekState) ? $missingItems : [],
                 'shows_weekly_video' => $available && $week->asksForWeeklyVideo(),
-                'is_current' => $isCurrent,
-                'attendance_required' => $isCurrent && ! $activeAttendance,
+                'is_current' => $week->id === $currentWeekId,
             ];
         });
     }

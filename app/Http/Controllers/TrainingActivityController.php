@@ -27,9 +27,6 @@ class TrainingActivityController extends Controller
         $user = $request->user();
         $lifecycle->reconcileStale($user->id);
         $progression->ensureCanAccessActivity($user, $program, $trainingWeek, $activity);
-        if ($progression->requiresAttendanceForNewActivity($user, $program, $trainingWeek, $activity)) {
-            return redirect()->route('dashboard')->withErrors(['attendance' => 'Please check in to access this week\'s activities.']);
-        }
         $attempts = $page->attempts($user, $activity);
         if ($user->hasAnyRole(UserRole::Participant) && $readiness->enforced() && ! $readiness->isReady($user) && $attempts->isEmpty()) {
             return redirect()->route('dashboard')->withErrors(['google_drive_setup' => $readiness->message($user)]);

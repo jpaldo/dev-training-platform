@@ -265,55 +265,14 @@ class WeekProgressionService
     }
 
     /**
-     * Whether the week is the participant's current week in the curriculum (see currentWeekId()).
-     */
-    public function isCurrentWeek(User $user, Program $program, TrainingWeek $week): bool
-    {
-        if ($user->role !== UserRole::Participant) {
-            return false;
-        }
-
-        return $this->currentWeekId($this->weekStates($user, $program)) === $week->id;
-    }
-
-    /**
-     * Whether the participant must check in before working on the activity: in their current week, without an open
-     * check-in, while their latest attempt at it is missing, a draft or needs revision.
-     */
-    public function requiresAttendanceForActivity(User $user, Program $program, TrainingWeek $week, Activity $activity): bool
-    {
-        if ($user->role !== UserRole::Participant || ! $this->isCurrentWeek($user, $program, $week) || $user->attendanceSessions()->whereNull('check_out_at')->exists()) {
-            return false;
-        }
-
-        $submission = $this->latestAttempt($user, $activity);
-
-        return ! $submission || $submission->isDraft() || $submission->needsRevision();
-    }
-
-    /**
-     * Whether the participant must check in before starting the activity: in their current week, without an open
-     * check-in, while they have no attempt at it.
-     */
-    public function requiresAttendanceForNewActivity(User $user, Program $program, TrainingWeek $week, Activity $activity): bool
-    {
-        return $this->isCurrentWeek($user, $program, $week)
-            && ! $user->attendanceSessions()->whereNull('check_out_at')->exists()
-            && ! $activity->submissions()->where('user_id', $user->id)->exists();
-    }
-
-    /**
-     * Refuse the participant work on the activity: once the curriculum has ended, unless their latest attempt at it
-     * was reopened (ensureProgramAcceptsWork()), and while they must check in first.
+     * Refuse the participant work on the activity once the curriculum has ended, unless their latest attempt at it was
+     * reopened (ensureProgramAcceptsWork()).
      *
      * @throws AuthorizationException
      */
-    public function ensureCanEditActivity(User $user, Program $program, TrainingWeek $week, Activity $activity): void
+    public function ensureCanEditActivity(User $user, Program $program, Activity $activity): void
     {
         $this->ensureProgramAcceptsWork($user, $program, $activity);
-        if ($this->requiresAttendanceForActivity($user, $program, $week, $activity)) {
-            abort(403, 'Please check in to continue editing this activity.');
-        }
     }
 
     /**

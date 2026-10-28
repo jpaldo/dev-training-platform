@@ -12,6 +12,8 @@ class MoveTrainingSessionsOntoProgramsMigrationTest extends TestCase
 {
     private const DATA_MOVE_MIGRATION = '2026_10_28_000007_move_training_sessions_onto_programs.php';
 
+    private const DROP_MIGRATION = '2026_10_28_000008_drop_training_sessions.php';
+
     private const WORK_TABLES = ['activity_submissions', 'gate_evaluations', 'weekly_video_recordings'];
 
     protected function tearDown(): void
@@ -82,6 +84,79 @@ class MoveTrainingSessionsOntoProgramsMigrationTest extends TestCase
             [4, null, null],
         ], $this->rows('training_weeks', ['week_number', 'starts_on', 'ends_on'], orderBy: 'week_number'));
         $this->assertSame($workRowsBefore, $this->workRows());
+        $programParticipantsBefore = $this->rows('program_participants', ['program_id', 'user_id', 'repository_url']);
+
+        $this->assertSame(0, $this->runTheDrop());
+
+        $this->assertFalse(Schema::hasTable('training_sessions'));
+        $this->assertSame($this->withoutSessionColumn($workRowsBefore), $this->workRows());
+        $this->assertSame($programParticipantsBefore, $this->rows('program_participants', ['program_id', 'user_id', 'repository_url']));
+        $this->assertSame(
+            [$currentAssignmentId => $programId, $endedAssignmentId => $programId],
+            DB::table('mentor_assignments')->orderBy('id')->pluck('program_id', 'id')->all(),
+        );
+    }
+
+    public function test_a_participant_with_two_evaluations_of_one_gate_aborts_the_drop_before_anything_is_dropped(): void
+    {
+        $this->migrateUpToTheDrop();
+        $participant = $this->insertUser('participant@example.test');
+        [, $weekIds] = $this->insertProgramWithWeeks(1);
+        $gateId = DB::table('training_gates')->insertGetId(['training_week_id' => $weekIds[1], 'title' => 'Gate 1', 'position' => 1]);
+        DB::table('gate_evaluations')->insert([
+            ['training_gate_id' => $gateId, 'user_id' => $participant],
+            ['training_gate_id' => $gateId, 'user_id' => $participant],
+        ]);
+
+        $this->assertThrows(
+            fn (): int => $this->runTheDrop(),
+            RuntimeException::class,
+            "User {$participant} has two or more evaluations of Gate {$gateId}; merge them by hand before running this migration.",
+        );
+
+        $this->assertTrue(Schema::hasTable('training_sessions'));
+        $this->assertTrue(Schema::hasColumn('gate_evaluations', 'training_session_id'));
+    }
+
+    public function test_a_participant_with_two_videos_for_one_week_aborts_the_drop_before_anything_is_dropped(): void
+    {
+        $this->migrateUpToTheDrop();
+        $participant = $this->insertUser('participant@example.test');
+        [, $weekIds] = $this->insertProgramWithWeeks(1);
+        $video = ['user_id' => $participant, 'training_week_id' => $weekIds[1], 'name' => 'week-1.mp4', 'mime_type' => 'video/mp4'];
+        DB::table('weekly_video_recordings')->insert([
+            [...$video, 'drive_file_id' => 'drive-file-1'],
+            [...$video, 'drive_file_id' => 'drive-file-2'],
+        ]);
+
+        $this->assertThrows(
+            fn (): int => $this->runTheDrop(),
+            RuntimeException::class,
+            "User {$participant} has two or more videos for week {$weekIds[1]}; merge them by hand before running this migration.",
+        );
+
+        $this->assertTrue(Schema::hasTable('training_sessions'));
+        $this->assertTrue(Schema::hasColumn('weekly_video_recordings', 'training_session_id'));
+    }
+
+    public function test_a_mentor_assignment_without_a_program_aborts_the_drop_before_anything_is_dropped(): void
+    {
+        $this->migrateUpToTheDrop();
+        $assignmentId = $this->insertAssignment(
+            sessionId: null,
+            participantId: $this->insertUser('participant@example.test'),
+            mentorId: $this->insertUser('mentor@example.test'),
+            endedAt: null,
+        );
+
+        $this->assertThrows(
+            fn (): int => $this->runTheDrop(),
+            RuntimeException::class,
+            "Mentor assignment {$assignmentId} has no program; give it one or delete it before running this migration.",
+        );
+
+        $this->assertTrue(Schema::hasTable('training_sessions'));
+        $this->assertTrue(Schema::hasColumn('mentor_assignments', 'training_session_id'));
     }
 
     public function test_a_program_with_two_sessions_aborts_the_move_before_anything_is_written(): void
@@ -107,9 +182,9 @@ class MoveTrainingSessionsOntoProgramsMigrationTest extends TestCase
         $this->assertSame(0, DB::table('training_weeks')->whereNotNull('starts_on')->count());
     }
 
-    public function test_the_session_is_optional_and_unconstrained_on_the_work_tables_and_mentor_assignments(): void
+    public function test_the_session_is_optional_and_unconstrained_on_the_work_tables_and_mentor_assignments_before_the_drop(): void
     {
-        $this->artisan('migrate:fresh')->assertExitCode(0);
+        $this->migrateUpToTheDataMove();
 
         foreach ([...self::WORK_TABLES, 'mentor_assignments'] as $table) {
             $sessionColumn = collect(Schema::getColumns($table))->firstWhere('name', 'training_session_id');
@@ -136,11 +211,30 @@ class MoveTrainingSessionsOntoProgramsMigrationTest extends TestCase
         $this->artisan('migrate:fresh', ['--realpath' => true, '--path' => $paths])->assertExitCode(0);
     }
 
+    /**
+     * Builds the schema the drop runs on: the data move's schema, then the data move on an empty database.
+     */
+    private function migrateUpToTheDrop(): void
+    {
+        $this->migrateUpToTheDataMove();
+        $this->assertSame(0, $this->runTheDataMove());
+    }
+
     private function runTheDataMove(): int
+    {
+        return $this->runMigration(self::DATA_MOVE_MIGRATION);
+    }
+
+    private function runTheDrop(): int
+    {
+        return $this->runMigration(self::DROP_MIGRATION);
+    }
+
+    private function runMigration(string $migration): int
     {
         return $this->artisan('migrate', [
             '--realpath' => true,
-            '--path' => database_path('migrations/'.self::DATA_MOVE_MIGRATION),
+            '--path' => database_path('migrations/'.$migration),
         ])->run();
     }
 
@@ -180,7 +274,7 @@ class MoveTrainingSessionsOntoProgramsMigrationTest extends TestCase
         ]);
     }
 
-    private function insertAssignment(int $sessionId, int $participantId, int $mentorId, ?string $endedAt): int
+    private function insertAssignment(?int $sessionId, int $participantId, int $mentorId, ?string $endedAt): int
     {
         return DB::table('mentor_assignments')->insertGetId([
             'training_session_id' => $sessionId,
@@ -221,6 +315,20 @@ class MoveTrainingSessionsOntoProgramsMigrationTest extends TestCase
                 $table => DB::table($table)->orderBy('id')->get()->map(fn (object $row): array => (array) $row)->all(),
             ])
             ->all();
+    }
+
+    /**
+     * The work rows as they read once `training_session_id` is dropped.
+     *
+     * @param  array<string, list<array<string, mixed>>>  $workRows
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function withoutSessionColumn(array $workRows): array
+    {
+        return array_map(
+            fn (array $rows): array => array_map(fn (array $row): array => array_diff_key($row, ['training_session_id' => true]), $rows),
+            $workRows,
+        );
     }
 
     /**

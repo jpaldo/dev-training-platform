@@ -9,6 +9,7 @@ use App\Http\Controllers\AdminAiSettingsController;
 use App\Http\Controllers\AdminChecklistController;
 use App\Http\Controllers\AdminChecklistItemController;
 use App\Http\Controllers\AdminCurriculumController;
+use App\Http\Controllers\AdminCurriculumDuplicateController;
 use App\Http\Controllers\AdminCurriculumOfferingController;
 use App\Http\Controllers\AdminCurriculumScheduleController;
 use App\Http\Controllers\AdminDashboardController;
@@ -117,6 +118,8 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
             Route::get('/{program}', [AdminCurriculumController::class, 'show'])->name('show');
             Route::put('/{program}/schedule', [AdminCurriculumScheduleController::class, 'update'])->name('schedule.update');
             Route::put('/{program}/offered', [AdminCurriculumOfferingController::class, 'update'])->name('offered.update');
+            Route::get('/{program}/duplicate', [AdminCurriculumDuplicateController::class, 'create'])->name('duplicate.create');
+            Route::post('/{program}/duplicate', [AdminCurriculumDuplicateController::class, 'store'])->name('duplicate');
             Route::post('/{program}/participants', [AdminProgramParticipantController::class, 'store'])->name('participants.store');
             Route::delete('/{program}/participants/{participant}', [AdminProgramParticipantController::class, 'destroy'])->name('participants.destroy');
             Route::put('/{program}/participants/{participant}/mentor', [AdminProgramMentorAssignmentController::class, 'update'])->name('assignments.update');

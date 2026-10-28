@@ -23,6 +23,7 @@
 
         <x-ui.main-action id="admin-program-main-action">
             <x-ui.button variant="secondary" :href="$indexUrl">All Curricula</x-ui.button>
+            <x-ui.button variant="secondary" :href="$duplicateUrl">Duplicate</x-ui.button>
         </x-ui.main-action>
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">

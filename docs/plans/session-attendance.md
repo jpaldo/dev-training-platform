@@ -177,7 +177,7 @@ None blocking. Every design point above has a default; confirm A1, A3 and A4 if 
     - Keep the existing retry tests green.
   - **Depends on:** none.
 
-- [ ] **1.2 Drop the `activity_recovery_requests` table** (REM-3), size S
+- [x] **1.2 Drop the `activity_recovery_requests` table** (REM-3), size S. Done: `2026_10_28_200029_drop_activity_recovery_requests_table`; `down()` matches the create migration; ran, rolled back and re-ran on dev MySQL (0 rows); the "Production values" query is struck through in `docs/CODE_QUALITY_PLAN.md`.
   - **Do:**
     - Migration: `php artisan make:migration drop_activity_recovery_requests_table --no-interaction`. `up()` runs `Schema::dropIfExists('activity_recovery_requests')`. `down()` recreates the table exactly as `2026_10_24_000030_create_activity_recovery_requests_table.php` defines it, including the unique key (`activity_submission_id`, `status`). The docblock says why the table goes. Leave the create migration and `AdoptSquashedMigrationsCommand` alone.
     - Code quality plan: in the "Production values" item, mark the `activity_recovery_requests` query as no longer needed (table dropped by session-attendance 1.2).

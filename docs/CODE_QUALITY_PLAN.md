@@ -225,7 +225,7 @@ Not in Phase 7 (not status, role or path values; for a later decision, recorded 
   - `SELECT BINARY interview_type, COUNT(*) FROM interview_schedulers GROUP BY 1;` (`mock`, `final_reassessment`, `both`)
   - `SELECT BINARY type, COUNT(*) FROM participant_notifications GROUP BY 1;` (`daily_logs`, `activity_incomplete`, `activity_draft`, `needs_revision`, `awaiting_review`, `missing_evidence`, `missing_video`, `gate_incomplete`, `activity_approved`, `gate_passed`, `mentor_interview_scheduled`; `daily_logs` rows are deleted by developer-program-and-training-sessions 2.3 and `mentor_interview_scheduled` rows by 2.7, and neither is a case any more)
   - `SELECT BINARY priority, COUNT(*) FROM participant_notifications GROUP BY 1;` (`normal`, `high`)
-  - `SELECT BINARY status, COUNT(*) FROM activity_recovery_requests GROUP BY 1;` (`pending`, `approved`, `declined`)
+  - ~~`SELECT BINARY status, COUNT(*) FROM activity_recovery_requests GROUP BY 1;` (`pending`, `approved`, `declined`)~~ (no longer needed: table dropped by session-attendance 1.2)
   - `SELECT BINARY status, COUNT(*) FROM activity_scores GROUP BY 1;` (`draft`, `published`)
   - `SELECT BINARY status, COUNT(*) FROM validation_submissions GROUP BY 1;` (`draft`, `submitted`, `completed`)
   - `SELECT BINARY decision, COUNT(*) FROM validation_submissions GROUP BY 1;` (`accept`, `revise`, `reject`, `reprompt`, `NULL`)

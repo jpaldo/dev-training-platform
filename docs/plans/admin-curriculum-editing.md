@@ -492,7 +492,7 @@ How each scoped binding is checked:
 
 ## Out of scope / follow-ups
 
-- Creating, deleting, renumbering, activating or deactivating programs and weeks. Editing program name and description (the main plan's "The dashboard's training overview is static copy" entry).
+- ~~Creating,~~ deleting, renumbering, activating or deactivating programs and weeks. Editing program name and description (the main plan's "The dashboard's training overview is static copy" entry). **Lifted in part by curriculum-sessions-merge 5.1:** an admin creates a curriculum with its weeks (name, description, number of weeks, optional start date); the rest stays out of scope.
 - Creating a checklist (Gate) for a week that has none, and managing several Gates per week.
 - Editing `expected_files` on activities and checklist items (Q2 option B), evidence requirements, `requires_coach_review`, and `select` field options.
 - Per-session curriculum copies or content versioning, and a history view of the audit log.

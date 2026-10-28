@@ -6,14 +6,18 @@
         $cellClasses = 'border-b border-line px-3.5 py-3.5 text-left align-middle max-sm:px-2.5 max-sm:py-3';
     @endphp
 
-    <div class="grid grid-cols-1 gap-6">
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>ADMIN · CURRICULUM</x-ui.eyebrow>
             <x-ui.page-title>Curriculum</x-ui.page-title>
             <p class="leading-relaxed text-muted">Each curriculum's weeks, their activities and checklists, its schedule, and the participants, mentors and resources in it.</p>
         </header>
 
-        <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="program-list-title">
+        <x-ui.main-action id="admin-programs-main-action">
+            <x-ui.button :href="$createUrl">New curriculum</x-ui.button>
+        </x-ui.main-action>
+
+        <x-ui.card as="section" class="grid grid-cols-1 gap-4 lg:col-span-2" aria-labelledby="program-list-title">
             <h2 id="program-list-title" class="text-xl font-extrabold">All curricula</h2>
             @if($programs !== [])
                 <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="program-list-title" tabindex="0">

@@ -19,7 +19,10 @@
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="admin-programs-title">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 id="admin-programs-title" class="text-xl font-extrabold">Curricula</h2>
-                <x-ui.button variant="secondary" :href="$programsUrl">View all curricula</x-ui.button>
+                <div class="flex flex-wrap gap-3">
+                    <x-ui.button variant="secondary" :href="$programsUrl">View all curricula</x-ui.button>
+                    <x-ui.button variant="secondary" :href="$newProgramUrl">New curriculum</x-ui.button>
+                </div>
             </div>
             @if($recentPrograms !== [])
                 <ul class="grid list-none grid-cols-1 gap-3 p-0">

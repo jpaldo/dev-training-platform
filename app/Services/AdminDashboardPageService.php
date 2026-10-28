@@ -21,11 +21,12 @@ class AdminDashboardPageService
     /**
      * Everything the admin dashboard renders: the account counts, up to 5 curricula, the latest first week start first
      * and the unscheduled ones last, with their status, dates and participant count
-     * (`CurriculumPageService::recentProgramRows()`) and the link to the curricula list, the review / Gate counts across
-     * every curriculum with their labels, the integration statuses and the admin tool links. Training progress is
-     * counted per curriculum on its own page. The page has no single main action, so every link is secondary.
+     * (`CurriculumPageService::recentProgramRows()`), the links to the curricula list and the new curriculum form, the
+     * review / Gate counts across every curriculum with their labels, the integration statuses and the admin tool
+     * links. Training progress is counted per curriculum on its own page. The page has no single main action, so every
+     * link is secondary.
      *
-     * @return array{systemStats: list<array{label: string, value: int}>, recentPrograms: list<array{name: string, status_label: string, status_tone: string, dates: string, participants_count: int, url: string}>, programsUrl: string, reviewStats: list<array{label: string, value: int}>, integrationStatuses: list<array{label: string, status: string}>, toolLinks: list<array{label: string, url: string}>}
+     * @return array{systemStats: list<array{label: string, value: int}>, recentPrograms: list<array{name: string, status_label: string, status_tone: string, dates: string, participants_count: int, url: string}>, programsUrl: string, newProgramUrl: string, reviewStats: list<array{label: string, value: int}>, integrationStatuses: list<array{label: string, status: string}>, toolLinks: list<array{label: string, url: string}>}
      */
     public function showData(): array
     {
@@ -37,6 +38,7 @@ class AdminDashboardPageService
             ],
             'recentPrograms' => $this->curriculumPages->recentProgramRows(self::RECENT_PROGRAMS),
             'programsUrl' => route('admin.programs.index'),
+            'newProgramUrl' => route('admin.programs.create'),
             'reviewStats' => [
                 ['label' => 'AWAITING REVIEW', 'value' => ActivitySubmission::query()->whereIn('status', SubmissionStatus::awaitingReview())->count()],
                 ['label' => 'NEEDS REVISION', 'value' => ActivitySubmission::query()->where('status', SubmissionStatus::NeedsRevision)->count()],

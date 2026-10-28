@@ -7,9 +7,9 @@ use App\Models\Program;
 use App\Models\User;
 
 /**
- * Admins list curricula on the Curriculum pages, edit their content and schedule, and manage their participants,
- * mentors and resources. Admins, the curriculum's participants and its mentors view a curriculum (its weeks and
- * activities). Active participants join curricula that are not completed.
+ * Admins list and create curricula on the Curriculum pages, edit their content and schedule, and manage their
+ * participants, mentors and resources. Admins, the curriculum's participants and its mentors view a curriculum (its
+ * weeks and activities). Active participants join curricula that are not completed.
  */
 class ProgramPolicy
 {
@@ -17,6 +17,14 @@ class ProgramPolicy
      * Determine whether the user can list every curriculum.
      */
     public function viewAny(User $user): bool
+    {
+        return $user->hasAnyRole(UserRole::Admin);
+    }
+
+    /**
+     * Determine whether the user can create a curriculum.
+     */
+    public function create(User $user): bool
     {
         return $user->hasAnyRole(UserRole::Admin);
     }

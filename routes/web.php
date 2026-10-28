@@ -111,6 +111,8 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::post('/settings/google-drive/test', [AdminGoogleDriveController::class, 'test'])->name('settings.google-drive.test');
         Route::scopeBindings()->prefix('programs')->name('programs.')->group(function (): void {
             Route::get('/', [AdminCurriculumController::class, 'index'])->name('index');
+            Route::get('/create', [AdminCurriculumController::class, 'create'])->name('create');
+            Route::post('/', [AdminCurriculumController::class, 'store'])->name('store');
             Route::get('/{program}', [AdminCurriculumController::class, 'show'])->name('show');
             Route::put('/{program}/schedule', [AdminCurriculumScheduleController::class, 'update'])->name('schedule.update');
             Route::post('/{program}/participants', [AdminProgramParticipantController::class, 'store'])->name('participants.store');

@@ -21,9 +21,9 @@ class CurriculumPageService
     /**
      * Everything the curricula list renders: every curriculum by name, each with whether it is offered to join
      * (`is_active`), its schedule status (`ProgramStatus`) and dates, its number of weeks and of participants, and a
-     * link to its page (one query).
+     * link to its page (one query), and the link to the new curriculum form.
      *
-     * @return array{programs: list<array{name: string, offered_label: string, offered_tone: string, schedule_status_label: string, schedule_status_tone: string, dates: string, weeks_count: int, participants_count: int, url: string}>}
+     * @return array{programs: list<array{name: string, offered_label: string, offered_tone: string, schedule_status_label: string, schedule_status_tone: string, dates: string, weeks_count: int, participants_count: int, url: string}>, createUrl: string}
      */
     public function indexData(): array
     {
@@ -49,6 +49,7 @@ class CurriculumPageService
                     ];
                 })
                 ->all(),
+            'createUrl' => route('admin.programs.create'),
         ];
     }
 

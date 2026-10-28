@@ -239,7 +239,7 @@ None blocking. Every design point above has a default; confirm A1, A3 and A4 if 
 
 ## Phase 3 — Weekly session attendance
 
-- [ ] **3.1 `weekly_session_attendances` table, model and factory** (ATT-1, ATT-7, ATT-9), size S
+- [x] **3.1 `weekly_session_attendances` table, model and factory** (ATT-1, ATT-7, ATT-9), size S. Done: `2026_10_28_211844_create_weekly_session_attendances_table`; `WeeklySessionAttendance` and its factory per Design; nothing added to `TrainingWeek` or `User` (3.2–3.4 query `WeeklySessionAttendance` directly, so `TrainingWeek::sessionAttendances()` is not needed); `WeeklySessionAttendanceTest` covers the five acceptance cases (the three cascades as one data-provider test, so four methods and six runs) and fails with SQLite foreign keys off; ran on dev MySQL (new table, nothing destructive).
   - **Do:**
     - Migration: `php artisan make:migration create_weekly_session_attendances_table --no-interaction` per Design › Data model.
     - Model and factory: `php artisan make:model WeeklySessionAttendance --factory --no-interaction`, with the Fillable attribute, casts, relations and factory from Design. Add `TrainingWeek::sessionAttendances()` (hasMany) only if 3.2's queries use it; otherwise add nothing to `TrainingWeek` or `User`.

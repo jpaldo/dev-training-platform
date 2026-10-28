@@ -36,9 +36,7 @@ class EmptyTrainingDataTest extends TestCase
             'coach scoring overview' => ['coach', 'coach.scoring.index', []],
             'coach scoring criteria' => ['coach', 'coach.scoring.criteria', []],
             'coach scoring reports' => ['coach', 'coach.scoring.reports', []],
-            'coach attendance' => ['coach', 'coach.attendance.index', []],
             'admin dashboard' => ['admin', 'admin.dashboard', []],
-            'admin attendance' => ['admin', 'admin.attendance.index', []],
             'admin users' => ['admin', 'admin.users.index', []],
             'admin training settings' => ['admin', 'admin.settings.training', []],
             'progress csv' => ['coach', 'coach.reports.export', ['type' => 'progress']],
@@ -48,8 +46,6 @@ class EmptyTrainingDataTest extends TestCase
             'missing submissions csv' => ['coach', 'coach.reports.missing-submissions.export', []],
             'activity scores csv' => ['coach', 'coach.reports.scores', []],
             'participant score summary csv' => ['coach', 'coach.reports.participant-summary', []],
-            'coach attendance csv' => ['coach', 'coach.attendance.export', []],
-            'admin attendance csv' => ['admin', 'admin.attendance.export', []],
         ];
     }
 
@@ -63,6 +59,31 @@ class EmptyTrainingDataTest extends TestCase
         $viewer = $role === 'participant' ? $participant : User::factory()->create(['role' => $role]);
 
         $this->actingAs($viewer)->get(route($routeName, $parameters))->assertOk();
+    }
+
+    /**
+     * The Attendance page of the mentor and the admin area, with the role that opens it.
+     *
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function attendancePages(): array
+    {
+        return [
+            'coach attendance' => ['coach', 'coach.attendance.index'],
+            'admin attendance' => ['admin', 'admin.attendance.index'],
+        ];
+    }
+
+    #[DataProvider('attendancePages')]
+    public function test_attendance_page_shows_no_curricula_without_any_curriculum(string $role, string $routeName): void
+    {
+        User::factory()->create();
+
+        $this->actingAs(User::factory()->create(['role' => $role]))
+            ->get(route($routeName))
+            ->assertOk()
+            ->assertSee('No curricula to show.')
+            ->assertDontSee('aria-label="Choose curriculum"', false);
     }
 
     public function test_coach_participant_page_opens_without_any_program_weeks_or_training_data(): void

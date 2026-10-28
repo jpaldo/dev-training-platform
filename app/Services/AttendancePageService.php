@@ -2,90 +2,116 @@
 
 namespace App\Services;
 
-use App\Enums\UserRole;
-use App\Models\AttendanceSession;
+use App\Models\Program;
+use App\Models\ProgramParticipant;
+use App\Models\TrainingWeek;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AttendancePageService
 {
-    private const SESSIONS_PER_PAGE = 25;
-
-    private const STATUS_OPTIONS = ['active' => 'Checked in', 'completed' => 'Checked out'];
-
-    public function __construct(private readonly CoachProgramFilterService $programFilter) {}
+    public function __construct(
+        private readonly CoachProgramFilterService $programFilter,
+        private readonly SessionAttendanceService $sessionAttendance,
+    ) {}
 
     /**
-     * Everything the coach / admin attendance page renders: the filter options with the selected values and the
-     * matching sessions the viewer may see (see filteredSessions()), newest first. The main action is Export CSV for
-     * the same filters, through the admin or the coach route depending on the area the page is in.
+     * Everything the mentor / admin Attendance page renders: the curriculum picker with the requested curriculum
+     * selected (the first of the list when none is requested), and the weekly session attendance grid of that
+     * curriculum: one column per active week in week order, one row per participant the viewer sees
+     * (SessionAttendanceService::memberships()), each with a cell per week and the total "3 of 4" (attended of active
+     * weeks). The grid is replaced by an empty message when there is no curriculum, no active week or no participant.
+     * Four queries whatever the number of participants: the options, the curriculum with its active weeks, the
+     * memberships with their participants, and the attended sessions.
      *
-     * @param  array{date_from?: ?string, date_to?: ?string, participant?: int|string|null, status?: ?string}  $filters
-     * @param  array<string, mixed>  $query  The current query string, kept on the export link.
-     * @return array{areaLabel: string, dateFrom: string, dateTo: string, participantOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, sessions: LengthAwarePaginator<int, array{participant_name: string, participant_email: string, check_in: string, check_out: string, total_hours: string, is_open: bool, status: string}>, exportUrl: string}
+     * @return array{areaLabel: string, programOptions: list<array{value: string, label: string, is_selected: bool}>, selectedProgram: array{name: string}|null, weeks: list<array{heading: string, dates: string}>, rows: list<array{participant_name: string, employee_id: string|null, cells: list<array{is_attended: bool, label: string}>, total: string}>, emptyMessage: string|null}
      */
-    public function manageData(User $viewer, array $filters, array $query, bool $isAdminArea): array
+    public function indexData(User $viewer, ?int $selectedProgramId, bool $isAdminArea): array
     {
+        $programOptions = $this->programFilter->options($viewer, $selectedProgramId);
+
+        if ($selectedProgramId === null && $programOptions !== []) {
+            $programOptions[0]['is_selected'] = true;
+        }
+
+        $program = $this->selectedProgram($programOptions);
+        $memberships = $program === null || $program->activeWeeks->isEmpty()
+            ? new Collection
+            : $this->sessionAttendance->memberships($viewer, $program)->get();
+
         return [
             'areaLabel' => $isAdminArea ? 'ADMIN' : 'MENTOR',
-            'dateFrom' => (string) ($filters['date_from'] ?? ''),
-            'dateTo' => (string) ($filters['date_to'] ?? ''),
-            'participantOptions' => $this->programFilter->participantOptions($viewer, $filters['participant'] ?? null),
-            'statusOptions' => $this->options(self::STATUS_OPTIONS, $filters['status'] ?? null),
-            'sessions' => $this->filteredSessions($viewer, $filters)
-                ->latest('check_in_at')
-                ->paginate(self::SESSIONS_PER_PAGE)
-                ->withQueryString()
-                ->through(fn (AttendanceSession $session): array => [
-                    'participant_name' => $session->participant->name,
-                    'participant_email' => $session->participant->email,
-                    'check_in' => $session->check_in_at->format('M j, Y · g:i A'),
-                    'check_out' => $session->check_out_at?->format('M j, Y · g:i A') ?? '—',
-                    'total_hours' => number_format($session->totalHours(), 2),
-                    'is_open' => $session->isOpen(),
-                    'status' => $session->isOpen() ? 'CHECKED IN' : 'CHECKED OUT',
-                ]),
-            'exportUrl' => route($isAdminArea ? 'admin.attendance.export' : 'coach.attendance.export', $query),
+            'programOptions' => $programOptions,
+            'selectedProgram' => $program === null ? null : ['name' => $program->name],
+            'weeks' => $program === null ? [] : $this->weeks($program),
+            'rows' => $program === null ? [] : $this->rows($program, $memberships),
+            'emptyMessage' => match (true) {
+                $program === null => 'No curricula to show.',
+                $program->activeWeeks->isEmpty() => 'This curriculum has no weeks.',
+                $memberships->isEmpty() => 'No participants to show.',
+                default => null,
+            },
         ];
     }
 
     /**
-     * Participant attendance sessions matching the coach / admin filters, with their participant loaded: every
-     * participant's for an admin, otherwise only those of participants the viewer currently mentors in at least one
-     * curriculum (attendance itself is not per curriculum). Shared by the attendance page and its CSV export.
+     * The selected option's curriculum with its active weeks, or null when the list is empty.
      *
-     * @param  array{date_from?: ?string, date_to?: ?string, participant?: int|string|null, status?: ?string}  $filters
-     * @return Builder<AttendanceSession>
+     * @param  list<array{value: string, label: string, is_selected: bool}>  $programOptions
      */
-    public function filteredSessions(User $viewer, array $filters): Builder
+    private function selectedProgram(array $programOptions): ?Program
     {
-        return AttendanceSession::query()
-            ->with('participant')
-            ->whereHas('participant', fn (Builder $query): Builder => $query
-                ->where('role', UserRole::Participant)
-                ->unless($viewer->hasAnyRole(UserRole::Admin), fn (Builder $participants): Builder => $participants
-                    ->whereHas('currentMentors', fn (Builder $mentors): Builder => $mentors->whereKey($viewer->id))))
-            ->when($filters['date_from'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('check_in_at', '>=', $date))
-            ->when($filters['date_to'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('check_in_at', '<=', $date))
-            ->when($filters['participant'] ?? null, fn (Builder $query, int|string $id): Builder => $query->where('user_id', $id))
-            ->when(($filters['status'] ?? null) === 'active', fn (Builder $query): Builder => $query->whereNull('check_out_at'))
-            ->when(($filters['status'] ?? null) === 'completed', fn (Builder $query): Builder => $query->whereNotNull('check_out_at'));
+        $selected = collect($programOptions)->firstWhere('is_selected', true);
+
+        if ($selected === null) {
+            return null;
+        }
+
+        return Program::query()
+            ->select(['id', 'name'])
+            ->with(['activeWeeks' => fn (HasMany $weeks): HasMany => $weeks->select(['id', 'program_id', 'week_number', 'starts_on', 'ends_on'])])
+            ->find((int) $selected['value']);
     }
 
     /**
-     * @param  array<string, string>  $labels
-     * @return list<array{value: string, label: string, is_selected: bool}>
+     * @return list<array{heading: string, dates: string}>
      */
-    private function options(array $labels, ?string $selected): array
+    private function weeks(Program $program): array
     {
-        return collect($labels)
-            ->map(fn (string $label, string $value): array => [
-                'value' => $value,
-                'label' => $label,
-                'is_selected' => $selected === $value,
+        return $program->activeWeeks
+            ->map(fn (TrainingWeek $week): array => [
+                'heading' => "Week {$week->week_number}",
+                'dates' => $week->dateRangeLabel(),
             ])
-            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  Collection<int, ProgramParticipant>  $memberships
+     * @return list<array{participant_name: string, employee_id: string|null, cells: list<array{is_attended: bool, label: string}>, total: string}>
+     */
+    private function rows(Program $program, Collection $memberships): array
+    {
+        $attended = $this->sessionAttendance->attendedPairs($program, $memberships->pluck('user_id')->all());
+
+        return $memberships
+            ->map(function (ProgramParticipant $membership) use ($program, $attended): array {
+                $participant = $membership->participant;
+                $attendedWeeks = $attended[$participant->id] ?? [];
+
+                return [
+                    'participant_name' => $participant->name,
+                    'employee_id' => $participant->employee_id,
+                    'cells' => $program->activeWeeks
+                        ->map(fn (TrainingWeek $week): array => [
+                            'is_attended' => isset($attendedWeeks[$week->id]),
+                            'label' => "{$participant->name} attended Week {$week->week_number}",
+                        ])
+                        ->all(),
+                    'total' => count($attendedWeeks).' of '.$program->activeWeeks->count(),
+                ];
+            })
             ->all();
     }
 }

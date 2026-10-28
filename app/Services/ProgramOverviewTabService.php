@@ -38,12 +38,13 @@ class ProgramOverviewTabService
      * (`ProgramPeopleTabService::roster()`).
      *
      * The weeks are read with their active activities (two queries); the curriculum's weeks are its active ones. The
-     * overview counts the current participants and their records in the curriculum (see overviewStats() and
+     * overview shows whether the curriculum is offered to participants, with the form that offers or withdraws it (see
+     * offering()), and counts the current participants and their records in the curriculum (see overviewStats() and
      * weekWorkStats()), in a fixed number of queries. The Activities tab comes from `ProgramActivitiesTabService` (one
      * more query). Resources are grouped "Whole curriculum", "Week 1", … (one query), every link open whatever its
      * week's date, with the form that adds a link.
      *
-     * @return array{weeksLabel: string, tabs: list<array{key: string, label: string}>, selectedTab: string, overviewStats: list<array{label: string, value: int, note: ?string}>, weekWorkStats: list<array{label: string, value: int}>, activityCountColumns: list<array{key: string, label: string}>, activities: list<array{week: string, title: string, counts: array{not_started: int, in_progress: int, awaiting_review: int, needs_revision: int, approved: int, failed: int}, review_queue_url: string}>, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, locked_message: null, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, rename_url: string, rename_error_bag: string, remove_url: string}>}>, addResource: array{url: string, weekOptions: list<array{value: string, label: string}>}}
+     * @return array{weeksLabel: string, tabs: list<array{key: string, label: string}>, selectedTab: string, offering: array{is_offered: bool, label: string, tone: string, hint: string, update_url: string, action_label: string}, overviewStats: list<array{label: string, value: int, note: ?string}>, weekWorkStats: list<array{label: string, value: int}>, activityCountColumns: list<array{key: string, label: string}>, activities: list<array{week: string, title: string, counts: array{not_started: int, in_progress: int, awaiting_review: int, needs_revision: int, approved: int, failed: int}, review_queue_url: string}>, resourceGroups: list<array{key: string, label: string, resources: list<array{id: int, title: string, locked_message: null, kind_label: string, host: string, open_url: string, open_label: string, preview_url: ?string, rename_url: string, rename_error_bag: string, remove_url: string}>}>, addResource: array{url: string, weekOptions: list<array{value: string, label: string}>}}
      */
     public function tabData(Program $program, ProgramRoster $roster): array
     {
@@ -68,11 +69,32 @@ class ProgramOverviewTabService
                 ['key' => 'schedule', 'label' => 'Schedule'],
             ],
             'selectedTab' => 'overview',
+            'offering' => $this->offering($program),
             'overviewStats' => $this->overviewStats($roster, $program, $weeks, $activeWeeks),
             'weekWorkStats' => $this->weekWorkStats($roster->participants, $activeWeeks),
             ...$activityTab,
             'resourceGroups' => $resources['groups'],
             'addResource' => $this->addResourceForm($program, $activeWeeks),
+        ];
+    }
+
+    /**
+     * Whether participants can join the curriculum themselves (`is_active`), what that means, and the form's URL and
+     * button, which posts the opposite.
+     *
+     * @return array{is_offered: bool, label: string, tone: string, hint: string, update_url: string, action_label: string}
+     */
+    private function offering(Program $program): array
+    {
+        return [
+            'is_offered' => $program->is_active,
+            'label' => $program->is_active ? 'Offered' : 'Not offered',
+            'tone' => $program->is_active ? 'success' : 'neutral',
+            'hint' => $program->is_active
+                ? 'Participants can join it from Available curricula and when they register. Withdrawing it stops new joins and keeps everyone already in it.'
+                : 'Participants cannot join it themselves. Offer it once its weeks are ready. Admins can still add participants.',
+            'update_url' => route('admin.programs.offered.update', $program),
+            'action_label' => $program->is_active ? 'Withdraw Curriculum' : 'Offer Curriculum',
         ];
     }
 

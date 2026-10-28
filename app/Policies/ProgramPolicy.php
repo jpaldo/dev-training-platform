@@ -7,9 +7,9 @@ use App\Models\Program;
 use App\Models\User;
 
 /**
- * Admins list and create curricula on the Curriculum pages, edit their content and schedule, and manage their
- * participants, mentors and resources. Admins, the curriculum's participants and its mentors view a curriculum (its
- * weeks and activities). Active participants join curricula that are not completed.
+ * Admins list and create curricula on the Curriculum pages, edit their content and schedule, offer or withdraw them,
+ * and manage their participants, mentors and resources. Admins, the curriculum's participants and its mentors view a
+ * curriculum (its weeks and activities). Active participants join offered curricula that are not completed.
  */
 class ProgramPolicy
 {
@@ -45,18 +45,20 @@ class ProgramPolicy
 
     /**
      * Determine whether the user can join the curriculum themselves: an active participant who is not in it yet, while
-     * the curriculum is not completed (unscheduled, upcoming or active).
+     * the curriculum is offered (`is_active`) and not completed (unscheduled, upcoming or active), as
+     * `Program::openToJoin()` lists them.
      */
     public function join(User $user, Program $program): bool
     {
         return $user->hasAnyRole(UserRole::Participant)
             && $user->is_active
+            && $program->is_active
             && ! $program->isCompleted()
             && ! $program->includesParticipant($user);
     }
 
     /**
-     * Determine whether the user can edit the curriculum's weekly content and schedule.
+     * Determine whether the user can edit the curriculum's weekly content and schedule, and offer or withdraw it.
      */
     public function update(User $user, Program $program): bool
     {

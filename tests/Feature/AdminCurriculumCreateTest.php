@@ -16,7 +16,7 @@ class AdminCurriculumCreateTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_admin_creates_a_curriculum_with_weeks_checklists_and_a_schedule_and_it_is_audited(): void
+    public function test_admin_creates_an_offered_curriculum_with_weeks_checklists_and_a_schedule_and_it_is_audited(): void
     {
         $this->travelTo('2026-11-02 09:00:00');
         $admin = User::factory()->create(['role' => 'admin']);
@@ -27,6 +27,7 @@ class AdminCurriculumCreateTest extends TestCase
                 'description' => "Line one\r\nLine two",
                 'weeks_count' => '3',
                 'starts_on' => '2026-11-09',
+                'offered' => '1',
             ]);
 
         $program = Program::query()->sole();
@@ -74,22 +75,25 @@ class AdminCurriculumCreateTest extends TestCase
             'name' => 'Spring Cohort',
             'weeks_count' => 3,
             'starts_on' => '2026-11-09',
+            'offered' => true,
         ], $audits[0]->metadata);
         $this->assertSame($program->id, $audits[1]->metadata['program_id']);
         $this->assertSame('2026-11-09', $audits[1]->metadata['starts_on']);
     }
 
-    public function test_a_curriculum_created_without_a_start_date_stays_unscheduled(): void
+    public function test_a_curriculum_created_unchecked_and_without_a_start_date_is_not_offered_and_stays_unscheduled(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
-            ->post(route('admin.programs.store'), ['name' => 'Draft Curriculum', 'description' => '', 'weeks_count' => '1', 'starts_on' => ''])
+            ->post(route('admin.programs.store'), ['name' => 'Draft Curriculum', 'description' => '', 'weeks_count' => '1', 'starts_on' => '', 'offered' => '0'])
             ->assertSessionHasNoErrors()
             ->assertSessionHas('status', 'Created Draft Curriculum with 1 week.');
 
         $program = Program::query()->sole();
         $this->assertNull($program->description);
+        $this->assertFalse($program->is_active);
+        $this->assertSame([], Program::query()->openToJoin()->pluck('id')->all());
         $this->assertSame(ProgramStatus::Unscheduled, $program->status());
         $this->assertSame([[1, null, null]], $program->weeks()->get()->map(fn (TrainingWeek $week): array => [
             $week->week_number,
@@ -105,7 +109,19 @@ class AdminCurriculumCreateTest extends TestCase
             'name' => 'Draft Curriculum',
             'weeks_count' => 1,
             'starts_on' => null,
+            'offered' => false,
         ], $audit->metadata);
+    }
+
+    public function test_a_curriculum_created_without_the_offered_input_is_not_offered(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->post(route('admin.programs.store'), ['name' => 'Draft Curriculum', 'weeks_count' => '2'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertFalse(Program::query()->sole()->is_active);
     }
 
     /**
@@ -145,6 +161,7 @@ class AdminCurriculumCreateTest extends TestCase
             'too many weeks' => [['weeks_count' => '13'], 'weeks_count', 'The number of weeks field must be between 1 and 12.'],
             'fractional weeks' => [['weeks_count' => '2.5'], 'weeks_count', 'The number of weeks field must be an integer.'],
             'not a date' => [['starts_on' => 'next monday-ish'], 'starts_on', 'The start date field must be a valid date.'],
+            'offered not a boolean' => [['offered' => 'maybe'], 'offered', 'The offered to participants field must be true or false.'],
         ];
     }
 
@@ -153,10 +170,10 @@ class AdminCurriculumCreateTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         Program::factory()->create(['name' => 'Taken Name']);
 
-        $this->actingAs($admin)
+        $response = $this->actingAs($admin)
             ->from(route('admin.programs.create'))
             ->followingRedirects()
-            ->post(route('admin.programs.store'), ['name' => 'Taken Name', 'weeks_count' => '6', 'starts_on' => '2026-11-09'])
+            ->post(route('admin.programs.store'), ['name' => 'Taken Name', 'weeks_count' => '6', 'starts_on' => '2026-11-09', 'offered' => '1'])
             ->assertOk()
             ->assertSeeInOrder([
                 'action="'.route('admin.programs.store').'"',
@@ -165,7 +182,10 @@ class AdminCurriculumCreateTest extends TestCase
                 '<p id="program-name-error" class="text-sm text-rose-200" role="alert">Another curriculum already has this name.</p>',
                 'value="6"',
                 'value="2026-11-09"',
-            ], false);
+            ], false)
+            ->assertSee('Offered to participants');
+
+        $this->assertMatchesRegularExpression('/<input\s+id="program-offered"[^>]*\bchecked\b/', $response->getContent());
     }
 
     public function test_the_curricula_list_and_the_admin_dashboard_link_to_the_new_curriculum_form(): void
@@ -175,12 +195,17 @@ class AdminCurriculumCreateTest extends TestCase
 
         $this->actingAs($admin)->get(route('admin.programs.index'))->assertOk()->assertSeeInOrder([$createLink, 'New curriculum'], false);
         $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()->assertSeeInOrder([$createLink, 'New curriculum'], false);
-        $this->actingAs($admin)
+        $form = $this->actingAs($admin)
             ->get(route('admin.programs.create'))
             ->assertOk()
             ->assertSee('New curriculum')
             ->assertSee('action="'.route('admin.programs.store').'"', false)
-            ->assertSee('max="12"', false);
+            ->assertSee('max="12"', false)
+            ->assertSee('Offered to participants')
+            ->getContent();
+
+        $this->assertMatchesRegularExpression('/<input\s+id="program-offered"[^>]*type="checkbox"[^>]*>/', $form);
+        $this->assertDoesNotMatchRegularExpression('/<input\s+id="program-offered"[^>]*\bchecked\b/', $form);
     }
 
     public function test_participants_and_coaches_are_forbidden_and_guests_are_sent_to_login(): void

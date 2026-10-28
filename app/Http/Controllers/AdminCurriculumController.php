@@ -46,6 +46,7 @@ class AdminCurriculumController extends Controller
             description: $request->validated('description'),
             weeksCount: $weeksCount,
             startsOn: $request->date('starts_on'),
+            isOffered: $request->boolean('offered'),
             admin: $request->user(),
         );
 

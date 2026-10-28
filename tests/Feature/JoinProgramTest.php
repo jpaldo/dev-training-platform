@@ -116,6 +116,22 @@ class JoinProgramTest extends TestCase
         $this->assertDatabaseCount('program_participants', 0);
     }
 
+    public function test_a_curriculum_that_is_not_offered_cannot_be_joined_or_seen_in_available_curricula(): void
+    {
+        $participant = User::factory()->create();
+        $program = Program::factory()->withWeeks(4)->upcoming()->create(['name' => 'Draft run', 'is_active' => false]);
+
+        $this->actingAs($participant)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('No curricula are open to join right now.')
+            ->assertDontSee('Draft run');
+
+        $this->actingAs($participant)->post(route('training.programs.join', $program))->assertForbidden();
+
+        $this->assertDatabaseCount('program_participants', 0);
+    }
+
     /**
      * @param  array<string, mixed>  $attributes
      */

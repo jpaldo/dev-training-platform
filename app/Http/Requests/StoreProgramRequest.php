@@ -11,7 +11,8 @@ use Illuminate\Validation\Rule;
 
 /**
  * An admin creates a curriculum on the New curriculum page: a name no other curriculum has, an optional description,
- * its number of weeks and an optional first day of Week 1. Errors return to the form.
+ * its number of weeks, an optional first day of Week 1 and whether it is offered to participants (unchecked, it is
+ * not). Errors return to the form.
  */
 class StoreProgramRequest extends FormRequest
 {
@@ -24,7 +25,7 @@ class StoreProgramRequest extends FormRequest
 
     /**
      * A unique name and an optional description, both plain text, 1 to `CurriculumService::MAX_WEEKS` weeks and an
-     * optional start date.
+     * optional start date, and the "Offered to participants" checkbox.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -35,6 +36,7 @@ class StoreProgramRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:5000'],
             'weeks_count' => ['required', 'integer', 'between:1,'.CurriculumService::MAX_WEEKS],
             'starts_on' => ['nullable', 'date'],
+            'offered' => ['boolean'],
         ];
     }
 
@@ -46,6 +48,7 @@ class StoreProgramRequest extends FormRequest
         return [
             'weeks_count' => 'number of weeks',
             'starts_on' => 'start date',
+            'offered' => 'offered to participants',
         ];
     }
 

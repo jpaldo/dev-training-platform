@@ -3,6 +3,7 @@
 @section('content')
     @php
         $controlClasses = 'w-full rounded-xl border border-line bg-field px-3.5 py-3 font-sans text-sm text-white placeholder:text-subtle focus:border-accent focus-visible:outline-3 focus-visible:outline-accent/50';
+        $checkboxClasses = 'size-4.5 shrink-0 accent-brand focus-visible:outline-3 focus-visible:outline-accent/50';
     @endphp
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -94,6 +95,27 @@
                             <p id="program-starts-on-error" class="text-sm text-rose-200" role="alert">{{ $errors->first('starts_on') }}</p>
                         @endif
                     </div>
+                </div>
+
+                <div class="grid min-w-0 grid-cols-1 gap-1">
+                    <label class="flex min-h-11 items-center gap-2.5 text-sm font-extrabold">
+                        <input type="hidden" name="offered" value="0">
+                        <input
+                            id="program-offered"
+                            name="offered"
+                            type="checkbox"
+                            value="1"
+                            @checked(old('offered'))
+                            aria-describedby="program-offered-hint{{ $errors->has('offered') ? ' program-offered-error' : '' }}"
+                            @if($errors->has('offered')) aria-invalid="true" @endif
+                            class="{{ $checkboxClasses }}"
+                        >
+                        Offered to participants
+                    </label>
+                    <p id="program-offered-hint" class="text-sm/relaxed text-muted">Leave it unchecked until the weeks are ready; participants can join an offered curriculum from Available curricula and when they register. Offer or withdraw it later on its Overview tab.</p>
+                    @if($errors->has('offered'))
+                        <p id="program-offered-error" class="text-sm text-rose-200" role="alert">{{ $errors->first('offered') }}</p>
+                    @endif
                 </div>
             </x-ui.card>
         </div>

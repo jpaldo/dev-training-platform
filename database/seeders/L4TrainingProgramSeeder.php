@@ -106,7 +106,7 @@ class L4TrainingProgramSeeder extends Seeder
     {
         return [
             'name' => self::PROGRAM_NAME,
-            'description' => 'Placeholder — the L4 Accelerator Training curriculum is coming soon.',
+            'description' => 'Placeholder — the L4 Accelerator Training program is coming soon.',
             'weeks' => [
                 $this->weekOne(),
                 ...array_map($this->placeholderWeek(...), range(2, 4)),

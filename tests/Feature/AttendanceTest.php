@@ -80,7 +80,6 @@ class AttendanceTest extends TestCase
 
         $this->assertSame(0.5, $short->totalHours());
         $this->assertSame(1.5, $overnight->totalHours());
-        $this->assertSame('1h 30m', $overnight->durationLabel());
     }
 
     public function test_an_open_session_counts_its_duration_from_check_in_to_now(): void
@@ -91,7 +90,6 @@ class AttendanceTest extends TestCase
         $this->travel(150)->minutes();
 
         $this->assertSame(9000, $session->durationSeconds());
-        $this->assertSame('2h 30m', $session->durationLabel());
         $this->assertSame(2.5, $session->totalHours());
     }
 }

@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Enums\ReviewDecision;
 use App\Enums\SubmissionStatus;
 use App\Models\ActivitySubmission;
-use App\Models\AttendanceSession;
 use App\Models\GateCriterion;
 use App\Models\GateEvaluation;
 use App\Models\GoogleDriveConnection;
@@ -105,18 +104,16 @@ class CoachOperationsTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_participant_list_is_a_searchable_table_with_drive_and_attendance(): void
+    public function test_participant_list_is_a_searchable_table_with_drive_links(): void
     {
         $this->seedProgram();
         $coach = User::factory()->create(['role' => 'coach']);
         $manual = User::factory()->create(['name' => 'Manual Tester', 'email' => 'manual@example.test', 'drive_link' => 'https://drive.google.com/drive/folders/manual']);
         $automation = User::factory()->create(['name' => 'Automation Tester', 'email' => 'automation@example.test']);
         $this->mentorInProgram(Program::factory()->create(), $coach, $manual, $automation);
-        AttendanceSession::create(['user_id' => $manual->id, 'check_in_at' => now()->subHour()]);
-        AttendanceSession::create(['user_id' => $automation->id, 'check_in_at' => now()->subHours(2), 'check_out_at' => now()->subHour(), 'total_seconds' => 3600]);
 
         $response = $this->actingAs($coach)->get(route('coach.participants'));
-        $response->assertOk()->assertSee('<table', false)->assertDontSee('Manual QA')->assertDontSee('Automation QA')->assertSee('Open Drive')->assertSee('target="_blank"', false)->assertSee('rel="noopener noreferrer"', false)->assertSee('CHECKED IN')->assertSee('CHECKED OUT')->assertSee('Not provided')->assertSee('Inspect');
+        $response->assertOk()->assertSee('<table', false)->assertDontSee('Manual QA')->assertDontSee('Automation QA')->assertSee('Open Drive')->assertSee('target="_blank"', false)->assertSee('rel="noopener noreferrer"', false)->assertSee('Not provided')->assertSee('Inspect');
         $this->actingAs($coach)->get(route('coach.participants', ['search' => 'Manual Tester']))->assertOk()->assertSee('<strong class="wrap-break-word">Manual Tester</strong>', false)->assertDontSee('<strong class="wrap-break-word">Automation Tester</strong>', false);
         $this->actingAs($coach)->get(route('coach.participants', ['search' => 'automation@example.test']))->assertOk()->assertSee('Automation Tester');
     }
@@ -150,7 +147,6 @@ class CoachOperationsTest extends TestCase
         $coach = User::factory()->create(['role' => 'coach']);
         $participants = User::factory()->count(26)->sequence(fn (Sequence $sequence): array => ['name' => sprintf('Participant %02d', $sequence->index + 1)])->create();
         $this->mentorInProgram(Program::factory()->create(), $coach, ...$participants);
-        AttendanceSession::create(['user_id' => $participants->last()->id, 'check_in_at' => now()->subHour(), 'check_out_at' => now(), 'total_seconds' => 3600]);
 
         $firstPage = $this->actingAs($coach)->get(route('coach.participants', ['search' => 'example']));
         $firstPage->assertOk()->assertSee('of 26 participants')->assertDontSee('Daily Logs');

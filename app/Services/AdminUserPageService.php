@@ -26,7 +26,7 @@ class AdminUserPageService
      * rows. Add User is the page's single main action; every other button is secondary.
      *
      * @param  array{search?: ?string, access_type?: ?UserRole, status?: ?string}  $filters
-     * @return array{createUrl: string, settingsLinks: list<array{label: string, url: string}>, passwordSetupExpiresInMinutes: int, search: string, accessTypeOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, users: LengthAwarePaginator<int, array{name: string, employee_id: string, email: string, access_type: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string}>, attendanceUrl: string}
+     * @return array{createUrl: string, settingsLinks: list<array{label: string, url: string}>, passwordSetupExpiresInMinutes: int, search: string, accessTypeOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, users: LengthAwarePaginator<int, array{name: string, employee_id: string, email: string, access_type: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string}>}
      */
     public function indexData(array $filters): array
     {
@@ -45,17 +45,15 @@ class AdminUserPageService
                 ->paginate(self::USERS_PER_PAGE)
                 ->withQueryString()
                 ->through(fn (User $user): array => $this->userRow($user)),
-            'attendanceUrl' => route('admin.attendance.index'),
         ];
     }
 
     /**
      * Everything the add / edit user page renders. The employee ID is required when adding a user or editing one who
      * already has it, and optional when editing a user created before it existed; the job role is optional. Editing
-     * also shows the Training Drive link and the all-time attendance summary. Saving the user is the page's single main
-     * action.
+     * also shows the Training Drive link. Saving the user is the page's single main action.
      *
-     * @return array{isEditing: bool, title: string, formAction: string, formMethod: ?string, submitLabel: string, cancelUrl: string, employeeId: ?string, isEmployeeIdRequired: bool, firstName: ?string, lastName: ?string, email: ?string, jobRole: string, jobRoleOptions: list<array{value: string, label: string}>, accessType: string, accessTypeOptions: list<array{value: string, label: string}>, isActive: bool, driveUrl: ?string, attendance: ?array{completedCount: int, totalHours: string, url: string}}
+     * @return array{isEditing: bool, title: string, formAction: string, formMethod: ?string, submitLabel: string, cancelUrl: string, employeeId: ?string, isEmployeeIdRequired: bool, firstName: ?string, lastName: ?string, email: ?string, jobRole: string, jobRoleOptions: list<array{value: string, label: string}>, accessType: string, accessTypeOptions: list<array{value: string, label: string}>, isActive: bool, driveUrl: ?string}
      */
     public function formData(?User $user): array
     {
@@ -83,7 +81,6 @@ class AdminUserPageService
                 ->all(),
             'isActive' => $user?->is_active ?? true,
             'driveUrl' => $user?->drive_link ?: null,
-            'attendance' => $user ? $this->attendanceSummary($user) : null,
         ];
     }
 
@@ -120,24 +117,6 @@ class AdminUserPageService
             'edit_url' => route('admin.users.edit', $user),
             'disable_url' => $user->is_active ? route('admin.users.disable', $user) : null,
             'enable_url' => $user->is_active ? null : route('admin.users.enable', $user),
-        ];
-    }
-
-    /**
-     * The number of the user's completed attendance sessions (all time) and their total hours.
-     *
-     * @return array{completedCount: int, totalHours: string, url: string}
-     */
-    private function attendanceSummary(User $user): array
-    {
-        $completedSessions = fn (Builder $query): Builder => $query->whereNotNull('check_out_at');
-        $user->loadCount(['attendanceSessions as completed_attendance_sessions_count' => $completedSessions])
-            ->loadSum(['attendanceSessions as completed_attendance_seconds' => $completedSessions], 'total_seconds');
-
-        return [
-            'completedCount' => $user->completed_attendance_sessions_count,
-            'totalHours' => number_format((int) $user->completed_attendance_seconds / 3600, 2),
-            'url' => route('admin.attendance.index', ['participant' => $user->id]),
         ];
     }
 

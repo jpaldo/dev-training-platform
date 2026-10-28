@@ -107,14 +107,6 @@
                     @endif
                 </x-ui.card>
             @endif
-
-            @if($attendance)
-                <x-ui.card as="section" class="grid justify-items-start gap-3" aria-labelledby="user-attendance-title">
-                    <h2 id="user-attendance-title" class="{{ $sectionTitleClasses }}">Attendance summary</h2>
-                    <p class="m-0 leading-relaxed text-muted">{{ $attendance['completedCount'] }} completed session(s) · {{ $attendance['totalHours'] }} total hours.</p>
-                    <x-ui.button variant="secondary" :href="$attendance['url']">View attendance</x-ui.button>
-                </x-ui.card>
-            @endif
         </div>
     </div>
 @endsection

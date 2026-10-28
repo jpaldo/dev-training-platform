@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
-use App\Models\AttendanceSession;
 use App\Models\GateEvaluation;
 use App\Models\GoogleDriveConnection;
 use App\Models\MentorAssignment;
@@ -41,7 +40,6 @@ class CoachParticipantListPageTest extends TestCase
         $program->participants()->attach($nev, ['joined_at' => now()]);
         $this->mentor($otherProgram, $otherCoach, $ada);
         GoogleDriveConnection::create(['user_id' => $ada->id, 'google_account_id' => 'account', 'google_email' => '', 'access_token' => 'access', 'connected_at' => now()]);
-        AttendanceSession::create(['user_id' => $ada->id, 'check_in_at' => now()->setTime(14, 0)]);
 
         $response = $this->actingAs($coach)->get(route('coach.participants'))
             ->assertOk()
@@ -53,10 +51,11 @@ class CoachParticipantListPageTest extends TestCase
                 '>Ada Assigned</strong>', 'EMP-0001', 'L4 November', '9 Nov – 6 Dec 2026', 'Coach Carter',
                 'href="https://drive.google.com/drive/folders/ada" target="_blank" rel="noopener noreferrer"', 'Open Drive ↗',
                 '>Connected<', 'Account connected',
-                'CHECKED IN', 'Nov 10 · 2:00 PM', 'elapsed',
                 'href="'.route('coach.participants.show', [$program, $ada]).'"', 'Inspect',
                 'Showing 1–1 of 1 participants',
             ], false)
+            ->assertDontSee('>Attendance</th>', false)
+            ->assertDontSee('Not checked in')
             ->assertDontSee('L4 October')
             ->assertDontSee('Una Unassigned')
             ->assertDontSee('Nev Never')
@@ -210,8 +209,8 @@ class CoachParticipantListPageTest extends TestCase
 
     /**
      * Create the given number of participants in a new curriculum, each mentored there by a new coach and with a Drive
-     * connection, a submission, a Gate evaluation and an open attendance session, and count the queries of that coach's
-     * page request after a warm-up request.
+     * connection, a submission and a Gate evaluation, and count the queries of that coach's page request after a warm-up
+     * request.
      */
     private function participantListQueryCount(int $participantCount): int
     {
@@ -225,13 +224,12 @@ class CoachParticipantListPageTest extends TestCase
             GoogleDriveConnection::create(['user_id' => $participant->id, 'google_account_id' => "account-{$participant->id}", 'google_email' => "drive-{$participant->id}@gmail.com", 'access_token' => 'access', 'connected_at' => now()]);
             ActivitySubmission::factory()->for($participant, 'participant')->for(Activity::factory()->for($week, 'week'))->create();
             GateEvaluation::factory()->for($participant, 'participant')->for(TrainingGate::factory()->for($week, 'week'), 'gate')->create();
-            AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subHour()]);
         }
 
         $this->actingAs($coach)->get(route('coach.participants'))->assertOk();
         DB::flushQueryLog();
         DB::enableQueryLog();
-        $this->actingAs($coach)->get(route('coach.participants'))->assertOk()->assertSee('CHECKED IN');
+        $this->actingAs($coach)->get(route('coach.participants'))->assertOk();
         DB::disableQueryLog();
 
         return count(DB::getQueryLog());

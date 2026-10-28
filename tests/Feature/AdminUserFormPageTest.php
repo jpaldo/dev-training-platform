@@ -3,10 +3,8 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
-use App\Models\AttendanceSession;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -50,14 +48,9 @@ class AdminUserFormPageTest extends TestCase
             ->assertDontSee('Attendance summary');
     }
 
-    public function test_editing_a_participant_shows_the_saved_values_drive_and_all_time_attendance_without_mentor_assignment(): void
+    public function test_editing_a_participant_shows_the_saved_values_and_drive_without_mentor_assignment(): void
     {
         $participant = User::factory()->create(['name' => 'Hal Hybrid', 'employee_id' => 'EMP-0042', 'job_role' => 'qa_tester', 'email' => 'hal@example.test', 'is_active' => false, 'drive_link' => 'https://drive.google.com/drive/folders/hal']);
-        AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subDays(10), 'check_out_at' => now()->subDays(10)->addHours(4), 'total_seconds' => 14400]);
-        foreach (range(1, 4) as $daysAgo) {
-            AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subDays($daysAgo), 'check_out_at' => now()->subDays($daysAgo)->addMinutes(90), 'total_seconds' => 5400]);
-        }
-        AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subHour()]);
 
         $this->actingAs($this->admin())->get(route('admin.users.edit', $participant))
             ->assertOk()
@@ -76,11 +69,10 @@ class AdminUserFormPageTest extends TestCase
                 'id="password_confirmation" name="password_confirmation" type="password"',
                 'Training Drive',
                 'href="https://drive.google.com/drive/folders/hal" target="_blank" rel="noopener noreferrer"', 'Open Training Drive ↗',
-                'Attendance summary',
-                '5 completed session(s) · 10.00 total hours.',
-                'href="'.route('admin.attendance.index', ['participant' => $participant->id]).'"', 'View attendance',
             ], false)
             ->assertDontSee('name="is_active" value="1" checked', false)
+            ->assertDontSee('Attendance summary')
+            ->assertDontSee('View attendance')
             ->assertDontSee('Assigned Mentors')
             ->assertDontSee('name="coach_ids[]"', false)
             ->assertDontSee('Secure password setup');
@@ -115,7 +107,7 @@ class AdminUserFormPageTest extends TestCase
         $this->actingAs($this->admin())->get(route('admin.users.edit', $coach))
             ->assertOk()
             ->assertSee('<option value="coach" selected>Mentor</option>', false)
-            ->assertSeeInOrder(['Training Drive', 'Not provided', 'Attendance summary', '0 completed session(s) · 0.00 total hours.'])
+            ->assertSeeInOrder(['Training Drive', 'Not provided'])
             ->assertDontSee('Assigned Mentors');
     }
 
@@ -163,35 +155,8 @@ class AdminUserFormPageTest extends TestCase
             ->assertDontSee('name="is_active" value="1" checked', false);
     }
 
-    public function test_query_count_does_not_grow_with_the_number_of_attendance_sessions(): void
-    {
-        $this->assertSame($this->editPageQueryCount(1), $this->editPageQueryCount(3));
-    }
-
     private function admin(): User
     {
         return User::factory()->create(['role' => 'admin']);
-    }
-
-    /**
-     * Create a participant with the given number of completed attendance sessions, and count the queries of the
-     * admin's edit page request after a warm-up request.
-     */
-    private function editPageQueryCount(int $count): int
-    {
-        $admin = $this->admin();
-        $participant = User::factory()->create();
-        foreach (range(1, $count) as $daysAgo) {
-            AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subDays($daysAgo), 'check_out_at' => now()->subDays($daysAgo)->addHour(), 'total_seconds' => 3600]);
-        }
-
-        $this->actingAs($admin)->get(route('admin.users.edit', $participant))->assertOk();
-
-        DB::flushQueryLog();
-        DB::enableQueryLog();
-        $this->actingAs($admin)->get(route('admin.users.edit', $participant))->assertOk()->assertSee('Attendance summary');
-        DB::disableQueryLog();
-
-        return count(DB::getQueryLog());
     }
 }

@@ -19,13 +19,13 @@ class AdminUserListPageTest extends TestCase
         User::factory()->create(['name' => 'Ava Automation', 'created_at' => now()->subDays(2)]);
         $hybrid = User::factory()->create(['name' => 'Hal Hybrid', 'employee_id' => 'EMP-0042', 'is_active' => false, 'created_at' => now()->subDay()]);
 
-        $response = $this->actingAs($admin)->get(route('admin.users.index'))
+        $this->actingAs($admin)->get(route('admin.users.index'))
             ->assertOk()
             ->assertSeeInOrder([
                 'ADMIN · USERS',
                 'User Management',
                 'Access Type determines each user\'s role in the training platform.',
-                'id="admin-users-main-action"', 'href="'.route('admin.users.create').'"', '+ Add User', 'href="'.route('admin.attendance.index').'"', 'View Attendance',
+                'id="admin-users-main-action"', 'href="'.route('admin.users.create').'"', '+ Add User',
                 'aria-label="Admin settings"',
                 'href="'.route('admin.settings.google-drive').'"', 'Google Drive Settings',
                 'href="'.route('admin.settings.ai').'"', 'AI Settings',
@@ -47,9 +47,9 @@ class AdminUserListPageTest extends TestCase
             ->assertDontSee('QA Path')
             ->assertDontSee('name="path"', false)
             ->assertDontSee('QA Automation')
-            ->assertDontSee('QA Manual');
-
-        $this->assertSame(1, substr_count($response->getContent(), 'View Attendance'));
+            ->assertDontSee('QA Manual')
+            ->assertDontSee('href="'.route('admin.attendance.index').'"', false)
+            ->assertDontSee('View Attendance');
     }
 
     public function test_filters_keep_their_values_and_an_empty_result_shows_a_notice_instead_of_the_table(): void

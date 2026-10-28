@@ -122,19 +122,6 @@
                     @endif
                 </x-ui.card>
             </x-ui.tab-panel>
-
-            <x-ui.tab-panel name="attendance" :selected="$selectedTab" id-prefix="participant">
-                <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-                    <x-ui.card as="section" class="grid content-start justify-items-start gap-3" aria-labelledby="participant-attendance-title">
-                        <h2 id="participant-attendance-title" class="m-0 text-xl font-extrabold">Attendance summary</h2>
-                        <p class="m-0 leading-relaxed text-muted">{{ $attendance['completed_sessions'] }} completed session(s) · {{ number_format($attendance['total_hours'], 2) }} total hours</p>
-                        @if($attendance['active_session'])
-                            <x-ui.alert tone="success" class="w-full">Checked in since {{ $attendance['active_session']->check_in_at->format('M j, Y · g:i A') }} · {{ $attendance['active_session']->durationLabel() }} elapsed</x-ui.alert>
-                        @endif
-                        <x-ui.button variant="secondary" :href="route('coach.attendance.index', ['participant' => $participant->id])">View attendance</x-ui.button>
-                    </x-ui.card>
-                </div>
-            </x-ui.tab-panel>
         </div>
     </div>
 @endsection

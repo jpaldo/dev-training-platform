@@ -32,13 +32,6 @@ class AttendanceSession extends Model
         return $this->total_seconds ?? (int) max(0, $this->check_in_at->diffInSeconds($this->check_out_at ?? now()));
     }
 
-    public function durationLabel(): string
-    {
-        $seconds = $this->durationSeconds();
-
-        return intdiv($seconds, 3600).'h '.str_pad((string) intdiv($seconds % 3600, 60), 2, '0', STR_PAD_LEFT).'m';
-    }
-
     public function totalHours(): float
     {
         return round($this->durationSeconds() / 3600, 2);

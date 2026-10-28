@@ -17,7 +17,6 @@
 
         <x-ui.main-action id="admin-users-main-action">
             <x-ui.button :href="$createUrl">+ Add User</x-ui.button>
-            <x-ui.button variant="secondary" :href="$attendanceUrl">View Attendance</x-ui.button>
         </x-ui.main-action>
 
         <div class="grid min-w-0 grid-cols-1 gap-6 lg:col-span-2">

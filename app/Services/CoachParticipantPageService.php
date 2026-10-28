@@ -6,7 +6,6 @@ use App\Enums\GateEvaluationStatus;
 use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\ActivitySubmission;
-use App\Models\AttendanceSession;
 use App\Models\Program;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
@@ -28,10 +27,10 @@ class CoachParticipantPageService
      * Everything the coach participant page renders for the participant's work in one curriculum: the curriculum and
      * its dates, the participant's current mentor there (null when not assigned), whether the viewer is an admin
      * (otherwise they are that mentor), the submission and weekly video rows of the curriculum's weeks, the Gate rows
-     * of its active weeks, the attendance summary (attendance is not per curriculum) and the page tabs. `shareDomain`
-     * is the Google Workspace domain the weekly videos are shared with (null when none is configured).
+     * of its active weeks and the page tabs. `shareDomain` is the Google Workspace domain the weekly videos are shared
+     * with (null when none is configured).
      *
-     * @return array{participant: User, program: Program, programDates: string, mentorName: ?string, isAdmin: bool, submissions: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion}>, videoRecordings: Collection<int, WeeklyVideoRecording>, shareDomain: ?string, gates: Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int, review_url: string}>, attendance: array{completed_sessions: int, total_hours: float, active_session: ?AttendanceSession}, tabs: list<array{key: string, label: string}>, selectedTab: string}
+     * @return array{participant: User, program: Program, programDates: string, mentorName: ?string, isAdmin: bool, submissions: Collection<int, array{submission: ActivitySubmission, status_label: string, tone: string, version_count: int, latest_version: ?SubmissionVersion}>, videoRecordings: Collection<int, WeeklyVideoRecording>, shareDomain: ?string, gates: Collection<int, array{gate: TrainingGate, status_label: string, tone: string, blocker_count: int, review_url: string}>, tabs: list<array{key: string, label: string}>, selectedTab: string}
      */
     public function showData(User $viewer, Program $program, User $participant): array
     {
@@ -43,7 +42,6 @@ class CoachParticipantPageService
             'weeklyVideoRecordings' => fn (Relation $recordings): Relation => $recordings
                 ->whereHas('week', $inProgram)
                 ->with('week'),
-            'attendanceSessions',
         ]);
 
         return [
@@ -56,11 +54,9 @@ class CoachParticipantPageService
             'videoRecordings' => $participant->weeklyVideoRecordings->sortByDesc('chosen_at')->values(),
             'shareDomain' => $this->googleDrive->getShareDomain(),
             'gates' => $this->gateRows($program, $participant),
-            'attendance' => $this->attendanceSummary($participant),
             'tabs' => [
                 ['key' => 'submissions', 'label' => 'Submissions'],
                 ['key' => 'gates', 'label' => 'Gates'],
-                ['key' => 'attendance', 'label' => 'Attendance'],
             ],
             'selectedTab' => 'submissions',
         ];
@@ -112,21 +108,5 @@ class CoachParticipantPageService
                 'review_url' => route('training.coach.gates.show', [$program, $row['gate']->week, $participant, $row['gate']]),
             ];
         });
-    }
-
-    /**
-     * The completed attendance sessions and their total hours, and the session still checked in, if any.
-     *
-     * @return array{completed_sessions: int, total_hours: float, active_session: ?AttendanceSession}
-     */
-    private function attendanceSummary(User $participant): array
-    {
-        $completedSessions = $participant->attendanceSessions->whereNotNull('check_out_at');
-
-        return [
-            'completed_sessions' => $completedSessions->count(),
-            'total_hours' => (float) $completedSessions->sum(fn (AttendanceSession $session): float => $session->totalHours()),
-            'active_session' => $participant->attendanceSessions->firstWhere('check_out_at', null),
-        ];
     }
 }

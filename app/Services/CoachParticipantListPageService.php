@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\UserRole;
 use App\Models\ActivitySubmission;
-use App\Models\AttendanceSession;
 use App\Models\GateEvaluation;
 use App\Models\MentorAssignment;
 use App\Models\Program;
@@ -27,7 +26,7 @@ class CoachParticipantListPageService
      * the participant's current mentor. The page has no single main action, so every button is secondary.
      *
      * @param  array{search?: ?string, program?: int|string|null}  $filters
-     * @return array{search: string, programOptions: list<array{value: string, label: string, is_selected: bool}>, participants: LengthAwarePaginator<int, array{name: string, email: string, employee_id: string, program_name: string, program_dates: string, mentor_name: ?string, drive_url: ?string, google_drive_account: ?string, attendance: ?array{is_open: bool, status: string, time: string, duration: string}, submission_count: int, gate_count: int, inspect_url: string}>}
+     * @return array{search: string, programOptions: list<array{value: string, label: string, is_selected: bool}>, participants: LengthAwarePaginator<int, array{name: string, email: string, employee_id: string, program_name: string, program_dates: string, mentor_name: ?string, drive_url: ?string, google_drive_account: ?string, submission_count: int, gate_count: int, inspect_url: string}>}
      */
     public function indexData(User $viewer, array $filters): array
     {
@@ -72,7 +71,7 @@ class CoachParticipantListPageService
             ->with([
                 'participant' => fn (Relation $participants): Relation => $participants
                     ->select(['id', 'name', 'email', 'employee_id', 'drive_link'])
-                    ->with(['attendanceSessions' => fn (Relation $sessions): Relation => $sessions->latest('check_in_at'), 'googleDriveConnection']),
+                    ->with('googleDriveConnection'),
                 'program' => fn (Relation $programs): Relation => $programs->select(['id', 'name'])->withScheduleBounds(),
             ])
             ->orderBy(User::query()->select('name')->whereColumn('users.id', 'program_participants.user_id'))
@@ -107,10 +106,9 @@ class CoachParticipantListPageService
 
     /**
      * One table row: the participant with their employee ID (or a dash), the curriculum and its dates, the current
-     * mentor's name (null when not assigned), the Drive links, the counts in the curriculum and the open (or else
-     * latest) attendance session.
+     * mentor's name (null when not assigned), the Drive links and the counts in the curriculum.
      *
-     * @return array{name: string, email: string, employee_id: string, program_name: string, program_dates: string, mentor_name: ?string, drive_url: ?string, google_drive_account: ?string, attendance: ?array{is_open: bool, status: string, time: string, duration: string}, submission_count: int, gate_count: int, inspect_url: string}
+     * @return array{name: string, email: string, employee_id: string, program_name: string, program_dates: string, mentor_name: ?string, drive_url: ?string, google_drive_account: ?string, submission_count: int, gate_count: int, inspect_url: string}
      */
     private function participantRow(ProgramParticipant $membership): array
     {
@@ -127,43 +125,9 @@ class CoachParticipantListPageService
             'google_drive_account' => $participant->googleDriveConnection
                 ? ($participant->googleDriveConnection->google_email ?: 'Account connected')
                 : null,
-            'attendance' => $this->attendanceSummary($participant),
             'submission_count' => (int) $membership->submission_count,
             'gate_count' => (int) $membership->gate_count,
             'inspect_url' => route('coach.participants.show', [$membership->program, $participant]),
-        ];
-    }
-
-    /**
-     * The session still checked in (with its check-in time and elapsed time), or else the latest session (with its
-     * check-out time and duration), or null when the participant never checked in.
-     *
-     * @return ?array{is_open: bool, status: string, time: string, duration: string}
-     */
-    private function attendanceSummary(User $participant): ?array
-    {
-        $openSession = $participant->attendanceSessions->firstWhere('check_out_at', null);
-
-        if ($openSession instanceof AttendanceSession) {
-            return [
-                'is_open' => true,
-                'status' => 'CHECKED IN',
-                'time' => $openSession->check_in_at->format('M j · g:i A'),
-                'duration' => "{$openSession->durationLabel()} elapsed",
-            ];
-        }
-
-        $latestSession = $participant->attendanceSessions->first();
-
-        if (! $latestSession instanceof AttendanceSession) {
-            return null;
-        }
-
-        return [
-            'is_open' => false,
-            'status' => 'CHECKED OUT',
-            'time' => (string) $latestSession->check_out_at?->format('M j · g:i A'),
-            'duration' => $latestSession->durationLabel(),
         ];
     }
 }

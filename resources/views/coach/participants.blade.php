@@ -52,7 +52,6 @@
                                 <th scope="col" class="{{ $headerCellClasses }}">Mentor</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Training Drive</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Google Drive</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Attendance</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Submissions</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Gates</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Action</th>
@@ -96,17 +95,6 @@
                                             </span>
                                         @else
                                             <span class="text-muted">Not Connected</span>
-                                        @endif
-                                    </td>
-                                    <td class="{{ $cellClasses }}">
-                                        @if($participant['attendance'])
-                                            <span class="grid justify-items-start gap-1">
-                                                <x-ui.badge :tone="$participant['attendance']['is_open'] ? 'accent' : 'neutral'" class="whitespace-nowrap">{{ $participant['attendance']['status'] }}</x-ui.badge>
-                                                <span class="whitespace-nowrap text-muted">{{ $participant['attendance']['time'] }}</span>
-                                                <span class="whitespace-nowrap text-muted">{{ $participant['attendance']['duration'] }}</span>
-                                            </span>
-                                        @else
-                                            <span class="text-muted">Not checked in</span>
                                         @endif
                                     </td>
                                     <td class="{{ $cellClasses }}">{{ $participant['submission_count'] }}</td>

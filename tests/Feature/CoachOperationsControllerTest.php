@@ -88,7 +88,7 @@ class CoachOperationsControllerTest extends TestCase
 
         $progressQueries = collect(DB::getQueryLog())
             ->pluck('query')
-            ->filter(fn (string $query): bool => preg_match('/from "(attendance_sessions|google_drive_connections|submission_versions|mentor_assignments)"/', $query) === 1);
+            ->filter(fn (string $query): bool => preg_match('/from "(google_drive_connections|submission_versions|mentor_assignments)"/', $query) === 1);
         $this->assertSame([], $progressQueries->values()->all());
     }
 

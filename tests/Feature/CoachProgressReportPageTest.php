@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
-use App\Models\AttendanceSession;
 use App\Models\GateEvaluation;
 use App\Models\MentorAssignment;
 use App\Models\Program;
@@ -273,7 +272,6 @@ class CoachProgressReportPageTest extends TestCase
         $this->assertSame(1, $retrievedModels[ActivitySubmission::class]);
         $this->assertSame(1, $retrievedModels[GateEvaluation::class]);
         $this->assertArrayNotHasKey(SubmissionVersion::class, $retrievedModels);
-        $this->assertArrayNotHasKey(AttendanceSession::class, $retrievedModels);
     }
 
     public function test_query_count_does_not_grow_with_the_number_of_participants(): void

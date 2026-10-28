@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Enums\GateEvaluationStatus;
 use App\Models\Activity;
 use App\Models\ActivitySubmission;
-use App\Models\AttendanceSession;
 use App\Models\GateEvaluation;
 use App\Models\MentorAssignment;
 use App\Models\Program;
@@ -24,7 +23,7 @@ class CoachParticipantPageTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_heading_and_curriculum_card_come_first_then_three_tabs_with_submissions_selected(): void
+    public function test_heading_and_curriculum_card_come_first_then_two_tabs_with_submissions_selected(): void
     {
         $program = Program::factory()->withWeeks(4, Carbon::parse('2026-11-09'))->create(['name' => 'L4 November']);
         [$coach, $participant] = $this->mentoredParticipant($program, 'Coach Carter');
@@ -43,9 +42,10 @@ class CoachParticipantPageTest extends TestCase
                 'role="tablist" aria-label="Participant sections"',
                 'id="participant-tab-submissions"',
                 'id="participant-tab-gates"',
-                'id="participant-tab-attendance"',
             ], false)
             ->assertSee('id="participant-tab-submissions" aria-controls="participant-panel-submissions" aria-selected="true"', false)
+            ->assertDontSee('participant-tab-attendance', false)
+            ->assertDontSee('participant-panel-attendance', false)
             ->assertDontSee('participant-tab-week-four', false)
             ->assertDontSee('Assigned Mentors');
     }
@@ -275,16 +275,15 @@ class CoachParticipantPageTest extends TestCase
             ], false);
     }
 
-    public function test_participant_page_query_count_does_not_grow_with_submissions_videos_and_attendance(): void
+    public function test_participant_page_query_count_does_not_grow_with_submissions_and_videos(): void
     {
         $this->assertSame($this->participantPageQueryCount(1), $this->participantPageQueryCount(3));
     }
 
     /**
      * Give a new participant, in a new curriculum, the given number of the curriculum's weeks, each with a
-     * Gate, a submission with two versions, a weekly video recording and a completed attendance session, plus an open
-     * attendance session, and count the queries of the page request of the participant's mentor in that curriculum, after
-     * a warm-up request.
+     * Gate, a submission with two versions and a weekly video recording, and count the queries of the page request of
+     * the participant's mentor in that curriculum, after a warm-up request.
      */
     private function participantPageQueryCount(int $rows): int
     {
@@ -299,9 +298,7 @@ class CoachParticipantPageTest extends TestCase
             SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 1, 'status' => 'submitted']);
             SubmissionVersion::factory()->for($submission, 'submission')->create(['version_number' => 2, 'status' => 'submitted']);
             WeeklyVideoRecording::factory()->for($participant, 'participant')->for($week, 'week')->create(['name' => "week-{$position}.mp4"]);
-            AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subDays($position)->subHours(8), 'check_out_at' => now()->subDays($position), 'total_seconds' => 28800]);
         }
-        AttendanceSession::create(['user_id' => $participant->id, 'check_in_at' => now()->subHour()]);
 
         $this->actingAs($coach)->get(route('coach.participants.show', [$program, $participant]))->assertOk();
 

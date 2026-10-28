@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\TrainingSession;
+use App\Models\Program;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -25,7 +25,7 @@ class FilterRecoveryRequestsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'session' => ['nullable', 'integer', Rule::exists(TrainingSession::class, 'id')],
+            'program' => ['nullable', 'integer', Rule::exists(Program::class, 'id')],
         ];
     }
 }

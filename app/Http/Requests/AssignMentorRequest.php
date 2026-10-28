@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\TrainingSession;
+use App\Models\Program;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
@@ -10,18 +10,18 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * An admin makes one of the session's mentors a participant's mentor. Each participant's errors go to their own bag
+ * An admin makes one of the curriculum's mentors a participant's mentor. Each participant's errors go to their own bag
  * (see errorBagFor()), so the Mentors tab shows them beside the right mentor select, and the admin returns to that tab.
  */
 class AssignMentorRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('manage', $this->trainingSession()) === true;
+        return $this->user()?->can('manage', $this->program()) === true;
     }
 
     /**
-     * One mentor of the session.
+     * One mentor of the curriculum.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -31,7 +31,7 @@ class AssignMentorRequest extends FormRequest
             'mentor_id' => [
                 'required',
                 'integer',
-                Rule::exists('training_session_mentors', 'user_id')->where('training_session_id', $this->trainingSession()->id),
+                Rule::exists('program_mentors', 'user_id')->where('program_id', $this->program()->id),
             ],
         ];
     }
@@ -43,7 +43,7 @@ class AssignMentorRequest extends FormRequest
     {
         return [
             'mentor_id.required' => 'Choose a mentor.',
-            'mentor_id.exists' => 'The selected mentor is not a mentor of this training session.',
+            'mentor_id.exists' => 'The selected mentor is not a mentor of this curriculum.',
         ];
     }
 
@@ -74,16 +74,16 @@ class AssignMentorRequest extends FormRequest
     }
 
     /**
-     * A failed assignment returns to the dashboard's Mentors tab.
+     * A failed assignment returns to the curriculum page's Mentors tab.
      */
     protected function getRedirectUrl(): string
     {
-        return route('admin.sessions.show', $this->trainingSession()).'#mentors';
+        return route('admin.programs.show', $this->program()).'#mentors';
     }
 
-    private function trainingSession(): TrainingSession
+    private function program(): Program
     {
-        return $this->route('trainingSession');
+        return $this->route('program');
     }
 
     private function participant(): User

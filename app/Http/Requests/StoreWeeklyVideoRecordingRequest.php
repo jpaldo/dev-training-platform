@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\TrainingSession;
+use App\Models\Program;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\WeekProgressionService;
@@ -15,23 +15,23 @@ class StoreWeeklyVideoRecordingRequest extends FormRequest
      * Determine if the user is authorized to make this request.
      *
      * A week whose checklist does not ask for the video answers 404, a week
-     * the participant cannot access yet in the session or a session that has
-     * ended answers 403, and a week whose Gate the participant has passed in
-     * the session is locked with a 422.
+     * the participant cannot access yet or a curriculum that has ended
+     * answers 403, and a week whose Gate the participant has passed is
+     * locked with a 422.
      */
     public function authorize(): bool
     {
         /** @var User $user */
         $user = $this->user();
-        /** @var TrainingSession $trainingSession */
-        $trainingSession = $this->route('trainingSession');
+        /** @var Program $program */
+        $program = $this->route('program');
         /** @var TrainingWeek $trainingWeek */
         $trainingWeek = $this->route('trainingWeek');
         abort_unless($trainingWeek->asksForWeeklyVideo(), 404);
         $progression = app(WeekProgressionService::class);
-        $progression->ensureCanAccessWeek($user, $trainingSession, $trainingWeek);
-        $progression->ensureSessionAcceptsWork($user, $trainingSession);
-        abort_if($progression->hasPassedActiveGate($user, $trainingSession, $trainingWeek), 422, 'This week is locked after Gate completion.');
+        $progression->ensureCanAccessWeek($user, $program, $trainingWeek);
+        $progression->ensureProgramAcceptsWork($user, $program);
+        abort_if($progression->hasPassedActiveGate($user, $trainingWeek), 422, 'This week is locked after Gate completion.');
 
         return true;
     }

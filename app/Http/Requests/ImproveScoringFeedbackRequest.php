@@ -12,16 +12,16 @@ class ImproveScoringFeedbackRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request: an admin or the participant's current mentor in the
-     * submission's session.
+     * submission's curriculum.
      */
     public function authorize(): bool
     {
         $submissionVersion = $this->route('submissionVersion');
         abort_unless($submissionVersion instanceof SubmissionVersion, 404);
-        $submissionVersion->loadMissing(['submission.participant', 'submission.trainingSession']);
+        $submissionVersion->loadMissing(['submission.participant', 'submission.activity.week.program']);
         abort_unless(! $submissionVersion->isDraft() && $submissionVersion->submission->participant->role === UserRole::Participant, 404);
 
-        return $this->user()?->mentorsParticipantInSession($submissionVersion->submission->participant, $submissionVersion->submission->trainingSession) === true;
+        return $this->user()?->mentorsParticipantInProgram($submissionVersion->submission->participant, $submissionVersion->submission->activity->week->program) === true;
     }
 
     /**

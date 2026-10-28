@@ -5,8 +5,8 @@ namespace App\Http\Requests;
 use App\Enums\GateCriterionStatus;
 use App\Enums\GateEvaluationStatus;
 use App\Models\GateCriterion;
+use App\Models\Program;
 use App\Models\TrainingGate;
-use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\GateReadinessService;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -22,15 +22,15 @@ class StoreGateReviewRequest extends FormRequest
 
     /**
      * Determine if the user is authorized to make this request: an admin or the participant's current mentor in the
-     * route's session. A participant who is not in the session is not found, before the review is validated.
+     * route's curriculum. A participant who is not in the curriculum is not found, before the review is validated.
      */
     public function authorize(): bool
     {
         $participant = $this->route('participant');
-        $trainingSession = $this->route('trainingSession');
-        abort_unless($participant instanceof User && $trainingSession instanceof TrainingSession && $trainingSession->includesParticipant($participant), 404);
+        $program = $this->route('program');
+        abort_unless($participant instanceof User && $program instanceof Program && $program->includesParticipant($participant), 404);
 
-        return $this->user()?->mentorsParticipantInSession($participant, $trainingSession) === true;
+        return $this->user()?->mentorsParticipantInProgram($participant, $program) === true;
     }
 
     /**
@@ -50,7 +50,7 @@ class StoreGateReviewRequest extends FormRequest
 
     /**
      * Once the fields are valid, check the decision against the weekly checklist (readiness does not block it): the
-     * weekly video item can be ticked only once a video is chosen in the session, a completed week needs every required
+     * weekly video item can be ticked only once a video is chosen for the week, a completed week needs every required
      * item ticked, and an incomplete week needs at least one required item left unticked.
      *
      * @return list<callable(Validator): void>
@@ -63,7 +63,7 @@ class StoreGateReviewRequest extends FormRequest
             }
             $criteria = $this->requiredCriteria();
             $videoCriterion = $criteria->first(fn (GateCriterion $criterion): bool => $criterion->isWeeklyVideo());
-            if ($videoCriterion && $this->criterionStatus($videoCriterion) === GateCriterionStatus::Met && $gates->weeklyVideo($this->route('trainingSession'), $this->route('participant'), $this->route('trainingGate'))['status'] === 'missing') {
+            if ($videoCriterion && $this->criterionStatus($videoCriterion) === GateCriterionStatus::Met && $gates->weeklyVideo($this->route('participant'), $this->route('trainingGate'))['status'] === 'missing') {
                 $validator->errors()->add('criteria.'.$videoCriterion->id, 'The Weekly Video Recording cannot be marked Met until the participant has chosen a video.');
 
                 return;

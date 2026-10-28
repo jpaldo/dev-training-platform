@@ -18,8 +18,8 @@ class StoreRecoveryRequestRequest extends FormRequest
      * Determine if the user is authorized to make this request.
      *
      * A failed attempt takes one recovery request: once a coach has decided it, another request answers 422. Once the
-     * attempt's session has ended, a request answers 403 ("This training session has ended."), since a retry could not
-     * be worked on there.
+     * attempt's curriculum has ended, a request answers 403 ("This curriculum has ended."), since a retry could not be
+     * worked on there.
      */
     public function authorize(): bool
     {
@@ -29,7 +29,7 @@ class StoreRecoveryRequestRequest extends FormRequest
             return false;
         }
 
-        app(WeekProgressionService::class)->ensureSessionAcceptsWork($this->user(), $submission->trainingSession);
+        app(WeekProgressionService::class)->ensureProgramAcceptsWork($this->user(), $submission->loadMissing('activity.week.program')->activity->week->program);
         abort_if($this->existingRecoveryRequest() !== null && ! $this->hasPendingRecoveryRequest(), 422);
 
         return true;

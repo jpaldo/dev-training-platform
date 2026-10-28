@@ -13,12 +13,11 @@ use App\Http\Controllers\AdminCurriculumScheduleController;
 use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\AdminGoogleDriveController;
 use App\Http\Controllers\AdminInterviewSchedulingController;
+use App\Http\Controllers\AdminProgramMentorAssignmentController;
+use App\Http\Controllers\AdminProgramMentorController;
+use App\Http\Controllers\AdminProgramParticipantController;
+use App\Http\Controllers\AdminProgramResourceController;
 use App\Http\Controllers\AdminSettingsController;
-use App\Http\Controllers\AdminTrainingSessionController;
-use App\Http\Controllers\AdminTrainingSessionMentorAssignmentController;
-use App\Http\Controllers\AdminTrainingSessionMentorController;
-use App\Http\Controllers\AdminTrainingSessionParticipantController;
-use App\Http\Controllers\AdminTrainingSessionResourceController;
 use App\Http\Controllers\AdminTrainingWeekController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AttendanceController;
@@ -45,7 +44,7 @@ use App\Http\Controllers\ScoringReportController;
 use App\Http\Controllers\SubmissionEvidenceController;
 use App\Http\Controllers\SummaryExportController;
 use App\Http\Controllers\TrainingActivityController;
-use App\Http\Controllers\TrainingSessionController;
+use App\Http\Controllers\TrainingProgramController;
 use App\Http\Controllers\TrainingSyncController;
 use App\Http\Controllers\TrainingWeekController;
 use App\Http\Controllers\WeeklyVideoRecordingController;
@@ -110,24 +109,18 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::get('/settings/google-drive', [AdminGoogleDriveController::class, 'edit'])->name('settings.google-drive');
         Route::put('/settings/google-drive', [AdminGoogleDriveController::class, 'update'])->name('settings.google-drive.update');
         Route::post('/settings/google-drive/test', [AdminGoogleDriveController::class, 'test'])->name('settings.google-drive.test');
-        Route::get('/sessions', [AdminTrainingSessionController::class, 'index'])->name('sessions.index');
-        Route::get('/sessions/create', [AdminTrainingSessionController::class, 'create'])->name('sessions.create');
-        Route::post('/sessions', [AdminTrainingSessionController::class, 'store'])->name('sessions.store');
-        Route::get('/sessions/{trainingSession}', [AdminTrainingSessionController::class, 'show'])->name('sessions.show');
-        Route::get('/sessions/{trainingSession}/edit', [AdminTrainingSessionController::class, 'edit'])->name('sessions.edit');
-        Route::put('/sessions/{trainingSession}', [AdminTrainingSessionController::class, 'update'])->name('sessions.update');
-        Route::post('/sessions/{trainingSession}/participants', [AdminTrainingSessionParticipantController::class, 'store'])->name('sessions.participants.store');
-        Route::delete('/sessions/{trainingSession}/participants/{participant}', [AdminTrainingSessionParticipantController::class, 'destroy'])->scopeBindings()->name('sessions.participants.destroy');
-        Route::put('/sessions/{trainingSession}/participants/{participant}/mentor', [AdminTrainingSessionMentorAssignmentController::class, 'update'])->scopeBindings()->name('sessions.assignments.update');
-        Route::post('/sessions/{trainingSession}/mentors', [AdminTrainingSessionMentorController::class, 'store'])->name('sessions.mentors.store');
-        Route::delete('/sessions/{trainingSession}/mentors/{mentor}', [AdminTrainingSessionMentorController::class, 'destroy'])->scopeBindings()->name('sessions.mentors.destroy');
-        Route::post('/sessions/{trainingSession}/resources', [AdminTrainingSessionResourceController::class, 'store'])->name('sessions.resources.store');
-        Route::put('/sessions/{trainingSession}/resources/{resource}', [AdminTrainingSessionResourceController::class, 'update'])->scopeBindings()->name('sessions.resources.update');
-        Route::delete('/sessions/{trainingSession}/resources/{resource}', [AdminTrainingSessionResourceController::class, 'destroy'])->scopeBindings()->name('sessions.resources.destroy');
         Route::scopeBindings()->prefix('programs')->name('programs.')->group(function (): void {
             Route::get('/', [AdminCurriculumController::class, 'index'])->name('index');
             Route::get('/{program}', [AdminCurriculumController::class, 'show'])->name('show');
             Route::put('/{program}/schedule', [AdminCurriculumScheduleController::class, 'update'])->name('schedule.update');
+            Route::post('/{program}/participants', [AdminProgramParticipantController::class, 'store'])->name('participants.store');
+            Route::delete('/{program}/participants/{participant}', [AdminProgramParticipantController::class, 'destroy'])->name('participants.destroy');
+            Route::put('/{program}/participants/{participant}/mentor', [AdminProgramMentorAssignmentController::class, 'update'])->name('assignments.update');
+            Route::post('/{program}/mentors', [AdminProgramMentorController::class, 'store'])->name('mentors.store');
+            Route::delete('/{program}/mentors/{mentor}', [AdminProgramMentorController::class, 'destroy'])->name('mentors.destroy');
+            Route::post('/{program}/resources', [AdminProgramResourceController::class, 'store'])->name('resources.store');
+            Route::put('/{program}/resources/{resource}', [AdminProgramResourceController::class, 'update'])->name('resources.update');
+            Route::delete('/{program}/resources/{resource}', [AdminProgramResourceController::class, 'destroy'])->name('resources.destroy');
             Route::get('/{program}/weeks/{week}', [AdminCurriculumController::class, 'week'])->name('weeks.show');
             Route::put('/{program}/weeks/{week}', [AdminTrainingWeekController::class, 'update'])->name('weeks.update');
             Route::post('/{program}/weeks/{week}/activities', [AdminActivityController::class, 'store'])->name('activities.store');
@@ -164,7 +157,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
     Route::middleware('role:coach,admin')->prefix('coach')->name('coach.')->group(function () {
         Route::get('/', [CoachOperationsController::class, 'dashboard'])->name('dashboard');
         Route::get('/participants', [CoachParticipantController::class, 'index'])->name('participants');
-        Route::get('/sessions/{trainingSession}/participants/{participant}', [CoachParticipantController::class, 'show'])->scopeBindings()->name('participants.show');
+        Route::get('/programs/{program}/participants/{participant}', [CoachParticipantController::class, 'show'])->scopeBindings()->name('participants.show');
         Route::get('/reviews', [CoachReviewController::class, 'index'])->name('reviews');
         Route::get('/recovery-requests', [RecoveryRequestController::class, 'index'])->name('recovery.index');
         Route::post('/recovery-requests/{recoveryRequest}', [RecoveryRequestController::class, 'decide'])->name('recovery.decide');
@@ -179,7 +172,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::get('/reports/progress.csv', [CoachOperationsController::class, 'export'])->name('reports.export');
         Route::get('/scoring', [ScoringController::class, 'index'])->name('scoring.index');
         Route::get('/scoring/criteria', [ScoringController::class, 'criteria'])->name('scoring.criteria');
-        Route::get('/scoring/sessions/{trainingSession}/participants/{participant}', [ScoringController::class, 'participant'])->scopeBindings()->name('scoring.participant');
+        Route::get('/scoring/programs/{program}/participants/{participant}', [ScoringController::class, 'participant'])->scopeBindings()->name('scoring.participant');
         Route::get('/scoring/versions/{submissionVersion}', [ScoringController::class, 'edit'])->name('scoring.edit');
         Route::post('/scoring/versions/{submissionVersion}/suggestion', [ScoringController::class, 'generateSuggestion'])->name('scoring.suggestion');
         Route::post('/scoring/versions/{submissionVersion}/improve', [ScoringController::class, 'improveFeedback'])->name('scoring.improve');
@@ -196,10 +189,10 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
     Route::post('/markdown/preview', MarkdownPreviewController::class)->name('markdown.preview');
 
     Route::prefix('training')->name('training.')->group(function () {
-        Route::get('/sessions/{trainingSession}', [TrainingSessionController::class, 'show'])->middleware(['can:view,trainingSession', 'role:participant'])->name('sessions.show');
-        Route::post('/sessions/{trainingSession}/join', [TrainingSessionController::class, 'join'])->name('sessions.join');
-        Route::put('/sessions/{trainingSession}/repository', [TrainingSessionController::class, 'updateRepository'])->middleware('role:participant')->name('sessions.repository.update');
-        Route::prefix('sessions/{trainingSession}/weeks/{trainingWeek}')->middleware(['can:view,trainingSession', 'session.week'])->group(function (): void {
+        Route::get('/programs/{program}', [TrainingProgramController::class, 'show'])->middleware(['can:view,program', 'role:participant'])->name('programs.show');
+        Route::post('/programs/{program}/join', [TrainingProgramController::class, 'join'])->name('programs.join');
+        Route::put('/programs/{program}/repository', [TrainingProgramController::class, 'updateRepository'])->middleware('role:participant')->name('programs.repository.update');
+        Route::prefix('programs/{program}/weeks/{trainingWeek}')->middleware(['can:view,program', 'program.week'])->group(function (): void {
             Route::get('/', [TrainingWeekController::class, 'show'])->name('weeks.show');
             Route::get('/activities/{activity}', [TrainingActivityController::class, 'show'])->name('activities.show');
             Route::middleware('role:participant')->group(function (): void {
@@ -218,7 +211,7 @@ Route::middleware(['auth', 'employee-id'])->group(function () {
         Route::get('/evidence/{submissionEvidence}/download', [SubmissionEvidenceController::class, 'download'])->name('evidence.download');
         Route::get('/evidence/{submissionEvidence}/view', [SubmissionEvidenceController::class, 'view'])->name('evidence.view');
         Route::get('/evidence/{submissionEvidence}/preview', [SubmissionEvidenceController::class, 'preview'])->name('evidence.preview');
-        Route::middleware(['role:coach,admin', 'can:view,trainingSession', 'session.week'])->prefix('coach/sessions/{trainingSession}/weeks/{trainingWeek}')->name('coach.')->group(function (): void {
+        Route::middleware(['role:coach,admin', 'can:view,program', 'program.week'])->prefix('coach/programs/{program}/weeks/{trainingWeek}')->name('coach.')->group(function (): void {
             Route::get('/participants/{participant}/gates/{trainingGate}', [GateReviewController::class, 'show'])->name('gates.show');
             Route::post('/participants/{participant}/gates/{trainingGate}', [GateReviewController::class, 'update'])->name('gates.update');
         });

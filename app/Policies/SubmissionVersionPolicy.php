@@ -18,7 +18,7 @@ class SubmissionVersionPolicy
 
     /**
      * Determine whether the user can view the model: the participant who submitted it, an admin, or the participant's
-     * current mentor in the submission's session (the same people who can update it).
+     * current mentor in the submission's curriculum (the same people who can update it).
      */
     public function view(User $user, SubmissionVersion $submissionVersion): bool
     {
@@ -35,14 +35,19 @@ class SubmissionVersionPolicy
 
     /**
      * Determine whether the user can update the model: the participant who submitted it, an admin, or the participant's
-     * current mentor in the submission's session.
+     * current mentor in the submission's curriculum.
      */
     public function update(User $user, SubmissionVersion $submissionVersion): bool
     {
         $submission = $submissionVersion->submission;
 
-        return $user->id === $submission->user_id
-            || $user->mentorsParticipantInSession($submission->participant, $submission->trainingSession);
+        if ($user->id === $submission->user_id) {
+            return true;
+        }
+
+        $submission->loadMissing(['participant', 'activity.week.program']);
+
+        return $user->mentorsParticipantInProgram($submission->participant, $submission->activity->week->program);
     }
 
     /**

@@ -5,10 +5,10 @@ namespace App\Http\Controllers;
 use App\Enums\JobRole;
 use App\Enums\UserRole;
 use App\Http\Requests\StoreRegisteredUserRequest;
-use App\Models\TrainingSession;
-use App\Models\TrainingSessionParticipant;
+use App\Models\Program;
+use App\Models\ProgramParticipant;
 use App\Models\User;
-use App\Services\TrainingSessionService;
+use App\Services\ProgramEnrollmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -16,24 +16,24 @@ use Illuminate\View\View;
 
 class RegisteredUserController extends Controller
 {
-    public function create(TrainingSessionService $sessions): View
+    public function create(ProgramEnrollmentService $enrollments): View
     {
         return view('auth.register', [
             'jobRoleOptions' => JobRole::options(),
-            'trainingSessionChoices' => $sessions->registrationChoices(),
+            'programChoices' => $enrollments->registrationChoices(),
         ]);
     }
 
     /**
-     * Create the participant and join the training sessions they ticked, all or nothing, then sign them in.
+     * Create the participant and join the curricula they ticked, all or nothing, then sign them in.
      */
-    public function store(StoreRegisteredUserRequest $request, TrainingSessionService $sessions): RedirectResponse
+    public function store(StoreRegisteredUserRequest $request, ProgramEnrollmentService $enrollments): RedirectResponse
     {
-        $user = DB::transaction(function () use ($request, $sessions): User {
+        $user = DB::transaction(function () use ($request, $enrollments): User {
             $user = User::create([...$request->userAttributes(), 'role' => UserRole::Participant]);
 
-            $request->trainingSessionsToJoin()->each(
-                fn (TrainingSession $trainingSession): TrainingSessionParticipant => $sessions->join($trainingSession, $user),
+            $request->programsToJoin()->each(
+                fn (Program $program): ProgramParticipant => $enrollments->join($program, $user),
             );
 
             return $user;

@@ -32,7 +32,7 @@ class RecoveryRequestController extends Controller
     }
 
     /**
-     * Record the coach's decision; an approved request opens the next attempt in the submission's session
+     * Record the coach's decision; an approved request opens the submission's next attempt
      * (SubmissionReviewService::createRetry()).
      */
     public function decide(DecideRecoveryRequestRequest $request, ActivityRecoveryRequest $recoveryRequest, SubmissionReviewService $reviews): RedirectResponse

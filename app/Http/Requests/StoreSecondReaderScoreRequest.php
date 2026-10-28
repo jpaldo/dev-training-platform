@@ -11,13 +11,13 @@ class StoreSecondReaderScoreRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request: an admin or the participant's current mentor in the
-     * submission's session.
+     * submission's curriculum.
      */
     public function authorize(): bool
     {
-        $submission = $this->route('submissionVersion')?->loadMissing(['submission.participant', 'submission.trainingSession'])->submission;
+        $submission = $this->route('submissionVersion')?->loadMissing(['submission.participant', 'submission.activity.week.program'])->submission;
 
-        return $submission !== null && $this->user()?->mentorsParticipantInSession($submission->participant, $submission->trainingSession) === true;
+        return $submission !== null && $this->user()?->mentorsParticipantInProgram($submission->participant, $submission->activity->week->program) === true;
     }
 
     public function rules(): array

@@ -3,7 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\GateEvaluationStatus;
-use App\Models\TrainingSession;
+use App\Models\Program;
 use App\Models\TrainingWeek;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -30,7 +30,7 @@ class FilterCoachGatesRequest extends FormRequest
             'week' => ['nullable', 'integer', Rule::exists(TrainingWeek::class, 'week_number')],
             'status' => ['nullable', Rule::enum(GateEvaluationStatus::class)],
             'search' => ['nullable', 'string', 'max:100'],
-            'session' => ['nullable', 'integer', Rule::exists(TrainingSession::class, 'id')],
+            'program' => ['nullable', 'integer', Rule::exists(Program::class, 'id')],
         ];
     }
 }

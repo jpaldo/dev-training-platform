@@ -5,17 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Services\ExportLifecycleService;
 use App\Services\ParticipantNotificationService;
-use App\Services\ParticipantTrainingSessionPageService;
+use App\Services\ParticipantProgramPageService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class ParticipantDashboardController extends Controller
 {
     /**
-     * The participant's landing page: attendance, their current mentors (each once, across their sessions), the
-     * notifications summary, and their trainings (current and past), each linking to its session page.
+     * The participant's landing page: attendance, their current mentors (each once, across their curricula), the
+     * notifications summary, and their curricula (current, available and past), each linking to its curriculum page.
      */
-    public function index(Request $request, ParticipantTrainingSessionPageService $sessionPages, ExportLifecycleService $lifecycle, ParticipantNotificationService $notifications): View
+    public function index(Request $request, ParticipantProgramPageService $programPages, ExportLifecycleService $lifecycle, ParticipantNotificationService $notifications): View
     {
         /** @var User $user */
         $user = $request->user();
@@ -27,7 +27,7 @@ class ParticipantDashboardController extends Controller
 
         return view('participant.dashboard', [
             ...compact('user', 'mentorNames', 'activeAttendance', 'recentAttendance', 'notificationSummary'),
-            ...$sessionPages->landingData($user),
+            ...$programPages->landingData($user),
         ]);
     }
 }

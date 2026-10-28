@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use App\Enums\UserRole;
 use App\Http\Requests\StoreSubmissionEvidenceRequest;
 use App\Models\Activity;
+use App\Models\Program;
 use App\Models\SubmissionEvidence;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use App\Services\GoogleDriveReadinessService;
@@ -25,14 +25,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SubmissionEvidenceController extends Controller
 {
-    public function store(StoreSubmissionEvidenceRequest $request, TrainingSession $trainingSession, TrainingWeek $trainingWeek, Activity $activity, SubmissionVersion $submissionVersion, WeekProgressionService $progression, SubmissionWorkflowService $workflow, GoogleDriveReadinessService $readiness, SubmissionEvidenceService $evidence): JsonResponse|RedirectResponse
+    public function store(StoreSubmissionEvidenceRequest $request, Program $program, TrainingWeek $trainingWeek, Activity $activity, SubmissionVersion $submissionVersion, WeekProgressionService $progression, SubmissionWorkflowService $workflow, GoogleDriveReadinessService $readiness, SubmissionEvidenceService $evidence): JsonResponse|RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
         abort_if($user->role === UserRole::Participant && $readiness->enforced() && ! $readiness->isReady($user), 403, $readiness->message($user));
-        $progression->ensureCanAccessActivity($user, $trainingSession, $trainingWeek, $activity);
-        $progression->ensureCanEditActivity($user, $trainingSession, $trainingWeek, $activity);
-        abort_unless($submissionVersion->submission->isForActivityInSession($activity, $trainingSession), 404);
+        $progression->ensureCanAccessActivity($user, $program, $trainingWeek, $activity);
+        $progression->ensureCanEditActivity($user, $program, $trainingWeek, $activity);
+        abort_unless($submissionVersion->submission->isForActivity($activity), 404);
         Gate::authorize('update', $submissionVersion);
         $workflow->ensureDraft($user, $submissionVersion);
 
@@ -46,7 +46,7 @@ class SubmissionEvidenceController extends Controller
             return response()->json(['uploaded' => true, 'evidence_ids' => $stored->pluck('id')->values(), 'filenames' => $stored->pluck('original_filename')->filter()->values(), 'status' => 'Uploaded']);
         }
 
-        return redirect()->route('training.submission.edit', [$trainingSession, $trainingWeek, $activity])->with('status', 'Evidence added.');
+        return redirect()->route('training.submission.edit', [$program, $trainingWeek, $activity])->with('status', 'Evidence added.');
     }
 
     public function download(SubmissionEvidence $submissionEvidence, SubmissionEvidenceFileService $files): StreamedResponse

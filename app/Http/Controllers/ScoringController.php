@@ -9,8 +9,8 @@ use App\Http\Requests\ImproveScoringFeedbackRequest;
 use App\Http\Requests\StoreActivityScoreRequest;
 use App\Http\Requests\StoreSecondReaderScoreRequest;
 use App\Models\ActivityScore;
+use App\Models\Program;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\ScoringPageService;
 use App\Services\ScoringService;
@@ -32,25 +32,25 @@ class ScoringController extends Controller
     }
 
     /**
-     * A participant's scores in one training session. The participant is bound through the session's participants, so
-     * someone who is not in the session is not found; only an admin or the participant's current mentor in the session
-     * may open it.
+     * A participant's scores in one curriculum. The participant is bound through the curriculum's participants, so
+     * someone who is not in the curriculum is not found; only an admin or the participant's current mentor in the
+     * curriculum may open it.
      */
-    public function participant(Request $request, TrainingSession $trainingSession, User $participant, ScoringPageService $page): View
+    public function participant(Request $request, Program $program, User $participant, ScoringPageService $page): View
     {
         abort_unless($participant->hasAnyRole(UserRole::Participant), 404);
-        abort_unless($request->user()->mentorsParticipantInSession($participant, $trainingSession), 403);
+        abort_unless($request->user()->mentorsParticipantInProgram($participant, $program), 403);
 
-        return view('scoring.participant', $page->participantData($trainingSession, $participant));
+        return view('scoring.participant', $page->participantData($program, $participant));
     }
 
     /**
      * The scoring page of a submitted version, for an admin or the participant's current mentor in the submission's
-     * session.
+     * curriculum.
      */
     public function edit(Request $request, SubmissionVersion $submissionVersion, ScoringPageService $page): View
     {
-        $submissionVersion->load(['submission.participant', 'submission.trainingSession']);
+        $submissionVersion->load(['submission.participant', 'submission.activity.week.program']);
         $draft = $request->session()->pull('scoring_draft');
         abort_unless(! $submissionVersion->isDraft() && $submissionVersion->submission->participant->role === UserRole::Participant, 404);
         Gate::authorize('view', $submissionVersion);
@@ -60,9 +60,9 @@ class ScoringController extends Controller
 
     public function generateSuggestion(Request $request, SubmissionVersion $submissionVersion, ScoringSuggestionService $suggestions): RedirectResponse
     {
-        $submissionVersion->load(['submission.participant', 'submission.trainingSession']);
+        $submissionVersion->load(['submission.participant', 'submission.activity.week.program']);
         abort_unless(! $submissionVersion->isDraft() && $submissionVersion->submission->participant->role === UserRole::Participant, 404);
-        abort_unless($request->user()->mentorsParticipantInSession($submissionVersion->submission->participant, $submissionVersion->submission->trainingSession), 403);
+        abort_unless($request->user()->mentorsParticipantInProgram($submissionVersion->submission->participant, $submissionVersion->submission->activity->week->program), 403);
         if ($request->filled('draft_json')) {
             $draft = json_decode((string) $request->input('draft_json'), true);
             if (is_array($draft)) {
@@ -91,7 +91,7 @@ class ScoringController extends Controller
 
     public function store(StoreActivityScoreRequest $request, SubmissionVersion $submissionVersion, TrainingSyncCoordinator $syncs): RedirectResponse
     {
-        $submissionVersion->load('submission.participant');
+        $submissionVersion->load(['submission.participant', 'submission.activity.week:id,program_id']);
         abort_unless(! $submissionVersion->isDraft() && $submissionVersion->submission->participant->role === UserRole::Participant, 404);
         $data = $request->validated();
         $total = collect($data['dimensions'])->sum('points');
@@ -115,7 +115,7 @@ class ScoringController extends Controller
         $syncs->request($submissionVersion->submission->participant, 'score_published');
 
         return redirect()
-            ->route('coach.scoring.participant', [$submissionVersion->submission->training_session_id, $submissionVersion->submission->user_id])
+            ->route('coach.scoring.participant', [$submissionVersion->submission->activity->week->program_id, $submissionVersion->submission->user_id])
             ->with('status', 'Activity score saved.');
     }
 

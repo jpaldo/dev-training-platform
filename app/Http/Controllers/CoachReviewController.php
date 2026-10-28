@@ -46,14 +46,14 @@ class CoachReviewController extends Controller
     public function retry(SubmissionVersion $submissionVersion, SubmissionReviewService $reviews): RedirectResponse
     {
         Gate::authorize('update', $submissionVersion);
-        $submission = $submissionVersion->submission()->with('activity')->firstOrFail();
+        $submission = $submissionVersion->submission()->with('activity.week:id,program_id')->firstOrFail();
         abort_unless($submission->isFailed(), 422);
         $existingRetry = $reviews->existingRetry($submission);
         if ($existingRetry) {
-            return redirect()->route('coach.participants.show', [$submission->training_session_id, $submission->user_id])->with('status', "Retry attempt {$existingRetry->attempt_number} already exists.");
+            return redirect()->route('coach.participants.show', [$submission->activity->week->program_id, $submission->user_id])->with('status', "Retry attempt {$existingRetry->attempt_number} already exists.");
         }
         $retry = $reviews->createRetry($submission);
 
-        return redirect()->route('coach.participants.show', [$submission->training_session_id, $submission->user_id])->with('status', "Retry attempt {$retry->attempt_number} created.");
+        return redirect()->route('coach.participants.show', [$submission->activity->week->program_id, $submission->user_id])->with('status', "Retry attempt {$retry->attempt_number} created.");
     }
 }

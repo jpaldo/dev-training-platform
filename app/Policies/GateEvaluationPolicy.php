@@ -17,7 +17,7 @@ class GateEvaluationPolicy
 
     /**
      * Determine whether the user can view the model: the evaluated participant, an admin or the participant's current
-     * mentor in the evaluation's session.
+     * mentor in the curriculum of the evaluation's Gate.
      */
     public function view(User $user, GateEvaluation $gateEvaluation): bool
     {
@@ -33,12 +33,14 @@ class GateEvaluationPolicy
     }
 
     /**
-     * Determine whether the user can update the model: an admin or the participant's current mentor in the evaluation's
-     * session.
+     * Determine whether the user can update the model: an admin or the participant's current mentor in the curriculum
+     * of the evaluation's Gate.
      */
     public function update(User $user, GateEvaluation $gateEvaluation): bool
     {
-        return $user->mentorsParticipantInSession($gateEvaluation->participant, $gateEvaluation->trainingSession);
+        $gateEvaluation->loadMissing(['participant', 'gate.week.program']);
+
+        return $user->mentorsParticipantInProgram($gateEvaluation->participant, $gateEvaluation->gate->week->program);
     }
 
     /**

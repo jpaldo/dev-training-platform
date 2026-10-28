@@ -2,24 +2,24 @@
 
 namespace App\Http\Requests;
 
-use App\Models\TrainingSession;
+use App\Models\Program;
 use App\Rules\GitHubRepositoryUrl;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdateSessionRepositoryRequest extends FormRequest
+class UpdateProgramRepositoryRequest extends FormRequest
 {
     /**
-     * Only a participant in the route's session saves their repository for it (the route already requires the
+     * Only a participant in the route's curriculum saves their repository for it (the route already requires the
      * participant role).
      */
     public function authorize(): bool
     {
-        $trainingSession = $this->route('trainingSession');
+        $program = $this->route('program');
 
         return $this->user() !== null
-            && $trainingSession instanceof TrainingSession
-            && $trainingSession->includesParticipant($this->user());
+            && $program instanceof Program
+            && $program->includesParticipant($this->user());
     }
 
     /**

@@ -3,7 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\UserRole;
-use App\Models\TrainingSession;
+use App\Models\Program;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\Attributes\ErrorBag;
@@ -11,19 +11,19 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * An admin adds one or more active coaches who are not mentors of the session yet. Errors go to the `mentors` bag and
- * the admin returns to the dashboard's Mentors tab.
+ * An admin adds one or more active coaches who are not mentors of the curriculum yet. Errors go to the `mentors` bag
+ * and the admin returns to the curriculum page's Mentors tab.
  */
 #[ErrorBag('mentors')]
-class StoreTrainingSessionMentorRequest extends FormRequest
+class StoreProgramMentorRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('manage', $this->trainingSession()) === true;
+        return $this->user()?->can('manage', $this->program()) === true;
     }
 
     /**
-     * At least one user; each an active coach, chosen once and not already a mentor of the session.
+     * At least one user; each an active coach, chosen once and not already a mentor of the curriculum.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -35,7 +35,7 @@ class StoreTrainingSessionMentorRequest extends FormRequest
                 'integer',
                 'distinct',
                 Rule::exists('users', 'id')->where(fn (Builder $query): Builder => $query->where('role', UserRole::Coach)->where('is_active', true)),
-                Rule::unique('training_session_mentors', 'user_id')->where('training_session_id', $this->trainingSession()->id),
+                Rule::unique('program_mentors', 'user_id')->where('program_id', $this->program()->id),
             ],
         ];
     }
@@ -48,7 +48,7 @@ class StoreTrainingSessionMentorRequest extends FormRequest
         return [
             'user_ids.required' => 'Choose at least one mentor to add.',
             'user_ids.*.exists' => 'Only active users with the Mentor role can be added as mentors.',
-            'user_ids.*.unique' => 'The selected mentor is already a mentor of this session.',
+            'user_ids.*.unique' => 'The selected mentor is already a mentor of this curriculum.',
         ];
     }
 
@@ -74,15 +74,15 @@ class StoreTrainingSessionMentorRequest extends FormRequest
     }
 
     /**
-     * A failed add returns to the dashboard's Mentors tab.
+     * A failed add returns to the curriculum page's Mentors tab.
      */
     protected function getRedirectUrl(): string
     {
-        return route('admin.sessions.show', $this->trainingSession()).'#mentors';
+        return route('admin.programs.show', $this->program()).'#mentors';
     }
 
-    private function trainingSession(): TrainingSession
+    private function program(): Program
     {
-        return $this->route('trainingSession');
+        return $this->route('program');
     }
 }

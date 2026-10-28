@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\FilterScoringReportRequest;
 use App\Models\ActivityScore;
+use App\Models\ProgramParticipant;
 use App\Models\SubmissionVersion;
-use App\Models\TrainingSessionParticipant;
 use App\Services\ScoringPageService;
 use App\Services\ScoringReportService;
 use App\Services\ScoringService;
@@ -23,39 +23,39 @@ class ScoringReportController extends Controller
     }
 
     /**
-     * The submitted versions the viewer may see that match the filters, one row each, with the training session and
-     * the participant's current mentor in it.
+     * The submitted versions the viewer may see that match the filters, one row each, with the curriculum and the
+     * participant's current mentor in it.
      */
     public function scores(FilterScoringReportRequest $request, ScoringReportService $reports): StreamedResponse
     {
         $versions = $reports->versions($request->user(), $request->validated())->get();
 
-        return $this->csv('activity-scores.csv', ['Participant', 'Employee ID', 'Training session', 'Email', 'Week', 'Activity', 'Attempt/Version', 'Submission Status', 'Scoring Status', 'D1', 'D2', 'D3', 'D4', 'D5', 'Total Score', 'Performance Band', 'Scorer', 'Scored At', 'Second Reader', 'Second Reader Status', 'Assigned Mentor'], $versions->map(function (SubmissionVersion $v): array {
+        return $this->csv('activity-scores.csv', ['Participant', 'Employee ID', 'Curriculum', 'Email', 'Week', 'Activity', 'Attempt/Version', 'Submission Status', 'Scoring Status', 'D1', 'D2', 'D3', 'D4', 'D5', 'Total Score', 'Performance Band', 'Scorer', 'Scored At', 'Second Reader', 'Second Reader Status', 'Assigned Mentor'], $versions->map(function (SubmissionVersion $v): array {
             $score = $v->publishedActivityScore;
             $dims = $score?->dimensions?->keyBy('dimension') ?? collect();
 
-            return [$v->submission->participant->name, $v->submission->participant->employee_id, $v->submission->trainingSession->titleWithDates(), $v->submission->participant->email, $v->submission->activity->week->week_number, $v->submission->activity->title, $v->submission->attempt_number.' / '.$v->version_number, $v->submission->status->value, $score?->status->value ?? 'unscored', $dims->get('D1')?->points, $dims->get('D2')?->points, $dims->get('D3')?->points, $dims->get('D4')?->points, $dims->get('D5')?->points, $score?->total_score, $score?->performance_band, $score?->scorer?->name, $score?->updated_at, $score?->secondReader?->name, $score?->secondReaderStatus() ?? 'Not required', $v->submission->mentor_name];
+            return [$v->submission->participant->name, $v->submission->participant->employee_id, $v->submission->activity->week->program->name, $v->submission->participant->email, $v->submission->activity->week->week_number, $v->submission->activity->title, $v->submission->attempt_number.' / '.$v->version_number, $v->submission->status->value, $score?->status->value ?? 'unscored', $dims->get('D1')?->points, $dims->get('D2')?->points, $dims->get('D3')?->points, $dims->get('D4')?->points, $dims->get('D5')?->points, $score?->total_score, $score?->performance_band, $score?->scorer?->name, $score?->updated_at, $score?->secondReader?->name, $score?->secondReaderStatus() ?? 'Not required', $v->submission->mentor_name];
         }));
     }
 
     /**
-     * One row per participant and training session the viewer may see (narrowed by the participant, session and mentor
-     * filters), summarizing the participant's scores in that session.
+     * One row per participant and curriculum the viewer may see (narrowed by the participant, curriculum and mentor
+     * filters), summarizing the participant's scores in that curriculum.
      */
     public function participantSummary(FilterScoringReportRequest $request, ScoringReportService $reports, ScoringService $scoring): StreamedResponse
     {
-        $memberships = $reports->memberships($request->user(), Arr::only($request->validated(), ['participant', 'session', 'mentor']))->get();
-        $summaries = $scoring->sessionSummaries($memberships);
-        $rows = $memberships->map(fn (TrainingSessionParticipant $membership): array => [
+        $memberships = $reports->memberships($request->user(), Arr::only($request->validated(), ['participant', 'program', 'mentor']))->get();
+        $summaries = $scoring->programSummaries($memberships);
+        $rows = $memberships->map(fn (ProgramParticipant $membership): array => [
             $membership->participant->name,
             $membership->participant->employee_id,
-            $membership->trainingSession->titleWithDates(),
+            $membership->program->name,
             $membership->participant->email,
             $membership->mentor_name,
             $summaries[$membership->id],
         ]);
 
-        return $this->csv('participant-score-summary.csv', ['Participant', 'Employee ID', 'Training session', 'Email', 'Assigned Mentor', 'Completed Activities', 'Scored Activities', 'Unscored Activities', 'Week 2 Average', 'Week 3 Average', 'Week 4 Average', 'Overall Average', 'Current Performance Band', 'Latest Score Date'], $rows->map(function (array $r) use ($scoring): array {
+        return $this->csv('participant-score-summary.csv', ['Participant', 'Employee ID', 'Curriculum', 'Email', 'Assigned Mentor', 'Completed Activities', 'Scored Activities', 'Unscored Activities', 'Week 2 Average', 'Week 3 Average', 'Week 4 Average', 'Overall Average', 'Current Performance Band', 'Latest Score Date'], $rows->map(function (array $r) use ($scoring): array {
             $s = $r[5];
             $flat = $s['weeks'];
             $activityRows = $flat->flatMap(fn (array $w): Collection => $w['rows']);

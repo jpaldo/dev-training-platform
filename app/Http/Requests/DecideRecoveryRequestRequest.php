@@ -12,14 +12,15 @@ class DecideRecoveryRequestRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request: an admin or the participant's current mentor in the
-     * session of the submission the request is for.
+     * curriculum of the submission the request is for.
      */
     public function authorize(): bool
     {
         $recoveryRequest = $this->route('recoveryRequest');
         abort_unless($recoveryRequest instanceof ActivityRecoveryRequest && $recoveryRequest->isPending(), 422);
+        $recoveryRequest->loadMissing(['participant', 'submission.activity.week.program']);
 
-        return $this->user()?->mentorsParticipantInSession($recoveryRequest->participant, $recoveryRequest->submission->trainingSession) === true;
+        return $this->user()?->mentorsParticipantInProgram($recoveryRequest->participant, $recoveryRequest->submission->activity->week->program) === true;
     }
 
     /**

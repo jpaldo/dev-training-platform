@@ -3,7 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\UserRole;
-use App\Models\TrainingSession;
+use App\Models\Program;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -29,7 +29,7 @@ class FilterMissingSubmissionsRequest extends FormRequest
     {
         return [
             'participant' => ['nullable', 'integer'],
-            'session' => ['nullable', 'integer', Rule::exists(TrainingSession::class, 'id')],
+            'program' => ['nullable', 'integer', Rule::exists(Program::class, 'id')],
             'mentor' => ['nullable', 'integer', Rule::exists(User::class, 'id')->where('role', UserRole::Coach)],
             'category' => ['nullable', 'in:activities,video_recording'],
             'week' => ['nullable', 'integer', Rule::exists(TrainingWeek::class, 'week_number')],

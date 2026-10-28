@@ -3,7 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\UserRole;
-use App\Models\TrainingSession;
+use App\Models\Program;
 use App\Models\TrainingWeek;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -31,7 +31,7 @@ class FilterScoringReportRequest extends FormRequest
             'participant' => ['nullable', 'integer'],
             'week' => ['nullable', 'integer', Rule::exists(TrainingWeek::class, 'week_number')],
             'activity' => ['nullable', 'integer'],
-            'session' => ['nullable', 'integer', Rule::exists(TrainingSession::class, 'id')],
+            'program' => ['nullable', 'integer', Rule::exists(Program::class, 'id')],
             'mentor' => ['nullable', 'integer', Rule::exists(User::class, 'id')->where('role', UserRole::Coach)],
             'score_status' => ['nullable', 'in:scored,unscored'],
             'band' => ['nullable', 'in:Exemplary,Proficient,Developing,Beginning,Minimal'],

@@ -18,14 +18,19 @@ class SubmissionEvidencePolicy
 
     /**
      * Determine whether the user can view (open or download) the model: the participant who submitted it, an admin, or
-     * the participant's current mentor in the submission's session.
+     * the participant's current mentor in the submission's curriculum.
      */
     public function view(User $user, SubmissionEvidence $submissionEvidence): bool
     {
         $submission = $submissionEvidence->submissionVersion->submission;
 
-        return $user->id === $submission->user_id
-            || $user->mentorsParticipantInSession($submission->participant, $submission->trainingSession);
+        if ($user->id === $submission->user_id) {
+            return true;
+        }
+
+        $submission->loadMissing(['participant', 'activity.week.program']);
+
+        return $user->mentorsParticipantInProgram($submission->participant, $submission->activity->week->program);
     }
 
     /**

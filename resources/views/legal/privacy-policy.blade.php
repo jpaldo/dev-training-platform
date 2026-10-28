@@ -21,7 +21,7 @@
         <section class="{{ $sectionClasses }}">
             <h2 class="{{ $headingClasses }}">Information used by the platform</h2>
             <p class="{{ $paragraphClasses }}">The platform uses account details such as your name, email address, employee ID, job role, role, and profile information you provide. It also stores the training information you submit, including activity responses, artifacts, evidence, participant notes, reviews, scores, and related feedback.</p>
-            <p class="{{ $paragraphClasses }}">When you use attendance features, the platform records check-in and check-out timestamps and the resulting session duration. Mentors and Admins may access training records needed to operate, review, and administer the program.</p>
+            <p class="{{ $paragraphClasses }}">Mentors and Admins record which participants joined each week’s online session; a Mentor records attendance only for the participants assigned to them. For each attended session, the platform keeps who recorded it and when. Mentors and Admins see this attendance on the Attendance page, in its CSV export, and in the participant progress report and its CSV export; participants do not see it. Mentors and Admins may access training records needed to operate, review, and administer the program.</p>
         </section>
 
         <section class="{{ $sectionClasses }}">

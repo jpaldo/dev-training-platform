@@ -21,6 +21,8 @@ class LegalPagesTest extends TestCase
                 'This Privacy Policy explains how the Developer Training Platform (“the platform”) handles information when you use its training services.',
                 '>Information used by the platform</h2>',
                 'The platform uses account details such as your name, email address, employee ID, job role, role, and profile information you provide.',
+                'Mentors and Admins record which participants joined each week’s online session;',
+                'For each attended session, the platform keeps who recorded it and when.',
                 '>Google Drive connection</h2>',
                 '>drive.file</code> permission',
                 'The platform does not request Gmail, Calendar, or Contacts access.',
@@ -37,7 +39,9 @@ class LegalPagesTest extends TestCase
                 'The updated version and effective date will be posted on this page.',
             ], false)
             ->assertDontSee('QA training')
-            ->assertDontSee('QA path');
+            ->assertDontSee('QA path')
+            ->assertDontSee('check-in')
+            ->assertDontSee('check-out');
 
         $this->assertStringStartsWith('<!doctype html>', ltrim($response->getContent()));
     }

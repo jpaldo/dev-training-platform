@@ -337,7 +337,7 @@ None blocking. Every design point above has a default; confirm A1, A3 and A4 if 
 
 ## Out of scope / follow-ups
 
-- Spec Out of scope: showing session attendance to participants; using it in Gates, checklists, week locking or scoring; scheduling sessions; day-by-day, excused or late attendance; showing it on the mentor participant page or in the progress and summary exports.
+- Spec Out of scope: showing session attendance to participants; using it in Gates, checklists, week locking or scoring; scheduling sessions; day-by-day, excused or late attendance; showing it on the mentor participant page or in the summary export. The progress report (`coach.reports`) and its progress CSV now show each membership's attendance as "3/4" (attended of the curriculum's active weeks), added after Phase 3 at the user's request; the mentor participant page and the summary export stay out of scope.
 - Restricting the other coach pages' `?program=` filters to a mentor's own curricula (today they accept any existing curriculum id). This plan restricts only the Attendance page, as ATT-11 asks.
 - A sidebar link to `admin.attendance.index` (admins use the shared "Attendance" link to `coach.attendance.index`, as today).
 - Auto-save, or auto-submitting the curriculum picker on change.

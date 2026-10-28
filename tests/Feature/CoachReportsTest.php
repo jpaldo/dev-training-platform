@@ -211,8 +211,8 @@ class CoachReportsTest extends TestCase
         }
 
         $benProgress = $this->csvRows($this->actingAs($ben)->get(route('coach.reports.export', ['type' => 'progress']))->assertOk()->streamedContent());
-        $this->assertSame(['Name', 'Employee ID', 'Curriculum', 'Email', 'Submissions', 'Gate evaluations'], $benProgress[0]);
-        $this->assertSame([['Pat Participant', 'EMP-7001', 'Curriculum X', $participant->email, '1', '0']], array_slice($benProgress, 1));
+        $this->assertSame(['Name', 'Employee ID', 'Curriculum', 'Email', 'Submissions', 'Gate evaluations', 'Attendance'], $benProgress[0]);
+        $this->assertSame([['Pat Participant', 'EMP-7001', 'Curriculum X', $participant->email, '1', '0', '0/1']], array_slice($benProgress, 1));
         $benRisk = $this->csvRows($this->actingAs($ben)->get(route('coach.reports.export', ['type' => 'risk']))->assertOk()->streamedContent());
         $this->assertSame([['Participant', 'Curriculum', 'Reason'], ['Pat Participant', 'Curriculum X', 'Kickoff deliverable: Needs revision']], $benRisk);
 

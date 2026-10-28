@@ -35,7 +35,7 @@ class CoachProgressReportPageService
      *
      * @param  array{search?: string|null, program?: int|string|null, mentor?: int|string|null}  $filters
      * @param  array<array-key, mixed>  $query
-     * @return array{exportUrl: string, search: string, programOptions: list<array{value: string, label: string, is_selected: bool}>, canFilterByMentor: bool, mentorOptions: list<array{value: string, label: string, is_selected: bool}>, stats: list<array{label: string, value: int}>, atRiskRows: LengthAwarePaginator<int, array{participant_name: string, program_name: string, program_dates: string, reasons: string}>, participantRows: LengthAwarePaginator<int, array{name: string, email: string, program_name: string, program_dates: string, mentor_name: string, submission_count: int, gate_count: int}>}
+     * @return array{exportUrl: string, search: string, programOptions: list<array{value: string, label: string, is_selected: bool}>, canFilterByMentor: bool, mentorOptions: list<array{value: string, label: string, is_selected: bool}>, stats: list<array{label: string, value: int}>, atRiskRows: LengthAwarePaginator<int, array{participant_name: string, program_name: string, program_dates: string, reasons: string}>, participantRows: LengthAwarePaginator<int, array{name: string, email: string, program_name: string, program_dates: string, mentor_name: string, submission_count: int, gate_count: int, attendance: string}>}
      */
     public function indexData(User $viewer, array $filters, array $query, int $atRiskPage): array
     {
@@ -70,9 +70,10 @@ class CoachProgressReportPageService
 
     /**
      * One participant progress row: name, email, the curriculum and its dates, the current mentor's name in that
-     * curriculum (or "Not assigned") and the participant's submission count and passed Gate evaluation count in it.
+     * curriculum (or "Not assigned"), the participant's submission count and passed Gate evaluation count in it, and
+     * their weekly session attendance there ("3/4", CoachReportService::sessionAttendanceLabel()).
      *
-     * @return array{name: string, email: string, program_name: string, program_dates: string, mentor_name: string, submission_count: int, gate_count: int}
+     * @return array{name: string, email: string, program_name: string, program_dates: string, mentor_name: string, submission_count: int, gate_count: int, attendance: string}
      */
     private function participantRow(ProgramParticipant $membership): array
     {
@@ -84,6 +85,7 @@ class CoachProgressReportPageService
             'mentor_name' => $membership->mentor_name ?? 'Not assigned',
             'submission_count' => (int) $membership->submission_count,
             'gate_count' => (int) $membership->passed_gate_count,
+            'attendance' => $this->reports->sessionAttendanceLabel($membership),
         ];
     }
 }

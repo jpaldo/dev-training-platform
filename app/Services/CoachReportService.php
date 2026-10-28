@@ -12,6 +12,7 @@ use App\Models\SubmissionReview;
 use App\Models\SubmissionVersion;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Models\WeeklySessionAttendance;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -96,7 +97,9 @@ class CoachReportService
      * The curriculum memberships the viewer may see that match the search, curriculum and mentor filters
      * (ScoringReportService::memberships()), one per participant and curriculum, each with the participant's
      * submission, Gate evaluation and passed Gate evaluation counts in that curriculum (`submission_count`,
-     * `gate_evaluation_count`, `passed_gate_count`).
+     * `gate_evaluation_count`, `passed_gate_count`), the curriculum's active-week count (`active_week_count`) and the
+     * participant's weekly session attendance records on those active weeks (`attended_week_count`), as the Attendance
+     * grid counts them. Records on inactive weeks or on another curriculum's weeks are not counted.
      *
      * @param  array{search?: ?string, program?: int|string|null, mentor?: int|string|null}  $filters
      * @return Builder<ProgramParticipant>
@@ -110,7 +113,26 @@ class CoachReportService
                 'passed_gate_count' => $this->workOfMembership(GateEvaluation::query())
                     ->where('status', GateEvaluationStatus::Passed)
                     ->selectRaw('count(*)'),
+                'active_week_count' => TrainingWeek::query()
+                    ->whereColumn('training_weeks.program_id', 'program_participants.program_id')
+                    ->where('is_active', true)
+                    ->selectRaw('count(*)'),
+                'attended_week_count' => WeeklySessionAttendance::query()
+                    ->whereColumn('weekly_session_attendances.user_id', 'program_participants.user_id')
+                    ->whereHas('week', fn (Builder $weeks): Builder => $weeks
+                        ->whereColumn('training_weeks.program_id', 'program_participants.program_id')
+                        ->where('is_active', true))
+                    ->selectRaw('count(*)'),
             ]);
+    }
+
+    /**
+     * A membership's weekly session attendance as "{attended}/{active weeks}" ("3/4", "0/0" without active weeks),
+     * from the counts progressMemberships() selects.
+     */
+    public function sessionAttendanceLabel(ProgramParticipant $membership): string
+    {
+        return (int) $membership->attended_week_count.'/'.(int) $membership->active_week_count;
     }
 
     /**
@@ -274,8 +296,8 @@ class CoachReportService
 
     /**
      * Build a coach report CSV, each listing only what the viewer may see: participant progress per curriculum
-     * membership by default (see progressMemberships()), or the review queue (see reviewQueue()), Gate results (see
-     * filteredGateResults()) or the at-risk memberships (see atRiskMemberships()).
+     * membership by default (see progressMemberships(), with the session attendance "3/4" last), or the review queue
+     * (see reviewQueue()), Gate results (see filteredGateResults()) or the at-risk memberships (see atRiskMemberships()).
      *
      * @param  array<string, mixed>  $input  the request's report filters
      * @return array{filename: string, header: list<string>, rows: Collection<int, list<mixed>>}
@@ -302,9 +324,9 @@ class CoachReportService
             ],
             default => [
                 'filename' => 'participant-progress.csv',
-                'header' => ['Name', 'Employee ID', 'Curriculum', 'Email', 'Submissions', 'Gate evaluations'],
+                'header' => ['Name', 'Employee ID', 'Curriculum', 'Email', 'Submissions', 'Gate evaluations', 'Attendance'],
                 'rows' => $this->progressMemberships($viewer, $input)->get()
-                    ->map(fn (ProgramParticipant $m): array => [$m->participant->name, $m->participant->employee_id, $m->program->name, $m->participant->email, (int) $m->submission_count, (int) $m->gate_evaluation_count]),
+                    ->map(fn (ProgramParticipant $m): array => [$m->participant->name, $m->participant->employee_id, $m->program->name, $m->participant->email, (int) $m->submission_count, (int) $m->gate_evaluation_count, $this->sessionAttendanceLabel($m)]),
             ],
         };
     }

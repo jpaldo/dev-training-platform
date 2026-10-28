@@ -117,6 +117,7 @@
                                 <th scope="col" class="{{ $headerCellClasses }}">Mentor</th>
                                 <th scope="col" class="{{ $headerCellClasses }} text-right">Submissions</th>
                                 <th scope="col" class="{{ $headerCellClasses }} text-right">Gates</th>
+                                <th scope="col" class="{{ $headerCellClasses }} text-right">Attendance</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -137,6 +138,7 @@
                                     <td class="{{ $cellClasses }} wrap-break-word">{{ $row['mentor_name'] }}</td>
                                     <td class="{{ $cellClasses }} text-right tabular-nums">{{ $row['submission_count'] }}</td>
                                     <td class="{{ $cellClasses }} text-right tabular-nums">{{ $row['gate_count'] }}</td>
+                                    <td class="{{ $cellClasses }} whitespace-nowrap text-right tabular-nums">{{ $row['attendance'] }}</td>
                                 </tr>
                             @endforeach
                         </tbody>

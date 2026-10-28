@@ -11,6 +11,7 @@ use App\Models\SubmissionVersion;
 use App\Models\TrainingGate;
 use App\Models\TrainingWeek;
 use App\Models\User;
+use App\Models\WeeklySessionAttendance;
 use Closure;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -225,7 +226,7 @@ class CoachProgressReportPageTest extends TestCase
             ->streamedContent();
         $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
 
-        $this->assertSame(['Name', 'Employee ID', 'Curriculum', 'Email', 'Submissions', 'Gate evaluations'], $rows[0]);
+        $this->assertSame(['Name', 'Employee ID', 'Curriculum', 'Email', 'Submissions', 'Gate evaluations', 'Attendance'], $rows[0]);
         $this->assertEqualsCanonicalizing(['Mia Manual', 'Abe Automation'], array_column(array_slice($rows, 1), 0));
 
         foreach (['reviews', 'gates', 'risk'] as $type) {
@@ -274,9 +275,56 @@ class CoachProgressReportPageTest extends TestCase
         $this->assertArrayNotHasKey(SubmissionVersion::class, $retrievedModels);
     }
 
+    public function test_participant_progress_shows_the_sessions_attended_of_the_curriculums_active_weeks(): void
+    {
+        $this->sessionAttendanceFixture();
+
+        $response = $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.reports'))
+            ->assertOk()
+            ->assertSeeInOrder(['>Submissions</th>', '>Gates</th>', '>Attendance</th>'], false);
+
+        $this->assertEqualsCanonicalizing([
+            ['Ada Attender', 'Curriculum X', '3/4'],
+            ['Ada Attender', 'Curriculum Y', '1/1'],
+            ['Bo Absent', 'Curriculum X', '0/4'],
+            ['Bo Absent', 'Curriculum Z', '0/0'],
+        ], $this->participantAttendanceCells($response));
+    }
+
+    public function test_progress_export_prints_the_sessions_attended_of_the_curriculums_active_weeks_after_the_gate_evaluations(): void
+    {
+        $this->sessionAttendanceFixture();
+
+        $csv = $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('coach.reports.export', ['type' => 'progress']))
+            ->assertOk()
+            ->streamedContent();
+        $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
+
+        $this->assertSame(['Name', 'Employee ID', 'Curriculum', 'Email', 'Submissions', 'Gate evaluations', 'Attendance'], $rows[0]);
+        $this->assertEqualsCanonicalizing([
+            ['Ada Attender', 'Curriculum X', '3/4'],
+            ['Ada Attender', 'Curriculum Y', '1/1'],
+            ['Bo Absent', 'Curriculum X', '0/4'],
+            ['Bo Absent', 'Curriculum Z', '0/0'],
+        ], array_map(fn (array $row): array => [$row[0], $row[2], $row[6]], array_slice($rows, 1)));
+    }
+
+    public function test_participants_cannot_open_the_progress_report_or_its_export(): void
+    {
+        $participant = User::factory()->create();
+
+        $this->actingAs($participant)->get(route('coach.reports'))->assertForbidden();
+        $this->actingAs($participant)->get(route('coach.reports.export', ['type' => 'progress']))->assertForbidden();
+    }
+
     public function test_query_count_does_not_grow_with_the_number_of_participants(): void
     {
         $this->assertSame($this->reportQueryCount(1), $this->reportQueryCount(3));
+    }
+
+    public function test_progress_export_query_count_does_not_grow_with_the_number_of_participants(): void
+    {
+        $this->assertSame($this->progressExportQueryCount(1), $this->progressExportQueryCount(3));
     }
 
     /**
@@ -308,6 +356,54 @@ class CoachProgressReportPageTest extends TestCase
         GateEvaluation::factory()->for($gateY, 'gate')->for($pat, 'participant')->create(['status' => 'failed']);
 
         return ['programX' => $programX, 'programY' => $programY, 'ana' => $ana, 'ben' => $ben, 'cy' => $cy, 'dan' => $dan];
+    }
+
+    /**
+     * Three curricula and two participants. Curriculum X has four active weeks and an inactive one, Curriculum Y one
+     * active week and Curriculum Z only an inactive week. Ada (in X and Y) attended three of X's active weeks, X's
+     * inactive week and Y's week; Bo (in X and Z) attended nothing in X, Z's inactive week, and Y's week although he is
+     * not in Y.
+     */
+    private function sessionAttendanceFixture(): void
+    {
+        $programX = Program::factory()->create(['name' => 'Curriculum X']);
+        $programY = Program::factory()->create(['name' => 'Curriculum Y']);
+        $programZ = Program::factory()->create(['name' => 'Curriculum Z']);
+        $activeWeeksX = TrainingWeek::factory()->count(4)->for($programX)->create();
+        $inactiveWeekX = TrainingWeek::factory()->for($programX)->create(['is_active' => false]);
+        $weekY = TrainingWeek::factory()->for($programY)->create();
+        $inactiveWeekZ = TrainingWeek::factory()->for($programZ)->create(['is_active' => false]);
+        $ada = User::factory()->create(['name' => 'Ada Attender']);
+        $bo = User::factory()->create(['name' => 'Bo Absent']);
+        $programX->participants()->attach([$ada->id => ['joined_at' => now()], $bo->id => ['joined_at' => now()]]);
+        $programY->participants()->attach($ada->id, ['joined_at' => now()]);
+        $programZ->participants()->attach($bo->id, ['joined_at' => now()]);
+
+        foreach ([...$activeWeeksX->take(3)->all(), $inactiveWeekX, $weekY] as $week) {
+            WeeklySessionAttendance::factory()->create(['training_week_id' => $week->id, 'user_id' => $ada->id]);
+        }
+
+        foreach ([$inactiveWeekZ, $weekY] as $week) {
+            WeeklySessionAttendance::factory()->create(['training_week_id' => $week->id, 'user_id' => $bo->id]);
+        }
+    }
+
+    /**
+     * The participant name, curriculum name and Attendance cell of each participant progress row.
+     *
+     * @return list<array{0: string, 1: string, 2: string}>
+     */
+    private function participantAttendanceCells(TestResponse $response): array
+    {
+        preg_match_all('/<tr data-participant-row>(.*?)<\/tr>/s', $response->getContent(), $rows);
+
+        return array_map(function (string $row): array {
+            $this->assertSame(1, preg_match('/<strong[^>]*>(.*?)<\/strong>/s', $row, $name));
+            $this->assertSame(1, preg_match('/<td[^>]*>\s*<span class="grid gap-0.5">\s*<span[^>]*>(.*?)<\/span>/s', $row, $program));
+            preg_match_all('/<td[^>]*>(.*?)<\/td>/s', $row, $cells);
+
+            return [$name[1], $program[1], trim(end($cells[1]))];
+        }, $rows[1]);
     }
 
     /**
@@ -362,6 +458,7 @@ class CoachProgressReportPageTest extends TestCase
             ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'needs_revision']);
             GateEvaluation::factory()->for($failedGate, 'gate')->for($participant, 'participant')->create(['status' => 'failed']);
             GateEvaluation::factory()->for($passedGate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+            WeeklySessionAttendance::factory()->create(['training_week_id' => $activity->week->id, 'user_id' => $participant->id]);
         }
 
         $this->actingAs($coach)->get(route('coach.reports'))->assertOk();
@@ -370,6 +467,37 @@ class CoachProgressReportPageTest extends TestCase
         $response = $this->actingAs($coach)->get(route('coach.reports'))->assertOk()->assertSee('Needs revision');
         DB::disableQueryLog();
         $this->assertSame($participantCount, substr_count($response->getContent(), 'data-participant-row'));
+        $this->assertSame($participantCount, substr_count($response->getContent(), '>1/1</td>'));
+
+        return count(DB::getQueryLog());
+    }
+
+    /**
+     * Create the given number of participants in a new curriculum with one active week, each mentored there by a new
+     * coach with a submission, a Gate evaluation and an attended session, and count the queries of that coach's progress
+     * export after a warm-up request.
+     */
+    private function progressExportQueryCount(int $participantCount): int
+    {
+        $coach = User::factory()->create(['role' => 'coach']);
+        $activity = Activity::factory()->create();
+        $gate = TrainingGate::factory()->for($activity->week, 'week')->create();
+        $participants = User::factory()->count($participantCount)->create();
+        $this->mentor($activity->week->program, $coach, ...$participants->all());
+
+        foreach ($participants as $participant) {
+            ActivitySubmission::factory()->for($activity)->for($participant, 'participant')->create(['status' => 'approved']);
+            GateEvaluation::factory()->for($gate, 'gate')->for($participant, 'participant')->create(['status' => 'passed']);
+            WeeklySessionAttendance::factory()->create(['training_week_id' => $activity->week->id, 'user_id' => $participant->id]);
+        }
+
+        $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'progress']))->assertOk()->streamedContent();
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $csv = $this->actingAs($coach)->get(route('coach.reports.export', ['type' => 'progress']))->assertOk()->streamedContent();
+        DB::disableQueryLog();
+        $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
+        $this->assertSame(array_fill(0, $participantCount, '1/1'), array_column(array_slice($rows, 1), 6));
 
         return count(DB::getQueryLog());
     }

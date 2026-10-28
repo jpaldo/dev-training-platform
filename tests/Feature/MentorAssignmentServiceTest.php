@@ -191,7 +191,7 @@ class MentorAssignmentServiceTest extends TestCase
             $this->service()->assign($program, $outsider, $mentor, $admin);
             $this->fail('Assigning a mentor to someone outside the curriculum should fail validation.');
         } catch (ValidationException $exception) {
-            $this->assertSame(['participant' => ['The participant is not in this curriculum.']], $exception->errors());
+            $this->assertSame(['participant' => ['The participant is not in this program.']], $exception->errors());
         }
 
         $this->assertDatabaseCount('mentor_assignments', 0);

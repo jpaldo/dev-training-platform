@@ -150,7 +150,7 @@ class L4TrainingProgramSeederTest extends TestCase
         $this->travel(1)->hour();
 
         $this->artisan('db:seed', ['--class' => L4TrainingProgramSeeder::class])
-            ->expectsOutput('L4 Accelerator Training already exists; edit it on the admin Curriculum pages.')
+            ->expectsOutput('L4 Accelerator Training already exists; edit it on the admin Programs pages.')
             ->assertExitCode(0);
 
         $this->assertSame($before, $this->curriculumRows());
@@ -166,7 +166,7 @@ class L4TrainingProgramSeederTest extends TestCase
         TrainingWeek::query()->where('week_number', '>', 1)->update(['starts_on' => null, 'ends_on' => null]);
 
         $this->artisan('db:seed', ['--class' => L4TrainingProgramSeeder::class])
-            ->expectsOutput('L4 Accelerator Training already exists; edit it on the admin Curriculum pages.')
+            ->expectsOutput('L4 Accelerator Training already exists; edit it on the admin Programs pages.')
             ->assertExitCode(0);
 
         $this->assertSame(
@@ -199,7 +199,7 @@ class L4TrainingProgramSeederTest extends TestCase
         $this->assertDatabaseEmpty('admin_audit_logs');
 
         $this->artisan('db:seed', ['--class' => L4TrainingProgramSeeder::class])
-            ->expectsOutput('L4 Accelerator Training already exists; edit it on the admin Curriculum pages.')
+            ->expectsOutput('L4 Accelerator Training already exists; edit it on the admin Programs pages.')
             ->assertExitCode(0);
     }
 

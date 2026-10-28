@@ -68,7 +68,7 @@
                         @if($acceptsWork)
                             <p class="m-0 leading-relaxed text-muted">Add required evidence and submit for mentor review. The existing Gate rules determine completion.</p>
                         @else
-                            <x-ui.alert role="status" data-program-ended>This curriculum has ended. Your work stays available to view.</x-ui.alert>
+                            <x-ui.alert role="status" data-program-ended>This program has ended. Your work stays available to view.</x-ui.alert>
                         @endif
                         @if($submission?->needsRevision())
                             <x-ui.alert tone="error">Your mentor requested changes. Create a new revision; the previous submitted version remains unchanged.</x-ui.alert>

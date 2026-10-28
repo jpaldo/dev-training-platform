@@ -155,7 +155,7 @@ class AdminCurriculumCreateTest extends TestCase
     {
         return [
             'blank name' => [['name' => ''], 'name', 'The name field is required.'],
-            'name taken' => [['name' => 'Taken Name'], 'name', 'Another curriculum already has this name.'],
+            'name taken' => [['name' => 'Taken Name'], 'name', 'Another program already has this name.'],
             'blank weeks' => [['weeks_count' => ''], 'weeks_count', 'The number of weeks field is required.'],
             'no weeks' => [['weeks_count' => '0'], 'weeks_count', 'The number of weeks field must be between 1 and 12.'],
             'too many weeks' => [['weeks_count' => '13'], 'weeks_count', 'The number of weeks field must be between 1 and 12.'],
@@ -179,7 +179,7 @@ class AdminCurriculumCreateTest extends TestCase
                 'action="'.route('admin.programs.store').'"',
                 'value="Taken Name"',
                 'aria-invalid="true" aria-describedby="program-name-error"',
-                '<p id="program-name-error" class="text-sm text-rose-200" role="alert">Another curriculum already has this name.</p>',
+                '<p id="program-name-error" class="text-sm text-rose-200" role="alert">Another program already has this name.</p>',
                 'value="6"',
                 'value="2026-11-09"',
             ], false)
@@ -193,12 +193,12 @@ class AdminCurriculumCreateTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
         $createLink = '<a href="'.route('admin.programs.create').'"';
 
-        $this->actingAs($admin)->get(route('admin.programs.index'))->assertOk()->assertSeeInOrder([$createLink, 'New curriculum'], false);
-        $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()->assertSeeInOrder([$createLink, 'New curriculum'], false);
+        $this->actingAs($admin)->get(route('admin.programs.index'))->assertOk()->assertSeeInOrder([$createLink, 'New program'], false);
+        $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk()->assertSeeInOrder([$createLink, 'New program'], false);
         $form = $this->actingAs($admin)
             ->get(route('admin.programs.create'))
             ->assertOk()
-            ->assertSee('New curriculum')
+            ->assertSee('New program')
             ->assertSee('action="'.route('admin.programs.store').'"', false)
             ->assertSee('max="12"', false)
             ->assertSee('Offered to participants')

@@ -75,7 +75,7 @@ class AdminProgramResourceTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.programs.show', $program))
             ->assertOk()
-            ->assertSeeInOrder(['Whole curriculum', 'Shared file', $label, '>Open in Drive<', 'Show preview'], false)
+            ->assertSeeInOrder(['Whole program', 'Shared file', $label, '>Open in Drive<', 'Show preview'], false)
             ->assertSee('data-preview-src="'.$previewUrl.'"', false);
     }
 
@@ -106,7 +106,7 @@ class AdminProgramResourceTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.programs.show', $program))
             ->assertOk()
-            ->assertSeeInOrder(['Whole curriculum', 'Kick-off', '>Link<', $host, '>Open<'], false)
+            ->assertSeeInOrder(['Whole program', 'Kick-off', '>Link<', $host, '>Open<'], false)
             ->assertSee('href="'.e($url).'" target="_blank" rel="noopener noreferrer"', false)
             ->assertDontSee('Show preview')
             ->assertDontSee('<iframe', false)
@@ -137,11 +137,11 @@ class AdminProgramResourceTest extends TestCase
             ->get(route('admin.programs.show', $program))
             ->assertOk()
             ->assertSee('Resources (3)')
-            ->assertDontSee('No resources in this curriculum yet.')
+            ->assertDontSee('No resources in this program yet.')
             ->assertDontSee('Other curriculum resource')
-            ->assertSeeInOrder(['Whole curriculum', 'Kick-off recording', 'Week 1', 'Week 1 slides', 'Google Drive', 'Week 2', 'Week 2 workbook'])
+            ->assertSeeInOrder(['Whole program', 'Kick-off recording', 'Week 1', 'Week 1 slides', 'Google Drive', 'Week 2', 'Week 2 workbook'])
             ->assertSee('action="'.route('admin.programs.resources.update', [$program, $link]).'"', false)
-            ->assertSee('action="'.route('admin.programs.resources.destroy', [$program, $link]).'" data-confirm="Remove Kick-off recording from this curriculum?"', false);
+            ->assertSee('action="'.route('admin.programs.resources.destroy', [$program, $link]).'" data-confirm="Remove Kick-off recording from this program?"', false);
     }
 
     public function test_the_add_form_takes_a_link_shows_the_sharing_hint_and_offers_each_active_week(): void
@@ -153,14 +153,14 @@ class AdminProgramResourceTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.programs.show', $program))
             ->assertOk()
-            ->assertSee('No resources in this curriculum yet.')
+            ->assertSee('No resources in this program yet.')
             ->assertSee('Add a resource')
             ->assertSee('Google Drive, Docs, Slides and Sheets links show a preview here. Other links, such as YouTube, open in a new tab.')
             ->assertSee('Share Google Drive files with ‘Anyone with the link’ or with everyone at Full Scale. The app cannot check sharing, and people without access cannot see the file.')
             ->assertSeeInOrder(['id="program-resource-add-url"', 'name="url"', 'type="url"', 'required'], false)
             ->assertDontSee('type="file"', false)
             ->assertDontSee('enctype=', false)
-            ->assertSeeInOrder(['>Whole curriculum</option>', '<option value="1" >Week 1</option>', '<option value="2" >Week 2</option>'], false)
+            ->assertSeeInOrder(['>Whole program</option>', '<option value="1" >Week 1</option>', '<option value="2" >Week 2</option>'], false)
             ->assertDontSee('>Week 3</option>', false);
     }
 
@@ -210,7 +210,7 @@ class AdminProgramResourceTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('admin.programs.resources.store', $program), ['title' => 'Week 5 slides', 'week_number' => '5', 'url' => self::SLIDES_URL])
-            ->assertSessionHasErrorsIn('resources', ['week_number' => "This curriculum's last week is Week 4."]);
+            ->assertSessionHasErrorsIn('resources', ['week_number' => "This program's last week is Week 4."]);
 
         $this->assertNothingAdded();
     }
@@ -222,7 +222,7 @@ class AdminProgramResourceTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('admin.programs.resources.store', $program), ['title' => 'Week 1 slides', 'week_number' => '1', 'url' => self::SLIDES_URL])
-            ->assertSessionHasErrorsIn('resources', ['week_number' => 'This curriculum has no active weeks yet.']);
+            ->assertSessionHasErrorsIn('resources', ['week_number' => 'This program has no active weeks yet.']);
 
         $this->assertNothingAdded();
     }

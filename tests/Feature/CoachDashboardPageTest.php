@@ -42,14 +42,14 @@ class CoachDashboardPageTest extends TestCase
                 '<dt', 'href="'.route('coach.reviews').'" class="outline-hidden after:absolute after:inset-0">NEEDS REVIEW<span class="sr-only">, open the review queue</span></a>', '<dd class="m-0 text-3xl font-black">1</dd>',
                 '<dt', 'href="'.route('coach.reviews', ['status' => 'needs_revision']).'" class="outline-hidden after:absolute after:inset-0">NEEDS REVISION<span class="sr-only">, open the review queue filtered to needs revision</span></a>', '<dd class="m-0 text-3xl font-black">1</dd>',
                 '<dt', 'href="'.route('coach.reports').'#at-risk-title" class="outline-hidden after:absolute after:inset-0">AT RISK<span class="sr-only">, open the at-risk participants in the progress report</span></a>', '<dd class="m-0 text-3xl font-black">1</dd>',
-                'id="my-programs-title"', 'My curricula',
+                'id="my-programs-title"', 'My programs',
                 '>Curriculum Y</h3>', '>Upcoming</span>', $programY->dateRangeLabel(), '1 participant assigned to you',
                 'href="'.e(route('coach.participants', ['program' => $programY->id])).'"', 'View participants<span class="sr-only"> of Curriculum Y</span>',
                 '>Curriculum X</h3>', '>Active</span>', $programX->dateRangeLabel(), '1 participant assigned to you',
                 'href="'.e(route('coach.participants', ['program' => $programX->id])).'"', 'View participants<span class="sr-only"> of Curriculum X</span>',
             ], false)
             ->assertDontSee('No active program.')
-            ->assertDontSee('You are not a mentor of any curriculum yet.')
+            ->assertDontSee('You are not a mentor of any program yet.')
             ->assertDontSee('aria-label="Coach tools"', false)
             ->assertDontSee('MENTOR INTERVIEW AVAILABILITY')
             ->assertDontSee('Manage Booking Calendar');
@@ -70,7 +70,7 @@ class CoachDashboardPageTest extends TestCase
                 'NEEDS REVIEW', '<dd class="m-0 text-3xl font-black">0</dd>',
                 'NEEDS REVISION', '<dd class="m-0 text-3xl font-black">0</dd>',
                 'AT RISK', '<dd class="m-0 text-3xl font-black">0</dd>',
-                'My curricula', '>Curriculum X</h3>', '0 participants assigned to you',
+                'My programs', '>Curriculum X</h3>', '0 participants assigned to you',
             ], false)
             ->assertDontSee('>Curriculum Y</h3>', false);
     }
@@ -88,8 +88,8 @@ class CoachDashboardPageTest extends TestCase
                 'NEEDS REVIEW', '<dd class="m-0 text-3xl font-black">0</dd>',
                 'NEEDS REVISION', '<dd class="m-0 text-3xl font-black">0</dd>',
                 'AT RISK', '<dd class="m-0 text-3xl font-black">0</dd>',
-                'My curricula',
-                'You are not a mentor of any curriculum yet.',
+                'My programs',
+                'You are not a mentor of any program yet.',
             ], false)
             ->assertDontSee('data-my-program', false);
     }
@@ -108,7 +108,7 @@ class CoachDashboardPageTest extends TestCase
                 'href="'.route('coach.reviews', ['status' => 'needs_revision']).'" class="outline-hidden after:absolute after:inset-0">NEEDS REVISION', '<dd class="m-0 text-3xl font-black">2</dd>',
                 'href="'.route('coach.reports').'#at-risk-title" class="outline-hidden after:absolute after:inset-0">AT RISK', '<dd class="m-0 text-3xl font-black">2</dd>',
             ], false)
-            ->assertDontSee('My curricula')
+            ->assertDontSee('My programs')
             ->assertDontSee('aria-label="Coach tools"', false)
             ->assertDontSee('Settings · Google Drive');
     }

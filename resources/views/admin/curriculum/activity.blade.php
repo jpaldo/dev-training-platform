@@ -14,7 +14,7 @@
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
         <header class="grid min-w-0 gap-2">
-            <x-ui.eyebrow>ADMIN · CURRICULUM</x-ui.eyebrow>
+            <x-ui.eyebrow>ADMIN · PROGRAMS</x-ui.eyebrow>
             <x-ui.page-title>{{ $title }}</x-ui.page-title>
             <div class="flex flex-wrap items-center gap-x-3 gap-y-2 leading-relaxed text-muted">
                 <span class="wrap-break-word">{{ $weekLabel }}</span>

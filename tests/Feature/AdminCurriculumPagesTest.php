@@ -32,8 +32,10 @@ class AdminCurriculumPagesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.programs.index'))
             ->assertOk()
-            ->assertSee('All curricula')
-            ->assertSeeInOrder(['>Curriculum<', '>Offered<', '>Schedule<', '>Dates<', '>Weeks<', '>Participants<', '>Actions<'], false)
+            ->assertSeeInOrder(['ADMIN · PROGRAMS', '>Programs</h1>'], false)
+            ->assertDontSee(['Curriculum', 'curricul'], false)
+            ->assertSee('All programs')
+            ->assertSeeInOrder(['>Program<', '>Offered<', '>Schedule<', '>Dates<', '>Weeks<', '>Participants<', '>Actions<'], false)
             ->assertSeeInOrder(['Archived Bootcamp', '>No<', 'data-program-participants>0<', 'L4 Accelerator Training', '>Yes<', 'data-program-participants>3<'], false)
             ->assertSee('<a href="'.route('admin.programs.show', $program).'"', false)
             ->assertSee('aria-label="Open Archived Bootcamp"', false)
@@ -68,7 +70,7 @@ class AdminCurriculumPagesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.programs.index'))
             ->assertOk()
-            ->assertSee('No curricula yet.');
+            ->assertSee('No programs yet.');
     }
 
     public function test_the_program_page_lists_the_weeks_in_number_order_with_their_counts(): void
@@ -89,7 +91,7 @@ class AdminCurriculumPagesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.programs.show', $program))
             ->assertOk()
-            ->assertSeeInOrder(['L4 Accelerator Training', 'Four weeks of accelerated training.', 'All Curricula'])
+            ->assertSeeInOrder(['L4 Accelerator Training', 'Four weeks of accelerated training.', 'All Programs'])
             ->assertSee('<a href="'.route('admin.programs.index').'"', false)
             ->assertSeeInOrder(['id="program-panel-weeks"', 'Week 1', 'Foundations', 'Week 2', 'Testing'], false)
             ->assertSee('<a href="'.route('admin.programs.weeks.show', [$program, $firstWeek]).'"', false)
@@ -143,7 +145,7 @@ class AdminCurriculumPagesTest extends TestCase
             ->assertSee('data-schedule-notice="unscheduled"', false)
             ->assertSee('Not scheduled: participants cannot open any week yet.')
             ->assertViewHas('notice', fn (array $notice): bool => $notice['tone'] === 'info')
-            ->assertSee('This curriculum has no weeks yet.');
+            ->assertSee('This program has no weeks yet.');
     }
 
     #[DataProvider('scheduleStatusDays')]
@@ -305,7 +307,7 @@ class AdminCurriculumPagesTest extends TestCase
             ->get(route('admin.programs.weeks.show', [$program, $week]))
             ->assertOk()
             ->assertSee('<title>Week 2: Testing</title>', false)
-            ->assertSeeInOrder(['ADMIN · CURRICULUM', 'Week 2: Testing', 'L4 Accelerator Training', 'Active'])
+            ->assertSeeInOrder(['ADMIN · PROGRAMS', 'Week 2: Testing', 'L4 Accelerator Training', 'Active'])
             ->assertSee('<a href="'.route('admin.programs.show', $program).'"', false)
             ->assertSee('data-schedule-notice="active"', false)
             ->assertSeeInOrder(['Details', 'Activities', 'Checklist'])

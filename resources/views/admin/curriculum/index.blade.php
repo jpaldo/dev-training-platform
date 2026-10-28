@@ -8,23 +8,23 @@
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
         <header class="grid min-w-0 gap-2">
-            <x-ui.eyebrow>ADMIN · CURRICULUM</x-ui.eyebrow>
-            <x-ui.page-title>Curriculum</x-ui.page-title>
-            <p class="leading-relaxed text-muted">Each curriculum's weeks, their activities and checklists, its schedule, and the participants, mentors and resources in it.</p>
+            <x-ui.eyebrow>ADMIN · PROGRAMS</x-ui.eyebrow>
+            <x-ui.page-title>Programs</x-ui.page-title>
+            <p class="leading-relaxed text-muted">Each program's weeks, their activities and checklists, its schedule, and the participants, mentors and resources in it.</p>
         </header>
 
         <x-ui.main-action id="admin-programs-main-action">
-            <x-ui.button :href="$createUrl">New curriculum</x-ui.button>
+            <x-ui.button :href="$createUrl">New program</x-ui.button>
         </x-ui.main-action>
 
         <x-ui.card as="section" class="grid grid-cols-1 gap-4 lg:col-span-2" aria-labelledby="program-list-title">
-            <h2 id="program-list-title" class="text-xl font-extrabold">All curricula</h2>
+            <h2 id="program-list-title" class="text-xl font-extrabold">All programs</h2>
             @if($programs !== [])
                 <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="program-list-title" tabindex="0">
                     <table class="w-full min-w-180 border-collapse text-sm" aria-labelledby="program-list-title">
                         <thead>
                             <tr>
-                                <th scope="col" class="{{ $headerCellClasses }}">Curriculum</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Program</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Offered</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Schedule</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Dates</th>
@@ -57,7 +57,7 @@
                     </table>
                 </div>
             @else
-                <p class="text-muted">No curricula yet.</p>
+                <p class="text-muted">No programs yet.</p>
             @endif
         </x-ui.card>
     </div>

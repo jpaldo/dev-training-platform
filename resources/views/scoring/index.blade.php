@@ -28,9 +28,9 @@
                 <input id="score-search" name="search" value="{{ $search }}" placeholder="Name or email" class="{{ $controlClasses }}">
             </div>
             <div class="grid min-w-0 gap-2">
-                <label for="score-program" class="{{ $labelClasses }}">Curriculum</label>
+                <label for="score-program" class="{{ $labelClasses }}">Program</label>
                 <select id="score-program" name="program" class="{{ $controlClasses }}">
-                    <option value="">All curricula</option>
+                    <option value="">All programs</option>
                     @foreach($programOptions as $option)
                         <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
                     @endforeach
@@ -85,7 +85,7 @@
                         <thead>
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Curriculum</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Program</th>
                                 @foreach($weekNumbers as $weekNumber)
                                     <th scope="col" class="{{ $headerCellClasses }}">W{{ $weekNumber }}</th>
                                     <th scope="col" class="{{ $headerCellClasses }}">W{{ $weekNumber }} Completion</th>

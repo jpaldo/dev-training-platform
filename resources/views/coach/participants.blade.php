@@ -28,9 +28,9 @@
                 <input id="participant-search" name="search" value="{{ $search }}" placeholder="Search participant or email…" class="{{ $controlClasses }}">
             </div>
             <div class="grid min-w-0 gap-2">
-                <label for="participant-program" class="{{ $labelClasses }}">Curriculum</label>
+                <label for="participant-program" class="{{ $labelClasses }}">Program</label>
                 <select id="participant-program" name="program" class="{{ $controlClasses }}">
-                    <option value="">All curricula</option>
+                    <option value="">All programs</option>
                     @foreach($programOptions as $option)
                         <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
                     @endforeach
@@ -48,7 +48,7 @@
                             <tr>
                                 <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Employee ID</th>
-                                <th scope="col" class="{{ $headerCellClasses }}">Curriculum</th>
+                                <th scope="col" class="{{ $headerCellClasses }}">Program</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Mentor</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Training Drive</th>
                                 <th scope="col" class="{{ $headerCellClasses }}">Google Drive</th>

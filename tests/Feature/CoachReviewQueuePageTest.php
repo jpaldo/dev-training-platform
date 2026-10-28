@@ -43,8 +43,8 @@ class CoachReviewQueuePageTest extends TestCase
             ->assertSeeInOrder([
                 'MENTOR · REVIEW QUEUE',
                 'Submission reviews',
-                '>Nora Noversion</h2>', 'Curriculum:', $programLabel, 'Week 3 · Exploratory charter', 'Status:', 'border-accent text-cyan-200">Submitted</span>',
-                '>Rita Revised</h2>', 'Curriculum:', $programLabel, 'Week 3 · Exploratory charter', 'Status:', 'border-amber-500 text-amber-200">Needs revision</span>',
+                '>Nora Noversion</h2>', 'Program:', $programLabel, 'Week 3 · Exploratory charter', 'Status:', 'border-accent text-cyan-200">Submitted</span>',
+                '>Rita Revised</h2>', 'Program:', $programLabel, 'Week 3 · Exploratory charter', 'Status:', 'border-amber-500 text-amber-200">Needs revision</span>',
                 'href="'.route('coach.reviews.show', $latestVersion).'"', '>Review latest version</a>',
             ], false)
             ->assertDontSee('href="'.route('coach.reviews.show', $olderVersion).'"', false)
@@ -64,7 +64,7 @@ class CoachReviewQueuePageTest extends TestCase
             ->assertSeeInOrder([
                 '<option value="'.$programX->id.'" >'.e($this->programLabel($programX)).'</option>',
                 '>Pat Participant</option>',
-                '>Pat Participant</h2>', 'Curriculum:', e($this->programLabel($programX)),
+                '>Pat Participant</h2>', 'Program:', e($this->programLabel($programX)),
                 'href="'.route('coach.reviews.show', $versions['patInX']).'"',
             ], false)
             ->assertDontSee(route('coach.reviews.show', $versions['patInY']), false)
@@ -156,7 +156,7 @@ class CoachReviewQueuePageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 'action="'.route('coach.reviews').'"', 'aria-label="Filter submissions"',
-                'for="review-program"', '<option value="">All curricula</option>',
+                'for="review-program"', '<option value="">All programs</option>',
                 'for="review-participant"', '<option value="">All participants</option>', '>Amy Participant</option>', '<option value="'.$participant->id.'" selected>Zed Participant</option>',
                 'for="review-week"', '<option value="">All weeks</option>', '<option value="1" >Week 1</option>', '<option value="2" >Week 2</option>', '<option value="3" selected>Week 3</option>',
                 'for="review-activity"', '<option value="'.$checklist->id.'" >Week 2 · Validation checklist</option>', '<option value="'.$charter->id.'" selected>Week 3 · Exploratory charter</option>',

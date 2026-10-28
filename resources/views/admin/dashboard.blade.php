@@ -18,10 +18,10 @@
 
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="admin-programs-title">
             <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 id="admin-programs-title" class="text-xl font-extrabold">Curricula</h2>
+                <h2 id="admin-programs-title" class="text-xl font-extrabold">Programs</h2>
                 <div class="flex flex-wrap gap-3">
-                    <x-ui.button variant="secondary" :href="$programsUrl">View all curricula</x-ui.button>
-                    <x-ui.button variant="secondary" :href="$newProgramUrl">New curriculum</x-ui.button>
+                    <x-ui.button variant="secondary" :href="$programsUrl">View all programs</x-ui.button>
+                    <x-ui.button variant="secondary" :href="$newProgramUrl">New program</x-ui.button>
                 </div>
             </div>
             @if($recentPrograms !== [])
@@ -40,7 +40,7 @@
                     @endforeach
                 </ul>
             @else
-                <p class="text-muted">No curricula yet.</p>
+                <p class="text-muted">No programs yet.</p>
             @endif
         </x-ui.card>
 

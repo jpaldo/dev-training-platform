@@ -37,7 +37,7 @@ class AdminCurriculumDashboardTest extends TestCase
             ->get(route('admin.programs.show', $program))
             ->assertOk()
             ->assertSeeInOrder(['L4 Accelerator Training', 'data-program-schedule-summary', '>Active</span>', '9 – 22 Nov 2026'], false)
-            ->assertSee('role="tablist" aria-label="Curriculum sections"', false)
+            ->assertSee('role="tablist" aria-label="Program sections"', false)
             ->assertSeeInOrder([
                 'data-tab-key="overview"', 'Overview',
                 'data-tab-key="weeks"', 'Weeks (3)',
@@ -50,7 +50,7 @@ class AdminCurriculumDashboardTest extends TestCase
             ], false)
             ->assertSee('2 weeks')
             ->assertSee('No mentors in this curriculum yet.')
-            ->assertSee('No resources in this curriculum yet.')
+            ->assertSee('No resources in this program yet.')
             ->assertViewHas('tabs', fn (array $tabs): bool => array_column($tabs, 'key') === ['overview', 'weeks', 'participants', 'mentors', 'resources', 'activities', 'schedule']);
     }
 
@@ -129,7 +129,7 @@ class AdminCurriculumDashboardTest extends TestCase
                 'data-weeks-link',
                 '<a href="#weeks"',
                 'Weeks tab</a>',
-                'This curriculum&#039;s active weeks have no activities yet.',
+                'This program&#039;s active weeks have no activities yet.',
             ], false);
     }
 

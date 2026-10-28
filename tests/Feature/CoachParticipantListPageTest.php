@@ -47,7 +47,7 @@ class CoachParticipantListPageTest extends TestCase
                 'MENTOR · PARTICIPANTS',
                 'aria-label="Filter participants"',
                 'Participant training overview',
-                'Employee ID', 'Curriculum', 'Mentor',
+                'Employee ID', 'Program', 'Mentor',
                 '>Ada Assigned</strong>', 'EMP-0001', 'L4 November', '9 Nov – 6 Dec 2026', 'Coach Carter',
                 'href="https://drive.google.com/drive/folders/ada" target="_blank" rel="noopener noreferrer"', 'Open Drive ↗',
                 '>Connected<', 'Account connected',
@@ -101,7 +101,7 @@ class CoachParticipantListPageTest extends TestCase
         $response = $this->actingAs($admin)->get(route('coach.participants'))
             ->assertOk()
             ->assertSeeInOrder([
-                '<option value="">All curricula</option>',
+                '<option value="">All programs</option>',
                 '<option value="'.$november->id.'" >L4 November (9 Nov – 6 Dec 2026)</option>',
                 '<option value="'.$october->id.'" >L4 October (5 Oct – 1 Nov 2026)</option>',
                 '>Ada Alpha</strong>', '—', 'L4 November', 'Coach Carter', 'href="'.route('coach.participants.show', [$november, $ada]).'"',

@@ -60,7 +60,7 @@ class CoachGateBoardPageTest extends TestCase
                 'AWAITING REVIEW', '>1</dd>',
                 'COMPLETED', '>1</dd>',
                 'NOT READY', '>1</dd>',
-                'One row per participant, curriculum and Gate',
+                'One row per participant, program and Gate',
                 '>Week 2</strong>', '>Release readiness</span>',
                 'href="'.route('coach.participants.show', [$program, $awaiting]).'"', '>Ada Awaiting</a>', '>ada@example.test</span>',
                 '>November training</span>', '>'.$program->dateRangeLabel().'</span>',

@@ -30,7 +30,7 @@ class ScoringReportsPageTest extends TestCase
             'href="'.route('coach.reports.scores').'"', '>Activity Scores CSV</a>',
             'href="'.route('coach.reports.participant-summary').'"', '>Participant Summary CSV</a>',
             'aria-label="Scoring report filters"',
-            'for="report-program"', '>Curriculum</label>', '<option value="">All curricula</option>', '>'.$program->name.' ('.$program->dateRangeLabel().')</option>',
+            'for="report-program"', '>Program</label>', '<option value="">All programs</option>', '>'.$program->name.' ('.$program->dateRangeLabel().')</option>',
             'for="report-week"', '>Week</label>', '>Week 2</option>', '>Week 3</option>', '>Week 4</option>',
             'for="report-status"', '>Score status</label>', '>Scored</option>', '>Unscored</option>',
             'for="report-band"', '>Performance band</label>', '>Exemplary</option>', '>Minimal</option>',

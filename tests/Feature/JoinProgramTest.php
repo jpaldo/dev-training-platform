@@ -48,15 +48,15 @@ class JoinProgramTest extends TestCase
         $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                '>My curricula</h2>',
-                'You are not in a curriculum yet.',
-                '>Available curricula</h2>',
+                '>My programs</h2>',
+                'You are not in a program yet.',
+                '>Available programs</h2>',
                 '>December run</p>',
                 '>Upcoming</span>',
                 '<form method="POST" action="'.route('training.programs.join', $program).'">',
                 'aria-label="Join December run"',
                 '>Join</button>',
-                '>Past curricula</h2>',
+                '>Past programs</h2>',
             ], false)
             ->assertDontSee('href="'.route('training.programs.show', $program).'"', false)
             ->assertDontSee('October run');
@@ -66,12 +66,12 @@ class JoinProgramTest extends TestCase
         $this->actingAs($participant)->get(route('dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                '>My curricula</h2>',
+                '>My programs</h2>',
                 'href="'.route('training.programs.show', $program).'"',
                 '>December run</a>',
-                '>Available curricula</h2>',
-                'No curricula are open to join right now.',
-                '>Past curricula</h2>',
+                '>Available programs</h2>',
+                'No programs are open to join right now.',
+                '>Past programs</h2>',
             ], false)
             ->assertDontSee(route('training.programs.join', $program), false);
     }
@@ -124,7 +124,7 @@ class JoinProgramTest extends TestCase
         $this->actingAs($participant)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('No curricula are open to join right now.')
+            ->assertSee('No programs are open to join right now.')
             ->assertDontSee('Draft run');
 
         $this->actingAs($participant)->post(route('training.programs.join', $program))->assertForbidden();

@@ -30,9 +30,9 @@
                 <input id="gate-search" name="search" value="{{ $search }}" placeholder="Name or email…" class="{{ $controlClasses }}">
             </div>
             <div class="grid min-w-0 gap-2">
-                <label for="gate-program" class="{{ $labelClasses }}">Curriculum</label>
+                <label for="gate-program" class="{{ $labelClasses }}">Program</label>
                 <select id="gate-program" name="program" class="{{ $controlClasses }}">
-                    <option value="">All curricula</option>
+                    <option value="">All programs</option>
                     @foreach($programOptions as $option)
                         <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>
                     @endforeach
@@ -62,12 +62,12 @@
         <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="gate-board-caption">
             <div class="relative overflow-x-auto rounded-xl focus-visible:outline-3 focus-visible:outline-accent/50" role="region" aria-labelledby="gate-board-caption" tabindex="0">
                 <table class="w-full min-w-280 border-collapse text-sm">
-                    <caption id="gate-board-caption" class="pb-3 text-left text-muted">One row per participant, curriculum and Gate</caption>
+                    <caption id="gate-board-caption" class="pb-3 text-left text-muted">One row per participant, program and Gate</caption>
                     <thead>
                         <tr>
                             <th scope="col" class="{{ $headerCellClasses }}">Gate</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Participant</th>
-                            <th scope="col" class="{{ $headerCellClasses }}">Curriculum</th>
+                            <th scope="col" class="{{ $headerCellClasses }}">Program</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Status</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Criteria</th>
                             <th scope="col" class="{{ $headerCellClasses }}">Video</th>

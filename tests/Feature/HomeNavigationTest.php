@@ -136,7 +136,7 @@ class HomeNavigationTest extends TestCase
             ->assertSee('aria-controls="dashboard-missing-content"', false)
             ->assertSee('aria-expanded="true"', false)
             ->assertSee('Complete your next activity.')
-            ->assertSee('>My curricula</h2>', false);
+            ->assertSee('>My programs</h2>', false);
 
         $response = $this->actingAs($participant)->get(route('training.programs.show', $program))->assertOk();
         $html = $response->getContent();

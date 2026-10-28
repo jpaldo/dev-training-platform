@@ -84,8 +84,8 @@ class EmptyTrainingDataTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => $role]))
             ->get(route($routeName))
             ->assertOk()
-            ->assertSee('No curricula to show.')
-            ->assertDontSee('aria-label="Choose curriculum"', false);
+            ->assertSee('No programs to show.')
+            ->assertDontSee('aria-label="Choose program"', false);
     }
 
     public function test_coach_participant_page_opens_without_any_program_weeks_or_training_data(): void
@@ -103,7 +103,7 @@ class EmptyTrainingDataTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSeeInOrder(['You are not in a curriculum yet.', 'No past curricula yet.'])
+            ->assertSeeInOrder(['You are not in a program yet.', 'No past programs yet.'])
             ->assertDontSee('data-page-tabs', false);
     }
 
@@ -128,7 +128,7 @@ class EmptyTrainingDataTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => 'admin']))
             ->get(route('coach.scoring.participant', [$program, $participant]))
             ->assertOk()
-            ->assertSeeInOrder(['This curriculum has no weeks to score yet.', 'OVERALL SCORE', '— / 100', 'OVERALL COMPLETION', '0 / 0'])
+            ->assertSeeInOrder(['This program has no weeks to score yet.', 'OVERALL SCORE', '— / 100', 'OVERALL COMPLETION', '0 / 0'])
             ->assertDontSee('WEEK 1')
             ->assertDontSee(self::NO_ACTIVE_PROGRAM_NOTICE);
     }

@@ -45,12 +45,12 @@ class MissingSubmissionReportPageTest extends TestCase
                 'aria-label="Reports"',
                 '>Progress</a>', '>Missing Submissions</a>',
                 '<option value="">All participants</option>', '<option value="'.$ada->id.'"', '>Ada Alpha</option>',
-                '<option value="">All curricula</option>', '<option value="'.$program->id.'" >'.e($this->optionLabel($program)).'</option>',
+                '<option value="">All programs</option>', '<option value="'.$program->id.'" >'.e($this->optionLabel($program)).'</option>',
                 'Participants With Missing Requirements', '>1</dd>',
                 'Missing Activities', '>1</dd>',
                 'Missing Video Recordings', '>1</dd>',
                 'Actionable missing requirements', '2 row(s)',
-                '>Curriculum</th>', '>Mentor</th>',
+                '>Program</th>', '>Mentor</th>',
                 'href="'.e(route('coach.participants.show', [$program, $ada])).'"', '>Ada Alpha</a>', '>ada@example.test</span>',
                 '>'.e($program->name).'</span>', '>'.$program->dateRangeLabel().'</span>',
                 '>Coach Avery</td>', '>Video Recording</td>', '>Week 2</td>', '<strong>Weekly Video Recording</strong>',
@@ -98,7 +98,7 @@ class MissingSubmissionReportPageTest extends TestCase
         $this->assertSame([$programY->id], $this->programOptionIds($this->actingAs($cy)->get(route('coach.reports.missing-submissions'))));
 
         $rows = array_map(str_getcsv(...), explode("\n", trim($this->actingAs($ben)->get(route('coach.reports.missing-submissions.export'))->assertOk()->streamedContent())));
-        $this->assertSame(['Participant', 'Employee ID', 'Curriculum', 'Email', 'Mentor'], array_slice($rows[0], 0, 5));
+        $this->assertSame(['Participant', 'Employee ID', 'Program', 'Email', 'Mentor'], array_slice($rows[0], 0, 5));
         $this->assertSame(
             [['Pat Participant', $programX->name, $ben->name, 'Kickoff deliverable'], ['Pat Participant', $programX->name, $ben->name, 'Second deliverable']],
             array_map(fn (array $row): array => [$row[0], $row[2], $row[4], $row[7]], array_slice($rows, 1)),
@@ -148,7 +148,7 @@ class MissingSubmissionReportPageTest extends TestCase
             ->streamedContent();
         $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
 
-        $this->assertSame(['Participant', 'Employee ID', 'Curriculum', 'Email', 'Mentor', 'Category', 'Week', 'Requirement', 'Expected', 'Submitted', 'Missing', 'Evidences', 'Status'], $rows[0]);
+        $this->assertSame(['Participant', 'Employee ID', 'Program', 'Email', 'Mentor', 'Category', 'Week', 'Requirement', 'Expected', 'Submitted', 'Missing', 'Evidences', 'Status'], $rows[0]);
         $this->assertSame([
             ['Ada Alpha', 'FS-0001', $program->name, 'ada@example.test', 'Not assigned', 'Video Recording', 'Week 2', 'Weekly Video Recording', '1', '0', '1', '0', 'Not Submitted'],
         ], array_slice($rows, 1));
@@ -220,7 +220,7 @@ class MissingSubmissionReportPageTest extends TestCase
             ->streamedContent();
         $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
 
-        $this->assertSame(['Participant', 'Employee ID', 'Curriculum', 'Email', 'Mentor', 'Category', 'Week', 'Requirement', 'Expected', 'Submitted', 'Missing', 'Evidences', 'Status'], $rows[0]);
+        $this->assertSame(['Participant', 'Employee ID', 'Program', 'Email', 'Mentor', 'Category', 'Week', 'Requirement', 'Expected', 'Submitted', 'Missing', 'Evidences', 'Status'], $rows[0]);
         $this->assertEqualsCanonicalizing(['Mia Manual', 'Abe Automation'], array_column(array_slice($rows, 1), 0));
     }
 

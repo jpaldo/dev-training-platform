@@ -129,7 +129,7 @@ class CoachReportsTest extends TestCase
             'mentor' => $mentor->id,
             'category' => 'activities',
         ]))->streamedContent();
-        $this->assertStringContainsString('Participant,"Employee ID",Curriculum,Email,Mentor,Category', $csv);
+        $this->assertStringContainsString('Participant,"Employee ID",Program,Email,Mentor,Category', $csv);
         $this->assertStringContainsString(',Expected,Submitted,Missing,Evidences,Status'."\n", $csv);
         $this->assertStringNotContainsString('Log Date', $csv);
         $this->assertStringContainsString('Combined QA', $csv);
@@ -153,7 +153,7 @@ class CoachReportsTest extends TestCase
         }
 
         $benRows = $this->csvRows($this->actingAs($ben)->get(route('coach.reports.export', ['type' => 'reviews']))->assertOk()->streamedContent());
-        $this->assertSame(['Participant', 'Employee ID', 'Curriculum', 'Week', 'Activity'], array_slice($benRows[0], 0, 5));
+        $this->assertSame(['Participant', 'Employee ID', 'Program', 'Week', 'Activity'], array_slice($benRows[0], 0, 5));
         $this->assertSame([['Pat Participant', 'EMP-7001', 'Curriculum X', (string) $activityX->week->week_number, 'Kickoff deliverable']], array_map(fn (array $row): array => array_slice($row, 0, 5), array_slice($benRows, 1)));
 
         $this->assertCount(1, $this->csvRows($this->actingAs($ana)->get(route('coach.reports.export', ['type' => 'reviews']))->assertOk()->streamedContent()));
@@ -182,7 +182,7 @@ class CoachReportsTest extends TestCase
         }
 
         $benRows = $this->csvRows($this->actingAs($ben)->get(route('coach.reports.export', ['type' => 'gates']))->assertOk()->streamedContent());
-        $this->assertSame(['Participant', 'Employee ID', 'Curriculum', 'Week', 'Gate'], array_slice($benRows[0], 0, 5));
+        $this->assertSame(['Participant', 'Employee ID', 'Program', 'Week', 'Gate'], array_slice($benRows[0], 0, 5));
         $this->assertSame([['Pat Participant', 'EMP-7001', 'Curriculum X', (string) $gateX->week->week_number, 'Week checklist']], array_map(fn (array $row): array => array_slice($row, 0, 5), array_slice($benRows, 1)));
 
         $this->assertCount(1, $this->csvRows($this->actingAs($ana)->get(route('coach.reports.export', ['type' => 'gates']))->assertOk()->streamedContent()));
@@ -211,10 +211,10 @@ class CoachReportsTest extends TestCase
         }
 
         $benProgress = $this->csvRows($this->actingAs($ben)->get(route('coach.reports.export', ['type' => 'progress']))->assertOk()->streamedContent());
-        $this->assertSame(['Name', 'Employee ID', 'Curriculum', 'Email', 'Submissions', 'Gate evaluations', 'Attendance'], $benProgress[0]);
+        $this->assertSame(['Name', 'Employee ID', 'Program', 'Email', 'Submissions', 'Gate evaluations', 'Attendance'], $benProgress[0]);
         $this->assertSame([['Pat Participant', 'EMP-7001', 'Curriculum X', $participant->email, '1', '0', '0/1']], array_slice($benProgress, 1));
         $benRisk = $this->csvRows($this->actingAs($ben)->get(route('coach.reports.export', ['type' => 'risk']))->assertOk()->streamedContent());
-        $this->assertSame([['Participant', 'Curriculum', 'Reason'], ['Pat Participant', 'Curriculum X', 'Kickoff deliverable: Needs revision']], $benRisk);
+        $this->assertSame([['Participant', 'Program', 'Reason'], ['Pat Participant', 'Curriculum X', 'Kickoff deliverable: Needs revision']], $benRisk);
 
         $this->assertCount(1, $this->csvRows($this->actingAs($ana)->get(route('coach.reports.export', ['type' => 'progress']))->assertOk()->streamedContent()));
         $this->assertCount(1, $this->csvRows($this->actingAs($ana)->get(route('coach.reports.export', ['type' => 'risk']))->assertOk()->streamedContent()));

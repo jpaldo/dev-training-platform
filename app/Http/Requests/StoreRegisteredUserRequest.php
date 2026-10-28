@@ -44,7 +44,7 @@ class StoreRegisteredUserRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'program_ids.*.in' => 'The selected curriculum is not open to join.',
+            'program_ids.*.in' => 'The selected program is not open to join.',
         ];
     }
 
@@ -57,8 +57,8 @@ class StoreRegisteredUserRequest extends FormRequest
     {
         return [
             'employee_id' => 'employee ID',
-            'program_ids' => 'curricula',
-            'program_ids.*' => 'curriculum',
+            'program_ids' => 'programs',
+            'program_ids.*' => 'program',
         ];
     }
 

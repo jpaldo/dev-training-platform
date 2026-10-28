@@ -13,7 +13,7 @@
         <header class="grid gap-2">
             <x-ui.eyebrow>PARTICIPANT DASHBOARD</x-ui.eyebrow>
             <x-ui.page-title>Welcome, {{ $user->first_name ?: $user->name }}</x-ui.page-title>
-            <p class="text-muted">Keep track of what needs attention and open your curricula.</p>
+            <p class="text-muted">Keep track of what needs attention and open your programs.</p>
         </header>
 
         <x-ui.card class="flex flex-wrap gap-x-8 gap-y-6">
@@ -61,8 +61,8 @@
             </script>
         @endif
 
-        <x-program-list id="my-programs" title="My curricula" :programs="$myPrograms" empty="You are not in a curriculum yet." />
-        <x-program-list id="available-programs" title="Available curricula" :programs="$availablePrograms" empty="No curricula are open to join right now." />
-        <x-program-list id="past-programs" title="Past curricula" :programs="$pastPrograms" empty="No past curricula yet." />
+        <x-program-list id="my-programs" title="My programs" :programs="$myPrograms" empty="You are not in a program yet." />
+        <x-program-list id="available-programs" title="Available programs" :programs="$availablePrograms" empty="No programs are open to join right now." />
+        <x-program-list id="past-programs" title="Past programs" :programs="$pastPrograms" empty="No past programs yet." />
     </div>
 @endsection

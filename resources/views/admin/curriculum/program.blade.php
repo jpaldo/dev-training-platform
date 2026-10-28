@@ -10,7 +10,7 @@
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
         <header class="grid min-w-0 gap-2">
-            <x-ui.eyebrow>ADMIN · CURRICULUM</x-ui.eyebrow>
+            <x-ui.eyebrow>ADMIN · PROGRAMS</x-ui.eyebrow>
             <x-ui.page-title>{{ $name }}</x-ui.page-title>
             <div class="flex flex-wrap items-center gap-x-3 gap-y-2 leading-relaxed text-muted" data-program-schedule-summary>
                 <x-ui.badge :tone="$statusTone">{{ $statusLabel }}</x-ui.badge>
@@ -22,7 +22,7 @@
         </header>
 
         <x-ui.main-action id="admin-program-main-action">
-            <x-ui.button variant="secondary" :href="$indexUrl">All Curricula</x-ui.button>
+            <x-ui.button variant="secondary" :href="$indexUrl">All Programs</x-ui.button>
             <x-ui.button variant="secondary" :href="$duplicateUrl">Duplicate</x-ui.button>
         </x-ui.main-action>
 
@@ -34,7 +34,7 @@
             @include('admin.curriculum.schedule-notice')
 
             <div class="min-w-0" data-page-tabs>
-                <x-ui.tab-list :tabs="$tabs" :selected="$selectedTab" id-prefix="program" label="Curriculum sections" />
+                <x-ui.tab-list :tabs="$tabs" :selected="$selectedTab" id-prefix="program" label="Program sections" />
 
                 <x-ui.tab-panel name="overview" :selected="$selectedTab" id-prefix="program">
                     @include('admin.curriculum.tabs.overview')

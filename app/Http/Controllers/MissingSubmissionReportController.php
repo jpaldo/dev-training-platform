@@ -21,7 +21,7 @@ class MissingSubmissionReportController extends Controller
 
         return response()->streamDownload(function () use ($rows): void {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Participant', 'Employee ID', 'Curriculum', 'Email', 'Mentor', 'Category', 'Week', 'Requirement', 'Expected', 'Submitted', 'Missing', 'Evidences', 'Status']);
+            fputcsv($out, ['Participant', 'Employee ID', 'Program', 'Email', 'Mentor', 'Category', 'Week', 'Requirement', 'Expected', 'Submitted', 'Missing', 'Evidences', 'Status']);
             foreach ($rows as $row) {
                 fputcsv($out, [$row['participant_name'], $row['employee_id'], $row['program_name'], $row['email'], $row['mentor'], $row['category'], $row['week'], $row['requirement'], $row['expected'], $row['submitted'], $row['missing'], $row['evidences'], $row['status']]);
             }

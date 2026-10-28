@@ -45,11 +45,11 @@ class WeeklySessionAttendancePageTest extends TestCase
             ->assertSeeInOrder([
                 'ADMIN · ATTENDANCE',
                 '>Attendance</h1>',
-                'Record who joined each week\'s session of a curriculum.',
+                'Record who joined each week\'s session of a program.',
                 'id="attendance-main-action"',
                 '<a href="'.route('admin.attendance.export', ['program' => $program->id]).'"',
                 '>Export CSV</a>',
-                'aria-label="Choose curriculum"',
+                'aria-label="Choose program"',
                 '<option value="'.$program->id.'" selected>Backend Track (9 – 22 Nov 2026)</option>',
                 '>Show</button>',
                 '>Backend Track</h2>',
@@ -230,8 +230,8 @@ class WeeklySessionAttendancePageTest extends TestCase
 
         $this->actingAs(User::factory()->create(['role' => UserRole::Coach]))->get(route('coach.attendance.index'))
             ->assertOk()
-            ->assertSee('No curricula to show.')
-            ->assertDontSee('aria-label="Choose curriculum"', false)
+            ->assertSee('No programs to show.')
+            ->assertDontSee('aria-label="Choose program"', false)
             ->assertDontSee('Backend Track')
             ->assertDontSee('<table', false)
             ->assertDontSee('Save attendance')
@@ -246,7 +246,7 @@ class WeeklySessionAttendancePageTest extends TestCase
 
         $this->actingAs(User::factory()->create(['role' => UserRole::Admin]))->get(route('admin.attendance.index'))
             ->assertOk()
-            ->assertSeeInOrder(['>Backend Track</h2>', 'This curriculum has no weeks.'], false)
+            ->assertSeeInOrder(['>Backend Track</h2>', 'This program has no weeks.'], false)
             ->assertDontSee('Ada Young')
             ->assertDontSee('<table', false)
             ->assertDontSee('Save attendance');
@@ -291,11 +291,11 @@ class WeeklySessionAttendancePageTest extends TestCase
 
         $this->actingAs($viewer)->get(route($routeName, ['program' => $program]))
             ->assertRedirect(route($routeName))
-            ->assertSessionHasErrors(['program' => 'Choose a curriculum from the list.']);
+            ->assertSessionHasErrors(['program' => 'Choose a program from the list.']);
 
         $this->actingAs($viewer)->followingRedirects()->get(route($routeName, ['program' => $program]))
             ->assertOk()
-            ->assertSeeInOrder(['role="alert"', 'Choose a curriculum from the list.', '<option value="'.$mentored->id.'" selected>'], false);
+            ->assertSeeInOrder(['role="alert"', 'Choose a program from the list.', '<option value="'.$mentored->id.'" selected>'], false);
     }
 
     public function test_participant_is_forbidden_from_both_attendance_pages(): void
@@ -421,10 +421,10 @@ class WeeklySessionAttendancePageTest extends TestCase
     public static function cellsOutsideTheMentorsScope(): array
     {
         return [
-            'another mentor\'s mentee' => ['other mentee', 'You can only record attendance for participants shown in this curriculum.'],
-            'an unassigned participant' => ['unassigned participant', 'You can only record attendance for participants shown in this curriculum.'],
-            'a week of another curriculum' => ['other curriculum week', 'You can only record attendance for active weeks of this curriculum.'],
-            'an inactive week' => ['inactive week', 'You can only record attendance for active weeks of this curriculum.'],
+            'another mentor\'s mentee' => ['other mentee', 'You can only record attendance for participants shown in this program.'],
+            'an unassigned participant' => ['unassigned participant', 'You can only record attendance for participants shown in this program.'],
+            'a week of another curriculum' => ['other curriculum week', 'You can only record attendance for active weeks of this program.'],
+            'an inactive week' => ['inactive week', 'You can only record attendance for active weeks of this program.'],
         ];
     }
 
@@ -477,7 +477,7 @@ class WeeklySessionAttendancePageTest extends TestCase
             'attendance' => [$participant->id => [$week->id => '0']],
         ])
             ->assertRedirect(route('coach.attendance.index', ['program' => $otherProgram->id]))
-            ->assertSessionHasErrors(['program' => 'Choose a curriculum from the list.'])
+            ->assertSessionHasErrors(['program' => 'Choose a program from the list.'])
             ->assertSessionDoesntHaveErrors('attendance');
 
         $this->assertSame($before, $this->attendanceRecords());
@@ -684,7 +684,7 @@ class WeeklySessionAttendancePageTest extends TestCase
 
         $this->actingAs($viewer)->get(route("{$routePrefix}.export", ['program' => $program]))
             ->assertRedirect(route("{$routePrefix}.index"))
-            ->assertSessionHasErrors(['program' => 'Choose a curriculum from the list.']);
+            ->assertSessionHasErrors(['program' => 'Choose a program from the list.']);
     }
 
     public function test_participant_is_forbidden_from_the_export_in_either_area(): void

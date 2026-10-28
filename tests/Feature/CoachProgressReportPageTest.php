@@ -56,20 +56,20 @@ class CoachProgressReportPageTest extends TestCase
                 'aria-label="Reports"',
                 'href="'.route('coach.reports').'"', 'aria-current="page"', '>Progress</a>',
                 'href="'.route('coach.reports.missing-submissions').'"', '>Missing Submissions</a>',
-                '<label for="report-program"', 'Curriculum</label>',
-                '<option value="">All curricula</option>', '<option value="'.$program->id.'" >'.e($program->name.' ('.$program->dateRangeLabel().')').'</option>',
+                '<label for="report-program"', 'Program</label>',
+                '<option value="">All programs</option>', '<option value="'.$program->id.'" >'.e($program->name.' ('.$program->dateRangeLabel().')').'</option>',
                 'Total Participants', '>2</dd>',
                 'Active Participants', '>1</dd>',
                 'Submissions', '>2</dd>',
                 'Gates Passed', '>1</dd>',
                 'At Risk', '>1</dd>',
                 'At-risk participants',
-                '>Curriculum</th>',
+                '>Program</th>',
                 '>Riley Risk</th>', '>Avery Curriculum</span>', '>'.$program->dateRangeLabel().'</span>',
                 '>'.e($revision->activity->title).': Needs revision · '.e($gate->title).': Failed</td>',
                 'Participant progress',
                 '2 participant(s)',
-                '>Curriculum</th>', '>Mentor</th>',
+                '>Program</th>', '>Mentor</th>',
                 '>Riley Risk</strong>', '>riley@example.test</span>', '>Avery Curriculum</span>',
                 '>Coach Avery</td>',
                 '>1</td>', '>1</td>',
@@ -226,7 +226,7 @@ class CoachProgressReportPageTest extends TestCase
             ->streamedContent();
         $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
 
-        $this->assertSame(['Name', 'Employee ID', 'Curriculum', 'Email', 'Submissions', 'Gate evaluations', 'Attendance'], $rows[0]);
+        $this->assertSame(['Name', 'Employee ID', 'Program', 'Email', 'Submissions', 'Gate evaluations', 'Attendance'], $rows[0]);
         $this->assertEqualsCanonicalizing(['Mia Manual', 'Abe Automation'], array_column(array_slice($rows, 1), 0));
 
         foreach (['reviews', 'gates', 'risk'] as $type) {
@@ -300,7 +300,7 @@ class CoachProgressReportPageTest extends TestCase
             ->streamedContent();
         $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
 
-        $this->assertSame(['Name', 'Employee ID', 'Curriculum', 'Email', 'Submissions', 'Gate evaluations', 'Attendance'], $rows[0]);
+        $this->assertSame(['Name', 'Employee ID', 'Program', 'Email', 'Submissions', 'Gate evaluations', 'Attendance'], $rows[0]);
         $this->assertEqualsCanonicalizing([
             ['Ada Attender', 'Curriculum X', '3/4'],
             ['Ada Attender', 'Curriculum Y', '1/1'],

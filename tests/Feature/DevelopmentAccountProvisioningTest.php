@@ -158,10 +158,10 @@ class DevelopmentAccountProvisioningTest extends TestCase
             $this->actingAs($participant)->get(route('dashboard'))
                 ->assertOk()
                 ->assertSeeInOrder([
-                    '>My curricula</h2>',
+                    '>My programs</h2>',
                     'href="'.route('training.programs.show', $program).'"',
                     '>L4 Accelerator Training</a>',
-                    '>Available curricula</h2>',
+                    '>Available programs</h2>',
                 ], false);
         }
     }
@@ -185,7 +185,7 @@ class DevelopmentAccountProvisioningTest extends TestCase
     {
         $this->artisan('app:ensure-development-accounts')
             ->expectsOutput('Ensured '.count(self::seededAccounts()).' development accounts.')
-            ->expectsOutput('Skipped the demo enrollment: the curriculum "L4 Accelerator Training" does not exist.')
+            ->expectsOutput('Skipped the demo enrollment: the program "L4 Accelerator Training" does not exist.')
             ->assertExitCode(0);
 
         $this->assertSame(count(self::seededAccounts()), User::count());

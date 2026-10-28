@@ -40,7 +40,7 @@
                 @endforeach
             </dl>
         @else
-            <p class="text-sm/relaxed text-muted">This curriculum has no active weeks.</p>
+            <p class="text-sm/relaxed text-muted">This program has no active weeks.</p>
         @endif
     </section>
 </x-ui.card>

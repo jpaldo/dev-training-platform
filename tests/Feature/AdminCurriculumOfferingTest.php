@@ -94,7 +94,7 @@ class AdminCurriculumOfferingTest extends TestCase
                 'action="'.route('admin.programs.offered.update', $offered).'"',
                 '<input type="hidden" name="_method" value="PUT">',
                 '<input type="hidden" name="offered" value="0">',
-                '>Withdraw Curriculum</button>',
+                '>Withdraw Program</button>',
             ], false);
 
         $this->actingAs($admin)
@@ -105,7 +105,7 @@ class AdminCurriculumOfferingTest extends TestCase
                 '>Not offered</span>',
                 'action="'.route('admin.programs.offered.update', $notOffered).'"',
                 '<input type="hidden" name="offered" value="1">',
-                '>Offer Curriculum</button>',
+                '>Offer Program</button>',
             ], false);
     }
 

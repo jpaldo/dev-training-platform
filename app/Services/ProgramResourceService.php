@@ -111,7 +111,7 @@ class ProgramResourceService
                 ->groupBy(fn (ProgramResource $resource): string => $resource->week_number === null ? 'program' : "week-{$resource->week_number}")
                 ->map(fn (Collection $group, string $key): array => [
                     'key' => $key,
-                    'label' => $group->first()->week_number === null ? 'Whole curriculum' : "Week {$group->first()->week_number}",
+                    'label' => $group->first()->week_number === null ? 'Whole program' : "Week {$group->first()->week_number}",
                     'resources' => $group
                         ->map(fn (ProgramResource $resource): array => [
                             ...$this->row($resource, $lockedMessage ? $lockedMessage($resource) : null),

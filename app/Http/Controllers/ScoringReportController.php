@@ -30,7 +30,7 @@ class ScoringReportController extends Controller
     {
         $versions = $reports->versions($request->user(), $request->validated())->get();
 
-        return $this->csv('activity-scores.csv', ['Participant', 'Employee ID', 'Curriculum', 'Email', 'Week', 'Activity', 'Attempt/Version', 'Submission Status', 'Scoring Status', 'D1', 'D2', 'D3', 'D4', 'D5', 'Total Score', 'Performance Band', 'Scorer', 'Scored At', 'Second Reader', 'Second Reader Status', 'Assigned Mentor'], $versions->map(function (SubmissionVersion $v): array {
+        return $this->csv('activity-scores.csv', ['Participant', 'Employee ID', 'Program', 'Email', 'Week', 'Activity', 'Attempt/Version', 'Submission Status', 'Scoring Status', 'D1', 'D2', 'D3', 'D4', 'D5', 'Total Score', 'Performance Band', 'Scorer', 'Scored At', 'Second Reader', 'Second Reader Status', 'Assigned Mentor'], $versions->map(function (SubmissionVersion $v): array {
             $score = $v->publishedActivityScore;
             $dims = $score?->dimensions?->keyBy('dimension') ?? collect();
 
@@ -55,7 +55,7 @@ class ScoringReportController extends Controller
             $summaries[$membership->id],
         ]);
 
-        return $this->csv('participant-score-summary.csv', ['Participant', 'Employee ID', 'Curriculum', 'Email', 'Assigned Mentor', 'Completed Activities', 'Scored Activities', 'Unscored Activities', 'Week 2 Average', 'Week 3 Average', 'Week 4 Average', 'Overall Average', 'Current Performance Band', 'Latest Score Date'], $rows->map(function (array $r) use ($scoring): array {
+        return $this->csv('participant-score-summary.csv', ['Participant', 'Employee ID', 'Program', 'Email', 'Assigned Mentor', 'Completed Activities', 'Scored Activities', 'Unscored Activities', 'Week 2 Average', 'Week 3 Average', 'Week 4 Average', 'Overall Average', 'Current Performance Band', 'Latest Score Date'], $rows->map(function (array $r) use ($scoring): array {
             $s = $r[5];
             $flat = $s['weeks'];
             $activityRows = $flat->flatMap(fn (array $w): Collection => $w['rows']);

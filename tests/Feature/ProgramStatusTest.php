@@ -174,6 +174,6 @@ class ProgramStatusTest extends TestCase
         $this->assertFalse($endedYesterday->acceptsWork());
         $this->assertFalse($endedYesterday->acceptsWork($handedIn));
         $this->assertTrue($endedYesterday->acceptsWork($reopened));
-        $this->assertSame('This curriculum has ended.', Program::ENDED_MESSAGE);
+        $this->assertSame('This program has ended.', Program::ENDED_MESSAGE);
     }
 }

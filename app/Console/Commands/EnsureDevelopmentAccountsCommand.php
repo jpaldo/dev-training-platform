@@ -11,7 +11,7 @@ class EnsureDevelopmentAccountsCommand extends Command
 {
     protected $signature = 'app:ensure-development-accounts';
 
-    protected $description = 'Ensure the demo admin, mentor and participant accounts exist and enroll the demo participants in the L4 curriculum (local, staging and testing only)';
+    protected $description = 'Ensure the demo admin, mentor and participant accounts exist and enroll the demo participants in the L4 program (local, staging and testing only)';
 
     public function handle(DevelopmentAccountProvisioner $provisioner): int
     {
@@ -27,7 +27,7 @@ class EnsureDevelopmentAccountsCommand extends Command
         $this->info("Ensured {$count} development accounts.");
 
         if ($enrolledCount === null) {
-            $this->warn(sprintf('Skipped the demo enrollment: the curriculum "%s" does not exist.', L4TrainingProgramSeeder::PROGRAM_NAME));
+            $this->warn(sprintf('Skipped the demo enrollment: the program "%s" does not exist.', L4TrainingProgramSeeder::PROGRAM_NAME));
         } else {
             $this->info(sprintf('Ensured %d demo participants in "%s", each with their demo mentor.', $enrolledCount, L4TrainingProgramSeeder::PROGRAM_NAME));
         }

@@ -5,7 +5,7 @@
         <a href="#weeks" class="text-accent underline underline-offset-3 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-accent/50">Weeks tab</a>.
     </p>
     @if($activities !== [])
-        <p class="text-sm/relaxed text-muted">The curriculum's participants by their latest attempt at each activity. In progress is a draft not handed in yet, including a revision or a retry.</p>
+        <p class="text-sm/relaxed text-muted">The program's participants by their latest attempt at each activity. In progress is a draft not handed in yet, including a revision or a retry.</p>
         <div class="{{ $tableRegionClasses }}" role="region" aria-labelledby="program-activities-title" tabindex="0">
             <table class="w-full min-w-220 border-collapse text-sm" aria-labelledby="program-activities-title">
                 <thead>
@@ -35,6 +35,6 @@
             </table>
         </div>
     @else
-        <p class="text-muted">This curriculum's active weeks have no activities yet.</p>
+        <p class="text-muted">This program's active weeks have no activities yet.</p>
     @endif
 </x-ui.card>

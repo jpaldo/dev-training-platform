@@ -82,7 +82,7 @@ class MentorAssignmentService
                 ->first();
 
             if ($membership === null) {
-                throw ValidationException::withMessages(['participant' => 'The participant is not in this curriculum.']);
+                throw ValidationException::withMessages(['participant' => 'The participant is not in this program.']);
             }
 
             if (! $program->includesMentor($mentor)) {

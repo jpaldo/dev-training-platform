@@ -32,7 +32,7 @@ class ProgramRepositoryUrlTest extends TestCase
         $this->actingAs($participant)->get(route('training.programs.show', $program))
             ->assertOk()
             ->assertSeeInOrder([
-                '>Add your GitHub repository for this curriculum</h2>',
+                '>Add your GitHub repository for this program</h2>',
                 '<form method="POST" action="'.route('training.programs.repository.update', $program).'"',
                 'name="_method" value="PUT"',
                 'name="repository_url"',
@@ -68,7 +68,7 @@ class ProgramRepositoryUrlTest extends TestCase
                 '>Save repository</button>',
                 '</details>',
             ], false)
-            ->assertDontSee('Add your GitHub repository for this curriculum');
+            ->assertDontSee('Add your GitHub repository for this program');
     }
 
     public function test_a_member_changes_their_repository(): void

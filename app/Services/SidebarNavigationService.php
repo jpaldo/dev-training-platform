@@ -92,7 +92,7 @@ class SidebarNavigationService
         if ($user->hasAnyRole(UserRole::Admin)) {
             $groups['Admin'] = [
                 ['label' => 'Admin Dashboard', 'route' => 'admin.dashboard', 'active' => ['admin.dashboard']],
-                ['label' => 'Curriculum', 'route' => 'admin.programs.index', 'active' => ['admin.programs.*']],
+                ['label' => 'Programs', 'route' => 'admin.programs.index', 'active' => ['admin.programs.*']],
                 ['label' => 'Users / Participants', 'route' => 'admin.users.index', 'active' => ['admin.users.*']],
                 ['label' => 'Settings', 'route' => 'admin.settings.index', 'active' => ['admin.settings.index', 'admin.settings.email', 'admin.settings.google', 'admin.settings.interview-scheduling', 'admin.settings.training']],
                 ['label' => 'Google Drive', 'route' => 'admin.settings.google-drive', 'active' => ['admin.settings.google-drive']],

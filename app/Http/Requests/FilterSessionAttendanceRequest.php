@@ -56,7 +56,7 @@ class FilterSessionAttendanceRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'program' => 'curriculum',
+            'program' => 'program',
         ];
     }
 
@@ -66,8 +66,8 @@ class FilterSessionAttendanceRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'program.integer' => 'Choose a curriculum from the list.',
-            'program.exists' => 'Choose a curriculum from the list.',
+            'program.integer' => 'Choose a program from the list.',
+            'program.exists' => 'Choose a program from the list.',
         ];
     }
 

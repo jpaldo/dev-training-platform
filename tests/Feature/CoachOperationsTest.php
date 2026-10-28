@@ -285,7 +285,7 @@ class CoachOperationsTest extends TestCase
         $this->assertCount(2, $rows);
         $this->assertSame(['Participant', 'Employee ID'], array_slice($rows[0], 0, 2));
         $this->assertSame([$participant->name, 'EMP-3001'], array_slice($rows[1], 0, 2));
-        $this->assertSame(['Participant', 'Employee ID', 'Curriculum', 'Week', 'Activity', 'Status', 'Version', 'Submitted', 'Decision', 'Reviewed'], $rows[0]);
+        $this->assertSame(['Participant', 'Employee ID', 'Program', 'Week', 'Activity', 'Status', 'Version', 'Submitted', 'Decision', 'Reviewed'], $rows[0]);
         $this->assertSame('needs_revision', $rows[1][8]);
     }
 
@@ -303,7 +303,7 @@ class CoachOperationsTest extends TestCase
         $csv = $this->actingAs($coach)->get(route('coach.reports.export'))->assertOk()->streamedContent();
 
         $rows = array_map(str_getcsv(...), explode("\n", trim($csv)));
-        $this->assertSame(['Name', 'Employee ID', 'Curriculum', 'Email'], array_slice($rows[0], 0, 4));
+        $this->assertSame(['Name', 'Employee ID', 'Program', 'Email'], array_slice($rows[0], 0, 4));
         $this->assertEqualsCanonicalizing(
             [['Ada', 'EMP-5001', $program->name, 'ada@example.com'], ['Ben', '', $program->name, 'ben@example.com']],
             array_map(fn (array $row): array => array_slice($row, 0, 4), array_slice($rows, 1)),
@@ -328,7 +328,7 @@ class CoachOperationsTest extends TestCase
         $this->assertStringContainsString(',1,"'.$w1->title.'",passed,', $response->streamedContent());
         $this->assertStringNotContainsString($automation->name, $response->streamedContent());
         $rows = array_map(str_getcsv(...), explode("\n", trim($response->streamedContent())));
-        $this->assertSame(['Participant', 'Employee ID', 'Curriculum', 'Week', 'Gate', 'Status', 'Evaluated', 'Reviewer'], $rows[0]);
+        $this->assertSame(['Participant', 'Employee ID', 'Program', 'Week', 'Gate', 'Status', 'Evaluated', 'Reviewer'], $rows[0]);
         $this->assertSame([$manual->name, 'EMP-4001', $program->name], array_slice($rows[1], 0, 3));
     }
 

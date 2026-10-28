@@ -95,7 +95,7 @@ class AuthPagesTest extends TestCase
             ->assertDontSee('role="alert"', false)
             ->assertDontSee('id="name"', false)
             ->assertDontSee('Training path')
-            ->assertDontSee('Curricula to join');
+            ->assertDontSee('Programs to join');
 
         $this->assertStringStartsWith('<!doctype html>', ltrim($response->getContent()));
         $this->assertSame(1, substr_count($response->getContent(), '<button'));
@@ -115,7 +115,7 @@ class AuthPagesTest extends TestCase
             ->assertSeeInOrder([
                 'id="password_confirmation"',
                 '<fieldset class="grid min-w-0 grid-cols-1 gap-3" aria-describedby="program_ids-hint">',
-                'Curricula to join',
+                'Programs to join',
                 '(optional)</span></legend>',
                 'id="program_ids-hint"',
                 'name="program_ids[]"',

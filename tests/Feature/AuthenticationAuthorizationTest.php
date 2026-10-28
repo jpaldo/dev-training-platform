@@ -81,12 +81,12 @@ class AuthenticationAuthorizationTest extends TestCase
         $this->get(route('dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                '>My curricula</h2>',
+                '>My programs</h2>',
                 '>November run</a>',
                 '>December run</a>',
-                '>Available curricula</h2>',
+                '>Available programs</h2>',
                 '>January run</p>',
-                '>Past curricula</h2>',
+                '>Past programs</h2>',
             ], false);
     }
 
@@ -101,7 +101,7 @@ class AuthenticationAuthorizationTest extends TestCase
         $this->post(route('register.store'), [
             ...$this->registrationFields(),
             'program_ids' => [(string) $openProgram->id, $programId()],
-        ])->assertSessionHasErrors(['program_ids.1' => 'The selected curriculum is not open to join.']);
+        ])->assertSessionHasErrors(['program_ids.1' => 'The selected program is not open to join.']);
 
         $this->assertGuest();
         $this->assertDatabaseMissing('users', ['email' => 'manual@example.test']);

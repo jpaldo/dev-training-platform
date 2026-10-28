@@ -169,8 +169,8 @@ class AdminCurriculumDuplicateTest extends TestCase
     {
         return [
             'blank name' => [['name' => ''], 'name', 'The name field is required.'],
-            'name taken' => [['name' => 'Taken Name'], 'name', 'Another curriculum already has this name.'],
-            'the source name' => [['name' => 'Spring Cohort'], 'name', 'Another curriculum already has this name.'],
+            'name taken' => [['name' => 'Taken Name'], 'name', 'Another program already has this name.'],
+            'the source name' => [['name' => 'Spring Cohort'], 'name', 'Another program already has this name.'],
             'name too long' => [['name' => str_repeat('a', 256)], 'name', 'The name field must not be greater than 255 characters.'],
             'not a date' => [['starts_on' => 'next monday-ish'], 'starts_on', 'The start date field must be a valid date.'],
             'offered not a boolean' => [['offered' => 'maybe'], 'offered', 'The offered to participants field must be true or false.'],
@@ -216,7 +216,7 @@ class AdminCurriculumDuplicateTest extends TestCase
             ->assertSeeInOrder([
                 'value="Spring Cohort"',
                 'aria-invalid="true" aria-describedby="program-name-error"',
-                '<p id="program-name-error" class="text-sm text-rose-200" role="alert">Another curriculum already has this name.</p>',
+                '<p id="program-name-error" class="text-sm text-rose-200" role="alert">Another program already has this name.</p>',
                 '>Typed description</textarea>',
                 'value="2026-11-09"',
             ], false);

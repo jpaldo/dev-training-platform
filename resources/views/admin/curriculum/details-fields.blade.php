@@ -23,7 +23,7 @@
 
 <div class="grid min-w-0 grid-cols-1 gap-2">
     <label for="program-description" class="text-sm font-extrabold">Description</label>
-    <p id="program-description-hint" class="text-sm/relaxed text-muted">Optional plain text, shown under the curriculum's name.</p>
+    <p id="program-description-hint" class="text-sm/relaxed text-muted">Optional plain text, shown under the program's name.</p>
     <textarea
         id="program-description"
         name="description"
@@ -96,7 +96,7 @@
         >
         Offered to participants
     </label>
-    <p id="program-offered-hint" class="text-sm/relaxed text-muted">Leave it unchecked until the weeks are ready; participants can join an offered curriculum from Available curricula and when they register. Offer or withdraw it later on its Overview tab.</p>
+    <p id="program-offered-hint" class="text-sm/relaxed text-muted">Leave it unchecked until the weeks are ready; participants can join an offered program from Available programs and when they register. Offer or withdraw it later on its Overview tab.</p>
     @if($errors->has('offered'))
         <p id="program-offered-error" class="text-sm text-rose-200" role="alert">{{ $errors->first('offered') }}</p>
     @endif

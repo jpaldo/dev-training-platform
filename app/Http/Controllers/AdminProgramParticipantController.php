@@ -32,7 +32,7 @@ class AdminProgramParticipantController extends Controller
         $enrollments->removeParticipant($program, $participant, $request->user());
 
         return $this->toParticipantsTab($program)
-            ->with('status', "Removed {$participant->name} from the curriculum.");
+            ->with('status', "Removed {$participant->name} from the program.");
     }
 
     private function toParticipantsTab(Program $program): RedirectResponse

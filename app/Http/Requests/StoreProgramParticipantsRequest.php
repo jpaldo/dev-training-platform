@@ -47,8 +47,8 @@ class StoreProgramParticipantsRequest extends FormRequest
     {
         return [
             'user_ids.required' => 'Choose at least one participant to add.',
-            'user_ids.*.exists' => 'Only active participants can be added to a curriculum.',
-            'user_ids.*.unique' => 'The selected participant is already in this curriculum.',
+            'user_ids.*.exists' => 'Only active participants can be added to a program.',
+            'user_ids.*.unique' => 'The selected participant is already in this program.',
         ];
     }
 

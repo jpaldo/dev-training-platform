@@ -12,7 +12,7 @@
         <header class="grid min-w-0 gap-2">
             <x-ui.eyebrow>{{ $areaLabel }} · ATTENDANCE</x-ui.eyebrow>
             <x-ui.page-title>Attendance</x-ui.page-title>
-            <p class="leading-relaxed text-muted">Record who joined each week's session of a curriculum.</p>
+            <p class="leading-relaxed text-muted">Record who joined each week's session of a program.</p>
         </header>
 
         @if($exportUrl !== null)
@@ -39,10 +39,10 @@
                     as="form"
                     method="GET"
                     class="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
-                    aria-label="Choose curriculum"
+                    aria-label="Choose program"
                 >
                     <div class="grid min-w-0 gap-2">
-                        <label for="attendance-program" class="text-sm font-extrabold">Curriculum</label>
+                        <label for="attendance-program" class="text-sm font-extrabold">Program</label>
                         <select id="attendance-program" name="program" class="{{ $controlClasses }}">
                             @foreach($programOptions as $option)
                                 <option value="{{ $option['value'] }}" @selected($option['is_selected'])>{{ $option['label'] }}</option>

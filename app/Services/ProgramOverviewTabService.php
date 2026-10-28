@@ -91,10 +91,10 @@ class ProgramOverviewTabService
             'label' => $program->is_active ? 'Offered' : 'Not offered',
             'tone' => $program->is_active ? 'success' : 'neutral',
             'hint' => $program->is_active
-                ? 'Participants can join it from Available curricula and when they register. Withdrawing it stops new joins and keeps everyone already in it.'
+                ? 'Participants can join it from Available programs and when they register. Withdrawing it stops new joins and keeps everyone already in it.'
                 : 'Participants cannot join it themselves. Offer it once its weeks are ready. Admins can still add participants.',
             'update_url' => route('admin.programs.offered.update', $program),
-            'action_label' => $program->is_active ? 'Withdraw Curriculum' : 'Offer Curriculum',
+            'action_label' => $program->is_active ? 'Withdraw Program' : 'Offer Program',
         ];
     }
 
@@ -246,7 +246,7 @@ class ProgramOverviewTabService
         return [
             'url' => route('admin.programs.resources.store', $program),
             'weekOptions' => [
-                ['value' => '', 'label' => 'Whole curriculum'],
+                ['value' => '', 'label' => 'Whole program'],
                 ...$activeWeeks
                     ->map(fn (TrainingWeek $week): array => ['value' => (string) $week->week_number, 'label' => "Week {$week->week_number}"])
                     ->all(),

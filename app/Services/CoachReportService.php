@@ -309,22 +309,22 @@ class CoachReportService
         return match ($type) {
             'reviews' => [
                 'filename' => 'review-queue.csv',
-                'header' => ['Participant', 'Employee ID', 'Curriculum', 'Week', 'Activity', 'Status', 'Version', 'Submitted', 'Decision', 'Reviewed'],
+                'header' => ['Participant', 'Employee ID', 'Program', 'Week', 'Activity', 'Status', 'Version', 'Submitted', 'Decision', 'Reviewed'],
                 'rows' => $this->reviewRows($viewer, $filters)->map(fn (array $r): array => [$r['submission']->participant->name, $r['submission']->participant->employee_id, $r['submission']->activity->week->program->name, $r['submission']->activity->week->week_number, $r['submission']->activity->title, $r['submission']->status->value, $r['version']?->version_number, $r['submission']->submitted_at, $r['review']?->decision->value, $r['review']?->reviewed_at]),
             ],
             'gates' => [
                 'filename' => 'gate-results.csv',
-                'header' => ['Participant', 'Employee ID', 'Curriculum', 'Week', 'Gate', 'Status', 'Evaluated', 'Reviewer'],
+                'header' => ['Participant', 'Employee ID', 'Program', 'Week', 'Gate', 'Status', 'Evaluated', 'Reviewer'],
                 'rows' => $this->filteredGateResults($viewer, $filters)->get()->map(fn (GateEvaluation $e): array => [$e->participant->name, $e->participant->employee_id, $e->gate->week->program->name, $e->gate->week->week_number, $e->gate->title, $e->status->value, $e->evaluated_at, $e->reviewer_id]),
             ],
             'risk' => [
                 'filename' => 'at-risk.csv',
-                'header' => ['Participant', 'Curriculum', 'Reason'],
+                'header' => ['Participant', 'Program', 'Reason'],
                 'rows' => $this->atRiskRows($viewer, $input)->map(fn (array $r): array => [$r['membership']->participant->name, $r['membership']->program->name, implode('; ', $r['reasons'])]),
             ],
             default => [
                 'filename' => 'participant-progress.csv',
-                'header' => ['Name', 'Employee ID', 'Curriculum', 'Email', 'Submissions', 'Gate evaluations', 'Attendance'],
+                'header' => ['Name', 'Employee ID', 'Program', 'Email', 'Submissions', 'Gate evaluations', 'Attendance'],
                 'rows' => $this->progressMemberships($viewer, $input)->get()
                     ->map(fn (ProgramParticipant $m): array => [$m->participant->name, $m->participant->employee_id, $m->program->name, $m->participant->email, (int) $m->submission_count, (int) $m->gate_evaluation_count, $this->sessionAttendanceLabel($m)]),
             ],

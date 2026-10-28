@@ -9,11 +9,11 @@
             <x-ui.alert tone="success">Training complete — every week completed.</x-ui.alert>
         @endif
         @unless($acceptsWork)
-            <x-ui.alert role="status" data-program-ended>This curriculum has ended. You can still view every week, your submissions and your scores. If your mentor sends an activity back for revision, you can revise and resubmit it.</x-ui.alert>
+            <x-ui.alert role="status" data-program-ended>This program has ended. You can still view every week, your submissions and your scores. If your mentor sends an activity back for revision, you can revise and resubmit it.</x-ui.alert>
         @endunless
 
         <header class="grid min-w-0 gap-2">
-            <x-ui.eyebrow>CURRICULUM</x-ui.eyebrow>
+            <x-ui.eyebrow>PROGRAM</x-ui.eyebrow>
             <x-ui.page-title>{{ $title }}</x-ui.page-title>
             <div class="flex flex-wrap items-center gap-x-3 gap-y-2 leading-relaxed text-muted">
                 <span class="whitespace-nowrap">{{ $dateRange }}</span>
@@ -32,14 +32,14 @@
                     </div>
                 </details>
             @else
-                <h2 id="program-repository-title" class="text-base font-extrabold">Add your GitHub repository for this curriculum</h2>
+                <h2 id="program-repository-title" class="text-base font-extrabold">Add your GitHub repository for this program</h2>
                 <p class="text-sm/relaxed text-muted">Your mentor checks your session logs and deliverables there. You can change it later.</p>
                 @include('training-programs.repository-form')
             @endif
         </x-ui.card>
 
         <div class="min-w-0" data-page-tabs>
-            <x-ui.tab-list :tabs="$tabs" :selected="$selectedTab" id-prefix="program" label="Curriculum sections" />
+            <x-ui.tab-list :tabs="$tabs" :selected="$selectedTab" id-prefix="program" label="Program sections" />
 
             @foreach($weeks as $item)
                 <x-ui.tab-panel :name="$item['tab_key']" :selected="$selectedTab" id-prefix="program">
@@ -184,7 +184,7 @@
                             </ul>
                         </section>
                     @empty
-                        <p class="text-muted">No resources in this curriculum yet.</p>
+                        <p class="text-muted">No resources in this program yet.</p>
                     @endforelse
                 </x-ui.card>
             </x-ui.tab-panel>

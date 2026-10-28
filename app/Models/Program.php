@@ -25,7 +25,7 @@ class Program extends Model
     /**
      * Why a participant's write is refused once the curriculum has ended (see acceptsWork()).
      */
-    public const ENDED_MESSAGE = 'This curriculum has ended.';
+    public const ENDED_MESSAGE = 'This program has ended.';
 
     protected $fillable = ['name', 'description', 'is_active'];
 

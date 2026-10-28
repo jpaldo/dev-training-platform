@@ -53,7 +53,7 @@ class ParticipantProgramPageTest extends TestCase
         $this->actingAs($participant)->get(route('training.programs.show', $program))
             ->assertOk()
             ->assertSeeInOrder([
-                'CURRICULUM',
+                'PROGRAM',
                 'L4 Accelerator Training',
                 '9 Nov – 6 Dec 2026',
                 '>Active</span>',
@@ -77,7 +77,7 @@ class ParticipantProgramPageTest extends TestCase
 
         $html = $this->actingAs($participant)->get(route('training.programs.show', $program))
             ->assertOk()
-            ->assertSee('role="tablist" aria-label="Curriculum sections"', false)
+            ->assertSee('role="tablist" aria-label="Program sections"', false)
             ->assertSeeInOrder(['id="program-tab-week-1"', 'id="program-tab-week-2"', 'id="program-tab-overview"'], false)
             ->assertSeeInOrder(['Week title 1', 'Week title 2', 'How this training works'])
             ->assertDontSee('id="program-tab-week-3"', false)
@@ -126,7 +126,7 @@ class ParticipantProgramPageTest extends TestCase
             ->assertOk()
             ->assertSee('How this training works')
             ->assertSee('Resources (0)')
-            ->assertSee('No resources in this curriculum yet.')
+            ->assertSee('No resources in this program yet.')
             ->assertDontSee('id="program-tab-week-', false)
             ->getContent();
 
@@ -144,9 +144,9 @@ class ParticipantProgramPageTest extends TestCase
         $html = $this->actingAs($participant)->get(route('training.programs.show', $program))
             ->assertOk()
             ->assertSeeInOrder(['id="program-tab-week-1"', 'id="program-tab-overview"', 'id="program-tab-resources"', 'Resources (2)'], false)
-            ->assertSeeInOrder(['id="program-resources-title"', 'Whole curriculum', 'Training handbook', 'Week 2', 'Kick-off recording'], false)
+            ->assertSeeInOrder(['id="program-resources-title"', 'Whole program', 'Training handbook', 'Week 2', 'Kick-off recording'], false)
             ->assertDontSee('Other curriculum resource')
-            ->assertDontSee('No resources in this curriculum yet.')
+            ->assertDontSee('No resources in this program yet.')
             ->getContent();
 
         $this->assertMatchesRegularExpression('/id="program-tab-week-1"[^>]*aria-selected="true"/', $html);
@@ -161,7 +161,7 @@ class ParticipantProgramPageTest extends TestCase
 
         $response = $this->actingAs($participant)->get(route('training.programs.show', $program))
             ->assertOk()
-            ->assertSeeInOrder(['Whole curriculum', 'Training handbook', '>Google Drive<', 'drive.google.com', '>Open in Drive<', 'Show preview'], false)
+            ->assertSeeInOrder(['Whole program', 'Training handbook', '>Google Drive<', 'drive.google.com', '>Open in Drive<', 'Show preview'], false)
             ->assertSee('href="'.e(self::DRIVE_URL).'" target="_blank" rel="noopener noreferrer"', false)
             ->assertSee('data-preview-src="https://drive.google.com/file/d/1aB_c-D2/preview"', false)
             ->assertSee('title="Preview of Training handbook"', false)
@@ -275,7 +275,7 @@ class ParticipantProgramPageTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 'id="program-panel-resources"',
-                'Whole curriculum',
+                'Whole program',
                 'Kick-off recording',
                 '>Open<',
                 'Week 1',

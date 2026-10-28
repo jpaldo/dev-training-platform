@@ -47,8 +47,8 @@ class StoreProgramResourceRequest extends FormRequest
         return [
             'url.url' => 'The link must be a full web address starting with http:// or https://.',
             'week_number.between' => $highestWeekNumber === 0
-                ? 'This curriculum has no active weeks yet.'
-                : "This curriculum's last week is Week {$highestWeekNumber}.",
+                ? 'This program has no active weeks yet.'
+                : "This program's last week is Week {$highestWeekNumber}.",
         ];
     }
 

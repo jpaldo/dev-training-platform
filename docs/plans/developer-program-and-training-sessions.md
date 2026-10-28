@@ -31,7 +31,7 @@ Turn the platform from a single QA course into a developer training platform. Re
 - New migrations must run on MySQL (production) and SQLite (tests). See `database/migrations/2026_09_16_160000_fix_google_drive_evidence_export_sqlite_foreign_key.php` (in git history once 13.1 deletes it) for the SQLite foreign-key trap this codebase has already hit.
 - 13.1 replaces all existing migrations with one hand-written file per table. It squashes whatever migrations exist when it runs. Migrations written after it are ordinary new files; never edit or delete the squashed files.
 - New admin actions on sessions, participants, mentors and resources write an `AdminAuditLog` row through `AdminAuditService` (created in 8.2).
-- New user-facing copy says "training", ~~"training session"~~, "participant" and "mentor"; never "QA", "tester" or "coach". **Superseded by curriculum-sessions-merge:** "curriculum" / "curricula" replaces the session term, except "Week N session" where a week is named as a session.
+- New user-facing copy says "training", ~~"training session"~~, "participant" and "mentor"; never "QA", "tester" or "coach". **Superseded by curriculum-sessions-merge:** "curriculum" / "curricula" replaces the session term, except "Week N session" where a week is named as a session. **Changed 2026-10-28:** the UI word is "program" / "programs" again, at the user's request.
 
 ## Requirements
 

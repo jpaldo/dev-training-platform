@@ -36,6 +36,6 @@
             </table>
         </div>
     @else
-        <p class="text-muted">This curriculum has no weeks yet.</p>
+        <p class="text-muted">This program has no weeks yet.</p>
     @endif
 </x-ui.card>

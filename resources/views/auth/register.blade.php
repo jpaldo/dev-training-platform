@@ -80,8 +80,8 @@
 
                 @if($programChoices !== [])
                     <fieldset class="grid min-w-0 grid-cols-1 gap-3" aria-describedby="program_ids-hint">
-                        <legend class="mb-2 {{ $labelClasses }}">Curricula to join <span class="font-normal text-muted">(optional)</span></legend>
-                        <p id="program_ids-hint" class="text-sm/relaxed text-muted">Tick any curriculum you want to join now. You can also join curricula later from your dashboard.</p>
+                        <legend class="mb-2 {{ $labelClasses }}">Programs to join <span class="font-normal text-muted">(optional)</span></legend>
+                        <p id="program_ids-hint" class="text-sm/relaxed text-muted">Tick any program you want to join now. You can also join programs later from your dashboard.</p>
                         <ul class="grid grid-cols-1 gap-3">
                             @foreach($programChoices as $choice)
                                 <li>

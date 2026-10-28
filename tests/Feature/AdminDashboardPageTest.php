@@ -112,8 +112,8 @@ class AdminDashboardPageTest extends TestCase
             ->get(route('admin.dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                'Curricula',
-                'href="'.route('admin.programs.index').'"', 'View all curricula',
+                'Programs',
+                'href="'.route('admin.programs.index').'"', 'View all programs',
                 'href="'.route('admin.programs.show', $programs['January Run']).'"', 'January Run', 'Upcoming',
                 'href="'.route('admin.programs.show', $programs['December Run']).'"', 'December Run', 'Upcoming',
                 'href="'.route('admin.programs.show', $programs['November Run']).'"', 'November Run', 'Active', '9 Nov – 6 Dec 2026', 'Participants: <strong class="text-white tabular-nums">2</strong>',
@@ -123,7 +123,7 @@ class AdminDashboardPageTest extends TestCase
             ], false)
             ->assertDontSee('August Run')
             ->assertDontSee('Draft Run')
-            ->assertDontSee('No curricula yet.');
+            ->assertDontSee('No programs yet.');
 
         $this->assertSame(5, substr_count($response->getContent(), 'data-recent-program-row'));
     }
@@ -134,9 +134,9 @@ class AdminDashboardPageTest extends TestCase
             ->get(route('admin.dashboard'))
             ->assertOk()
             ->assertSeeInOrder([
-                'Curricula',
-                'href="'.route('admin.programs.index').'"', 'View all curricula',
-                'No curricula yet.',
+                'Programs',
+                'href="'.route('admin.programs.index').'"', 'View all programs',
+                'No programs yet.',
                 'Review / Gate overview',
             ], false)
             ->assertDontSee('data-recent-program-row', false)

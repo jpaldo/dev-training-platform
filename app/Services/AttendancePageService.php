@@ -49,8 +49,8 @@ class AttendancePageService
             'summary' => $program === null ? null : $this->summary($program, $memberships, $attended),
             'formUrl' => route($isAdminArea ? 'admin.attendance.update' : 'coach.attendance.update'),
             'emptyMessage' => match (true) {
-                $program === null => 'No curricula to show.',
-                $program->activeWeeks->isEmpty() => 'This curriculum has no weeks.',
+                $program === null => 'No programs to show.',
+                $program->activeWeeks->isEmpty() => 'This program has no weeks.',
                 $memberships->isEmpty() => 'No participants to show.',
                 default => null,
             },

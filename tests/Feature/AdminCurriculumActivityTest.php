@@ -42,7 +42,7 @@ class AdminCurriculumActivityTest extends TestCase
             ->get(route('admin.programs.activities.edit', [$program, $week, $activity]))
             ->assertOk()
             ->assertSee('<title>Unit testing basics</title>', false)
-            ->assertSeeInOrder(['ADMIN · CURRICULUM', 'Unit testing basics', 'Week 2: Testing', 'L4 Accelerator Training', 'Active'])
+            ->assertSeeInOrder(['ADMIN · PROGRAMS', 'Unit testing basics', 'Week 2: Testing', 'L4 Accelerator Training', 'Active'])
             ->assertSee('<a href="'.route('admin.programs.weeks.show', [$program, $week]).'#activities"', false)
             ->assertSee('data-schedule-notice="active"', false)
             ->assertSeeInOrder(['Details', 'Submission fields', 'Scoring'])

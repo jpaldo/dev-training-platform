@@ -56,7 +56,7 @@ class DuplicateProgramRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.unique' => 'Another curriculum already has this name.',
+            'name.unique' => 'Another program already has this name.',
         ];
     }
 

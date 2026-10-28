@@ -66,7 +66,7 @@ class AdminProgramParticipantTest extends TestCase
             ->from(route('admin.programs.index'))
             ->post(route('admin.programs.participants.store', $program), ['user_ids' => [$newcomer->id, $member->id]])
             ->assertRedirect(route('admin.programs.show', $program).'#participants')
-            ->assertSessionHasErrorsIn('participants', ['user_ids.1' => 'The selected participant is already in this curriculum.']);
+            ->assertSessionHasErrorsIn('participants', ['user_ids.1' => 'The selected participant is already in this program.']);
 
         $this->assertSame([$member->id], $program->participants()->pluck('users.id')->all());
         $this->assertDatabaseCount('admin_audit_logs', 0);
@@ -85,7 +85,7 @@ class AdminProgramParticipantTest extends TestCase
         foreach ($users as $user) {
             $this->actingAs($admin)
                 ->post(route('admin.programs.participants.store', $program), ['user_ids' => [$user->id]])
-                ->assertSessionHasErrorsIn('participants', ['user_ids.0' => 'Only active participants can be added to a curriculum.']);
+                ->assertSessionHasErrorsIn('participants', ['user_ids.0' => 'Only active participants can be added to a program.']);
         }
 
         $this->assertDatabaseCount('program_participants', 0);
@@ -162,7 +162,7 @@ class AdminProgramParticipantTest extends TestCase
         $this->actingAs($admin)
             ->delete(route('admin.programs.participants.destroy', [$program, $leaving]))
             ->assertRedirect(route('admin.programs.show', $program).'#participants')
-            ->assertSessionHas('status', 'Removed Lee Leaving from the curriculum.');
+            ->assertSessionHas('status', 'Removed Lee Leaving from the program.');
 
         $this->assertSame([$staying->id], $program->participants()->pluck('users.id')->all());
         $this->assertSame([$leaving->id], $otherProgram->participants()->pluck('users.id')->all());

@@ -34,7 +34,7 @@ class CoachParticipantPageTest extends TestCase
                 'PARTICIPANT DETAIL',
                 e($participant->name),
                 'id="participant-program-title"',
-                'Curriculum',
+                'Program',
                 'L4 November',
                 '9 Nov – 6 Dec 2026',
                 'Mentor: Coach Carter',

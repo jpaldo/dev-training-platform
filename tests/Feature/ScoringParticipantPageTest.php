@@ -44,7 +44,7 @@ class ScoringParticipantPageTest extends TestCase
             'SCORING · PARTICIPANT',
             '>Ada Automation</h1>',
             'ada@example.com</p>',
-            '<strong>Curriculum:</strong> November curriculum ('.$program->dateRangeLabel().')</p>',
+            '<strong>Program:</strong> November curriculum ('.$program->dateRangeLabel().')</p>',
             'OVERALL SCORE</dt>', '>83 / 100</dd>',
             'OVERALL COMPLETION</dt>', '>2 / 5</dd>', '>40% complete · 1 scored</dd>',
             '>WEEK 2</div>', '>83 / 100 average</h2>', 'Completion: 2 / 4 (50%) · Scored: 1 / 4',
@@ -61,7 +61,7 @@ class ScoringParticipantPageTest extends TestCase
         ], false);
         $response->assertDontSee(route('coach.scoring.edit', $draftVersion), false)
             ->assertDontSee('from-brand to-brand-deep', false)
-            ->assertDontSee('This curriculum has no weeks to score yet.');
+            ->assertDontSee('This program has no weeks to score yet.');
         $this->assertSame(1, substr_count($response->getContent(), 'No active activities in this week.'));
     }
 
@@ -170,7 +170,7 @@ class ScoringParticipantPageTest extends TestCase
             ->post(route('coach.scoring.store', $version), ['dimensions' => $dimensions])
             ->assertOk()
             ->assertSeeInOrder(['SCORING · PARTICIPANT', 'role="status"', 'Activity score saved.', 'OVERALL SCORE</dt>'], false)
-            ->assertSee('<strong>Curriculum:</strong> '.$program->name.' ('.$program->dateRangeLabel().')</p>', false);
+            ->assertSee('<strong>Program:</strong> '.$program->name.' ('.$program->dateRangeLabel().')</p>', false);
     }
 
     public function test_a_user_who_is_not_a_participant_is_not_found(): void
@@ -193,7 +193,7 @@ class ScoringParticipantPageTest extends TestCase
         $this->actingAs($this->mentor($week->program, $participant))
             ->get(route('coach.scoring.participant', [$week->program, $participant]))
             ->assertOk()
-            ->assertSeeInOrder(['This curriculum has no weeks to score yet.', 'OVERALL COMPLETION', '0 / 0'])
+            ->assertSeeInOrder(['This program has no weeks to score yet.', 'OVERALL COMPLETION', '0 / 0'])
             ->assertDontSee('WEEK 1');
     }
 

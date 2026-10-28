@@ -27,7 +27,7 @@ class CompletedProgramTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    private const ENDED = 'This curriculum has ended.';
+    private const ENDED = 'This program has ended.';
 
     public function test_after_the_end_the_participant_views_every_week_with_their_work_and_scores_but_no_write_buttons(): void
     {
@@ -42,7 +42,7 @@ class CompletedProgramTest extends TestCase
 
         $this->actingAs($participant)->get(route('training.programs.show', $program))
             ->assertOk()
-            ->assertSee('This curriculum has ended. You can still view every week')
+            ->assertSee('This program has ended. You can still view every week')
             ->assertDontSee('Complete your Week 1 deliverables to unlock')
             ->assertSee(route('training.activities.show', [$program, $week2, $week2Activity]), false)
             ->assertSee('Week 2 walkthrough.mp4')
@@ -54,7 +54,7 @@ class CompletedProgramTest extends TestCase
             ->assertDontSee('Change Video');
         $this->actingAs($participant)->get(route('training.activities.show', [$program, $week2, $week2Activity]))
             ->assertOk()
-            ->assertSee('This curriculum has ended. Your work stays available to view.')
+            ->assertSee('This program has ended. Your work stays available to view.')
             ->assertDontSee('Start submission');
         $this->actingAs($participant)->get(route('training.activities.show', [$program, $week1, $reviewedActivity]))
             ->assertOk()
@@ -122,7 +122,7 @@ class CompletedProgramTest extends TestCase
         $this->actingAs($participant)->get(route('training.activities.show', [$program, $week1, $reviewedActivity]))
             ->assertOk()
             ->assertSee('Revise submission')
-            ->assertDontSee('This curriculum has ended. Your work stays available to view.');
+            ->assertDontSee('This program has ended. Your work stays available to view.');
         $this->actingAs($participant)->post(route('training.submission.revise', [$program, $week1, $reviewedActivity]))
             ->assertRedirect(route('training.submission.edit', [$program, $week1, $reviewedActivity]));
         $this->actingAs($participant)->get(route('training.submission.edit', [$program, $week1, $reviewedActivity]))->assertOk();

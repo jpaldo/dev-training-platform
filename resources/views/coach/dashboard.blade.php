@@ -53,7 +53,7 @@
 
         @if($myPrograms !== null)
             <x-ui.card as="section" class="grid grid-cols-1 gap-4" aria-labelledby="my-programs-title">
-                <h2 id="my-programs-title" class="text-xl font-extrabold">My curricula</h2>
+                <h2 id="my-programs-title" class="text-xl font-extrabold">My programs</h2>
                 @if($myPrograms !== [])
                     <ul class="grid grid-cols-1 gap-3">
                         @foreach($myPrograms as $program)
@@ -74,7 +74,7 @@
                         @endforeach
                     </ul>
                 @else
-                    <p class="text-muted">You are not a mentor of any curriculum yet.</p>
+                    <p class="text-muted">You are not a mentor of any program yet.</p>
                 @endif
             </x-ui.card>
         @endif

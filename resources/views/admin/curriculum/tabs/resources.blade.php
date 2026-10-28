@@ -98,7 +98,7 @@
                                 </form>
                             </details>
 
-                            <form method="POST" action="{{ $resource['remove_url'] }}" data-confirm="Remove {{ $resource['title'] }} from this curriculum?">
+                            <form method="POST" action="{{ $resource['remove_url'] }}" data-confirm="Remove {{ $resource['title'] }} from this program?">
                                 @csrf
                                 @method('DELETE')
                                 <x-ui.button variant="secondary" type="submit" aria-label="Remove {{ $resource['title'] }}">Remove</x-ui.button>
@@ -109,6 +109,6 @@
             </ul>
         </section>
     @empty
-        <p class="text-muted">No resources in this curriculum yet.</p>
+        <p class="text-muted">No resources in this program yet.</p>
     @endforelse
 </x-ui.card>

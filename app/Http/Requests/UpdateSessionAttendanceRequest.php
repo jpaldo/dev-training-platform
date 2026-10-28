@@ -44,7 +44,7 @@ class UpdateSessionAttendanceRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'program' => 'curriculum',
+            'program' => 'program',
             'attendance.*' => 'attendance',
             'attendance.*.*' => 'attendance',
         ];
@@ -56,8 +56,8 @@ class UpdateSessionAttendanceRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'program.integer' => 'Choose a curriculum from the list.',
-            'program.exists' => 'Choose a curriculum from the list.',
+            'program.integer' => 'Choose a program from the list.',
+            'program.exists' => 'Choose a program from the list.',
         ];
     }
 
@@ -79,11 +79,11 @@ class UpdateSessionAttendanceRequest extends FormRequest
             $postedWeekIds = collect($cells)->flatMap(fn (array $weeks): array => array_keys($weeks))->unique()->all();
 
             if (array_diff(array_keys($cells), $sessionAttendance->visibleParticipantIds($this->user(), $this->program())) !== []) {
-                $validator->errors()->add('attendance', 'You can only record attendance for participants shown in this curriculum.');
+                $validator->errors()->add('attendance', 'You can only record attendance for participants shown in this program.');
             }
 
             if (array_diff($postedWeekIds, $sessionAttendance->activeWeekIds($this->program())) !== []) {
-                $validator->errors()->add('attendance', 'You can only record attendance for active weeks of this curriculum.');
+                $validator->errors()->add('attendance', 'You can only record attendance for active weeks of this program.');
             }
         }];
     }

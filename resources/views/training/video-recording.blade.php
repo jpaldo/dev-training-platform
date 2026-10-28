@@ -49,7 +49,7 @@
                 @endif
 
                 @if(! $acceptsWork)
-                    <p class="{{ $textClasses }}" data-program-ended>This curriculum has ended.</p>
+                    <p class="{{ $textClasses }}" data-program-ended>This program has ended.</p>
                 @elseif($isLocked)
                     <p class="{{ $textClasses }}">This recording is locked because the Gate has been completed.</p>
                 @elseif($driveState === 'unavailable')

@@ -43,7 +43,7 @@ class L4TrainingProgramSeeder extends Seeder
             if ($this->scheduleUnscheduledProgram($existingProgram)) {
                 $this->command?->info(self::PROGRAM_NAME.' had no week dates; its weeks now run from '.self::FIRST_WEEK_STARTS_ON.'.');
             } else {
-                $this->command?->info(self::PROGRAM_NAME.' already exists; edit it on the admin Curriculum pages.');
+                $this->command?->info(self::PROGRAM_NAME.' already exists; edit it on the admin Programs pages.');
             }
 
             return;

@@ -113,7 +113,7 @@ class AppLayoutTest extends TestCase
         $this->assertSame(['Overview', 'People', 'Review', 'Admin'], $this->groupLabels($sidebar));
         $this->assertSame([
             ['Admin Dashboard', route('admin.dashboard'), false, 0],
-            ['Curriculum', route('admin.programs.index'), false, 0],
+            ['Programs', route('admin.programs.index'), false, 0],
             ['Users / Participants', route('admin.users.index'), false, 0],
             ['Settings', route('admin.settings.index'), false, 0],
             ['Google Drive', route('admin.settings.google-drive'), true, 0],
@@ -131,7 +131,7 @@ class AppLayoutTest extends TestCase
 
         $sidebar = $this->sidebar($this->actingAs($admin)->get(route('admin.programs.show', $program))->assertOk());
 
-        $this->assertSame([['Curriculum', route('admin.programs.index'), true, 0]], array_values(array_filter(
+        $this->assertSame([['Programs', route('admin.programs.index'), true, 0]], array_values(array_filter(
             $this->sidebarLinks($sidebar),
             fn (array $link): bool => $link[2],
         )));

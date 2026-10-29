@@ -2,8 +2,11 @@
 
 namespace Database\Factories;
 
+use App\Enums\ChecklistItemVerdict;
+use App\Enums\ExpectedFileSource;
 use App\Enums\ExpectedFileStatus;
-use App\Enums\ExpectedFileVerdict;
+use App\Enums\GitHubCheckOutcome;
+use App\Enums\GitHubCheckType;
 use App\Enums\RepositoryCheckStatus;
 use App\Enums\UserRole;
 use App\Models\RepositoryCheck;
@@ -18,7 +21,7 @@ class RepositoryCheckFactory extends Factory
 {
     /**
      * Define the model's default state: a check of a participant's default branch for an active week, queued now by a
-     * mentor, expecting one required file.
+     * mentor, of one deliverable item (criterion 12) with one required file and the mentor collaborator check.
      *
      * @return array<string, mixed>
      */
@@ -33,12 +36,23 @@ class RepositoryCheckFactory extends Factory
             'ref_input' => null,
             'expected_files' => [
                 [
-                    'key' => 'activity-1-readme',
-                    'path' => 'activity-outputs/week-1/README.md',
-                    'description' => 'Notes on the week 1 activity',
-                    'required' => true,
-                    'source' => ['type' => 'activity', 'id' => 1, 'title' => 'Set up the repository'],
-                    'within_week' => false,
+                    'criterion_id' => 12,
+                    'type' => ExpectedFileSource::Deliverable->value,
+                    'title' => 'Repo setup',
+                    'description' => 'The mentor is a collaborator, and session logs are in activity-outputs.',
+                    'expected_files' => [
+                        [
+                            'key' => 'deliverable-12-0',
+                            'path' => 'activity-outputs/session-logs/*',
+                            'description' => 'The session logs',
+                            'required' => true,
+                            'min_matches' => 1,
+                            'within_week' => false,
+                        ],
+                    ],
+                    'github_checks' => [
+                        ['type' => GitHubCheckType::MentorIsCollaborator->value, 'path' => null],
+                    ],
                 ],
             ],
             'github_requests' => 0,
@@ -71,7 +85,8 @@ class RepositoryCheckFactory extends Factory
     }
 
     /**
-     * A check that finished with the default branch resolved, the expected file present and an OpenRouter assessment.
+     * A check that finished with the default branch resolved, the item's expected file present, its GitHub check passed
+     * and an OpenRouter assessment of the item.
      */
     public function completed(): static
     {
@@ -85,37 +100,51 @@ class RepositoryCheckFactory extends Factory
                 'pull_request' => null,
             ],
             'findings' => [
+                'default_branch' => 'main',
                 'tree_truncated' => false,
                 'commits_in_window' => 3,
-                'default_branch' => 'main',
-                'files' => [
+                'items' => [
                     [
-                        'key' => 'activity-1-readme',
-                        'status' => ExpectedFileStatus::Present->value,
-                        'matched' => [
+                        'criterion_id' => 12,
+                        'files' => [
                             [
-                                'path' => 'activity-outputs/week-1/README.md',
-                                'sha' => str_repeat('b2', 20),
-                                'size' => 1200,
-                                'last_commit' => null,
-                                'in_pull_request' => null,
-                                'within_week' => null,
+                                'key' => 'deliverable-12-0',
+                                'status' => ExpectedFileStatus::Present->value,
+                                'match_count' => 1,
+                                'matched' => [
+                                    [
+                                        'path' => 'activity-outputs/session-logs/2026-10-26.md',
+                                        'sha' => str_repeat('b2', 20),
+                                        'size' => 1200,
+                                        'last_commit' => null,
+                                        'in_pull_request' => null,
+                                        'within_week' => null,
+                                    ],
+                                ],
+                                'note' => null,
                             ],
                         ],
-                        'note' => null,
+                        'github_checks' => [
+                            [
+                                'type' => GitHubCheckType::MentorIsCollaborator->value,
+                                'path' => null,
+                                'outcome' => GitHubCheckOutcome::Passed->value,
+                                'facts' => ['collaborators' => ['ana-mentor', 'training-admin']],
+                                'note' => null,
+                            ],
+                        ],
                     ],
                 ],
             ],
             'assessment' => [
-                'files' => [
-                    'activity-1-readme' => [
-                        'verdict' => ExpectedFileVerdict::PresentAndMatches->value,
-                        'reason' => 'The notes cover the activity.',
-                        'evidence_paths' => ['activity-outputs/week-1/README.md'],
+                'items' => [
+                    12 => [
+                        'verdict' => ChecklistItemVerdict::Meets->value,
+                        'reason' => 'The session logs are committed and the mentor is a collaborator.',
+                        'evidence_paths' => ['activity-outputs/session-logs/2026-10-26.md'],
+                        'questions_for_mentor' => [],
                     ],
                 ],
-                'summary' => 'The expected file is committed and covers the activity.',
-                'questions_for_mentor' => [],
             ],
             'provider' => 'openrouter',
             'model' => 'openai/gpt-4o-mini',
@@ -132,7 +161,7 @@ class RepositoryCheckFactory extends Factory
     {
         return $this->state(fn (): array => [
             'status' => RepositoryCheckStatus::Failed,
-            'error_message' => 'The repository was not found or the checker account has no access to it.',
+            'error_message' => 'Repository not found, or the checking admin account is not a collaborator on it yet.',
             'github_requests' => 1,
             'started_at' => now()->subSeconds(2),
             'finished_at' => now(),

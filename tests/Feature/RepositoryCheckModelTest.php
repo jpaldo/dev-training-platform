@@ -25,9 +25,10 @@ class RepositoryCheckModelTest extends TestCase
         $this->assertSame(RepositoryCheckStatus::Completed, $check->status);
         $this->assertSame('main', $check->ref_input);
         $this->assertSame('default_branch', $check->resolved_ref['type']);
-        $this->assertSame('activity-outputs/week-1/README.md', $check->expected_files[0]['path']);
-        $this->assertSame('present', $check->findings['files'][0]['status']);
-        $this->assertSame('present_and_matches', $check->assessment['files']['activity-1-readme']['verdict']);
+        $this->assertSame('deliverable-12-0', $check->expected_files[0]['expected_files'][0]['key']);
+        $this->assertSame('present', $check->findings['items'][0]['files'][0]['status']);
+        $this->assertSame('passed', $check->findings['items'][0]['github_checks'][0]['outcome']);
+        $this->assertSame('meets', $check->assessment['items'][12]['verdict']);
         $this->assertSame(4, $check->github_requests);
         $this->assertInstanceOf(Carbon::class, $check->queued_at);
         $this->assertInstanceOf(Carbon::class, $check->started_at);

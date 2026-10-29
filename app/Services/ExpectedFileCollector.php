@@ -2,43 +2,42 @@
 
 namespace App\Services;
 
-use App\Models\Activity;
 use App\Models\GateCriterion;
 use App\Models\TrainingWeek;
-use App\Support\ExpectedFile;
+use App\Support\ChecklistItemCheck;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * Builds the list of files a repository check of a week expects in the participant's repository.
+ * Builds the list of checklist items a repository check of a week checks in the participant's repository.
  */
 class ExpectedFileCollector
 {
     /**
-     * The week's expected files: those of its active activities in position order, then those of the session-logs
-     * item on its checklist (`TrainingWeek::checklist()`; a retired item is left out). A week without a checklist has
-     * only its activities' files. Runs three queries at most, whatever the number of activities.
+     * The week's checked items: the deliverable and session-logs items on its checklist (`TrainingWeek::checklist()`;
+     * retired items are left out) in position order that have expected files or GitHub checks. Weekly-video items are
+     * never checked, and a week without a checklist has nothing to check. Runs two queries at most, whatever the
+     * number of items.
      *
-     * @return list<ExpectedFile>
+     * @return list<ChecklistItemCheck>
      */
     public function forWeek(TrainingWeek $week): array
     {
-        $activities = $week->activities()
-            ->where('is_active', true)
-            ->orderBy('position')
-            ->orderBy('id')
-            ->get(['id', 'title', 'configuration']);
-
         $checklist = $week->checklist()
             ->with(['criteria' => fn (HasMany $items): HasMany => $items
-                ->where('criterion_type', GateCriterion::TYPE_SESSION_LOGS)
+                ->whereIn('criterion_type', [GateCriterion::TYPE_DELIVERABLE, GateCriterion::TYPE_SESSION_LOGS])
                 ->onChecklist()
                 ->orderBy('position')
                 ->orderBy('id')])
             ->first();
 
-        return [
-            ...$activities->flatMap(fn (Activity $activity): array => $activity->expectedFiles())->all(),
-            ...($checklist?->criteria ?? collect())->flatMap(fn (GateCriterion $item): array => $item->expectedFiles())->all(),
-        ];
+        if ($checklist === null) {
+            return [];
+        }
+
+        return $checklist->criteria
+            ->map(fn (GateCriterion $item): ?ChecklistItemCheck => $item->repositoryCheck())
+            ->filter()
+            ->values()
+            ->all();
     }
 }

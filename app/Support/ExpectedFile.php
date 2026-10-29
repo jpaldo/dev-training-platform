@@ -3,45 +3,50 @@
 namespace App\Support;
 
 use App\Enums\ExpectedFileSource;
+use App\Rules\RepositoryPath;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Support\Facades\Log;
 
 /**
- * A file a repository check expects in the participant's repository, read from the `configuration.expected_files` of
- * an activity or of the week's session-logs checklist item. `path` is an exact repository path or a glob. `toArray()`
- * gives the entry snapshotted in `repository_checks.expected_files`.
+ * A file a repository check expects in the participant's repository, read from the `configuration.expected_files` of a
+ * deliverable or session-logs checklist item. `path` is an exact repository path or a glob; the file is present when
+ * at least `minMatches` paths of the repository match it. `toArray()` gives the entry snapshotted under the item in
+ * `repository_checks.expected_files`.
  *
- * The `key` is "{source type}-{source id}-{index}", e.g. `activity-12-0` or `session_logs-34-1`, where `index` is the
- * entry's zero-based place in its source's stored list, counting invalid entries, so fixing or dropping one entry does
- * not renumber the others. It is unique within a week because each source is one activity or one checklist item.
+ * The `key` is "{source type}-{criterion id}-{index}", e.g. `deliverable-12-0` or `session_logs-34-1`, where `index`
+ * is the entry's zero-based place in the item's stored list, counting invalid entries, so fixing or dropping one entry
+ * does not renumber the others. It is unique within a week because each item belongs to one checklist.
  *
  * @implements Arrayable<string, mixed>
  */
 class ExpectedFile implements Arrayable
 {
-    /** The longest `path` an entry may have. */
-    public const MAX_PATH_LENGTH = 255;
+    /** The fewest matching paths an entry may ask for. */
+    public const MIN_MATCHES = 1;
+
+    /** The most matching paths an entry may ask for. */
+    public const MAX_MATCHES = 50;
 
     public function __construct(
         public readonly string $key,
         public readonly string $path,
         public readonly string $description,
         public readonly bool $required,
+        public readonly int $minMatches,
         public readonly ExpectedFileSource $sourceType,
         public readonly int $sourceId,
-        public readonly string $sourceTitle,
     ) {}
 
     /**
-     * The valid entries of a source's `configuration.expected_files`, in stored order. Each entry needs a `path` (a
-     * non-empty string of at most 255 characters, without a leading slash or a `..` segment) and a `description`
-     * string; `required` is a boolean that defaults to true. An invalid entry, or a value that is not a list, is
-     * skipped with a warning in the log. A configuration without the key has no expected files.
+     * The valid entries of an item's `configuration.expected_files`, in stored order. Each entry needs a `path` (see
+     * `RepositoryPath`) and a `description` string; `required` is a boolean that defaults to true, and `min_matches`
+     * an integer from 1 to 50 that defaults to 1. An invalid entry, or a value that is not a list, is skipped with a
+     * warning in the log. A configuration without the key has no expected files.
      *
      * @param  array<string, mixed>|null  $configuration
      * @return list<self>
      */
-    public static function listFromConfiguration(?array $configuration, ExpectedFileSource $sourceType, int $sourceId, string $sourceTitle): array
+    public static function listFromConfiguration(?array $configuration, ExpectedFileSource $sourceType, int $sourceId): array
     {
         $entries = $configuration['expected_files'] ?? null;
 
@@ -71,9 +76,9 @@ class ExpectedFile implements Arrayable
                 path: $entry['path'],
                 description: $entry['description'],
                 required: $entry['required'] ?? true,
+                minMatches: $entry['min_matches'] ?? self::MIN_MATCHES,
                 sourceType: $sourceType,
                 sourceId: $sourceId,
-                sourceTitle: $sourceTitle,
             );
         }
 
@@ -91,7 +96,7 @@ class ExpectedFile implements Arrayable
     /**
      * The entry as snapshotted on the check.
      *
-     * @return array{key: string, path: string, description: string, required: bool, source: array{type: string, id: int, title: string}, within_week: bool}
+     * @return array{key: string, path: string, description: string, required: bool, min_matches: int, within_week: bool}
      */
     public function toArray(): array
     {
@@ -100,11 +105,7 @@ class ExpectedFile implements Arrayable
             'path' => $this->path,
             'description' => $this->description,
             'required' => $this->required,
-            'source' => [
-                'type' => $this->sourceType->value,
-                'id' => $this->sourceId,
-                'title' => $this->sourceTitle,
-            ],
+            'min_matches' => $this->minMatches,
             'within_week' => $this->mustBeCommittedWithinWeek(),
         ];
     }
@@ -118,17 +119,20 @@ class ExpectedFile implements Arrayable
             return 'the entry is not an object';
         }
 
-        $path = $entry['path'] ?? null;
+        $pathProblem = RepositoryPath::problem($entry['path'] ?? null);
 
         return match (true) {
-            ! is_string($path) || trim($path) === '' => 'path is missing or not a string',
-            mb_strlen($path) > self::MAX_PATH_LENGTH => 'path is longer than '.self::MAX_PATH_LENGTH.' characters',
-            str_starts_with($path, '/') => 'path starts with a slash',
-            in_array('..', explode('/', $path), true) => 'path contains a .. segment',
+            $pathProblem !== null => $pathProblem,
             ! is_string($entry['description'] ?? null) => 'description is missing or not a string',
             array_key_exists('required', $entry) && ! is_bool($entry['required']) => 'required is not a boolean',
+            array_key_exists('min_matches', $entry) && ! self::isValidMinMatches($entry['min_matches']) => 'min_matches is not an integer from '.self::MIN_MATCHES.' to '.self::MAX_MATCHES,
             default => null,
         };
+    }
+
+    private static function isValidMinMatches(mixed $minMatches): bool
+    {
+        return is_int($minMatches) && $minMatches >= self::MIN_MATCHES && $minMatches <= self::MAX_MATCHES;
     }
 
     private static function warnAboutInvalidEntry(ExpectedFileSource $sourceType, int $sourceId, ?int $index, string $reason): void

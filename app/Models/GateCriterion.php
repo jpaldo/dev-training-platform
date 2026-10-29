@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Enums\ExpectedFileSource;
+use App\Support\ChecklistItemCheck;
 use App\Support\ExpectedFile;
+use App\Support\GitHubCheck;
 use Database\Factories\GateCriterionFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -92,19 +94,51 @@ class GateCriterion extends Model
     }
 
     /**
-     * The session-log files a repository check expects in the participant's repository, committed within the week,
-     * from the session-logs item's `configuration.expected_files`; invalid entries are skipped with a warning. Only the
-     * session-logs item carries expected files, so any other item has none.
+     * The files a repository check expects in the participant's repository for the item, from its
+     * `configuration.expected_files`; invalid entries are skipped with a warning. Only deliverable and session-logs
+     * items carry expected files (the session logs must be committed within the week), so any other item has none.
      *
      * @return list<ExpectedFile>
      */
     public function expectedFiles(): array
     {
-        if ($this->criterion_type !== self::TYPE_SESSION_LOGS) {
+        $source = $this->repositoryCheckSource();
+
+        if ($source === null) {
             return [];
         }
 
-        return ExpectedFile::listFromConfiguration($this->configuration, ExpectedFileSource::SessionLogs, $this->id, $this->title);
+        return ExpectedFile::listFromConfiguration($this->configuration, $source, $this->id);
+    }
+
+    /**
+     * What a repository check checks for the item: its expected files and the GitHub checks of its
+     * `configuration.github_checks` (invalid entries skipped with a warning). Null for an item type that is never
+     * checked (weekly video, a fixed legacy type) and for an item with neither configured.
+     */
+    public function repositoryCheck(): ?ChecklistItemCheck
+    {
+        $source = $this->repositoryCheckSource();
+
+        if ($source === null) {
+            return null;
+        }
+
+        $expectedFiles = $this->expectedFiles();
+        $githubChecks = GitHubCheck::listFromConfiguration($this->configuration, $this->id, hasExpectedFiles: $expectedFiles !== []);
+
+        if ($expectedFiles === [] && $githubChecks === []) {
+            return null;
+        }
+
+        return new ChecklistItemCheck(
+            criterionId: $this->id,
+            type: $source,
+            title: $this->title,
+            description: $this->description,
+            expectedFiles: $expectedFiles,
+            githubChecks: $githubChecks,
+        );
     }
 
     /**
@@ -122,5 +156,17 @@ class GateCriterion extends Model
     public function typeLabel(): string
     {
         return self::TYPE_LABELS[$this->criterion_type] ?? Str::headline($this->criterion_type);
+    }
+
+    /**
+     * The repository check source of the item's type, or null for a type a repository check never reads.
+     */
+    private function repositoryCheckSource(): ?ExpectedFileSource
+    {
+        return match ($this->criterion_type) {
+            self::TYPE_DELIVERABLE => ExpectedFileSource::Deliverable,
+            self::TYPE_SESSION_LOGS => ExpectedFileSource::SessionLogs,
+            default => null,
+        };
     }
 }

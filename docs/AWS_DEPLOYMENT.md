@@ -68,13 +68,26 @@ admin and are marked **(admin)** below.
 
 ### Hostname
 
-Production needs a company DNS name (for example a `fullscale.io`
-subdomain) with an `A` record at the Elastic IP **(admin)**. The EC2 DNS
-name (`ec2-…compute.amazonaws.com`) cannot be used: Let's Encrypt refuses
-`*.amazonaws.com` names by policy (tested 2026-10-29) and ACM cannot issue
-for it either, and without HTTPS Google OAuth, the Google Picker and
-`admin:bootstrap` all refuse to work. Until the name exists the site serves
-plain HTTP on the instance IP, for smoke testing only.
+The site is served at **`https://3-142-192-133.sslip.io`** for now.
+sslip.io is a free public DNS service that resolves any name of the form
+`a-b-c-d.sslip.io` to the IP `a.b.c.d`, so the name needs no DNS record and
+Let's Encrypt issues a normal certificate for it (issued 2026-10-29). It is
+a bridge, not the final name:
+
+- The site depends on sslip.io's DNS being up.
+- sslip.io is not on the public suffix list, so its Let's Encrypt rate
+  limit (50 certificates per registered domain per week) is shared with
+  every other sslip.io user; a renewal can be refused for a few days (the
+  certificate is renewed 30 days before it expires, so there is slack).
+- Google may refuse the redirect URI on that domain (section 8); if it
+  does, the company hostname below is needed before Google Drive works.
+
+The final name is a company DNS name (for example a `fullscale.io`
+subdomain) with an `A` record at the Elastic IP **(admin)**; switching to it
+is section 6, TLS. The EC2 DNS name (`ec2-…compute.amazonaws.com`) cannot
+be used at all: Let's Encrypt refuses `*.amazonaws.com` names by policy
+(tested 2026-10-29) and ACM cannot issue for it either, and without HTTPS
+Google OAuth, the Google Picker and `admin:bootstrap` all refuse to work.
 
 ### EC2
 
@@ -154,7 +167,7 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swappiness.conf && sudo sysctl -p /etc/sysctl.d/99-swappiness.conf
 
 # nginx, PHP 8.4 (Laravel 13 needs >= 8.3), cron, tools; the mariadb105 client is preinstalled
-sudo dnf install -y nginx cronie git unzip dnf-automatic certbot python3-certbot-nginx \
+sudo dnf install -y nginx cronie git unzip dnf-automatic certbot \
   php8.4-fpm php8.4-cli php8.4-mysqlnd php8.4-mbstring php8.4-xml php8.4-intl \
   php8.4-gd php8.4-opcache php8.4-bcmath php8.4-zip php8.4-process php8.4-sodium
 
@@ -277,7 +290,7 @@ then copy them into the password manager. Differences from `.env.example`:
 ```dotenv
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://<host>        # http://<instance IP> until the hostname exists (section 2)
+APP_URL=https://<host>        # currently https://3-142-192-133.sslip.io (section 2)
 APP_KEY=                      # generated once; never rotate casually (encrypted settings)
 LOG_CHANNEL=stack
 LOG_STACK=daily
@@ -324,17 +337,43 @@ be reachable and the credentials right before `prepare` can pass.
 
 ### nginx
 
-`/etc/nginx/conf.d/training.conf`. The AL2023 `nginx.conf` keeps its own
-port-80 server, but it is not the default server, so this one takes all
-requests; `conf.d/php-fpm.conf` already defines the `php-fpm` upstream.
+`/etc/nginx/conf.d/training.conf`, with `<host>` the hostname (section 2).
+The AL2023 `nginx.conf` keeps its own port-80 server, but it is not the
+default server, so these take all requests; `conf.d/php-fpm.conf` already
+defines the `php-fpm` upstream. Port 80 only answers Let's Encrypt
+challenges and redirects everything else, including requests to the bare
+IP, to `https://<host>`.
 
 ```nginx
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name _;               # becomes <host> once it exists
+    server_name _;
+    server_tokens off;
+
+    # Let's Encrypt HTTP-01 challenges (certbot --webroot, also used on renewal)
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+    }
+
+    location / {
+        return 301 https://<host>$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    http2 on;
+    server_name <host>;
     root /var/www/training/current/public;
     index index.php;
+
+    ssl_certificate     /etc/letsencrypt/live/<host>/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/<host>/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
 
     client_max_body_size 310M;   # evidence uploads up to 300 MB (training.evidence_max_kb)
     server_tokens off;
@@ -359,12 +398,36 @@ server {
 }
 ```
 
-TLS, once the hostname resolves to the Elastic IP: set `server_name <host>;`,
-then `sudo certbot --nginx -d <host>` (adds the 443 server and the HTTP to
-HTTPS redirect) and `sudo systemctl enable --now certbot-renew.timer`. Set
-`APP_URL=https://<host>` and re-run the release `prepare`/`activate` so the
-config cache picks it up. (If an ALB is added later, terminate TLS with an
-ACM certificate there instead.)
+### TLS (Let's Encrypt)
+
+The certificate is issued with the webroot method, so nginx keeps serving
+while certbot works and the config above is never edited by certbot. For a
+new hostname (the sslip.io name now; the company name later):
+
+```bash
+sudo install -d -o nginx -g nginx /var/www/letsencrypt
+# the port-80 server above must already be live (it serves the challenge)
+sudo certbot certonly --webroot -w /var/www/letsencrypt --non-interactive \
+  --agree-tos --register-unsafely-without-email -d <host>
+# then put <host> into training.conf, `sudo nginx -t && sudo systemctl reload nginx`
+```
+
+Renewal, once per server:
+
+```bash
+sudo install -d /etc/letsencrypt/renewal-hooks/deploy
+printf '#!/bin/sh\nsystemctl reload nginx\n' | sudo tee /etc/letsencrypt/renewal-hooks/deploy/reload-nginx
+sudo chmod 755 /etc/letsencrypt/renewal-hooks/deploy/reload-nginx
+sudo systemctl enable --now certbot-renew.timer
+sudo certbot renew --dry-run          # proves the challenge path works
+```
+
+Switching hostname: issue the certificate for the new name, update
+`training.conf`, set `APP_URL=https://<new host>` in `shared/.env`, re-run
+the release `prepare`/`activate` (the config cache holds `APP_URL`), update
+the Google redirect URI and JavaScript origin (section 8), then
+`sudo certbot delete --cert-name <old host>`. (If an ALB is added later,
+terminate TLS with an ACM certificate there instead.)
 
 ### Queue worker (systemd)
 
@@ -487,7 +550,7 @@ sudo -u nginx $ROOT/atomic-release.sh prepare ...     # same arguments; now pass
 sudo -u nginx $ROOT/atomic-release.sh activate \
   --app-link $ROOT/current --release $ROOT/releases/$SHA \
   --after-switch 'sudo systemctl reload php-fpm' \
-  --health-url https://<host>/up                      # http://localhost/up until TLS exists
+  --health-url https://<host>/up
 
 # 4. Prune: keep the live release plus the 4 newest others for rollback.
 LIVE=$(readlink -f $ROOT/current)
@@ -548,7 +611,11 @@ then:
 - The Google Drive API and the Google Picker API enabled.
 - A *Web application* OAuth client with the authorized redirect URI
   `https://<host>/profile/google-drive/callback` and the production origin
-  (`https://<host>`) as an authorized JavaScript origin.
+  (`https://<host>`) as an authorized JavaScript origin. With the sslip.io
+  bridge (section 2) that is
+  `https://3-142-192-133.sslip.io/profile/google-drive/callback`; if Google
+  rejects the domain when saving the client, Google Drive waits for the
+  company hostname.
 - A Picker API key restricted to the production host (HTTP referrers) and
   to the Google Picker API.
 - In `shared/.env`: `GOOGLE_DRIVE_ENABLED=true`, `GOOGLE_CLIENT_ID`,
@@ -628,8 +695,9 @@ Failed jobs land in `failed_jobs`; retry with `php artisan queue:retry all`.
 ## 10. Go-live order
 
 Status on 2026-10-29: sections 3, 4 and 5 are done on `training-web`
-(`.env` with `APP_URL=http://<instance IP>`, mail on `log`, Google Drive
-off), and the systemd worker unit is installed but not enabled.
+(`.env` with `APP_URL=https://3-142-192-133.sslip.io`, mail on `log`,
+Google Drive off), nginx serves HTTPS for that name with automatic renewal
+(section 6), and the systemd worker unit is installed but not enabled.
 
 1. Create the application database user: `sudo training-create-db-user`
    (section 2).
@@ -637,15 +705,13 @@ off), and the systemd worker unit is installed but not enabled.
    notes of section 8); the `current` placeholder symlink from section 4
    makes `prepare` pass its symlink check.
 3. Enable the worker and install the cron entry (section 6).
-4. Verify over HTTP: `/up` returns 200, `systemctl status training-worker`
+4. Verify: `https://<host>/up` returns 200, `systemctl status training-worker`
    is `active (running)`, `php artisan schedule:list` shows the hourly
    command.
-5. **(admin)** Create the DNS record for the hostname at the Elastic IP
-   (section 2). The Elastic IP is already attached.
-6. TLS with certbot and `APP_URL=https://<host>` (section 6), then set up
-   Google (section 8) and mail (section 5) and run their checks.
-7. Seed the program and bootstrap the admin (section 8). The bootstrap needs
-   HTTPS, so it waits for step 6.
+5. Set up Google (section 8) and mail (section 5) and run their checks.
+6. Seed the program and bootstrap the admin (section 8).
+7. **(admin)** Create the company DNS record at the Elastic IP and switch
+   to it (section 2, Hostname; section 6, TLS).
 8. **(admin)** Switch on the backups and alarms of section 9; move the RDS
    backup window (section 2).
 

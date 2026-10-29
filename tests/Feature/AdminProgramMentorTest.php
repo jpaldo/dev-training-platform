@@ -222,7 +222,7 @@ class AdminProgramMentorTest extends TestCase
         $this->assertDatabaseCount('admin_audit_logs', 0);
     }
 
-    public function test_admin_assigns_a_mentor_then_changes_it_and_the_tabs_show_the_current_mentor_and_the_history(): void
+    public function test_admin_assigns_a_mentor_then_changes_it_and_the_participants_tab_shows_the_current_mentor_and_the_history(): void
     {
         $this->travelTo('2026-11-09 09:00:00');
         $admin = User::factory()->create(['role' => 'admin']);
@@ -235,13 +235,14 @@ class AdminProgramMentorTest extends TestCase
         $this->actingAs($admin)
             ->put($assignUrl, ['mentor_id' => (string) $ana->id])
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('admin.programs.show', $program).'#mentors')
+            ->assertRedirect(route('admin.programs.show', $program).'#participants')
             ->assertSessionHas('status', 'Ana Reyes now mentors Pat Cruz.');
 
         $this->travelTo('2026-11-23 10:00:00');
         $this->actingAs($admin)
             ->put($assignUrl, ['mentor_id' => (string) $ben->id])
             ->assertSessionHasNoErrors()
+            ->assertRedirect(route('admin.programs.show', $program).'#participants')
             ->assertSessionHas('status', 'Ben Lim now mentors Pat Cruz.');
 
         $assignments = MentorAssignment::query()->orderBy('id')->get();
@@ -257,19 +258,25 @@ class AdminProgramMentorTest extends TestCase
         $this->assertSame(['program_id' => $program->id, 'previous_mentor_id' => null, 'mentor_id' => $ana->id], $audits[0]->metadata);
         $this->assertSame(['program_id' => $program->id, 'previous_mentor_id' => $ana->id, 'mentor_id' => $ben->id], $audits[1]->metadata);
 
-        $response = $this->actingAs($admin)
+        $page = $this->actingAs($admin)
             ->get(route('admin.programs.show', $program))
             ->assertOk()
-            ->assertSeeInOrder(['<tr data-participant-row>', 'Pat Cruz', '<td class="', 'Ben Lim</td>'], false)
-            ->assertSee('<form method="POST" action="'.$assignUrl.'"', false)
-            ->assertSee('<label for="program-mentor-for-'.$participant->id.'" class="sr-only">Mentor for Pat Cruz</label>', false)
-            ->assertSee('<option value="'.$ben->id.'" selected>Ben Lim</option>', false)
-            ->assertSee('<option value="'.$ana->id.'" >Ana Reyes</option>', false)
-            ->assertDontSee('>Not assigned<', false)
-            ->assertSeeInOrder(['Show history (2)', '<li>Ana Reyes, 9 Nov – 23 Nov</li>', '<li>Ben Lim, since 23 Nov</li>'], false);
+            ->getContent();
 
-        $participantsTab = Str::betweenFirst($response->getContent(), 'id="program-panel-participants"', 'id="program-panel-mentors"');
-        $this->assertStringNotContainsString('Ana Reyes', $participantsTab);
+        $participantsTab = Str::betweenFirst($page, 'id="program-panel-participants"', 'id="program-panel-mentors"');
+        $this->assertStringContainsString('aria-label="Change mentor for Pat Cruz">Change mentor</summary>', $participantsTab);
+        $this->assertStringNotContainsString('>Assign mentor<', $participantsTab);
+        $this->assertStringContainsString('<form method="POST" action="'.$assignUrl.'"', $participantsTab);
+        $this->assertStringContainsString('<label for="program-mentor-for-'.$participant->id.'" class="text-sm font-extrabold">Mentor for Pat Cruz</label>', $participantsTab);
+        $this->assertStringContainsString('<option value="'.$ben->id.'" selected>Ben Lim</option>', $participantsTab);
+        $this->assertStringContainsString('<option value="'.$ana->id.'" >Ana Reyes</option>', $participantsTab);
+        $this->assertStringNotContainsString('<option value="" ', $participantsTab);
+        $this->assertDoesNotMatchRegularExpression('~<details class="group min-w-0"\s+open\s*>~', $participantsTab);
+        $this->assertMatchesRegularExpression('~Ben Lim</td>.*<li>Ana Reyes, 9 Nov – 23 Nov</li>\s*<li>Ben Lim, since 23 Nov</li>~s', $participantsTab);
+
+        $mentorsTab = Str::after($page, 'id="program-panel-mentors"');
+        $this->assertStringNotContainsString($assignUrl, $mentorsTab);
+        $this->assertStringNotContainsString('name="mentor_id"', $mentorsTab);
     }
 
     public function test_a_participant_without_a_mentor_shows_as_not_assigned(): void
@@ -282,28 +289,30 @@ class AdminProgramMentorTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.programs.show', $program))
             ->assertOk()
-            ->assertSeeInOrder(['<tr data-participant-row>', 'Pat Cruz', 'Not assigned</td>'], false)
-            ->assertSeeInOrder(['<tr data-assignment-row>', '<option value="" selected>Not assigned</option>', '<option value="'.$mentor->id.'" >Mia Mentor</option>'], false)
-            ->assertSee('No mentor yet');
+            ->assertSeeInOrder([
+                '<tr data-participant-row>',
+                'Pat Cruz',
+                'Not assigned</td>',
+                'aria-label="Assign mentor for Pat Cruz">Assign mentor</summary>',
+                '<option value="" selected>Not assigned</option>',
+                '<option value="'.$mentor->id.'" >Mia Mentor</option>',
+                'No mentor yet',
+                'aria-label="Remove Pat Cruz"',
+            ], false)
+            ->assertDontSee('>Change mentor<', false);
     }
 
-    public function test_the_mentors_tab_explains_when_there_are_no_participants_or_no_mentors_to_assign(): void
+    public function test_the_participants_tab_points_to_the_mentors_tab_when_the_curriculum_has_no_mentors_to_assign(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
-        $withoutParticipants = Program::factory()->withMentors(User::factory()->create(['role' => 'coach']))->create();
-        $withoutMentors = Program::factory()->withParticipants(User::factory()->create())->create();
-
-        $this->actingAs($admin)
-            ->get(route('admin.programs.show', $withoutParticipants))
-            ->assertOk()
-            ->assertSee('Add participants to the curriculum to assign their mentors.')
-            ->assertDontSee('<tr data-assignment-row>', false);
+        $withoutMentors = Program::factory()->withParticipants(User::factory()->create(['name' => 'Pat Cruz']))->create();
 
         $this->actingAs($admin)
             ->get(route('admin.programs.show', $withoutMentors))
             ->assertOk()
-            ->assertSee('Add mentors to the curriculum to assign them to participants.')
-            ->assertSee('<tr data-assignment-row>', false)
+            ->assertSeeInOrder(['Add mentors on the <a href="#mentors"', 'Mentors tab</a> to assign them to participants.', '<tr data-participant-row>'], false)
+            ->assertSee('aria-label="Remove Pat Cruz"', false)
+            ->assertDontSee('>Assign mentor<', false)
             ->assertDontSee('name="mentor_id"', false);
     }
 
@@ -317,7 +326,7 @@ class AdminProgramMentorTest extends TestCase
 
         $this->actingAs($admin)
             ->put(route('admin.programs.assignments.update', [$program, $participant]), ['mentor_id' => $mentor->id])
-            ->assertRedirect(route('admin.programs.show', $program).'#mentors')
+            ->assertRedirect(route('admin.programs.show', $program).'#participants')
             ->assertSessionHas('status', 'Mia Mentor already mentors Pat Cruz.');
 
         $this->assertSame([$assignment->id], MentorAssignment::query()->pluck('id')->all());
@@ -339,16 +348,20 @@ class AdminProgramMentorTest extends TestCase
 
         $this->actingAs($admin)
             ->put($assignUrl, ['mentor_id' => $otherProgramMentor->id])
-            ->assertRedirect(route('admin.programs.show', $program).'#mentors')
+            ->assertRedirect(route('admin.programs.show', $program).'#participants')
             ->assertSessionHasErrorsIn($errorBag, ['mentor_id' => 'The selected mentor is not a mentor of this curriculum.']);
 
-        $this->actingAs($admin)
+        $page = $this->actingAs($admin)
             ->followingRedirects()
             ->put($assignUrl, ['mentor_id' => $otherProgramMentor->id])
             ->assertOk()
             ->assertSee('aria-invalid="true" aria-describedby="program-mentor-for-'.$participant->id.'-error"', false)
-            ->assertSee('<p id="program-mentor-for-'.$participant->id.'-error" class="text-sm text-rose-200 sm:col-span-2" role="alert">The selected mentor is not a mentor of this curriculum.</p>', false)
-            ->assertDontSee('id="program-mentor-for-'.$other->id.'-error"', false);
+            ->assertSee('<p id="program-mentor-for-'.$participant->id.'-error" class="text-sm text-rose-200" role="alert">The selected mentor is not a mentor of this curriculum.</p>', false)
+            ->assertDontSee('id="program-mentor-for-'.$other->id.'-error"', false)
+            ->getContent();
+
+        $this->assertSame(1, preg_match_all('~<details class="group min-w-0"\s+open\s*>~', $page));
+        $this->assertMatchesRegularExpression('~<details class="group min-w-0"\s+open\s*>\s*<summary[^>]*aria-label="Assign mentor for Pat Cruz"~', $page);
 
         $this->actingAs($admin)
             ->put($assignUrl, ['mentor_id' => ''])

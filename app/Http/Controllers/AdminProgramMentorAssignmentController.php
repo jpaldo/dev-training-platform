@@ -9,7 +9,7 @@ use App\Services\MentorAssignmentService;
 use Illuminate\Http\RedirectResponse;
 
 /**
- * Admins assign or change a participant's mentor on the curriculum page's Mentors tab. The participant is bound
+ * Admins assign or change a participant's mentor on the curriculum page's Participants tab. The participant is bound
  * through the curriculum's participants, so someone who is not in the curriculum is not found.
  */
 class AdminProgramMentorAssignmentController extends Controller
@@ -23,6 +23,6 @@ class AdminProgramMentorAssignmentController extends Controller
             ? "{$mentor->name} now mentors {$participant->name}."
             : "{$mentor->name} already mentors {$participant->name}.";
 
-        return redirect()->to(route('admin.programs.show', $program).'#mentors')->with('status', $status);
+        return redirect()->to(route('admin.programs.show', $program).'#participants')->with('status', $status);
     }
 }

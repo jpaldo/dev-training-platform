@@ -11,7 +11,8 @@ use Illuminate\Validation\Rule;
 
 /**
  * An admin makes one of the curriculum's mentors a participant's mentor. Each participant's errors go to their own bag
- * (see errorBagFor()), so the Mentors tab shows them beside the right mentor select, and the admin returns to that tab.
+ * (see errorBagFor()), so the Participants tab opens that participant's mentor form with them beside the select, and the
+ * admin returns to that tab.
  */
 class AssignMentorRequest extends FormRequest
 {
@@ -74,11 +75,11 @@ class AssignMentorRequest extends FormRequest
     }
 
     /**
-     * A failed assignment returns to the curriculum page's Mentors tab.
+     * A failed assignment returns to the curriculum page's Participants tab.
      */
     protected function getRedirectUrl(): string
     {
-        return route('admin.programs.show', $this->program()).'#mentors';
+        return route('admin.programs.show', $this->program()).'#participants';
     }
 
     private function program(): Program

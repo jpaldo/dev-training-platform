@@ -49,13 +49,13 @@ class ProgramPeopleTabService
     }
 
     /**
-     * The content of the curriculum page's Participants and Mentors tabs. Each participant has their current mentor and
+     * The content of the curriculum page's Participants and Mentors tabs. Each participant has their current mentor, the
+     * form that assigns or changes it (a select of the curriculum's mentors, `mentorOptions`), their mentor history and
      * a Remove link; the add form offers the active participants not in the curriculum (one query). Each mentor has
      * their number of current participants and a Remove link whose confirmation warns that those participants become
-     * unassigned; the add form offers the active coaches who are not mentors of the curriculum (one more query). Below
-     * them, each participant has a select of the curriculum's mentors and their mentor history.
+     * unassigned; the add form offers the active coaches who are not mentors of the curriculum (one more query).
      *
-     * @return array{participants: list<array{name: string, employee_id: string, job_role: string, current_mentor: string, joined_on: string, remove_url: string}>, addParticipants: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentors: list<array{id: int, name: string, employee_id: string, current_participant_count: int, remove_url: string, remove_confirmation: string}>, addMentors: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentorAssignments: list<array{participant_id: int, participant_name: string, assign_url: string, error_bag: string, current_mentor_id: string, history: list<string>}>, mentorOptions: list<array{value: string, label: string}>}
+     * @return array{participants: list<array{id: int, name: string, employee_id: string, job_role: string, current_mentor: string, current_mentor_id: string, joined_on: string, assign_url: string, error_bag: string, history: list<string>, remove_url: string}>, addParticipants: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentors: list<array{id: int, name: string, employee_id: string, current_participant_count: int, remove_url: string, remove_confirmation: string}>, addMentors: array{url: string, size: int, options: list<array{value: string, label: string}>}, mentorOptions: list<array{value: string, label: string}>}
      */
     public function tabData(Program $program, ProgramRoster $roster): array
     {
@@ -66,54 +66,42 @@ class ProgramPeopleTabService
             'addParticipants' => $this->addParticipantsForm($program),
             'mentors' => $mentors,
             'addMentors' => $this->addMentorsForm($program),
-            'mentorAssignments' => $this->mentorAssignmentRows($program, $roster),
             'mentorOptions' => array_map(fn (array $mentor): array => ['value' => (string) $mentor['id'], 'label' => $mentor['name']], $mentors),
         ];
     }
 
     /**
      * One row per participant. A missing employee ID or job role shows as a dash, and a participant without a current
-     * mentor as "Not assigned".
+     * mentor as "Not assigned" with an empty `current_mentor_id`. The row carries the form that assigns or changes their
+     * mentor and their mentor history, the earliest first, e.g. ["Ana Reyes, 9 Nov – 23 Nov", "Ben Lim, since 23 Nov"].
      *
-     * @return list<array{name: string, employee_id: string, job_role: string, current_mentor: string, joined_on: string, remove_url: string}>
+     * @return list<array{id: int, name: string, employee_id: string, job_role: string, current_mentor: string, current_mentor_id: string, joined_on: string, assign_url: string, error_bag: string, history: list<string>, remove_url: string}>
      */
     private function participantRows(Program $program, ProgramRoster $roster): array
     {
         return $roster->participants
-            ->map(fn (User $participant): array => [
-                'name' => $participant->name,
-                'employee_id' => $participant->employee_id ?? '—',
-                'job_role' => $participant->job_role?->label() ?? '—',
-                'current_mentor' => $roster->currentAssignment($participant)?->mentor->name ?? 'Not assigned',
-                'joined_on' => $participant->pivot->joined_at->format('j M Y'),
-                'remove_url' => route('admin.programs.participants.destroy', [$program, $participant]),
-            ])
-            ->all();
-    }
+            ->map(function (User $participant) use ($program, $roster): array {
+                $currentAssignment = $roster->currentAssignment($participant);
 
-    /**
-     * One row per participant on the Mentors tab: the form that assigns or changes their mentor, with their current
-     * mentor's ID ("" when none), and their mentor history, the earliest first, e.g. ["Ana Reyes, 9 Nov – 23 Nov",
-     * "Ben Lim, since 23 Nov"].
-     *
-     * @return list<array{participant_id: int, participant_name: string, assign_url: string, error_bag: string, current_mentor_id: string, history: list<string>}>
-     */
-    private function mentorAssignmentRows(Program $program, ProgramRoster $roster): array
-    {
-        return $roster->participants
-            ->map(fn (User $participant): array => [
-                'participant_id' => $participant->id,
-                'participant_name' => $participant->name,
-                'assign_url' => route('admin.programs.assignments.update', [$program, $participant]),
-                'error_bag' => AssignMentorRequest::errorBagFor($participant),
-                'current_mentor_id' => (string) $roster->currentAssignment($participant)?->mentor_id,
-                'history' => $roster->assignmentsOf($participant)
-                    ->map(fn (MentorAssignment $assignment): string => $assignment->ended_at === null
-                        ? "{$assignment->mentor->name}, since {$assignment->started_at->format('j M')}"
-                        : "{$assignment->mentor->name}, {$assignment->started_at->format('j M')} – {$assignment->ended_at->format('j M')}")
-                    ->values()
-                    ->all(),
-            ])
+                return [
+                    'id' => $participant->id,
+                    'name' => $participant->name,
+                    'employee_id' => $participant->employee_id ?? '—',
+                    'job_role' => $participant->job_role?->label() ?? '—',
+                    'current_mentor' => $currentAssignment?->mentor->name ?? 'Not assigned',
+                    'current_mentor_id' => (string) $currentAssignment?->mentor_id,
+                    'joined_on' => $participant->pivot->joined_at->format('j M Y'),
+                    'assign_url' => route('admin.programs.assignments.update', [$program, $participant]),
+                    'error_bag' => AssignMentorRequest::errorBagFor($participant),
+                    'history' => $roster->assignmentsOf($participant)
+                        ->map(fn (MentorAssignment $assignment): string => $assignment->ended_at === null
+                            ? "{$assignment->mentor->name}, since {$assignment->started_at->format('j M')}"
+                            : "{$assignment->mentor->name}, {$assignment->started_at->format('j M')} – {$assignment->ended_at->format('j M')}")
+                        ->values()
+                        ->all(),
+                    'remove_url' => route('admin.programs.participants.destroy', [$program, $participant]),
+                ];
+            })
             ->all();
     }
 

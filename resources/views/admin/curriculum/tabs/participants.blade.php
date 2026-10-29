@@ -39,6 +39,12 @@
     @endif
 
     @if($participants !== [])
+        @if($mentorOptions === [])
+            <p class="text-sm/relaxed text-muted">
+                Add mentors on the <a href="#mentors" class="font-extrabold text-accent underline-offset-3 hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent/50">Mentors tab</a> to assign them to participants.
+            </p>
+        @endif
+
         <div class="{{ $tableRegionClasses }}" role="region" aria-labelledby="program-participants-title" tabindex="0">
             <table class="w-full min-w-180 border-collapse text-sm" aria-labelledby="program-participants-title">
                 <thead>
@@ -53,6 +59,12 @@
                 </thead>
                 <tbody>
                     @foreach($participants as $participant)
+                        @php
+                            $assignErrors = $errors->getBag($participant['error_bag']);
+                            $selectedMentorId = $assignErrors->any() ? (string) old('mentor_id') : $participant['current_mentor_id'];
+                            $selectId = 'program-mentor-for-'.$participant['id'];
+                            $assignAction = $participant['current_mentor_id'] === '' ? 'Assign mentor' : 'Change mentor';
+                        @endphp
                         <tr data-participant-row>
                             <th scope="row" class="{{ $cellClasses }} font-bold wrap-break-word">{{ $participant['name'] }}</th>
                             <td class="{{ $cellClasses }} whitespace-nowrap tabular-nums">{{ $participant['employee_id'] }}</td>
@@ -60,11 +72,59 @@
                             <td class="{{ $cellClasses }} wrap-break-word">{{ $participant['current_mentor'] }}</td>
                             <td class="{{ $cellClasses }} whitespace-nowrap">{{ $participant['joined_on'] }}</td>
                             <td class="{{ $cellClasses }}">
-                                <form method="POST" action="{{ $participant['remove_url'] }}" data-confirm="Remove {{ $participant['name'] }} from this curriculum? Their work is kept.">
-                                    @csrf
-                                    @method('DELETE')
-                                    <x-ui.button variant="secondary" type="submit" aria-label="Remove {{ $participant['name'] }}">Remove</x-ui.button>
-                                </form>
+                                <div class="flex flex-wrap items-start gap-2">
+                                    @if($mentorOptions !== [])
+                                        <details class="group min-w-0" @if($assignErrors->any()) open @endif>
+                                            <summary class="inline-flex cursor-pointer list-none items-center whitespace-nowrap rounded-xl border border-line bg-raised px-4 py-2.5 text-sm font-extrabold text-white hover:border-brand group-open:border-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent/50 [&::-webkit-details-marker]:hidden" aria-label="{{ $assignAction }} for {{ $participant['name'] }}">{{ $assignAction }}</summary>
+                                            <div class="mt-2 grid w-72 grid-cols-1 gap-3 rounded-xl border border-line bg-surface-sunken p-3">
+                                                <form method="POST" action="{{ $participant['assign_url'] }}" class="grid min-w-0 grid-cols-1 gap-2">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <label for="{{ $selectId }}" class="text-sm font-extrabold">Mentor for {{ $participant['name'] }}</label>
+                                                    <div class="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2">
+                                                        <select
+                                                            id="{{ $selectId }}"
+                                                            name="mentor_id"
+                                                            required
+                                                            @if($assignErrors->any()) aria-invalid="true" aria-describedby="{{ $selectId }}-error" @endif
+                                                            class="{{ $controlClasses }}"
+                                                        >
+                                                            @if($participant['current_mentor_id'] === '')
+                                                                <option value="" @selected($selectedMentorId === '')>Not assigned</option>
+                                                            @endif
+                                                            @foreach($mentorOptions as $option)
+                                                                <option value="{{ $option['value'] }}" @selected($selectedMentorId === $option['value'])>{{ $option['label'] }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                        <x-ui.button variant="secondary" type="submit" aria-label="Save mentor for {{ $participant['name'] }}">Save</x-ui.button>
+                                                    </div>
+                                                    @if($assignErrors->any())
+                                                        <p id="{{ $selectId }}-error" class="text-sm text-rose-200" role="alert">{{ $assignErrors->first('mentor_id') }}</p>
+                                                    @endif
+                                                </form>
+
+                                                <div class="grid min-w-0 grid-cols-1 gap-1 text-sm">
+                                                    <p id="{{ $selectId }}-history" class="font-extrabold">Mentor history</p>
+                                                    @if($participant['history'] !== [])
+                                                        <ol class="grid grid-cols-1 gap-1 text-muted" aria-labelledby="{{ $selectId }}-history">
+                                                            @foreach($participant['history'] as $entry)
+                                                                <li>{{ $entry }}</li>
+                                                            @endforeach
+                                                        </ol>
+                                                    @else
+                                                        <p class="text-muted">No mentor yet</p>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        </details>
+                                    @endif
+
+                                    <form method="POST" action="{{ $participant['remove_url'] }}" data-confirm="Remove {{ $participant['name'] }} from this curriculum? Their work is kept.">
+                                        @csrf
+                                        @method('DELETE')
+                                        <x-ui.button variant="secondary" type="submit" aria-label="Remove {{ $participant['name'] }}">Remove</x-ui.button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     @endforeach

@@ -46,7 +46,7 @@ class AdminUserController extends Controller
 
         $token = $passwordSetup->issue($user, $request->user());
 
-        return redirect()->route('admin.users.index')->with('password_setup_url', route('password.setup', ['token' => $token]));
+        return $this->withPasswordSetupLink($user, $token);
     }
 
     public function edit(User $user, AdminUserPageService $page): View
@@ -99,6 +99,32 @@ class AdminUserController extends Controller
         $this->audit(request(), $user, 'account_enabled');
 
         return back()->with('status', 'Account enabled.');
+    }
+
+    /**
+     * A new one-time password setup link for an active user whose first link expired or was lost. Any earlier unused
+     * link stops working (PasswordSetupService::issue()).
+     */
+    public function issuePasswordSetupLink(User $user, PasswordSetupService $passwordSetup): RedirectResponse
+    {
+        if (! $user->is_active) {
+            throw ValidationException::withMessages(['user' => 'Enable this account before creating a password setup link.']);
+        }
+        $token = $passwordSetup->issue($user, request()->user());
+        $this->audit(request(), $user, 'password_setup_link_issued');
+
+        return $this->withPasswordSetupLink($user, $token);
+    }
+
+    /**
+     * Back to the user list, which shows the link once, with the address it is for.
+     */
+    private function withPasswordSetupLink(User $user, string $token): RedirectResponse
+    {
+        return redirect()->route('admin.users.index')->with([
+            'password_setup_url' => route('password.setup', ['token' => $token]),
+            'password_setup_email' => $user->email,
+        ]);
     }
 
     private function ensureCanDeactivate(User $user): void

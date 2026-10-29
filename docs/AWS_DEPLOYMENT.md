@@ -320,6 +320,7 @@ MAIL_SCHEME=tls
 MAIL_FROM_ADDRESS=<verified sender>
 
 BOOTSTRAP_ADMIN_TEMPORARY_PASSWORD=   # set only for the first-admin bootstrap, then clear it
+PASSWORD_SETUP_EXPIRE=4320    # setup links for new accounts last 72 hours (default 60 minutes)
 
 GOOGLE_DRIVE_ENABLED=true     # false until the hostname and Google setup exist
 GOOGLE_CLIENT_ID=...

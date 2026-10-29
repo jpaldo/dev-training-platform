@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\JobRole;
 use App\Enums\UserRole;
 use App\Models\User;
+use Carbon\CarbonInterval;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -26,7 +27,7 @@ class AdminUserPageService
      * rows. Add User is the page's single main action; every other button is secondary.
      *
      * @param  array{search?: ?string, access_type?: ?UserRole, status?: ?string}  $filters
-     * @return array{createUrl: string, settingsLinks: list<array{label: string, url: string}>, passwordSetupExpiresInMinutes: int, search: string, accessTypeOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, users: LengthAwarePaginator<int, array{name: string, employee_id: string, email: string, access_type: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string}>}
+     * @return array{createUrl: string, settingsLinks: list<array{label: string, url: string}>, passwordSetupExpiresIn: string, search: string, accessTypeOptions: list<array{value: string, label: string, is_selected: bool}>, statusOptions: list<array{value: string, label: string, is_selected: bool}>, users: LengthAwarePaginator<int, array{name: string, employee_id: string, email: string, access_type: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string, password_setup_link_url: ?string}>}
      */
     public function indexData(array $filters): array
     {
@@ -36,7 +37,7 @@ class AdminUserPageService
                 ['label' => 'Google Drive Settings', 'url' => route('admin.settings.google-drive')],
                 ['label' => 'AI Settings', 'url' => route('admin.settings.ai')],
             ],
-            'passwordSetupExpiresInMinutes' => (int) config('password_setup.expire'),
+            'passwordSetupExpiresIn' => CarbonInterval::minutes((int) config('password_setup.expire'))->cascade()->forHumans(),
             'search' => (string) ($filters['search'] ?? ''),
             'accessTypeOptions' => $this->options(self::ACCESS_TYPES, ($filters['access_type'] ?? null)?->value),
             'statusOptions' => $this->options(self::STATUS_OPTIONS, $filters['status'] ?? null),
@@ -103,7 +104,7 @@ class AdminUserPageService
      * One table row ("—" for a user without an employee ID). The access type label is the edit form's Access Type
      * option text for the user's role.
      *
-     * @return array{name: string, employee_id: string, email: string, access_type: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string}
+     * @return array{name: string, employee_id: string, email: string, access_type: string, is_active: bool, created: string, edit_url: string, disable_url: ?string, enable_url: ?string, password_setup_link_url: ?string}
      */
     private function userRow(User $user): array
     {
@@ -117,6 +118,7 @@ class AdminUserPageService
             'edit_url' => route('admin.users.edit', $user),
             'disable_url' => $user->is_active ? route('admin.users.disable', $user) : null,
             'enable_url' => $user->is_active ? null : route('admin.users.enable', $user),
+            'password_setup_link_url' => $user->is_active ? route('admin.users.password-setup-link', $user) : null,
         ];
     }
 

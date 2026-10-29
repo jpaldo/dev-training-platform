@@ -40,7 +40,7 @@
             @if(session('password_setup_url'))
                 <x-ui.card as="section" class="grid grid-cols-1 gap-3" role="status" aria-labelledby="password-setup-title">
                     <h2 id="password-setup-title" class="m-0 text-xl font-extrabold">Password setup link</h2>
-                    <p class="m-0 leading-relaxed text-muted">Share this one-time link with the new user through your approved secure channel. It expires in {{ $passwordSetupExpiresInMinutes }} minutes and is not shown again.</p>
+                    <p class="m-0 leading-relaxed text-muted">Share this one-time link with {{ session('password_setup_email', 'the user') }} through your approved secure channel. It expires in {{ $passwordSetupExpiresIn }} and is not shown again.</p>
                     <input type="text" value="{{ session('password_setup_url') }}" readonly aria-label="One-time password setup link" class="{{ $controlClasses }}">
                 </x-ui.card>
             @endif
@@ -101,6 +101,12 @@
                                         <td class="{{ $cellClasses }}">
                                             <div class="flex flex-wrap items-center gap-2">
                                                 <x-ui.button variant="secondary" :href="$user['edit_url']">Edit</x-ui.button>
+                                                @if($user['password_setup_link_url'])
+                                                    <form method="POST" action="{{ $user['password_setup_link_url'] }}" class="m-0" data-confirm="Create a new password setup link for this user? Any earlier unused link stops working.">
+                                                        @csrf
+                                                        <x-ui.button variant="secondary" type="submit">New Setup Link</x-ui.button>
+                                                    </form>
+                                                @endif
                                                 @if($user['disable_url'])
                                                     <form method="POST" action="{{ $user['disable_url'] }}" class="m-0" data-confirm="Disable this account? Historical training records will be preserved.">
                                                         @csrf

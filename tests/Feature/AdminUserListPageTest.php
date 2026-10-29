@@ -39,10 +39,12 @@ class AdminUserListPageTest extends TestCase
                 '>Max Manual</th>', '>Participant</td>', '>Active</span>',
                 '>Cole Coach</th>', '>—</td>', '>Mentor</td>', '>Active</span>',
                 '>Ada Admin</th>', '>Admin</td>', '>Active</span>', 'Mar 5, 2026',
+                'action="'.route('admin.users.password-setup-link', $admin).'"', 'data-confirm="Create a new password setup link for this user? Any earlier unused link stops working."', 'New Setup Link',
                 'action="'.route('admin.users.disable', $admin).'"', 'data-confirm="Disable this account? Historical training records will be preserved."', 'Disable',
             ], false)
             ->assertDontSee('action="'.route('admin.users.disable', $hybrid).'"', false)
             ->assertDontSee('action="'.route('admin.users.enable', $admin).'"', false)
+            ->assertDontSee('action="'.route('admin.users.password-setup-link', $hybrid).'"', false)
             ->assertDontSee('Password setup link')
             ->assertDontSee('QA Path')
             ->assertDontSee('name="path"', false)
@@ -137,5 +139,15 @@ class AdminUserListPageTest extends TestCase
                 'It expires in 45 minutes and is not shown again.',
                 'value="https://example.test/password/setup/token" readonly aria-label="One-time password setup link"',
             ], false);
+    }
+
+    public function test_the_setup_link_names_its_user_and_a_long_expiry_reads_in_days(): void
+    {
+        config(['password_setup.expire' => 4320]);
+
+        $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->withSession(['password_setup_url' => 'https://example.test/password/setup/token', 'password_setup_email' => 'mentor@example.test'])
+            ->get(route('admin.users.index'))
+            ->assertSee('Share this one-time link with mentor@example.test through your approved secure channel. It expires in 3 days and is not shown again.');
     }
 }

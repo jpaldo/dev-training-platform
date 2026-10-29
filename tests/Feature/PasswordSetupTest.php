@@ -88,6 +88,48 @@ class PasswordSetupTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => 'blocked@example.test']);
     }
 
+    public function test_admin_issues_a_new_setup_link_that_replaces_the_unused_one_and_is_audited(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $mentor = User::factory()->create(['role' => 'coach', 'email' => 'mentor@example.test']);
+        $earlierToken = app(PasswordSetupService::class)->issue($mentor, $admin);
+
+        $response = $this->actingAs($admin)->post(route('admin.users.password-setup-link', $mentor));
+
+        $response->assertRedirect(route('admin.users.index'))->assertSessionHas('password_setup_email', 'mentor@example.test');
+        $url = $response->getSession()->get('password_setup_url');
+        $this->get($url)->assertOk()->assertSee('Create a password for mentor@example.test.');
+        $this->get(route('password.setup', $earlierToken))->assertNotFound();
+        $this->assertSame(2, PasswordSetupToken::query()->where('user_id', $mentor->id)->count());
+        $this->assertDatabaseHas('password_setup_tokens', ['token_hash' => hash('sha256', basename($url)), 'created_by' => $admin->id]);
+        $this->assertDatabaseHas('admin_audit_logs', ['actor_id' => $admin->id, 'target_user_id' => $mentor->id, 'action' => 'password_setup_link_issued']);
+    }
+
+    public function test_a_disabled_account_gets_no_new_setup_link(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $disabled = User::factory()->create(['is_active' => false]);
+
+        $response = $this->actingAs($admin)->from(route('admin.users.index'))->post(route('admin.users.password-setup-link', $disabled));
+
+        $response->assertRedirect(route('admin.users.index'))
+            ->assertSessionHasErrors(['user' => 'Enable this account before creating a password setup link.'])
+            ->assertSessionMissing('password_setup_url');
+        $this->assertDatabaseCount('password_setup_tokens', 0);
+        $this->assertDatabaseMissing('admin_audit_logs', ['action' => 'password_setup_link_issued']);
+    }
+
+    public function test_non_admin_cannot_issue_a_new_setup_link(): void
+    {
+        $participant = User::factory()->create();
+
+        $this->actingAs(User::factory()->create(['role' => 'coach']))
+            ->post(route('admin.users.password-setup-link', $participant))
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('password_setup_tokens', 0);
+    }
+
     public function test_account_can_log_in_after_password_setup(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

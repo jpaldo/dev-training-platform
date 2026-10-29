@@ -429,8 +429,9 @@ sudo certbot renew --dry-run          # proves the challenge path works
 ```
 
 Switching hostname: issue the certificate for the new name, update
-`training.conf`, set `APP_URL=https://<new host>` in `shared/.env`, re-run
-the release `prepare`/`activate` (the config cache holds `APP_URL`), update
+`training.conf`, set `APP_URL=https://<new host>` in `shared/.env` and
+apply it (section 7, Changing `.env`), change `DEPLOY_URL` in
+`scripts/deploy.sh`, update
 the Google redirect URI and JavaScript origin (section 8), then
 `sudo certbot delete --cert-name <old host>`. (If an ALB is added later,
 terminate TLS with an ACM certificate there instead.)
@@ -509,6 +510,19 @@ designated instance.
 Build off the machine, ship an archive, prepare, migrate, activate, restart
 the worker.
 
+`scripts/deploy.sh` does all of it from the developer machine: run it from
+the repository with the commit to release checked out and nothing
+uncommitted. It refuses a commit that is already live, runs the test suite
+(`--skip-tests` skips it), builds and uploads the archive, prepares the
+release, stops to ask before migrating (take the RDS snapshot first),
+activates, checks the worker and prunes old releases.
+`scripts/deploy.sh rollback` lists the releases and
+`scripts/deploy.sh rollback <sha>` switches back to one. It needs the
+`training` SSH host (`~/.ssh/config`: `HostName 3.142.192.133`,
+`User ec2-user`, `IdentityFile` the `training-web` key); `DEPLOY_HOST` and
+`DEPLOY_URL` override the host and the site address. The rest of this
+section is what the script runs, for doing it by hand.
+
 ### Build (developer machine)
 
 ```bash
@@ -565,6 +579,19 @@ rm /tmp/release-$SHA.tar.gz
 ```
 
 `/up` is the framework health route registered in `bootstrap/app.php`.
+
+### Changing `.env`
+
+A change to `shared/.env` alone is not a release, and `prepare` refuses the
+live release (re-extracting it would delete files it is serving). Apply it
+to the live release instead:
+
+```bash
+sudo nano /var/www/training/shared/.env
+cd /var/www/training/current
+sudo -u nginx php artisan config:cache && sudo systemctl reload php-fpm
+sudo -u nginx php artisan queue:restart     # the worker reloads its config too
+```
 
 ### Rollback
 
@@ -744,6 +771,9 @@ Each is a small separate change.
       workaround); the systemd worker replaces it.
 - [ ] Add `Schedule::command('queue:monitor database:default --max=100')->hourly()`
       to `routes/console.php` so a backlog is logged.
+- [x] `scripts/deploy.sh`: the release procedure of section 7 in one
+      command from the developer machine, and `atomic-release.sh prepare`
+      refuses the live release.
 - [ ] Optional CI: a GitHub Actions workflow that runs the test suite and
       builds the archive (section 7) on a tag, leaving the upload and
       `prepare`/`activate` as manual steps.

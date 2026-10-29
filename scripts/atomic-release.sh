@@ -111,6 +111,7 @@ case "$MODE" in
         mkdir -p "$shared_root/private" "$shared_root/logs"
         test -L "$app_link" || die "live app path must be a symlink before prepare"
         release="$releases_root/$sha"
+        [ "$(readlink -f "$app_link")" != "$(readlink -f "$release")" ] || die "release $sha is live; preparing it again would delete the files it serves"
         mkdir -p "$releases_root"
         rm -rf "$release"
         mkdir -p "$release"

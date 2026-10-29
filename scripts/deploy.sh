@@ -30,7 +30,7 @@ confirm() {
 # /dev/null, so nothing it starts can swallow the rest of the script.
 remote() { ssh "$DEPLOY_HOST" bash -s -- "$@"; }
 
-live_release() { ssh "$DEPLOY_HOST" readlink "$ROOT/current" | xargs basename; }
+live_release() { ssh -n "$DEPLOY_HOST" readlink "$ROOT/current" | xargs basename; }
 
 usage() { sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; }
 
@@ -144,12 +144,12 @@ rollback() {
     live="$(live_release)" || die "could not reach $DEPLOY_HOST over SSH"
     if [ -z "$target" ]; then
         printf 'Releases on the server, newest first (live: %s):\n' "$live"
-        ssh "$DEPLOY_HOST" ls -t "$ROOT/releases"
+        ssh -n "$DEPLOY_HOST" ls -t "$ROOT/releases"
         printf '\nRoll back with: scripts/deploy.sh rollback SHA\n'
         return
     fi
     [ "$target" != "$live" ] || die "$target is already live"
-    ssh "$DEPLOY_HOST" test -d "$ROOT/releases/$target" || die "there is no release $target on the server (scripts/deploy.sh rollback lists them)"
+    ssh -n "$DEPLOY_HOST" test -d "$ROOT/releases/$target" || die "there is no release $target on the server (scripts/deploy.sh rollback lists them)"
     printf 'Rolling back from %s to %s. Migrations are not undone.\n' "$live" "$target"
     confirm "Continue?" || exit 1
     remote "$target" "$DEPLOY_URL" <<'REMOTE'

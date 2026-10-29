@@ -1,6 +1,6 @@
 # Repository Check Plan — AI check of GitHub deliverables
 
-Source: the open decision "AI scoring and submission checks run only when a mentor or admin starts them" in `docs/plans/developer-program-and-training-sessions.md` (decided 2026-10-23) and the user request of 2026-10-27; private repositories through a checker collaborator account decided 2026-10-27 (DEV-5). There is no spec yet; the **Requirements** section below is the spec of record until `docs/specs/repository-check.md` exists · Last updated: 2026-10-27
+Source: the open decision "AI scoring and submission checks run only when a mentor or admin starts them" in `docs/plans/developer-program-and-training-sessions.md` (decided 2026-10-23) and the user request of 2026-10-27; private repositories through a checker collaborator account decided 2026-10-27 (DEV-5). There is no spec yet; the **Requirements** section below is the spec of record until `docs/specs/repository-check.md` exists · Last updated: 2026-10-29
 
 **Status legend:** `[x]` done · `[ ]` to do · `[~]` in progress · `[-]` deferred
 
@@ -162,10 +162,11 @@ Production runs on **one EC2 instance with nginx and php-fpm** and **MySQL on Am
 
 ## Phase 1 — Data, settings and expected files
 
-- [ ] **1.1 Repository check table, model and enums** (RC-9)
+- [x] **1.1 Repository check table, model and enums** (RC-9)
   - **Do:** `php artisan make:enum RepositoryCheckStatus --string`, `ExpectedFileStatus --string`, `ExpectedFileVerdict --string`; migration `create_repository_checks_table` (Design › Data model; runs on MySQL and SQLite); `RepositoryCheck` model with casts, relations, predicates, scope and `label()`-driven badges; `RepositoryCheckFactory` with states; `TrainingSessionParticipant::repositoryOwnerAndName()` helper (parses `repository_url` into owner and repo, null when unset).
   - **Tests:** `RepositoryCheckModelTest` (casts, scope, predicates, cascade on session delete); `TrainingSessionParticipant` parse cases.
   - **Acceptance:** migration runs both ways on SQLite and MySQL; `php artisan test --compact` green.
+  - **Done 2026-10-29:** built on the merged curriculum schema (training sessions were dropped on 2026-10-28, see Open decisions): `repository_checks` has no session or program column (the curriculum is reached through the week, as on `weekly_session_attendances` and the other work tables), index `repository_checks_participant_week_index` (`user_id`, `training_week_id`, `id`), `status` defaults to `queued`. `RepositoryCheck` relations are `participant()`, `week()` (the sibling models' name, not `trainingWeek()`) and `requestedBy()`; scope `forParticipantWeek(User, TrainingWeek)`; `isQueued()`, `isRunning()`, `isFinished()` (`RepositoryCheckStatus::finished()`: completed or failed). The three enums have `label()` and `tone()` (the `x-ui.badge` tone, as `ProgramStatus`). The helper is `ProgramParticipant::repositoryOwnerAndName()` (`GitHubUrl` link, first two path segments, `.git` stripped, null otherwise). The factory's `completed()` state stores the per-file findings under `findings.files` beside the top-level keys; 2.3 settles that shape. No seeder: checks only come from runs. Tests: `RepositoryCheckModelTest` (casts, default status, scope, predicates, cascade on week / curriculum / participant delete, requester null on delete), `ProgramParticipantRepositoryTest` (parse cases). Migration up, down and up again on SQLite and on local MySQL; suite 1605 green.
 - [ ] **1.2 Expected files on activities and checklist items** (RC-4)
   - **Do:** `Activity::expectedFiles(): list<array>` and `GateCriterion::expectedFiles()` reading `configuration.expected_files` with validation (`path` string ≤ 255, no leading slash, no `..`; `description` string; `required` bool default true) and skipping invalid entries with a `Log::warning`; `ExpectedFileCollector::forWeek()`; `App\Support\ExpectedFile` value object or array shape PHPDoc.
   - **Tests:** unit tests for the readers (valid, invalid, missing key) and the collector (order, session-logs `within_week` flag, inactive activities skipped).
@@ -228,3 +229,6 @@ Production runs on **one EC2 instance with nginx and php-fpm** and **MySQL on Am
 ## Open decisions
 
 Problems found during implementation that need a decision. Starts empty.
+
+- (1.1) The plan predates the curriculum sessions merge (`docs/plans/curriculum-sessions-merge.md`, done 2026-10-28): `TrainingSession`, `TrainingSessionParticipant`, `training_sessions` and the coach session-week routes no longer exist. 1.1 used `ProgramParticipant` and dropped the session column. Still to rewrite before their batches: the Design's `training_session_id` column, index and `trainingSession()` relation; `ExpectedFileCollector::forWeek(TrainingSession, TrainingWeek)` and `RepositoryCheckService::start(TrainingSession, …)` (Matching, Job and trigger); `TrainingSession::weekOpensOn(n)` in RC-7, A3 and 2.3 (weeks now carry `starts_on` / `ends_on`, so the window is probably the week's own dates); "routes in the coach session-week group" in 3.1 (now the `program.week` routes); the 1.1 test wording "cascade on session delete".
+- (1.1) 1.5 names `GitHubUrl::MESSAGE`, but the participant's repository link is now validated by `GitHubRepositoryUrl` (`UpdateProgramRepositoryRequest`), whose message does not say "public"; `GitHubUrl::MESSAGE` still does and is used for `github_url` submission fields. Decide which message(s) 1.5 changes and which tests (`GitHubRepositoryUrlRuleTest`, `ProgramRepositoryUrlTest`) it updates.

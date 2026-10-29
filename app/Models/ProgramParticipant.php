@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Observers\ParticipantProgressObserver;
+use App\Rules\GitHubUrl;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -74,5 +75,36 @@ class ProgramParticipant extends Pivot
     public function addedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'added_by');
+    }
+
+    /**
+     * The owner and name of the participant's GitHub repository, read from `repository_url`: the first two path
+     * segments of a GitHubUrl link, without a `.git` clone suffix, so a trailing slash, a deeper path (a branch, file or
+     * pull request), a query or a fragment is ignored. Null when no link is set, the link is not on GitHub, or it names
+     * no repository.
+     *
+     * @return array{owner: string, repo: string}|null
+     */
+    public function repositoryOwnerAndName(): ?array
+    {
+        $url = $this->repository_url;
+
+        if (! GitHubUrl::accepts($url)) {
+            return null;
+        }
+
+        $segments = explode('/', trim((string) parse_url($url, PHP_URL_PATH), '/'));
+
+        if (count($segments) < 2) {
+            return null;
+        }
+
+        $repo = preg_replace('~\.git\z~i', '', $segments[1]);
+
+        if (preg_match('~\A[A-Za-z0-9._-]+\z~', $repo) !== 1 || $repo === '.' || $repo === '..') {
+            return null;
+        }
+
+        return ['owner' => $segments[0], 'repo' => $repo];
     }
 }

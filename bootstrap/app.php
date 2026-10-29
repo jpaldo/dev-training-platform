@@ -19,6 +19,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // Direct local access on port 8080 remains the canonical workflow.
         $middleware->trustProxies(['127.0.0.1', '::1']);
 
+        // A signed-in user on a guest page (sign in, register) goes to their role's landing page; the framework default,
+        // the `dashboard` route, is the participant dashboard and forbidden to admins and mentors.
+        $middleware->redirectUsersTo(fn (Request $request): string => route($request->user()->landingRouteName()));
+
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
             'employee-id' => EnsureEmployeeIdIsSet::class,

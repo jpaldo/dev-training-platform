@@ -250,6 +250,32 @@ class AuthenticationAuthorizationTest extends TestCase
             ->assertRedirect(route('dashboard'));
     }
 
+    /**
+     * A signed-in user who reaches the sign-in page again (a second click on Sign in, the back button, a bookmark) goes
+     * to their own landing page, not the participant dashboard.
+     */
+    #[DataProvider('rolesAndLandingRoutes')]
+    public function test_a_signed_in_user_on_the_sign_in_page_goes_to_their_landing_page(string $role, string $landingRoute): void
+    {
+        $user = User::factory()->create(['role' => $role]);
+        $this->actingAs($user);
+
+        $this->get(route('login'))->assertRedirect(route($landingRoute));
+        $this->post(route('login.store'), ['email' => $user->email, 'password' => 'password'])->assertRedirect(route($landingRoute));
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function rolesAndLandingRoutes(): array
+    {
+        return [
+            'admin' => ['admin', 'admin.dashboard'],
+            'mentor' => ['coach', 'coach.dashboard'],
+            'participant' => ['participant', 'dashboard'],
+        ];
+    }
+
     public function test_participants_cannot_view_another_participants_training_records(): void
     {
         $participant = User::factory()->create();

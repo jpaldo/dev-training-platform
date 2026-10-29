@@ -143,6 +143,7 @@ class PasswordSetupTest extends TestCase
             'is_active' => 1,
         ])->assertRedirect(route('admin.users.index'));
         $token = basename(parse_url($response->getSession()->get('password_setup_url'), PHP_URL_PATH));
+        $this->post(route('logout'));
 
         $this->post(route('password.setup.store', $token), [
             'password' => 'A-secure-password-2026!',
@@ -152,6 +153,7 @@ class PasswordSetupTest extends TestCase
         $this->post(route('login.store'), [
             'email' => 'direct-admin@example.test',
             'password' => 'A-secure-password-2026!',
-        ])->assertRedirect(route('dashboard'));
+        ])->assertRedirect(route('admin.dashboard'));
+        $this->assertAuthenticatedAs(User::query()->where('email', 'direct-admin@example.test')->firstOrFail());
     }
 }

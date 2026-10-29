@@ -62,10 +62,9 @@ admin and are marked **(admin)** below.
   Session Manager is not used because the deploying IAM user has no SSM
   permissions. Update the `/32` rule when the office IP changes.
 - Security group `training-db`: inbound 3306 **only from** `training-web`.
-- Elastic IP **(admin)**: requested 2026-10-29, not attached yet. Until it
-  is, the public IP and the EC2 DNS name change on every stop/start. Attach
-  one before the DNS record is created, then update `APP_URL` and the
-  `HostName` of the SSH config.
+- Elastic IP `3.142.192.133` (`eipalloc-070054ebb62477381`, tagged
+  `training-web`), attached 2026-10-29, so the address and the EC2 DNS name
+  survive stop/start. DNS records point at it.
 
 ### Hostname
 
@@ -641,8 +640,8 @@ off), and the systemd worker unit is installed but not enabled.
 4. Verify over HTTP: `/up` returns 200, `systemctl status training-worker`
    is `active (running)`, `php artisan schedule:list` shows the hourly
    command.
-5. **(admin)** Allocate and attach the Elastic IP; create the DNS record
-   for the hostname (section 2).
+5. **(admin)** Create the DNS record for the hostname at the Elastic IP
+   (section 2). The Elastic IP is already attached.
 6. TLS with certbot and `APP_URL=https://<host>` (section 6), then set up
    Google (section 8) and mail (section 5) and run their checks.
 7. Seed the program and bootstrap the admin (section 8). The bootstrap needs

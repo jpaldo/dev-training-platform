@@ -1,11 +1,11 @@
 # AWS deployment plan (EC2 + RDS, no Docker)
 
-Target: one EC2 instance running nginx + PHP-FPM, a Supervisor-managed queue
-worker and a cron-driven scheduler, with the database on RDS MySQL. Releases
-use the symlinked-release layout from `scripts/atomic-release.sh`: a new
-release is never synchronised into the live directory, because that can
-remove `vendor`, the Vite build or runtime directories while requests are
-being served.
+Target: one Amazon Linux 2023 EC2 instance running nginx + PHP-FPM, a
+systemd-managed queue worker and a cron-driven scheduler, with the database
+on RDS MySQL. Releases use the symlinked-release layout from
+`scripts/atomic-release.sh`: a new release is never synchronised into the
+live directory, because that can remove `vendor`, the Vite build or runtime
+directories while requests are being served.
 
 Docker is deliberately not used: with a single instance it adds an image
 build, a registry and separate web/worker/scheduler containers for no
@@ -16,19 +16,20 @@ operational gain. Revisit when a second instance or ECS is needed.
 ```text
 Internet ──HTTPS──▶ EC2 (Elastic IP, nginx + php-fpm)
                       ├─ /var/www/training/current -> releases/<sha>   (web)
-                      ├─ supervisor: php artisan queue:work database    (worker)
+                      ├─ systemd: training-worker (queue:work database) (worker)
                       ├─ cron: php artisan schedule:run every minute    (scheduler)
                       └─ /var/www/training/shared/private               (uploads, on EBS)
                                 │
-                                └─ RDS MySQL (private subnet, same VPC)
+                                └─ RDS MySQL over TLS (same VPC, not public)
 ```
 
-Three processes share one codebase and one `.env`:
+Three processes share one codebase and one `.env`, all running as the
+`nginx` user:
 
 | Process   | Runs                                              | Needed for                                                                 |
 |-----------|---------------------------------------------------|----------------------------------------------------------------------------|
 | web       | nginx → php-fpm                                   | all HTTP traffic                                                           |
-| worker    | `queue:work database` under Supervisor, always on | every queued job: notification sync, training data sync; later the repository checks (`docs/plans/repository-ai-check.md`, which changes the worker settings in section 6) |
+| worker    | `queue:work database` as the systemd unit `training-worker`, always on | every queued job: notification sync, training data sync; later the repository checks (`docs/plans/repository-ai-check.md`, which changes the worker settings in section 6) |
 | scheduler | `schedule:run` from cron every minute             | `notifications:sync-participants` hourly (`routes/console.php`)            |
 
 The scheduler only *queues* jobs; the worker processes them. Both must run or
@@ -37,54 +38,84 @@ up by the hourly run; see `WeekProgressionService::weekStates()`).
 
 ## 2. AWS resources
 
+Everything is in the company account `129007323466`, region `us-east-2`,
+and already exists (created 2026-10-27):
+
+| Resource              | ID / endpoint                                               |
+|-----------------------|-------------------------------------------------------------|
+| EC2 `training-web`    | `i-062140707fc5036d8` (us-east-2a, subnet `subnet-98a8e3f0`) |
+| RDS `training-web-db` | `training-web-db.chs5dvwmkvnl.us-east-2.rds.amazonaws.com`  |
+| SG `training-web`     | `sg-04b35939609325d3c`                                      |
+| SG `training-db`      | `sg-07852c0de9aa7c9b7`                                      |
+| VPC                   | default VPC `vpc-291d3a41`                                  |
+
+The `fs-training` IAM user used for this deployment can describe resources
+and stop, start and resize the instance, but cannot allocate Elastic IPs,
+use SSM, IAM, Route 53 or CloudWatch alarms. Those steps need an account
+admin and are marked **(admin)** below.
+
 ### Network and security
 
-- One VPC with a public subnet (EC2) and two private subnets in different AZs
-  (RDS subnet group requires two).
-- Security group `training-web`: inbound 80 and 443 from `0.0.0.0/0`. No
-  inbound 22; use AWS Systems Manager Session Manager for shell access.
+- Security group `training-web`: inbound 80 and 443 from `0.0.0.0/0`, and
+  22 from the deploying admin's office IP only (one `/32`). Shell access is
+  SSH with the `training-web` key pair (kept in the team password manager);
+  Session Manager is not used because the deploying IAM user has no SSM
+  permissions. Update the `/32` rule when the office IP changes.
 - Security group `training-db`: inbound 3306 **only from** `training-web`.
-- Elastic IP attached to the instance; DNS `A` record for the production host
-  points at it.
+- Elastic IP **(admin)**: not allocated yet. Until it is, the public IP and
+  the EC2 DNS name change on every stop/start. Attach one before the DNS
+  record is created.
+
+### Hostname
+
+Production needs a company DNS name (for example a `fullscale.io`
+subdomain) with an `A` record at the Elastic IP **(admin)**. The EC2 DNS
+name (`ec2-…compute.amazonaws.com`) cannot be used: Let's Encrypt refuses
+`*.amazonaws.com` names by policy (tested 2026-10-29) and ACM cannot issue
+for it either, and without HTTPS Google OAuth, the Google Picker and
+`admin:bootstrap` all refuse to work. Until the name exists the site serves
+plain HTTP on the instance IP, for smoke testing only.
 
 ### EC2
 
-- Ubuntu 24.04 LTS, `t3.small` (2 vCPU, 2 GB) to start; `t3.medium` if the
-  worker and web compete for memory. Burstable is fine for an internal
-  training tool.
-- Root EBS gp3, 30 GB, **encrypted**, `DeleteOnTermination=false`. Uploaded
+- Amazon Linux 2023, `t3.micro` (2 vCPU, 1 GB) plus a 2 GB swap file
+  (section 3); PHP-FPM is sized for it. Move to `t3.small` (stop, change the
+  type, start) if the worker and web compete for memory; with the Elastic
+  IP attached the address survives that.
+- Root EBS gp3, 20 GB, **encrypted**, `DeleteOnTermination=false`. Uploaded
   evidence lives on this volume (`shared/private`), so it is the only
   stateful disk.
-- IAM instance role `training-ec2` with `AmazonSSMManagedInstanceCore`,
-  `CloudWatchAgentServerPolicy` and `s3:GetObject` on the release bucket
-  (section 7 ships releases through it). The AWS CLI on the instance picks
-  these credentials up from the instance metadata; no keys in `.env`.
-- Enable **EC2 auto-recovery** (CloudWatch `StatusCheckFailed_System` alarm
-  with the recover action) so a host failure restarts the instance on new
-  hardware with the same EBS volume and Elastic IP.
+- Instance profile `AmazonEC2RoleforSSM`. Releases arrive by `scp`
+  (section 7), so the instance needs no S3 access. The CloudWatch agent
+  (section 9) also needs `CloudWatchAgentServerPolicy` on that role
+  **(admin)**.
+- EC2 **auto-recovery** **(admin)**: a CloudWatch `StatusCheckFailed_System`
+  alarm with the recover action, so a host failure restarts the instance on
+  new hardware with the same EBS volume and Elastic IP.
 
 ### RDS MySQL
 
-- MySQL 8.0, `db.t4g.micro` or `db.t4g.small`, 20 GB gp3 with storage
-  autoscaling, **encrypted**, single-AZ (Multi-AZ doubles cost; the web tier
-  is single-instance anyway, so it buys little until that changes).
-- Not publicly accessible; subnet group = the two private subnets; security
-  group `training-db`.
-- Master credentials: self-managed password. Leave "Manage master
-  credentials in AWS Secrets Manager" unticked; no secrets manager is used
-  (see Secrets below).
-- Automated backups: 7-day retention, backup window outside Manila office
-  hours (`APP_TIMEZONE=Asia/Manila`, so e.g. `18:00-19:00 UTC`). Enable
-  deletion protection.
-- Parameter group: default `utf8mb4` is already the MySQL 8 default; set
-  `time_zone` only if reports need DB-side local time (the app passes
-  timezone through Laravel, so leave UTC).
-- Create the application database and user from the EC2 instance once RDS is
-  up:
+- MySQL 8.4, `db.t3.small`, 100 GB gp3 with storage autoscaling to 1000 GB,
+  **encrypted**, single-AZ (Multi-AZ doubles cost; the web tier is
+  single-instance anyway), not publicly accessible, deletion protection on,
+  parameter group `default.mysql8.4`.
+- Master user `admin` with a self-managed password (no Secrets Manager; see
+  Secrets below). The `dev_training_platform` database was created with the
+  instance.
+- Automated backups: 7-day retention. The current window, `07:05-07:35`
+  UTC, is 15:05 Manila, inside office hours; move it to e.g.
+  `18:00-19:00` UTC (`aws rds modify-db-instance --preferred-backup-window`,
+  no downtime).
+- The app connects over TLS: `MYSQL_ATTR_SSL_CA` in `.env` points at the
+  RDS CA bundle installed in section 3. MySQL 8.4 authenticates with
+  `caching_sha2_password`, which works cleanly over TLS.
+- The application user is created once from the instance with
+  `sudo training-create-db-user` (installed in section 3). It reads
+  `DB_PASSWORD` from `shared/.env`, prompts for the `admin` password, and
+  runs:
 
   ```sql
-  CREATE DATABASE dev_training_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-  CREATE USER 'dev_training_app'@'%' IDENTIFIED BY '<strong password>';
+  CREATE USER IF NOT EXISTS 'dev_training_app'@'%' IDENTIFIED BY '<DB_PASSWORD>';
   GRANT ALL PRIVILEGES ON dev_training_platform.* TO 'dev_training_app'@'%';
   ```
 
@@ -103,6 +134,7 @@ the team password manager, updated whenever one changes:
 - `APP_KEY`: the most important one. Settings saved on the admin Google
   Drive page are encrypted with it; losing it makes them unreadable.
 - `DB_PASSWORD` (`dev_training_app`) and the RDS master password.
+- The `training-web` SSH key.
 - Google OAuth client secret and Picker API key.
 - Mail (SES SMTP) credentials.
 
@@ -112,46 +144,96 @@ copy.
 
 ## 3. Server provisioning
 
-Run once on a fresh instance (via Session Manager).
+Run once on a fresh instance, as `ec2-user` over SSH.
 
 ```bash
-# PHP 8.4 (Laravel 13 needs >= 8.3; composer.json says ^8.3)
-sudo add-apt-repository -y ppa:ondrej/php
-sudo apt update
-sudo apt install -y nginx supervisor unzip git acl mysql-client \
-  php8.4-fpm php8.4-cli php8.4-mysql php8.4-mbstring php8.4-xml php8.4-curl \
-  php8.4-zip php8.4-bcmath php8.4-intl php8.4-gd php8.4-opcache
+# 2 GB swap: t3.micro has 1 GB RAM
+sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
+sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swappiness.conf && sudo sysctl -p /etc/sysctl.d/99-swappiness.conf
 
-# Composer
-curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+# nginx, PHP 8.4 (Laravel 13 needs >= 8.3), cron, tools; the mariadb105 client is preinstalled
+sudo dnf install -y nginx cronie git unzip dnf-automatic certbot python3-certbot-nginx \
+  php8.4-fpm php8.4-cli php8.4-mysqlnd php8.4-mbstring php8.4-xml php8.4-intl \
+  php8.4-gd php8.4-opcache php8.4-bcmath php8.4-zip php8.4-process php8.4-sodium
 
-# AWS CLI (pulls release archives from S3 with the instance role)
-sudo snap install aws-cli --classic
+# Composer, with the installer signature checked
+cd /tmp
+EXPECTED=$(curl -fsSL https://composer.github.io/installer.sig)
+curl -fsSL https://getcomposer.org/installer -o composer-setup.php
+[ "$EXPECTED" = "$(php -r 'echo hash_file("sha384", "composer-setup.php");')" ] && \
+  sudo php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+rm composer-setup.php
 
 # Unattended security updates
-sudo apt install -y unattended-upgrades && sudo dpkg-reconfigure -plow unattended-upgrades
+sudo sed -i -e 's/^upgrade_type = .*/upgrade_type = security/' -e 's/^apply_updates = .*/apply_updates = yes/' /etc/dnf/automatic.conf
+sudo systemctl enable --now dnf-automatic.timer
 
-# Let the release steps (run as www-data) reload php-fpm after a switch (section 7)
-echo 'www-data ALL=(root) NOPASSWD: /usr/bin/systemctl reload php8.4-fpm' | sudo tee /etc/sudoers.d/training-release
+# RDS CA bundle for TLS to the database (MYSQL_ATTR_SSL_CA)
+sudo install -d -m 755 /etc/pki/rds
+sudo curl -fsSL https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o /etc/pki/rds/global-bundle.pem
+
+# Let the release steps (run as nginx) reload php-fpm after a switch (section 7)
+echo 'nginx ALL=(root) NOPASSWD: /usr/bin/systemctl reload php-fpm' | sudo tee /etc/sudoers.d/training-release
 sudo chmod 440 /etc/sudoers.d/training-release
+
+sudo systemctl enable --now php-fpm nginx crond
 ```
 
 `composer.json` declares no `ext-*` requirements, so the extension list above
 is what Laravel and the installed packages need (`pdo_mysql`, `mbstring`,
-`xml`, `curl`, `zip`, `bcmath`, `intl`, `gd`).
+`xml`, `curl`, `zip`, `bcmath`, `intl`, `gd`; `curl`, `openssl`, `fileinfo`
+and `tokenizer` come with `php8.4-common`).
 
 Node is **not** installed on the server: `public/build` is produced by
 `npm run build` on the build side and shipped inside the release archive
 (`atomic-release.sh prepare` refuses an archive without
 `public/build/manifest.json`).
 
-PHP-FPM pool (`/etc/php/8.4/fpm/pool.d/www.conf`): keep `www-data`, set
-`pm = dynamic`, `pm.max_children = 10`, and in `/etc/php/8.4/fpm/php.ini`
-set `upload_max_filesize = 300M`, `post_max_size = 310M` (evidence files may
-be up to `training.evidence_max_kb`, 300 MB; weekly videos are links and
-need no limit), `max_execution_time = 120`, and
-`opcache.validate_timestamps = 0` (releases are immutable; a new release gets
-a fresh `opcache` because `php-fpm` is reloaded after activation, section 7).
+PHP-FPM pool (`/etc/php-fpm.d/www.conf`): change `user`, `group` and
+`listen.acl_users` from `apache` to `nginx`; for 1 GB RAM set
+`pm.max_children = 5`, `pm.start_servers = 2`, `pm.min_spare_servers = 1`,
+`pm.max_spare_servers = 3`; and append
+`php_admin_value[opcache.validate_timestamps] = 0` (releases are immutable;
+a new release gets a fresh opcache because php-fpm is reloaded after
+activation, section 7). That setting goes in the pool, not `php.ini`,
+because AL2023 also enables opcache for the CLI. Then
+`sudo chgrp nginx /var/lib/php/session /var/lib/php/wsdlcache /var/lib/php/opcache`.
+
+PHP settings go in `/etc/php.d/99-training.ini`:
+
+```ini
+upload_max_filesize = 300M
+post_max_size = 310M
+max_execution_time = 120
+upload_tmp_dir = /var/lib/php/upload
+expose_php = Off
+```
+
+Evidence files may be up to `training.evidence_max_kb` (300 MB; weekly
+videos are links and need no limit). `/tmp` on AL2023 is a RAM-backed tmpfs
+of half the memory (457 MB here), too small for a 300 MB upload, so uploads
+are buffered on disk: `sudo install -d -o nginx -g nginx -m 700 /var/lib/php/upload`.
+nginx already buffers request bodies on disk (`/var/lib/nginx/tmp`).
+
+Finally install the database-user helper used in section 2 as
+`/usr/local/sbin/training-create-db-user` (root, mode 700):
+
+```bash
+#!/usr/bin/env bash
+# Creates the application database user from DB_PASSWORD in shared/.env.
+# Prompts for the RDS master (admin) password; run once.
+set -euo pipefail
+ENV=/var/www/training/shared/.env
+DB_HOST=$(grep '^DB_HOST=' "$ENV" | cut -d= -f2-)
+DB_PASSWORD=$(grep '^DB_PASSWORD=' "$ENV" | cut -d= -f2-)
+mysql --ssl-ca=/etc/pki/rds/global-bundle.pem --ssl-verify-server-cert -h "$DB_HOST" -u admin -p <<SQL
+CREATE USER IF NOT EXISTS 'dev_training_app'@'%' IDENTIFIED BY '$DB_PASSWORD';
+GRANT ALL PRIVILEGES ON dev_training_platform.* TO 'dev_training_app'@'%';
+SELECT CONCAT(user, "@", host, " ready") AS result FROM mysql.user WHERE user = 'dev_training_app';
+SQL
+```
 
 ## 4. Directory layout
 
@@ -163,7 +245,7 @@ a fresh `opcache` because `php-fpm` is reloaded after activation, section 7).
   shared/
     .env                                           # production environment
     private/                                       # storage/app/private (submission evidence)
-    logs/                                          # storage/logs
+    logs/                                          # storage/logs and worker.log
   atomic-release.sh                                # copy of scripts/atomic-release.sh from the release being deployed
 ```
 
@@ -175,10 +257,10 @@ Create it once:
 
 ```bash
 sudo mkdir -p /var/www/training/{releases,shared/private,shared/logs}
-sudo chown -R www-data:www-data /var/www/training
+sudo chown -R nginx:nginx /var/www/training
 sudo chmod 750 /var/www/training/shared
 # first release placeholder so `prepare` passes its "must be a symlink" check
-sudo -u www-data ln -s /var/www/training/releases/bootstrap /var/www/training/current
+sudo -u nginx ln -s /var/www/training/releases/bootstrap /var/www/training/current
 ```
 
 This matches the paths `atomic-release.sh` expects:
@@ -186,22 +268,26 @@ This matches the paths `atomic-release.sh` expects:
 
 ## 5. Production `.env`
 
-`/var/www/training/shared/.env`, owned by `www-data`, mode `640`. Differences
-from `.env.example`:
+`/var/www/training/shared/.env`, owned by `nginx`, mode `640`. Generate the
+secrets on the instance so they never leave it
+(`APP_KEY="base64:$(openssl rand -base64 32)"`,
+`DB_PASSWORD=$(openssl rand -base64 48 | tr -dc A-Za-z0-9 | head -c 32)`),
+then copy them into the password manager. Differences from `.env.example`:
 
 ```dotenv
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://<host>
-APP_KEY=                      # php artisan key:generate --show, once; never rotate casually (encrypted settings)
+APP_URL=https://<host>        # http://<instance IP> until the hostname exists (section 2)
+APP_KEY=                      # generated once; never rotate casually (encrypted settings)
 LOG_CHANNEL=stack
 LOG_STACK=daily
 LOG_LEVEL=warning
 
-DB_HOST=<rds endpoint>
+DB_HOST=training-web-db.chs5dvwmkvnl.us-east-2.rds.amazonaws.com
 DB_DATABASE=dev_training_platform
 DB_USERNAME=dev_training_app
-DB_PASSWORD=<dev_training_app password; copy kept in the team password manager>
+DB_PASSWORD=<generated; copy kept in the team password manager>
+MYSQL_ATTR_SSL_CA=/etc/pki/rds/global-bundle.pem
 
 SESSION_DRIVER=database       # already DB-backed; nothing instance-local
 CACHE_STORE=database
@@ -209,7 +295,7 @@ QUEUE_CONNECTION=database
 DB_QUEUE_RETRY_AFTER=90       # must stay > worker --timeout (section 6)
 FILESYSTEM_DISK=local         # evidence stays on EBS; move to s3 only when adding instances
 
-MAIL_MAILER=smtp              # Amazon SES SMTP or the company mail relay
+MAIL_MAILER=smtp              # Amazon SES SMTP or the company mail relay; `log` until set up
 MAIL_HOST=email-smtp.<region>.amazonaws.com
 MAIL_PORT=587
 MAIL_SCHEME=tls
@@ -217,7 +303,7 @@ MAIL_FROM_ADDRESS=<verified sender>
 
 BOOTSTRAP_ADMIN_TEMPORARY_PASSWORD=   # set only for the first-admin bootstrap, then clear it
 
-GOOGLE_DRIVE_ENABLED=true
+GOOGLE_DRIVE_ENABLED=true     # false until the hostname and Google setup exist
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 GOOGLE_REDIRECT_URI=https://<host>/profile/google-drive/callback
@@ -230,29 +316,28 @@ The Google Cloud setup (internal OAuth consent, redirect URI, Picker key)
 is in section 8. Verify the mail settings with the **Send test email**
 action on the admin settings page after the first release.
 
+Every artisan command, including `package:discover` inside `composer
+install`, reads `application_settings` while booting, so the database must
+be reachable and the credentials right before `prepare` can pass.
+
 ## 6. Processes
 
 ### nginx
 
-`/etc/nginx/sites-available/training`:
+`/etc/nginx/conf.d/training.conf`. The AL2023 `nginx.conf` keeps its own
+port-80 server, but it is not the default server, so this one takes all
+requests; `conf.d/php-fpm.conf` already defines the `php-fpm` upstream.
 
 ```nginx
 server {
-    listen 80;
-    server_name <host>;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name <host>;
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;               # becomes <host> once it exists
     root /var/www/training/current/public;
     index index.php;
 
-    ssl_certificate     /etc/letsencrypt/live/<host>/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/<host>/privkey.pem;
-
     client_max_body_size 310M;   # evidence uploads up to 300 MB (training.evidence_max_kb)
+    server_tokens off;
     add_header X-Frame-Options SAMEORIGIN;
     add_header X-Content-Type-Options nosniff;
 
@@ -261,8 +346,9 @@ server {
     }
 
     location ~ \.php$ {
-        include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+        include fastcgi_params;
+        fastcgi_pass php-fpm;
+        fastcgi_read_timeout 120;
         # $realpath_root, not $document_root: resolve the symlink per request so a
         # release switch takes effect without a stale path in php-fpm
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
@@ -273,51 +359,67 @@ server {
 }
 ```
 
-TLS: `sudo apt install certbot python3-certbot-nginx && sudo certbot --nginx -d <host>`.
-Certbot installs its own renewal timer. (If an ALB is added later, terminate
-TLS with an ACM certificate there instead.)
+TLS, once the hostname resolves to the Elastic IP: set `server_name <host>;`,
+then `sudo certbot --nginx -d <host>` (adds the 443 server and the HTTP to
+HTTPS redirect) and `sudo systemctl enable --now certbot-renew.timer`. Set
+`APP_URL=https://<host>` and re-run the release `prepare`/`activate` so the
+config cache picks it up. (If an ALB is added later, terminate TLS with an
+ACM certificate there instead.)
 
-### Queue worker (Supervisor)
+### Queue worker (systemd)
 
-`/etc/supervisor/conf.d/training-worker.conf`:
+AL2023 has no Supervisor package; systemd does the same job.
+`/etc/systemd/system/training-worker.service`:
 
 ```ini
-[program:training-worker]
-command=/usr/bin/php /var/www/training/current/artisan queue:work database --sleep=3 --tries=3 --timeout=60 --max-time=3600 --max-jobs=500
-directory=/var/www/training/current
-user=www-data
-numprocs=1
-autostart=true
-autorestart=true
-stopasgroup=true
-killasgroup=true
-stopwaitsecs=70
-stdout_logfile=/var/www/training/shared/logs/worker.log
-stderr_logfile=/var/www/training/shared/logs/worker.log
+[Unit]
+Description=Training platform queue worker
+After=network-online.target php-fpm.service
+Wants=network-online.target
+
+[Service]
+User=nginx
+Group=nginx
+WorkingDirectory=/var/www/training/current
+ExecStart=/usr/bin/php /var/www/training/current/artisan queue:work database --sleep=3 --tries=3 --timeout=60 --max-time=3600 --max-jobs=500
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=70
+StandardOutput=append:/var/www/training/shared/logs/worker.log
+StandardError=append:/var/www/training/shared/logs/worker.log
+
+[Install]
+WantedBy=multi-user.target
 ```
 
 Notes:
 
 - `--timeout=60` < `DB_QUEUE_RETRY_AFTER=90` so a job is never handed to a
   second worker while still running. Keep this ordering if either changes.
-- `--max-time=3600` makes the worker exit and get restarted by Supervisor
-  hourly, which bounds memory growth. Every deploy also runs
-  `php artisan queue:restart` (section 7) so the worker picks up the new
-  release; without it the worker keeps executing the *old* release's code.
-- `numprocs=1` is enough: `GenerateParticipantNotificationsJob` is unique per
-  participant and `SyncTrainingDataJob` is light. Raise to 2 only if
+- `--max-time=3600` makes the worker exit and get restarted by systemd
+  (`Restart=always`) hourly, which bounds memory growth. Every deploy also
+  runs `php artisan queue:restart` (section 7) so the worker picks up the
+  new release; without it the worker keeps executing the *old* release's
+  code. The restarted process resolves the `current` symlink afresh.
+- One process is enough: `GenerateParticipantNotificationsJob` is unique per
+  participant and `SyncTrainingDataJob` is light. Add a second unit (or a
+  templated `training-worker@.service`) only if
   `php artisan queue:monitor database:default --max=100` reports a backlog.
-- `stopwaitsecs=70` > `--timeout` so a graceful stop lets the current job
+- `TimeoutStopSec=70` > `--timeout` so a graceful stop lets the current job
   finish.
 
-Load it: `sudo supervisorctl reread && sudo supervisorctl update`.
+Enable it after the first release is active (before that `current` points
+at the placeholder and the unit would restart in a loop):
+`sudo systemctl daemon-reload && sudo systemctl enable --now training-worker`.
+Status: `systemctl status training-worker`; logs: `shared/logs/worker.log`.
 
 This replaces the former shared-hosting `queue-cron.sh` (`--stop-when-empty`
 from cron). Do not install that script on EC2.
 
 ### Scheduler (cron)
 
-`sudo crontab -u www-data -e`:
+`sudo crontab -u nginx -e`:
 
 ```cron
 * * * * * cd /var/www/training/current && /usr/bin/php artisan schedule:run >> /dev/null 2>&1
@@ -326,7 +428,8 @@ from cron). Do not install that script on EC2.
 Laravel decides inside `schedule:run` which tasks are due, so the only entry
 is this one; `notifications:sync-participants` runs at the top of every hour
 from it. The `cd` goes through the `current` symlink, so cron always runs the
-live release.
+live release. (The `nginx` user's `/sbin/nologin` shell does not matter:
+cron runs the line with `/bin/sh`.)
 
 `schedule:run` must run on exactly one host. When a second instance is ever
 added, use `->onOneServer()` with a shared cache store, or keep cron on one
@@ -337,7 +440,7 @@ designated instance.
 Build off the machine, ship an archive, prepare, migrate, activate, restart
 the worker.
 
-### Build (developer machine or CI)
+### Build (developer machine)
 
 ```bash
 SHA=$(git rev-parse --short HEAD)
@@ -345,30 +448,27 @@ npm ci && npm run build                                  # produces public/build
 mkdir -p /tmp/release-$SHA
 git archive --format=tar HEAD | tar -xf - -C /tmp/release-$SHA
 cp -R public/build /tmp/release-$SHA/public/build
-tar -czf release-$SHA.tar.gz -C /tmp/release-$SHA .
+# macOS: leave out extended attributes, which GNU tar on the server warns about per file
+COPYFILE_DISABLE=1 tar --no-xattrs --no-mac-metadata -czf release-$SHA.tar.gz -C /tmp/release-$SHA .
 ```
 
 `vendor` is not shipped: `prepare` runs `composer install --no-dev` on the
 instance from the committed `composer.lock`, with the server's PHP, so the
-platform check matches the runtime. (Shipping a `vendor` built on a
-developer machine works too and skips that step, but ties the archive to
-that machine's PHP version.)
+platform check matches the runtime.
 
-Ship with `aws s3 cp release-$SHA.tar.gz s3://<release-bucket>/`, or `scp`
-through Session Manager port forwarding.
+Ship it: `scp -i training-web.pem release-$SHA.tar.gz ec2-user@<host or IP>:/tmp/`.
 
 ### On the instance
 
 ```bash
 ROOT=/var/www/training
-sudo -u www-data aws s3 cp s3://<release-bucket>/release-$SHA.tar.gz /tmp/
 
 # 0. Take the release script from the archive (it must exist before prepare extracts).
-sudo -u www-data tar -xzf /tmp/release-$SHA.tar.gz -C $ROOT --strip-components=2 ./scripts/atomic-release.sh
+sudo -u nginx tar -xzf /tmp/release-$SHA.tar.gz -C $ROOT --strip-components=2 ./scripts/atomic-release.sh
 
 # 1. Prepare: extracts, links shared .env/private/logs, composer install, builds
 #    caches and refuses if migrations are pending.
-sudo -u www-data $ROOT/atomic-release.sh prepare \
+sudo -u nginx $ROOT/atomic-release.sh prepare \
   --archive /tmp/release-$SHA.tar.gz --sha $SHA \
   --app-link $ROOT/current --releases-root $ROOT/releases --shared-root $ROOT/shared
 
@@ -377,21 +477,22 @@ sudo -u www-data $ROOT/atomic-release.sh prepare \
 #    (add first, switch code, drop later) so the still-live old release keeps
 #    working during the switch and `rollback` stays possible. Re-running prepare
 #    wipes and re-extracts the release directory, composer install included.
-sudo -u www-data php $ROOT/releases/$SHA/artisan migrate --force
-sudo -u www-data $ROOT/atomic-release.sh prepare ...     # same arguments; now passes
+sudo -u nginx php $ROOT/releases/$SHA/artisan migrate --force
+sudo -u nginx $ROOT/atomic-release.sh prepare ...     # same arguments; now passes
 
-# 3. Activate: single mv -T of the symlink, then `queue:restart` so the Supervisor
-#    worker reloads onto the new release, then the after-switch command (drop the old
+# 3. Activate: single mv -T of the symlink, then `queue:restart` so the worker
+#    reloads onto the new release, then the after-switch command (drop the old
 #    opcache; validate_timestamps=0; allowed by the sudoers line in section 3), then
 #    the HTTP health check.
-sudo -u www-data $ROOT/atomic-release.sh activate \
+sudo -u nginx $ROOT/atomic-release.sh activate \
   --app-link $ROOT/current --release $ROOT/releases/$SHA \
-  --after-switch 'sudo systemctl reload php8.4-fpm' \
-  --health-url https://<host>/up
+  --after-switch 'sudo systemctl reload php-fpm' \
+  --health-url https://<host>/up                      # http://localhost/up until TLS exists
 
 # 4. Prune: keep the live release plus the 4 newest others for rollback.
 LIVE=$(readlink -f $ROOT/current)
 ls -dt $ROOT/releases/*/ | grep -vx "$LIVE/" | tail -n +5 | xargs -r sudo rm -rf
+rm /tmp/release-$SHA.tar.gz
 ```
 
 `/up` is the framework health route registered in `bootstrap/app.php`.
@@ -399,10 +500,10 @@ ls -dt $ROOT/releases/*/ | grep -vx "$LIVE/" | tail -n +5 | xargs -r sudo rm -rf
 ### Rollback
 
 ```bash
-sudo -u www-data scripts/atomic-release.sh rollback \
+sudo -u nginx /var/www/training/atomic-release.sh rollback \
   --app-link /var/www/training/current \
   --release /var/www/training/releases/<previous sha> \
-  --after-switch 'sudo systemctl reload php8.4-fpm' \
+  --after-switch 'sudo systemctl reload php-fpm' \
   --health-url https://<host>/up
 ```
 
@@ -477,7 +578,7 @@ upload limit. Other evidence files still do: PHP's `upload_max_filesize` and
 
 ### After: seed the program
 
-From the active release (`/var/www/training/current`), as `www-data`:
+From the active release (`/var/www/training/current`), as `nginx`:
 
 ```bash
 php artisan db:seed --class=L4TrainingProgramSeeder --force
@@ -506,42 +607,47 @@ weeks from Mon 9 Nov 2026, once. Re-running it is safe.
 | What                      | How                                                                                  | Restore test                                      |
 |---------------------------|--------------------------------------------------------------------------------------|---------------------------------------------------|
 | Database                  | RDS automated backups, 7 days + a manual snapshot before every migrating release     | Restore snapshot to a temp instance, run `migrate:status` |
-| Uploads (`shared/private`)| AWS Data Lifecycle Manager daily EBS snapshot of the root volume, 14-day retention; optionally a nightly `aws s3 sync shared/private s3://<backup-bucket>/private` from cron | Mount a snapshot volume on a temp instance |
+| Uploads (`shared/private`)| AWS Data Lifecycle Manager daily EBS snapshot of the root volume, 14-day retention **(admin)** | Mount a snapshot volume on a temp instance |
 | `.env`                    | Secret values in the team password manager (section 2, Secrets); the file itself is in the EBS snapshot | Compare the password manager copy against `shared/.env` after each change |
-| Logs                      | CloudWatch agent tailing `shared/logs/laravel-*.log` and `worker.log`; 30-day retention | —                                              |
+| Logs                      | CloudWatch agent tailing `shared/logs/laravel-*.log` and `worker.log`; 30-day retention (needs the role policy in section 2) | —                                              |
 
-CloudWatch alarms worth having from day one:
+CloudWatch alarms worth having from day one **(admin)**:
 
 - `StatusCheckFailed_System` → recover instance (section 2).
 - RDS `FreeStorageSpace` < 2 GB, `CPUUtilization` > 80 % for 15 min.
 - EC2 `disk_used_percent` (CloudWatch agent) > 80 %: uploads and logs are
-  the growth sources.
+  the growth sources on a 20 GB volume.
 - A log metric filter on `laravel-*.log` for `.ERROR:` → alarm when > 0 in 5
   minutes.
 - Route 53 or an external uptime check on `https://<host>/up`.
 
 Queue health: `php artisan queue:monitor database:default --max=100`
-scheduled hourly, or just watch `worker.log` for `Processed`/`Failed`
-lines. Failed jobs land in `failed_jobs`; retry with
-`php artisan queue:retry all`.
+scheduled hourly, or just watch `worker.log` for `DONE`/`FAIL` lines.
+Failed jobs land in `failed_jobs`; retry with `php artisan queue:retry all`.
 
 ## 10. Go-live order
 
-The existing EC2 instance is fresh and carries no data, so there is nothing
-to migrate from it: build the new environment as sections 2 to 6 describe
-(on that instance or a new one), then:
+Status on 2026-10-29: sections 3, 4 and 5 are done on `training-web`
+(`.env` with `APP_URL=http://<instance IP>`, mail on `log`, Google Drive
+off), and the systemd worker unit is installed but not enabled.
 
-1. Prepare and activate the first release (section 7, with the first-release
+1. Create the application database user: `sudo training-create-db-user`
+   (section 2).
+2. Prepare and activate the first release (section 7, with the first-release
    notes of section 8); the `current` placeholder symlink from section 4
    makes `prepare` pass its symlink check.
-2. Install the Supervisor program and the cron entry, `supervisorctl update`.
-3. Verify: `/up` returns 200 over HTTPS, `supervisorctl status
-   training-worker` is `RUNNING`, `php artisan schedule:list` shows the
-   hourly command, and the Google Drive and mail checks of sections 5 and 8
-   pass.
-4. Seed the program and bootstrap the admin (section 8).
-5. Point the production DNS record at the Elastic IP, then switch on the
-   backups and alarms of section 9. Terminate any earlier throwaway instance.
+3. Enable the worker and install the cron entry (section 6).
+4. Verify over HTTP: `/up` returns 200, `systemctl status training-worker`
+   is `active (running)`, `php artisan schedule:list` shows the hourly
+   command.
+5. **(admin)** Allocate and attach the Elastic IP; create the DNS record
+   for the hostname (section 2).
+6. TLS with certbot and `APP_URL=https://<host>` (section 6), then set up
+   Google (section 8) and mail (section 5) and run their checks.
+7. Seed the program and bootstrap the admin (section 8). The bootstrap needs
+   HTTPS, so it waits for step 6.
+8. **(admin)** Switch on the backups and alarms of section 9; move the RDS
+   backup window (section 2).
 
 ## 11. Repository changes this plan needs
 
@@ -556,18 +662,20 @@ Each is a small separate change.
       first-release seeding moved to section 8, its release principles to
       section 7. The QA-data deletion walkthrough and the migration-squash
       adoption steps were dropped: the production database starts empty.
+- [x] `scripts/atomic-release.sh` committed with the executable bit, so the
+      copy extracted in section 7 step 0 can be run directly.
 - [ ] Remove `queue-cron.sh` (shared-hosting paths, `--stop-when-empty`
-      workaround); Supervisor replaces it.
+      workaround); the systemd worker replaces it.
 - [ ] Add `Schedule::command('queue:monitor database:default --max=100')->hourly()`
       to `routes/console.php` so a backlog is logged.
-- [ ] Optional CI: a GitHub Actions workflow that runs the test suite, builds
-      the archive (section 7) and uploads it to the release bucket on a tag,
-      leaving `prepare`/`activate` as a manual SSM Run Command step.
+- [ ] Optional CI: a GitHub Actions workflow that runs the test suite and
+      builds the archive (section 7) on a tag, leaving the upload and
+      `prepare`/`activate` as manual steps.
 
 ## 12. When to revisit
 
 Move evidence to S3 (`FILESYSTEM_DISK=s3`, `AWS_BUCKET`) and put an ALB in
 front **before** adding a second instance; sessions, cache and queue are
 already in the database so they need no change. At that point the release
-archive becomes a container image and ECS replaces Supervisor and cron, which
+archive becomes a container image and ECS replaces the systemd worker and cron, which
 is the Docker decision deferred here.

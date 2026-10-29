@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ExpectedFileSource;
+use App\Support\ExpectedFile;
 use Database\Factories\ActivityFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -73,6 +75,17 @@ class Activity extends Model
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * The files a repository check expects in the participant's repository for the activity, from
+     * `configuration.expected_files` (beside its `scoring_dimensions`); invalid entries are skipped with a warning.
+     *
+     * @return list<ExpectedFile>
+     */
+    public function expectedFiles(): array
+    {
+        return ExpectedFile::listFromConfiguration($this->configuration, ExpectedFileSource::Activity, $this->id, $this->title);
     }
 
     /**

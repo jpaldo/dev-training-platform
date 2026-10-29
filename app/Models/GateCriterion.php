@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ExpectedFileSource;
+use App\Support\ExpectedFile;
 use Database\Factories\GateCriterionFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -87,6 +89,22 @@ class GateCriterion extends Model
     public function isOnChecklist(): bool
     {
         return $this->is_required;
+    }
+
+    /**
+     * The session-log files a repository check expects in the participant's repository, committed within the week,
+     * from the session-logs item's `configuration.expected_files`; invalid entries are skipped with a warning. Only the
+     * session-logs item carries expected files, so any other item has none.
+     *
+     * @return list<ExpectedFile>
+     */
+    public function expectedFiles(): array
+    {
+        if ($this->criterion_type !== self::TYPE_SESSION_LOGS) {
+            return [];
+        }
+
+        return ExpectedFile::listFromConfiguration($this->configuration, ExpectedFileSource::SessionLogs, $this->id, $this->title);
     }
 
     /**

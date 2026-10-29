@@ -699,10 +699,11 @@ Failed jobs land in `failed_jobs`; retry with `php artisan queue:retry all`.
 
 ## 10. Go-live order
 
-Status on 2026-10-29: sections 3, 4 and 5 are done on `training-web`
-(`.env` with `APP_URL=https://3-142-192-133.sslip.io`, mail on `log`,
-Google Drive off), nginx serves HTTPS for that name with automatic renewal
-(section 6), and the systemd worker unit is installed but not enabled.
+Status on 2026-10-29: steps 1 to 4 are done. Release `839a182` is live at
+`https://3-142-192-133.sslip.io` (`.env` with mail on `log` and Google
+Drive off), the schema is migrated, the worker and the cron entry run, and
+nginx serves HTTPS for that name with automatic renewal (section 6). Next
+is step 5.
 
 1. Create the application database user: `sudo training-create-db-user`
    (section 2).

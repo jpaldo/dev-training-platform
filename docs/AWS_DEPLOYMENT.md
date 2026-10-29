@@ -62,9 +62,10 @@ admin and are marked **(admin)** below.
   Session Manager is not used because the deploying IAM user has no SSM
   permissions. Update the `/32` rule when the office IP changes.
 - Security group `training-db`: inbound 3306 **only from** `training-web`.
-- Elastic IP **(admin)**: not allocated yet. Until it is, the public IP and
-  the EC2 DNS name change on every stop/start. Attach one before the DNS
-  record is created.
+- Elastic IP **(admin)**: requested 2026-10-29, not attached yet. Until it
+  is, the public IP and the EC2 DNS name change on every stop/start. Attach
+  one before the DNS record is created, then update `APP_URL` and the
+  `HostName` of the SSH config.
 
 ### Hostname
 
@@ -78,10 +79,10 @@ plain HTTP on the instance IP, for smoke testing only.
 
 ### EC2
 
-- Amazon Linux 2023, `t3.micro` (2 vCPU, 1 GB) plus a 2 GB swap file
-  (section 3); PHP-FPM is sized for it. Move to `t3.small` (stop, change the
-  type, start) if the worker and web compete for memory; with the Elastic
-  IP attached the address survives that.
+- Amazon Linux 2023, `t3.small` (2 vCPU, 2 GB; resized from `t3.micro` on
+  2026-10-29) plus a 2 GB swap file as a safety margin for `composer
+  install` (section 3); PHP-FPM is sized for it. Resizing is stop, change
+  the type, start; with the Elastic IP attached the address survives that.
 - Root EBS gp3, 20 GB, **encrypted**, `DeleteOnTermination=false`. Uploaded
   evidence lives on this volume (`shared/private`), so it is the only
   stateful disk.
@@ -147,7 +148,7 @@ copy.
 Run once on a fresh instance, as `ec2-user` over SSH.
 
 ```bash
-# 2 GB swap: t3.micro has 1 GB RAM
+# 2 GB swap: headroom for composer install next to php-fpm and the worker
 sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
 sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
@@ -192,9 +193,9 @@ Node is **not** installed on the server: `public/build` is produced by
 `public/build/manifest.json`).
 
 PHP-FPM pool (`/etc/php-fpm.d/www.conf`): change `user`, `group` and
-`listen.acl_users` from `apache` to `nginx`; for 1 GB RAM set
-`pm.max_children = 5`, `pm.start_servers = 2`, `pm.min_spare_servers = 1`,
-`pm.max_spare_servers = 3`; and append
+`listen.acl_users` from `apache` to `nginx`; for 2 GB RAM set
+`pm.max_children = 10`, `pm.start_servers = 3`, `pm.min_spare_servers = 2`,
+`pm.max_spare_servers = 5`; and append
 `php_admin_value[opcache.validate_timestamps] = 0` (releases are immutable;
 a new release gets a fresh opcache because php-fpm is reloaded after
 activation, section 7). That setting goes in the pool, not `php.ini`,

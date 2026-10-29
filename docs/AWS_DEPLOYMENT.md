@@ -129,9 +129,13 @@ Google OAuth, the Google Picker and `admin:bootstrap` all refuse to work.
 
   ```sql
   CREATE USER IF NOT EXISTS 'dev_training_app'@'%' IDENTIFIED BY '<DB_PASSWORD>';
+  ALTER USER 'dev_training_app'@'%' IDENTIFIED BY '<DB_PASSWORD>';
   GRANT ALL PRIVILEGES ON dev_training_platform.* TO 'dev_training_app'@'%';
   ```
 
+  The `ALTER USER` makes the user's password match `.env` even when the
+  user already existed (`CREATE USER IF NOT EXISTS` leaves an existing
+  password alone), and makes the helper the way to reset it.
   The `%` host is acceptable because the security group already restricts
   the source to the web instance.
 
@@ -243,6 +247,7 @@ DB_HOST=$(grep '^DB_HOST=' "$ENV" | cut -d= -f2-)
 DB_PASSWORD=$(grep '^DB_PASSWORD=' "$ENV" | cut -d= -f2-)
 mysql --ssl-ca=/etc/pki/rds/global-bundle.pem --ssl-verify-server-cert -h "$DB_HOST" -u admin -p <<SQL
 CREATE USER IF NOT EXISTS 'dev_training_app'@'%' IDENTIFIED BY '$DB_PASSWORD';
+ALTER USER 'dev_training_app'@'%' IDENTIFIED BY '$DB_PASSWORD';
 GRANT ALL PRIVILEGES ON dev_training_platform.* TO 'dev_training_app'@'%';
 SELECT CONCAT(user, "@", host, " ready") AS result FROM mysql.user WHERE user = 'dev_training_app';
 SQL

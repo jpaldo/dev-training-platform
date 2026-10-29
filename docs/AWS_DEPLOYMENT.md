@@ -668,11 +668,14 @@ weeks from Mon 9 Nov 2026, once. Re-running it is safe.
   `app:ensure-development-baseline` there; both refuse the production
   environment.
 - Create the first admin: set `BOOTSTRAP_ADMIN_TEMPORARY_PASSWORD` in
-  `shared/.env`, run `php artisan admin:bootstrap` (it creates the admin
-  account whose email is fixed in `BootstrapAdminCommand`, and refuses in
-  production unless `APP_URL` is `https`), sign in and change the password,
-  then clear the variable from `.env` (section 5). Further admins are
-  created from the admin user pages.
+  `shared/.env`, run `php artisan config:cache` (the release caches its
+  config, so `.env` edits are invisible until then), run
+  `php artisan admin:bootstrap` (it creates the admin account whose email
+  is fixed in `BootstrapAdminCommand`, and refuses in production unless
+  `APP_URL` is `https`), clear the variable from `.env` (section 5) and run
+  `config:cache` and `sudo systemctl reload php-fpm` again. Sign in and
+  change the password. Further admins are created from the admin user
+  pages. Done 2026-10-29: the admin is `mprestoza@fullscale.ph`.
 
 ## 9. Backups, monitoring, recovery
 
@@ -699,11 +702,11 @@ Failed jobs land in `failed_jobs`; retry with `php artisan queue:retry all`.
 
 ## 10. Go-live order
 
-Status on 2026-10-29: steps 1 to 4 are done. Release `839a182` is live at
+Status on 2026-10-29: steps 1 to 4 and 6 are done. Release `839a182` is live at
 `https://3-142-192-133.sslip.io` (`.env` with mail on `log` and Google
 Drive off), the schema is migrated, the worker and the cron entry run, and
-nginx serves HTTPS for that name with automatic renewal (section 6). Next
-is step 5.
+nginx serves HTTPS for that name with automatic renewal (section 6), the
+L4 program is seeded and the first admin exists. Next is step 5.
 
 1. Create the application database user: `sudo training-create-db-user`
    (section 2).

@@ -70,6 +70,9 @@ up by the hourly run; see `WeekProgressionService::weekStates()`).
   is single-instance anyway, so it buys little until that changes).
 - Not publicly accessible; subnet group = the two private subnets; security
   group `training-db`.
+- Master credentials: self-managed password. Leave "Manage master
+  credentials in AWS Secrets Manager" unticked; no secrets manager is used
+  (see Secrets below).
 - Automated backups: 7-day retention, backup window outside Manila office
   hours (`APP_TIMEZONE=Asia/Manila`, so e.g. `18:00-19:00 UTC`). Enable
   deletion protection.
@@ -90,11 +93,22 @@ up by the hourly run; see `WeekProgressionService::weekStates()`).
 
 ### Secrets
 
-Keep the production `.env` out of Git. Store a copy of its secret values
-(`APP_KEY`, `DB_PASSWORD`, Google OAuth client secret, mail credentials) in
-AWS Secrets Manager or SSM Parameter Store (SecureString) so the instance can
-be rebuilt. The file on disk at `shared/.env` remains the source Laravel
-reads.
+No secrets manager is used. The only place Laravel reads secrets from is
+`shared/.env` on the instance (section 5); keep it out of Git and never copy
+it onto a developer machine.
+
+So the instance can be rebuilt, keep a second copy of the secret values in
+the team password manager, updated whenever one changes:
+
+- `APP_KEY`: the most important one. Settings saved on the admin Google
+  Drive page are encrypted with it; losing it makes them unreadable.
+- `DB_PASSWORD` (`dev_training_app`) and the RDS master password.
+- Google OAuth client secret and Picker API key.
+- Mail (SES SMTP) credentials.
+
+The daily EBS snapshot (section 9) also contains `.env`, but only inside
+AWS and only for its 14-day retention, so it is not a substitute for that
+copy.
 
 ## 3. Server provisioning
 
@@ -187,7 +201,7 @@ LOG_LEVEL=warning
 DB_HOST=<rds endpoint>
 DB_DATABASE=dev_training_platform
 DB_USERNAME=dev_training_app
-DB_PASSWORD=<from Secrets Manager>
+DB_PASSWORD=<dev_training_app password; copy kept in the team password manager>
 
 SESSION_DRIVER=database       # already DB-backed; nothing instance-local
 CACHE_STORE=database
@@ -493,7 +507,7 @@ weeks from Mon 9 Nov 2026, once. Re-running it is safe.
 |---------------------------|--------------------------------------------------------------------------------------|---------------------------------------------------|
 | Database                  | RDS automated backups, 7 days + a manual snapshot before every migrating release     | Restore snapshot to a temp instance, run `migrate:status` |
 | Uploads (`shared/private`)| AWS Data Lifecycle Manager daily EBS snapshot of the root volume, 14-day retention; optionally a nightly `aws s3 sync shared/private s3://<backup-bucket>/private` from cron | Mount a snapshot volume on a temp instance |
-| `.env`                    | Secrets in Secrets Manager / SSM; the file itself is in the EBS snapshot             | —                                                 |
+| `.env`                    | Secret values in the team password manager (section 2, Secrets); the file itself is in the EBS snapshot | Compare the password manager copy against `shared/.env` after each change |
 | Logs                      | CloudWatch agent tailing `shared/logs/laravel-*.log` and `worker.log`; 30-day retention | —                                              |
 
 CloudWatch alarms worth having from day one:
